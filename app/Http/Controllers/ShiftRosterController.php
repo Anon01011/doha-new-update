@@ -450,19 +450,30 @@ class ShiftRosterController extends Controller
             DB::beginTransaction();
 
             try {
+                $now = now();
+                $upsertData = [];
                 foreach ($sourceRosters as $roster) {
-                    ShiftRoster::updateOrCreate([
+                    $upsertData[] = [
                         'employee_id' => $roster->employee_id,
                         'company_id' => $roster->company_id,
                         'week_start' => $data['target_week'],
                         'day' => $roster->day,
-                    ], [
                         'shift_time' => $roster->shift_time,
                         'shift_type' => $roster->shift_type,
                         'designation' => $roster->designation,
                         'notes' => $roster->notes,
-                    ]);
-                    $duplicatedCount++;
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+
+                if (!empty($upsertData)) {
+                    ShiftRoster::upsert(
+                        $upsertData,
+                        ['employee_id', 'week_start', 'day'],
+                        ['shift_time', 'shift_type', 'designation', 'notes', 'company_id', 'updated_at']
+                    );
+                    $duplicatedCount = count($upsertData);
                 }
 
                 DB::commit();

@@ -1102,12 +1102,30 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
         $employeeIds = collect($attendances)->pluck('employee_id')->unique()->all();
         $employeesMap = Employee::with(['weeklyOffs', 'company'])->whereIn('id', $employeeIds)->get()->keyBy('id');
 
+        // Eager-load shift rosters and existing attendances in bulk to eliminate N+1 queries in loop
+        $maxDate = collect($attendances)->pluck('date')->max();
+        $rosters = ShiftRoster::whereIn('employee_id', $employeeIds)
+            ->where('week_start', '<=', $maxDate)
+            ->get()
+            ->groupBy('employee_id');
+
+        $dates = collect($attendances)->pluck('date')->unique()->all();
+        $existingAttendances = EmployeeAttendance::whereIn('employee_id', $employeeIds)
+            ->whereIn('date', $dates)
+            ->get()
+            ->groupBy(function ($item) {
+                return $item->employee_id . '_' . $item->date;
+            });
+
         // Get overtime rate from settings
         $overtimeRate = Setting::get('overtime_rate_multiplier', 1.5, $companyId);
         $weeklyOffService = app(WeeklyOffService::class);
 
         DB::beginTransaction();
         try {
+            $now = now();
+            $insertData = [];
+
             foreach ($attendances as $entry) {
                 // Skip empty entries
                 if (empty($entry['attendance']) && empty($entry['hours_worked'])) {
@@ -1130,12 +1148,14 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                     $otAmount = 0;
                     $roster = null;
                 } else {
-                    // Fetch rostered shift for this day
+                    // Fetch rostered shift for this day (from in-memory eager loaded collection)
                     $dayName = Carbon::parse($entry['date'])->format('l');
-                    $roster = ShiftRoster::where('employee_id', $entry['employee_id'])
-                        ->where('day', $dayName)
-                        ->where('week_start', '<=', $entry['date'])
-                        ->orderBy('week_start', 'desc')
+                    $employeeRosters = $rosters->get($entry['employee_id'], collect());
+                    $roster = $employeeRosters
+                        ->filter(function ($r) use ($dayName, $entry) {
+                            return $r->day === $dayName && $r->week_start <= $entry['date'];
+                        })
+                        ->sortByDesc('week_start')
                         ->first();
 
                     // Determine normal hours — prefer entry value, then roster shift duration, then company setting
@@ -1156,22 +1176,45 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                     }
                 }
 
-                EmployeeAttendance::updateOrCreate([
-                    'employee_id' => $entry['employee_id'],
-                    'company_id' => $entry['company_id'],
-                    'date' => $entry['date'],
-                ], [
-                    'shift_id' => $roster ? $roster->id : null,
-                    'attendance' => $entry['attendance'] ?? ($hoursWorked > 0 ? 'Present' : null),
-                    'from_time' => $entry['from_time'] ?? null,
-                    'to_time' => $entry['to_time'] ?? null,
-                    'hours_worked' => $hoursWorked,
-                    'normal_hours' => $normalHours,
-                    'ot' => $otHours,
-                    'ot_amt' => $otAmount,
-                    'reason' => $entry['reason'] ?? null,
-                ]);
+                $key = $entry['employee_id'] . '_' . $entry['date'];
+                $existing = $existingAttendances->get($key)?->first();
+
+                if ($existing) {
+                    $existing->update([
+                        'shift_id' => $roster ? $roster->id : null,
+                        'attendance' => $entry['attendance'] ?? ($hoursWorked > 0 ? 'Present' : null),
+                        'from_time' => $entry['from_time'] ?? null,
+                        'to_time' => $entry['to_time'] ?? null,
+                        'hours_worked' => $hoursWorked,
+                        'normal_hours' => $normalHours,
+                        'ot' => $otHours,
+                        'ot_amt' => $otAmount,
+                        'reason' => $entry['reason'] ?? null,
+                    ]);
+                } else {
+                    $insertData[] = [
+                        'employee_id' => $entry['employee_id'],
+                        'company_id' => $entry['company_id'],
+                        'date' => $entry['date'],
+                        'shift_id' => $roster ? $roster->id : null,
+                        'attendance' => $entry['attendance'] ?? ($hoursWorked > 0 ? 'Present' : null),
+                        'from_time' => $entry['from_time'] ?? null,
+                        'to_time' => $entry['to_time'] ?? null,
+                        'hours_worked' => $hoursWorked,
+                        'normal_hours' => $normalHours,
+                        'ot' => $otHours,
+                        'ot_amt' => $otAmount,
+                        'reason' => $entry['reason'] ?? null,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
             }
+
+            if (!empty($insertData)) {
+                EmployeeAttendance::insert($insertData);
+            }
+
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();

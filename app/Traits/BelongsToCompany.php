@@ -29,10 +29,14 @@ trait BelongsToCompany
 
                 if (!$companyId && $user->employee_id) {
                     // If company_id is not on user, get it from employee table directly 
-                    // to avoid triggering Eloquent global scopes recursively
-                    $companyId = \Illuminate\Support\Facades\DB::table('employees')
-                        ->where('id', $user->employee_id)
-                        ->value('company_id');
+                    // to avoid triggering Eloquent global scopes recursively (cached request-wide)
+                    static $employeeCompanyIds = [];
+                    if (!isset($employeeCompanyIds[$user->employee_id])) {
+                        $employeeCompanyIds[$user->employee_id] = \Illuminate\Support\Facades\DB::table('employees')
+                            ->where('id', $user->employee_id)
+                            ->value('company_id');
+                    }
+                    $companyId = $employeeCompanyIds[$user->employee_id];
                 }
 
                 if ($companyId) {
@@ -58,9 +62,13 @@ trait BelongsToCompany
                 $companyId = $user->company_id;
 
                 if (!$companyId && $user->employee_id) {
-                    $companyId = \Illuminate\Support\Facades\DB::table('employees')
-                        ->where('id', $user->employee_id)
-                        ->value('company_id');
+                    static $creatingCompanyIds = [];
+                    if (!isset($creatingCompanyIds[$user->employee_id])) {
+                        $creatingCompanyIds[$user->employee_id] = \Illuminate\Support\Facades\DB::table('employees')
+                            ->where('id', $user->employee_id)
+                            ->value('company_id');
+                    }
+                    $companyId = $creatingCompanyIds[$user->employee_id];
                 }
 
                 if ($companyId) {

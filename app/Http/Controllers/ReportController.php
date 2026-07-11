@@ -84,7 +84,12 @@ class ReportController extends Controller
             'companyId'   => $companyId,
             'employeeId'  => $employeeId,
             'companies'   => $user->role === 'admin' ? Company::orderBy('name')->get(['id', 'name']) : [],
-            'employees'   => !empty($companyIds) ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id']) : ($user->role === 'admin' ? Employee::orderBy('name')->get(['id', 'name', 'company_id']) : Employee::where('company_id', $user->employee->company_id)->orderBy('name')->get(['id', 'name', 'company_id'])),
+            'employees'   => !empty($companyIds) 
+                ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id']) 
+                : ($user->role === 'admin' 
+                    ? [] 
+                    : Employee::where('company_id', $user->employee->company_id)->orderBy('name')->get(['id', 'name', 'company_id'])
+                ),
             'settings'    => [
                 'standard_working_hours' => Setting::get('standard_working_hours', 9, !empty($companyIds) ? reset($companyIds) : null)
             ],
@@ -210,7 +215,7 @@ class ReportController extends Controller
             'employees' => !empty($companyIds) 
                 ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id']) 
                 : ($user->role === 'admin' 
-                    ? Employee::orderBy('name')->get(['id', 'name', 'company_id']) 
+                    ? [] 
                     : Employee::where('company_id', $user->employee->company_id)->orderBy('name')->get(['id', 'name', 'company_id'])
                 ),
         ]);
@@ -282,7 +287,7 @@ class ReportController extends Controller
             'employees' => !empty($companyIds) 
                 ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id']) 
                 : ($user->role === 'admin' 
-                    ? Employee::orderBy('name')->get(['id', 'name', 'company_id']) 
+                    ? [] 
                     : Employee::where('company_id', $user->employee->company_id)->orderBy('name')->get(['id', 'name', 'company_id'])
                 ),
         ]);
