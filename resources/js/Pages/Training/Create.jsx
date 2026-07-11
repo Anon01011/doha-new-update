@@ -1,8 +1,43 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, Link } from '@inertiajs/react';
-import { FaChalkboardTeacher, FaCalendarAlt, FaMapMarkerAlt, FaUsers, FaArrowLeft, FaSave, FaLayerGroup, FaShieldAlt, FaClock } from 'react-icons/fa';
+import { Head, useForm, Link, router } from '@inertiajs/react';
+import { FaChalkboardTeacher, FaCalendarAlt, FaMapMarkerAlt, FaUsers, FaArrowLeft, FaSave, FaLayerGroup, FaShieldAlt, FaClock, FaPlus } from 'react-icons/fa';
+import { useState } from 'react';
+import Modal from '@/Components/Modal';
 
 export default function Create({ companies, categories }) {
+    const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+    const [newCategory, setNewCategory] = useState({
+        name: '',
+        description: '',
+        color_code: '#4f46e5',
+    });
+    const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+    const [categoryError, setCategoryError] = useState('');
+
+    const handleAddCategorySubmit = async (e) => {
+        e.preventDefault();
+        if (!newCategory.name.trim()) return;
+        setIsCreatingCategory(true);
+        setCategoryError('');
+        try {
+            await window.axios.post(route('training-categories.store'), {
+                name: newCategory.name,
+                description: newCategory.description,
+                color_code: newCategory.color_code,
+                company_id: data.company_id,
+            });
+            setData('category', newCategory.name);
+            setNewCategory({ name: '', description: '', color_code: '#4f46e5' });
+            setIsCategoryModalOpen(false);
+            router.reload({ only: ['categories'] });
+        } catch (err) {
+            console.error(err);
+            setCategoryError(err.response?.data?.message || 'Failed to create category. Please try again.');
+        } finally {
+            setIsCreatingCategory(false);
+        }
+    };
+
     const { data, setData, post, processing, errors } = useForm({
         title: '',
         description: '',
@@ -95,23 +130,31 @@ export default function Create({ companies, categories }) {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <label className="text-sm font-normal text-slate-600">Category <span className="text-rose-500">*</span></label>
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-sm font-normal text-slate-600">Category <span className="text-rose-500">*</span></label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsCategoryModalOpen(true)}
+                                            className="text-xs text-primary hover:underline flex items-center gap-1 font-medium bg-transparent border-0 p-0 cursor-pointer"
+                                        >
+                                            <FaPlus size={8} /> Add Category
+                                        </button>
+                                    </div>
                                     <div className="relative">
-                                        <FaLayerGroup className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={12} />
-                                        <input
-                                            type="text"
-                                            list="categories-list"
+                                        <FaLayerGroup className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={12} />
+                                        <select
                                             className={`${inputClass('category')} pl-9`}
                                             value={data.category}
                                             onChange={(e) => setData('category', e.target.value)}
-                                            placeholder="Select or type a category"
                                             required
-                                        />
-                                        <datalist id="categories-list">
+                                        >
+                                            <option value="">Select Category</option>
                                             {categories?.map((cat) => (
-                                                <option key={cat.id} value={cat.name} />
+                                                <option key={cat.id} value={cat.name}>
+                                                    {cat.name}
+                                                </option>
                                             ))}
-                                        </datalist>
+                                        </select>
                                     </div>
                                     {errors.category && <p className="text-xs text-rose-500 mt-1">{errors.category}</p>}
                                 </div>
@@ -254,6 +297,92 @@ export default function Create({ companies, categories }) {
                     </div>
                 </form>
             </div>
+
+            <Modal show={isCategoryModalOpen} onClose={() => setIsCategoryModalOpen(false)} maxWidth="md">
+                <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white rounded-t-lg">
+                    <h3 className="text-base font-normal text-slate-800 tracking-normal flex items-center gap-2">
+                        <FaLayerGroup className="text-primary" size={14} />
+                        Add New Training Category
+                    </h3>
+                    <button 
+                        type="button" 
+                        onClick={() => setIsCategoryModalOpen(false)} 
+                        className="text-slate-400 hover:text-slate-600 transition-colors text-xl font-semibold"
+                    >
+                        ×
+                    </button>
+                </div>
+
+                <form onSubmit={handleAddCategorySubmit} className="p-6 space-y-4 bg-white rounded-b-lg">
+                    {categoryError && (
+                        <div className="p-3 bg-rose-50 text-rose-600 text-xs rounded-lg border border-rose-100">
+                            {categoryError}
+                        </div>
+                    )}
+
+                    <div className="space-y-1">
+                        <label className="text-xs font-normal text-slate-600 uppercase tracking-normal">Category Name <span className="text-rose-500">*</span></label>
+                        <input
+                            type="text"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none"
+                            value={newCategory.name}
+                            onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
+                            placeholder="e.g. Technical Skills"
+                            required
+                            autoFocus
+                        />
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-xs font-normal text-slate-600 uppercase tracking-normal">Description</label>
+                        <textarea
+                            rows="3"
+                            className="w-full p-3 bg-white border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none resize-none"
+                            value={newCategory.description}
+                            onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
+                            placeholder="Describe the category objectives..."
+                        />
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-xs font-normal text-slate-600 uppercase tracking-normal">Color Code</label>
+                        <div className="flex gap-2">
+                            <input
+                                type="color"
+                                className="w-10 h-10 border border-slate-200 rounded-lg cursor-pointer p-0.5 bg-white shrink-0"
+                                value={newCategory.color_code}
+                                onChange={(e) => setNewCategory({ ...newCategory, color_code: e.target.value })}
+                            />
+                            <input
+                                type="text"
+                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none"
+                                value={newCategory.color_code}
+                                onChange={(e) => setNewCategory({ ...newCategory, color_code: e.target.value })}
+                                placeholder="#4f46e5"
+                                maxLength="7"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="pt-4 flex gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setIsCategoryModalOpen(false)}
+                            className="flex-1 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-normal hover:bg-slate-50 transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isCreatingCategory}
+                            className="flex-1 px-4 py-2 bg-primary text-white rounded-lg text-sm font-normal hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {isCreatingCategory ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
+                            {isCreatingCategory ? 'Saving...' : 'Add Category'}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
         </AuthenticatedLayout>
     );
 }
