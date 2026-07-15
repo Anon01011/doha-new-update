@@ -5,9 +5,10 @@ namespace App\Notifications;
 use App\Models\Loan;
 use App\Models\Employee;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 
-class LoanInstallmentPaidAdmin extends Notification
+class LoanInstallmentPaidAdmin extends Notification implements ShouldQueue
 {
     use Queueable;
 

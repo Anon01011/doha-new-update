@@ -3,9 +3,10 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 
-class LoanStatusUpdated extends Notification
+class LoanStatusUpdated extends Notification implements ShouldQueue
 {
     use Queueable;
 

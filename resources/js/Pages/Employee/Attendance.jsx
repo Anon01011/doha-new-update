@@ -138,6 +138,8 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
             case 'Absent': return 'bg-red-100 text-red-700 border-red-200';
             case 'Late': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
             case 'Half Day': return 'bg-orange-100 text-orange-700 border-orange-200';
+            case 'Leave': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+            case 'Weekly Off': return 'bg-amber-100 text-amber-700 border-amber-200';
             default: return 'bg-gray-100 text-gray-700 border-gray-200';
         }
     };
@@ -358,9 +360,17 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
                         <div className="px-6 py-5 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
                             <div>
                                 <h3 className="text-base font-semibold text-slate-900">Attendance Breakup</h3>
-                                <p className="text-[10px] text-slate-400 uppercase mt-1 tracking-normal font-normal">
-                                    {new Date(selectedBreakup.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                </p>
+                                {(() => {
+                                    const totalWorked = parseFloat(selectedBreakup.attendance.hours_worked || 0);
+                                    const totalHrs = Math.floor(totalWorked);
+                                    const totalMins = Math.round((totalWorked - totalHrs) * 60);
+                                    const totalDisplay = totalWorked > 0 ? `${totalHrs}hrs ${totalMins} min` : '0hrs 0 min';
+                                    return (
+                                        <p className="text-[10px] text-slate-400 uppercase mt-1 tracking-normal font-normal">
+                                            {new Date(selectedBreakup.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} • Total Worked: <span className="font-bold text-xs text-slate-700">{totalDisplay}</span>
+                                        </p>
+                                    );
+                                })()}
                             </div>
                             <button
                                 type="button"
@@ -376,26 +386,54 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
                         {/* Modal Body */}
                         <div className="p-6 overflow-y-auto space-y-6">
                             {/* Summary Cards */}
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
-                                    <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Worked Hours</p>
-                                    <p className={`text-lg font-bold ${parseFloat(selectedBreakup.attendance.hours_worked || 0) < parseFloat(settings?.standard_working_hours || 9)
-                                            ? 'text-rose-600'
-                                            : 'text-emerald-600'
-                                        }`}>{selectedBreakup.attendance.hours_worked || '0.00'}h</p>
+                            {(() => {
+                                const worked = parseFloat(selectedBreakup.attendance.hours_worked || 0);
+                                const std = parseFloat(settings?.standard_working_hours || 9);
+                                const regularHours = Math.min(worked, std);
+                                
+                                const otHoursVal = worked > std ? worked - std : 0;
+                                const otHrs = Math.floor(otHoursVal);
+                                const otMins = Math.round((otHoursVal - otHrs) * 60);
+                                const otDisplay = otHoursVal > 0 ? `${otHrs}h ${otMins}m` : '0h 0m';
+
+                                return (
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
+                                            <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Regular Hours</p>
+                                            <p className={`text-lg font-bold ${
+                                                worked < std ? 'text-rose-600' : 'text-emerald-600'
+                                            }`}>{fmt(regularHours)}h</p>
+                                        </div>
+                                        <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
+                                            <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Break Time</p>
+                                            <p className="text-lg font-semibold text-amber-600">{selectedBreakup.attendance.total_break_minutes || 0}m</p>
+                                        </div>
+                                        <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
+                                            <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Overtime</p>
+                                            <p className={`text-lg font-bold ${
+                                                otHoursVal > 0 ? 'text-orange-500 font-bold' : 'text-slate-400'
+                                            }`}>{otDisplay}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {parseFloat(selectedBreakup.attendance.hours_worked || 0) > 0 && 
+                             parseFloat(selectedBreakup.attendance.hours_worked || 0) < parseFloat(settings?.standard_working_hours || 9) && (
+                                <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl flex gap-3 items-start animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <svg className="w-5 h-5 text-rose-500 shrink-0 mt-0.5 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    <div>
+                                        <p className="text-xs font-semibold text-rose-800">Hours Under Standard Requirement</p>
+                                        <p className="text-[11px] text-rose-600 mt-1 leading-relaxed">
+                                            Worked {selectedBreakup.attendance.hours_worked}h which is below the target of {settings?.standard_working_hours || 9}h. 
+                                            <span className="block mt-1 font-semibold text-rose-700">💡 Tip for Improvement:</span>
+                                            Focus on core assignments, structure break times effectively, and plan daily goals to meet the standard hours.
+                                        </p>
+                                    </div>
                                 </div>
-                                <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
-                                    <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Break Time</p>
-                                    <p className="text-lg font-semibold text-amber-600">{selectedBreakup.attendance.total_break_minutes || 0}m</p>
-                                </div>
-                                <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
-                                    <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Overtime</p>
-                                    <p className={`text-lg font-bold ${parseFloat(selectedBreakup.attendance.ot || 0) > 0
-                                            ? 'text-orange-500 font-bold'
-                                            : 'text-slate-400'
-                                        }`}>{selectedBreakup.attendance.ot || '0.00'}h</p>
-                                </div>
-                            </div>
+                            )}
 
                             {/* Timeline */}
                             <div className="space-y-4">

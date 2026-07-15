@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class TrainingSessionAttendance extends Model
 {
+    use \App\Traits\BelongsToCompany;
+
     protected $table = 'training_session_attendance';
 
     protected $fillable = [

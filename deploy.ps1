@@ -34,6 +34,10 @@ php artisan migrate --force
 # 7. Clear and Cache Config/Routes/Views
 Write-Host "Optimizing application..." -ForegroundColor Yellow
 php artisan optimize
+php artisan view:cache
+php artisan event:cache
+try { php artisan storage:link } catch {}
+php artisan queue:restart
 
 # 8. Bring application back up
 Write-Host "Bringing application out of maintenance mode..." -ForegroundColor Yellow

@@ -12,6 +12,8 @@ use App\Models\TrainingQuizAttempt;
 
 class TrainingAssignment extends Model
 {
+    use \App\Traits\BelongsToCompany;
+
     protected $fillable = [
         'training_id',
         'employee_id',
@@ -74,16 +76,7 @@ class TrainingAssignment extends Model
         return $this->hasOne(TrainingEvaluation::class);
     }
 
-    // Global scope for multi-tenancy
-    protected static function booted()
-    {
-        static::addGlobalScope('company', function ($query) {
-            $user = auth()->user();
-            if ($user && $user->employee_id && $user->employee) {
-                $query->where('training_assignments.company_id', $user->employee->company_id);
-            }
-        });
-    }
+
 
     /**
      * Recalculate and update the progress percentage.
@@ -170,7 +163,7 @@ class TrainingAssignment extends Model
 
         if ($finalProgress == 100 && $status !== 'completed') {
             $status = 'completed';
-            $this->completion_date = now()->toDateString();
+            $this->completion_date = today();
             // TODO: Auto-generate certificate here?
         } elseif ($finalProgress > 0 && $status === 'assigned') {
             $status = 'in_progress';

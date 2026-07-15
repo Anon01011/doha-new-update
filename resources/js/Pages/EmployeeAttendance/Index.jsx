@@ -20,6 +20,30 @@ function getWeekDays(startDate) {
     return days;
 }
 
+function isEmployeeWeeklyOff(emp, dateStr) {
+    if (!emp) return false;
+    const date = new Date(dateStr);
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }); // e.g. "Monday"
+
+    // 1. Check staff-wise weekly off
+    const weeklyOffs = emp.weekly_offs || emp.weeklyOffs;
+    if (Array.isArray(weeklyOffs) && weeklyOffs.length > 0) {
+        const staffOff = [...weeklyOffs]
+            .filter(w => w.effective_date && w.effective_date.slice(0, 10) <= dateStr)
+            .sort((a, b) => b.effective_date.localeCompare(a.effective_date))[0];
+        if (staffOff) {
+            return staffOff.weekly_off_day === dayName;
+        }
+    }
+
+    // 2. Fallback to branch-level weekly off days
+    if (emp.company && Array.isArray(emp.company.weekly_off_days)) {
+        return emp.company.weekly_off_days.includes(dayName);
+    }
+
+    return false;
+}
+
 function parsePunches(punches = [], normalHours = 8) {
     if (!punches || punches.length === 0) return null;
 
@@ -209,6 +233,20 @@ export default function Index({ branches = [], employees, attendances = [], rost
         return parseFloat((diff / 60).toFixed(2));
     };
 
+    const getNormalHours = (empId, date) => {
+        const dateObj = new Date(date);
+        const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+        const plannedShift = rosterMap[`${empId}_${dayName}`];
+        const stdHours = parseFloat(settings?.standard_working_hours || 9);
+        if (plannedShift && plannedShift.shift_time) {
+            const times = parseShiftTime(plannedShift.shift_time);
+            if (times) {
+                return calculateHours(times.from, times.to) || stdHours;
+            }
+        }
+        return stdHours;
+    };
+
     const handleCellChange = (empId, date, field, value) => {
         if (isEmployee) return;
         const key = `${empId}_${date}`;
@@ -231,8 +269,9 @@ export default function Index({ branches = [], employees, attendances = [], rost
                             updates.to_time = times.to;
                             const hours = calculateHours(times.from, times.to);
                             updates.hours_worked = hours;
-                            updates.normal_hours = 8;
-                            updates.ot = hours > 8 ? hours - 8 : 0;
+                            const normal = getNormalHours(empId, date);
+                            updates.normal_hours = normal;
+                            updates.ot = hours > normal ? hours - normal : 0;
                         }
                     }
                 }
@@ -243,10 +282,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                 if (from && to) {
                     const hours = calculateHours(from, to);
                     updates.hours_worked = hours;
-                    const dateObj = new Date(date);
-                    const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
-                    const plannedShift = rosterMap[`${empId}_${dayName}`];
-                    const normal = plannedShift ? 8 : 0;
+                    const normal = getNormalHours(empId, date);
                     updates.normal_hours = normal;
                     updates.ot = hours > normal ? hours - normal : 0;
                 }
@@ -262,6 +298,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
         setEditData(prev => {
             const key = `${empId}_${date}`;
             const hours = times ? calculateHours(times.from, times.to) : 0;
+            const normal = getNormalHours(empId, date);
             return {
                 ...prev,
                 [key]: {
@@ -272,8 +309,8 @@ export default function Index({ branches = [], employees, attendances = [], rost
                     from_time: times ? times.from : prev[key].from_time,
                     to_time: times ? times.to : prev[key].to_time,
                     hours_worked: hours,
-                    normal_hours: 8,
-                    ot: hours > 8 ? hours - 8 : 0,
+                    normal_hours: normal,
+                    ot: hours > normal ? hours - normal : 0,
                 }
             };
         });
@@ -362,10 +399,18 @@ export default function Index({ branches = [], employees, attendances = [], rost
             onError: (errors) => {
                 setImportProcessing(false);
                 console.error(errors);
+                
+                let errorMsg = 'Failed to import attendance. Please check the file format.';
+                if (errors.import_errors) {
+                    errorMsg = errors.import_errors;
+                } else if (errors.file) {
+                    errorMsg = errors.file;
+                }
+
                 setConfirmingAction({
                     show: true,
-                    title: 'Import Failed',
-                    message: 'Failed to import attendance. Please check the file format.',
+                    title: 'Import Errors Found',
+                    message: errorMsg,
                     type: 'danger',
                     hideCancel: true,
                     onConfirm: closeModal
@@ -536,12 +581,14 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                              const dateObj = new Date(day.date);
                                              const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
                                              const plannedShift = rosterMap[`${emp.id}_${dayName}`];
-                                             const isWeeklyOff = cell.attendance === 'Weekly Off' || (plannedShift && plannedShift.is_weekly_off);
+                                             const isWeeklyOff = cell.attendance === 'Weekly Off' || (plannedShift && plannedShift.is_weekly_off) || isEmployeeWeeklyOff(emp, day.date);
+                                             const isLeave = cell.attendance === 'Leave';
 
                                              return (
                                                  <td key={day.date} className="px-2 py-2 align-top border-r border-slate-50 last:border-r-0">
                                                      <div className={`p-2 rounded-lg border transition-all duration-300 ${
                                                          isWeeklyOff ? 'bg-amber-50/70 border-amber-200 shadow-sm shadow-amber-100/30' :
+                                                         isLeave ? 'bg-indigo-50/70 border-indigo-200 shadow-sm shadow-indigo-100/30' :
                                                          cell.attendance === 'Absent' ? 'bg-rose-50 border-rose-100 shadow-sm shadow-rose-100/50' : 
                                                          cell.attendance === 'Late' ? 'bg-amber-50 border-amber-100 shadow-sm shadow-amber-100/50' : 
                                                          cell.attendance === 'Present' ? 'bg-white border-primary/20 shadow-sm ring-1 ring-primary/5' :
@@ -553,17 +600,20 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                                                  <select
                                                                      className={`p-0 pr-4 text-[10px] font-medium uppercase tracking-normal border-none bg-transparent bg-none focus:ring-0 cursor-pointer appearance-none transition-colors ${
                                                                          isWeeklyOff ? 'text-amber-600 font-bold' :
+                                                                         isLeave ? 'text-indigo-600 font-bold' :
                                                                          cell.attendance === 'Absent' ? 'text-rose-600' : 
                                                                          cell.attendance === 'Late' ? 'text-amber-600' : 
                                                                          cell.attendance === 'Present' ? 'text-primary' :
                                                                          'text-slate-400 hover:text-slate-600'
                                                                      }`}
-                                                                     value={isWeeklyOff ? 'Weekly Off' : (cell.attendance || '')}
+                                                                     value={isWeeklyOff ? 'Weekly Off' : isLeave ? 'Leave' : (cell.attendance || '')}
                                                                      onChange={e => handleCellChange(emp.id, day.date, 'attendance', e.target.value)}
-                                                                     disabled={isEmployee || isWeeklyOff}
+                                                                     disabled={isEmployee || isWeeklyOff || isLeave}
                                                                  >
                                                                      {isWeeklyOff ? (
                                                                          <option value="Weekly Off">WEEKLY OFF</option>
+                                                                     ) : isLeave ? (
+                                                                         <option value="Leave">LEAVE</option>
                                                                      ) : (
                                                                          <>
                                                                              <option value="">STATUS</option>
@@ -574,13 +624,14 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                                                  </select>
                                                                  <FiChevronDown className={`w-3 h-3 -ml-3 pointer-events-none transition-colors ${
                                                                      isWeeklyOff ? 'text-amber-500' :
+                                                                     isLeave ? 'text-indigo-500' :
                                                                      cell.attendance === 'Absent' ? 'text-rose-500' : 
                                                                      cell.attendance === 'Late' ? 'text-amber-500' : 
                                                                      cell.attendance === 'Present' ? 'text-primary' :
                                                                      'text-slate-400 group-hover/sel:text-slate-600'
                                                                  }`} />
                                                              </div>
-                                                             {plannedShift && !isWeeklyOff && (
+                                                             {plannedShift && !isWeeklyOff && !isLeave && (
                                                                  <button 
                                                                      type="button" 
                                                                      onClick={() => applyRoster(emp.id, day.date, plannedShift)} 
@@ -598,9 +649,9 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                                                  <input
                                                                      type="time"
                                                                      className="w-full text-[10px] p-1 border border-slate-100 rounded-md bg-white focus:border-primary focus:ring-4 focus:ring-primary/5 text-center font-normal transition-all h-7 outline-none disabled:opacity-50 disabled:bg-slate-100/50"
-                                                                     value={isWeeklyOff ? '' : (cell.from_time || '')}
+                                                                     value={isWeeklyOff || isLeave ? '' : (cell.from_time || '')}
                                                                      onChange={e => handleCellChange(emp.id, day.date, 'from_time', e.target.value)}
-                                                                     disabled={isEmployee || isWeeklyOff}
+                                                                     disabled={isEmployee || isWeeklyOff || isLeave}
                                                                  />
                                                                  <span className="absolute -top-2 left-2 px-1 bg-white text-[7px] font-normal text-slate-300 uppercase tracking-normal border border-slate-100 rounded">IN</span>
                                                              </div>
@@ -608,9 +659,9 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                                                  <input
                                                                      type="time"
                                                                      className="w-full text-[10px] p-1 border border-slate-100 rounded-md bg-white focus:border-primary focus:ring-4 focus:ring-primary/5 text-center font-normal transition-all h-7 outline-none disabled:opacity-50 disabled:bg-slate-100/50"
-                                                                     value={isWeeklyOff ? '' : (cell.to_time || '')}
+                                                                     value={isWeeklyOff || isLeave ? '' : (cell.to_time || '')}
                                                                      onChange={e => handleCellChange(emp.id, day.date, 'to_time', e.target.value)}
-                                                                     disabled={isEmployee || isWeeklyOff}
+                                                                     disabled={isEmployee || isWeeklyOff || isLeave}
                                                                  />
                                                                  <span className="absolute -top-2 left-2 px-1 bg-white text-[7px] font-normal text-slate-300 uppercase tracking-normal border border-slate-100 rounded">OUT</span>
                                                              </div>
@@ -621,11 +672,11 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                                              <div className="relative flex-1">
                                                                  <input
                                                                      type="text"
-                                                                     placeholder={isWeeklyOff ? 'Weekly Off' : 'Add note...'}
+                                                                     placeholder={isWeeklyOff ? 'Weekly Off' : isLeave ? 'On Leave' : 'Add note...'}
                                                                      className="w-full min-w-0 text-[9px] px-0 py-1 bg-transparent border-none focus:ring-0 text-slate-600 font-normal placeholder:text-slate-300 placeholder:font-normal disabled:opacity-50"
-                                                                     value={isWeeklyOff ? '' : (cell.reason || '')}
+                                                                     value={isWeeklyOff ? '' : isLeave ? (cell.reason || 'On Leave') : (cell.reason || '')}
                                                                      onChange={e => handleCellChange(emp.id, day.date, 'reason', e.target.value)}
-                                                                     disabled={isEmployee || isWeeklyOff}
+                                                                     disabled={isEmployee || isWeeklyOff || isLeave}
                                                                  />
                                                              </div>
                                                              {cell.hours_worked > 0 && (() => {
@@ -710,9 +761,17 @@ export default function Index({ branches = [], employees, attendances = [], rost
                         <div className="px-6 py-5 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
                             <div>
                                 <h3 className="text-base font-semibold text-slate-900">Attendance Breakup</h3>
-                                <p className="text-[10px] text-slate-400 uppercase mt-1 tracking-normal font-normal">
-                                    {selectedBreakup.employee.name} • {new Date(selectedBreakup.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                </p>
+                                {(() => {
+                                    const totalWorked = parseFloat(selectedBreakup.attendance.hours_worked || 0);
+                                    const totalHrs = Math.floor(totalWorked);
+                                    const totalMins = Math.round((totalWorked - totalHrs) * 60);
+                                    const totalDisplay = totalWorked > 0 ? `${totalHrs}hrs ${totalMins} min` : '0hrs 0 min';
+                                    return (
+                                        <p className="text-[10px] text-slate-400 uppercase mt-1 tracking-normal font-normal">
+                                            {selectedBreakup.employee.name} • {new Date(selectedBreakup.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} • Total Worked: <span className="font-bold text-xs text-slate-700">{totalDisplay}</span>
+                                        </p>
+                                    );
+                                })()}
                             </div>
                             <button
                                 type="button"
@@ -728,28 +787,54 @@ export default function Index({ branches = [], employees, attendances = [], rost
                         {/* Modal Body */}
                         <div className="p-6 overflow-y-auto space-y-6">
                             {/* Summary Cards */}
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
-                                    <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Worked Hours</p>
-                                    <p className={`text-lg font-bold ${
-                                        parseFloat(selectedBreakup.attendance.hours_worked || 0) < parseFloat(settings?.standard_working_hours || 9)
-                                            ? 'text-rose-600'
-                                            : 'text-emerald-600'
-                                    }`}>{selectedBreakup.attendance.hours_worked || '0.00'}h</p>
+                            {(() => {
+                                const worked = parseFloat(selectedBreakup.attendance.hours_worked || 0);
+                                const std = parseFloat(settings?.standard_working_hours || 9);
+                                const regularHours = Math.min(worked, std);
+                                
+                                const otHoursVal = worked > std ? worked - std : 0;
+                                const otHrs = Math.floor(otHoursVal);
+                                const otMins = Math.round((otHoursVal - otHrs) * 60);
+                                const otDisplay = otHoursVal > 0 ? `${otHrs}h ${otMins}m` : '0h 0m';
+
+                                return (
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
+                                            <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Regular Hours</p>
+                                            <p className={`text-lg font-bold ${
+                                                worked < std ? 'text-rose-600' : 'text-emerald-600'
+                                            }`}>{fmt(regularHours)}h</p>
+                                        </div>
+                                        <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
+                                            <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Break Time</p>
+                                            <p className="text-lg font-semibold text-amber-600">{selectedBreakup.attendance.total_break_minutes || 0}m</p>
+                                        </div>
+                                        <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
+                                            <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Overtime</p>
+                                            <p className={`text-lg font-bold ${
+                                                otHoursVal > 0 ? 'text-orange-500 font-bold' : 'text-slate-400'
+                                            }`}>{otDisplay}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {parseFloat(selectedBreakup.attendance.hours_worked || 0) > 0 && 
+                             parseFloat(selectedBreakup.attendance.hours_worked || 0) < parseFloat(settings?.standard_working_hours || 9) && (
+                                <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl flex gap-3 items-start animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <svg className="w-5 h-5 text-rose-500 shrink-0 mt-0.5 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    <div>
+                                        <p className="text-xs font-semibold text-rose-800">Hours Under Standard Requirement</p>
+                                        <p className="text-[11px] text-rose-600 mt-1 leading-relaxed">
+                                            Worked {selectedBreakup.attendance.hours_worked}h which is below the target of {settings?.standard_working_hours || 9}h. 
+                                            <span className="block mt-1 font-semibold text-rose-700">💡 Tip for Improvement:</span>
+                                            Focus on core assignments, structure break times effectively, and plan daily goals to meet the standard hours.
+                                        </p>
+                                    </div>
                                 </div>
-                                <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
-                                    <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Break Time</p>
-                                    <p className="text-lg font-semibold text-amber-600">{selectedBreakup.attendance.total_break_minutes || 0}m</p>
-                                </div>
-                                <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
-                                    <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Overtime</p>
-                                    <p className={`text-lg font-bold ${
-                                        parseFloat(selectedBreakup.attendance.ot || 0) > 0
-                                            ? 'text-orange-500 font-bold'
-                                            : 'text-slate-400'
-                                    }`}>{selectedBreakup.attendance.ot || '0.00'}h</p>
-                                </div>
-                            </div>
+                            )}
 
                             {/* Timeline */}
                             <div className="space-y-4">

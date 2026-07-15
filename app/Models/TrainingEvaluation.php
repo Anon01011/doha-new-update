@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class TrainingEvaluation extends Model
 {
+    use \App\Traits\BelongsToCompany;
+
     protected $fillable = [
         'training_assignment_id',
         'employee_id',

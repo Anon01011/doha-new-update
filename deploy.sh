@@ -37,6 +37,10 @@ php artisan migrate --force
 # 7. Clear and Cache Config/Routes/Views
 echo -e "\033[33mOptimizing application...\033[0m"
 php artisan optimize
+php artisan view:cache
+php artisan event:cache
+php artisan storage:link || true
+php artisan queue:restart
 
 # 8. Bring application back up
 echo -e "\033[33mBringing application out of maintenance mode...\033[0m"

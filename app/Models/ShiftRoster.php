@@ -21,6 +21,10 @@ class ShiftRoster extends Model
         'notes',
     ];
 
+    protected $appends = [
+        'shift_duration',
+    ];
+
     protected $casts = [
         'week_start' => 'date',
         'created_at' => 'datetime',
@@ -206,7 +210,7 @@ class ShiftRoster extends Model
         $endTime = $this->shift_end_time;
 
         if ($startTime && $endTime) {
-            return $startTime->diffInHours($endTime, true);
+            return round($startTime->diffInMinutes($endTime, true) / 60, 2);
         }
 
         return null;
