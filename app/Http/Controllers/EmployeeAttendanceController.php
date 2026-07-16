@@ -497,7 +497,6 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
 
         $rosters = $rostersQuery->with(['employee.weeklyOffs', 'employee.company'])->get()->map(function ($roster) {
             $roster->is_weekly_off = $roster->isWeeklyOffDay();
-            $roster->shift_duration = $roster->shift_duration;
             return $roster;
         });
 
