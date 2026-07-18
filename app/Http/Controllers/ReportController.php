@@ -18,6 +18,9 @@ use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use App\Models\Setting;
 use App\Models\Company;
 use App\Services\WeeklyOffService;
@@ -774,6 +777,83 @@ class ReportController extends Controller
                 $sheet->setCellValue('P' . $row, $statusDisplay);
                 $row++;
             }
+        }
+
+        // --- Styling the Spreadsheet ---
+        $lastRow = $row - 1;
+        $totalCols = count($headers);
+        $lastColLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalCols);
+
+        // Header Row Styling
+        $headerRange = 'A1:' . $lastColLetter . '1';
+        $sheet->getStyle($headerRange)->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'color' => ['rgb' => 'FFFFFF'],
+                'size' => 10,
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => '1E293B'], // Slate 800
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical' => Alignment::VERTICAL_CENTER,
+                'wrapText' => true,
+            ],
+        ]);
+        $sheet->getRowDimension(1)->setRowHeight(32);
+
+        // Data Rows Styling
+        if ($lastRow >= 2) {
+            // Apply borders to all cells
+            $fullRange = 'A1:' . $lastColLetter . $lastRow;
+            $sheet->getStyle($fullRange)->applyFromArray([
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['rgb' => 'E2E8F0'], // Soft border
+                    ],
+                ],
+            ]);
+
+            // Alternate row background colors and set heights
+            for ($r = 2; $r <= $lastRow; $r++) {
+                $sheet->getRowDimension($r)->setRowHeight(22);
+                if ($r % 2 === 0) {
+                    $sheet->getStyle('A' . $r . ':' . $lastColLetter . $r)->applyFromArray([
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'startColor' => ['rgb' => 'F8FAFC'],
+                        ],
+                    ]);
+                }
+            }
+
+            // Set column alignments
+            if ($reportType === 'summary') {
+                $centerCols = ['A', 'E', 'F', 'G', 'H', 'I', 'J'];
+                $rightCols = ['K', 'L'];
+            } elseif ($reportType === 'overtime') {
+                $centerCols = ['A', 'B'];
+                $rightCols = ['E', 'F', 'G', 'H', 'I'];
+            } else {
+                $centerCols = ['A', 'B', 'D', 'J', 'K', 'P'];
+                $rightCols = ['C', 'H', 'I', 'L', 'M', 'N', 'O'];
+            }
+
+            foreach ($centerCols as $col) {
+                $sheet->getStyle($col . '2:' . $col . $lastRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            }
+            foreach ($rightCols as $col) {
+                $sheet->getStyle($col . '2:' . $col . $lastRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            }
+        }
+
+        // Auto-fit column widths
+        for ($i = 1; $i <= $totalCols; $i++) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
+            $sheet->getColumnDimension($colLetter)->setAutoSize(true);
         }
 
         $writer = new Xlsx($spreadsheet);
