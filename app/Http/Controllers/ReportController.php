@@ -609,72 +609,14 @@ class ReportController extends Controller
         $attendances = $query->orderBy('date')->get();
 
         $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
 
-        if ($reportType === 'summary') {
-            $sheet->setTitle('Attendance Summary Report');
-            $headers = ['Employee ID', 'Employee Name', 'Company', 'Department', 'Total Days', 'Present', 'Incomplete', 'Absent', 'Leave', 'Weekly Off', 'Total Work Hours', 'Total OT Hours'];
-            foreach ($headers as $key => $header) {
-                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
-                $sheet->setCellValue($colLetter . '1', $header);
-                $sheet->getStyle($colLetter . '1')->getFont()->setBold(true);
-            }
-
-            // Group by employee
-            $grouped = $attendances->groupBy('employee_id');
-            $row = 2;
-            foreach ($grouped as $empId => $empAttendances) {
-                $first = $empAttendances->first();
-                
-                $present = 0;
-                $incomplete = 0;
-                $absent = 0;
-                $leave = 0;
-                $weeklyOff = 0;
-
-                foreach ($empAttendances as $a) {
-                    $rawStatus = $a->attendance;
-                    if (stripos($rawStatus, 'leave') !== false) {
-                        $leave++;
-                    } elseif (stripos($rawStatus, 'off') !== false || stripos($rawStatus, 'weekly') !== false) {
-                        $weeklyOff++;
-                    } else {
-                        $std = $a->normal_hours ?: Setting::get('standard_working_hours', 9, $a->company_id);
-                        $worked = $a->hours_worked ?: 0;
-                        if ($worked > 0 && $worked < $std) {
-                            $incomplete++;
-                        } elseif ($worked >= $std) {
-                            $present++;
-                        } else {
-                            $absent++;
-                        }
-                    }
-                }
-
-                $workHours = $empAttendances->sum('hours_worked');
-                $otHours = $empAttendances->sum('ot');
-
-                $sheet->setCellValue('A' . $row, $first->employee->employee_code ?? '-');
-                $sheet->setCellValue('B' . $row, $first->employee->name);
-                $sheet->setCellValue('C' . $row, $first->company->name ?? '-');
-                $sheet->setCellValue('D' . $row, $first->employee->department->name ?? '-');
-                $sheet->setCellValue('E' . $row, $empAttendances->count());
-                $sheet->setCellValue('F' . $row, $present);
-                $sheet->setCellValue('G' . $row, $incomplete);
-                $sheet->setCellValue('H' . $row, $absent);
-                $sheet->setCellValue('I' . $row, $leave);
-                $sheet->setCellValue('J' . $row, $weeklyOff);
-                $sheet->setCellValue('K' . $row, $workHours);
-                $sheet->setCellValue('L' . $row, $otHours);
-                $row++;
-            }
-        } elseif ($reportType === 'overtime') {
+        if ($reportType === 'overtime') {
+            $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('Overtime Report');
             $headers = ['Date', 'Employee ID', 'Employee Name', 'Company', 'Normal Hours', 'Actual Hours', 'OT Hours', 'OT Rate', 'OT Amount'];
             foreach ($headers as $key => $header) {
                 $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
                 $sheet->setCellValue($colLetter . '1', $header);
-                $sheet->getStyle($colLetter . '1')->getFont()->setBold(true);
             }
 
             $row = 2;
@@ -690,9 +632,88 @@ class ReportController extends Controller
                 $sheet->setCellValue('I' . $row, $attendance->ot_amt);
                 $row++;
             }
+
+            // Style Overtime Report
+            $lastRow = $row - 1;
+            $totalCols = count($headers);
+            $lastColLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalCols);
+
+            $sheet->getStyle('A1:' . $lastColLetter . '1')->applyFromArray([
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 10],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1E293B']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+            ]);
+            $sheet->getRowDimension(1)->setRowHeight(32);
+
+            if ($lastRow >= 2) {
+                $sheet->getStyle('A1:' . $lastColLetter . $lastRow)->applyFromArray([
+                    'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'E2E8F0']]],
+                ]);
+                for ($r = 2; $r <= $lastRow; $r++) {
+                    $sheet->getRowDimension($r)->setRowHeight(22);
+                    if ($r % 2 === 0) {
+                        $sheet->getStyle('A' . $r . ':' . $lastColLetter . $r)->applyFromArray([
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F8FAFC']],
+                        ]);
+                    }
+                }
+                $centerCols = ['A', 'B'];
+                $rightCols = ['E', 'F', 'G', 'H', 'I'];
+                foreach ($centerCols as $col) {
+                    $sheet->getStyle($col . '2:' . $col . $lastRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                }
+                foreach ($rightCols as $col) {
+                    $sheet->getStyle($col . '2:' . $col . $lastRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                }
+            }
+            for ($i = 1; $i <= $totalCols; $i++) {
+                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
+                $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+            }
         } else {
-            $sheet->setTitle('Attendance Detail Report');
-            $headers = [
+            // Eager load employees that match current filter (avoid N+1)
+            $employeeQuery = Employee::with(['weeklyOffs', 'company', 'department']);
+            if ($user->role !== 'admin' && $user->employee_id) {
+                $employeeQuery->where('company_id', $user->employee->company_id);
+            } elseif (!empty($companyId) && $user->role === 'admin') {
+                $companyIds = is_array($companyId) ? $companyId : explode(',', $companyId);
+                $companyIds = array_filter($companyIds);
+                if (!empty($companyIds)) {
+                    $employeeQuery->whereIn('company_id', $companyIds);
+                }
+            }
+            if ($employeeId) {
+                $employeeIds = is_array($employeeId) ? $employeeId : explode(',', $employeeId);
+                $employeeIds = array_filter($employeeIds);
+                if (!empty($employeeIds)) {
+                    $employeeQuery->whereIn('id', $employeeIds);
+                }
+            }
+            $employeesList = $employeeQuery->orderBy('name')->get();
+
+            $weeklyOffService = new WeeklyOffService();
+            $weeklyOffMap = $weeklyOffService->buildWeeklyOffMap($employeesList);
+
+            $attendanceMap = [];
+            foreach ($attendances as $att) {
+                $attendanceMap[$att->employee_id][$att->date] = $att;
+            }
+
+            $start = Carbon::parse($startDate);
+            $end = Carbon::parse($endDate);
+            
+            $dates = [];
+            for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+                $dates[] = $date->toDateString();
+            }
+
+            // ----------------------------------------------------
+            // SHEET 1: Attendance Detail Report
+            // ----------------------------------------------------
+            $sheet1 = $spreadsheet->getActiveSheet();
+            $sheet1->setTitle('Attendance Detail Report');
+            
+            $headers1 = [
                 'Date',
                 'Day',
                 'shift hours eg branch hours',
@@ -710,13 +731,13 @@ class ReportController extends Controller
                 'incomplete h',
                 'Status'
             ];
-            foreach ($headers as $key => $header) {
+            
+            foreach ($headers1 as $key => $header) {
                 $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
-                $sheet->setCellValue($colLetter . '1', $header);
-                $sheet->getStyle($colLetter . '1')->getFont()->setBold(true);
+                $sheet1->setCellValue($colLetter . '1', $header);
             }
 
-            $row = 2;
+            $row1 = 2;
             foreach ($attendances as $attendance) {
                 $dayOfWeek = strtoupper(Carbon::parse($attendance->date)->format('l'));
                 $stdHours = $attendance->normal_hours ?: Setting::get('standard_working_hours', 9, $attendance->company_id);
@@ -759,154 +780,470 @@ class ReportController extends Controller
                     }
                 }
 
-                $sheet->setCellValue('A' . $row, $attendance->date);
-                $sheet->setCellValue('B' . $row, $dayOfWeek);
-                $sheet->setCellValue('C' . $row, floatval($stdHours));
-                $sheet->setCellValue('D' . $row, $attendance->employee->employee_code ?? '-');
-                $sheet->setCellValue('E' . $row, $attendance->employee->name);
-                $sheet->setCellValue('F' . $row, $attendance->company->name ?? '-');
-                $sheet->setCellValue('G' . $row, $attendance->employee->department->name ?? '-');
-                $sheet->setCellValue('H' . $row, $workedHours);
-                $sheet->setCellValue('I' . $row, $otHours);
-                $sheet->setCellValue('J' . $row, $attendance->from_time ?: '');
-                $sheet->setCellValue('K' . $row, $attendance->to_time ?: '');
-                $sheet->setCellValue('L' . $row, $totalHours ?: '');
-                $sheet->setCellValue('M' . $row, $breakHours ?: '');
-                $sheet->setCellValue('N' . $row, $otHours ?: '');
-                $sheet->setCellValue('O' . $row, $incompleteHours ?: '');
-                $sheet->setCellValue('P' . $row, $statusDisplay);
+                $sheet1->setCellValue('A' . $row1, $attendance->date);
+                $sheet1->setCellValue('B' . $row1, $dayOfWeek);
+                $sheet1->setCellValue('C' . $row1, floatval($stdHours));
+                $sheet1->setCellValue('D' . $row1, $attendance->employee->employee_code ?? '-');
+                $sheet1->setCellValue('E' . $row1, $attendance->employee->name);
+                $sheet1->setCellValue('F' . $row1, $attendance->company->name ?? '-');
+                $sheet1->setCellValue('G' . $row1, $attendance->employee->department->name ?? '-');
+                $sheet1->setCellValue('H' . $row1, $workedHours);
+                $sheet1->setCellValue('I' . $row1, $otHours);
+                $sheet1->setCellValue('J' . $row1, $attendance->from_time ?: '');
+                $sheet1->setCellValue('K' . $row1, $attendance->to_time ?: '');
+                $sheet1->setCellValue('L' . $row1, $totalHours ?: '');
+                $sheet1->setCellValue('M' . $row1, $breakHours ?: '');
+                $sheet1->setCellValue('N' . $row1, $otHours ?: '');
+                $sheet1->setCellValue('O' . $row1, $incompleteHours ?: '');
+                $sheet1->setCellValue('P' . $row1, $statusDisplay);
 
                 // Apply status color styling
                 $statusStyle = [];
                 if ($statusDisplay === 'Present') {
                     $statusStyle = [
-                        'font' => ['color' => ['rgb' => '166534'], 'bold' => true], // Dark Green text
+                        'font' => ['color' => ['rgb' => '166534'], 'bold' => true],
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'DCFCE7'], // Light Green background
+                            'startColor' => ['rgb' => 'DCFCE7'],
                         ],
                     ];
                 } elseif ($statusDisplay === 'Incomplete') {
                     $statusStyle = [
-                        'font' => ['color' => ['rgb' => '9A3412'], 'bold' => true], // Dark Orange text
+                        'font' => ['color' => ['rgb' => '9A3412'], 'bold' => true],
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'FFEDD5'], // Light Orange background
+                            'startColor' => ['rgb' => 'FFEDD5'],
                         ],
                     ];
                 } elseif ($statusDisplay === 'Leave') {
                     $statusStyle = [
-                        'font' => ['color' => ['rgb' => '1E40AF'], 'bold' => true], // Dark Blue text
+                        'font' => ['color' => ['rgb' => '1E40AF'], 'bold' => true],
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'DBEAFE'], // Light Blue background
+                            'startColor' => ['rgb' => 'DBEAFE'],
                         ],
                     ];
                 } elseif ($statusDisplay === 'Weekoff') {
                     $statusStyle = [
-                        'font' => ['color' => ['rgb' => '374151'], 'bold' => true], // Dark Gray text
+                        'font' => ['color' => ['rgb' => '374151'], 'bold' => true],
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'F3F4F6'], // Light Gray background
+                            'startColor' => ['rgb' => 'F3F4F6'],
                         ],
                     ];
                 } elseif ($statusDisplay === 'Absent') {
                     $statusStyle = [
-                        'font' => ['color' => ['rgb' => '991B1B'], 'bold' => true], // Dark Red text
+                        'font' => ['color' => ['rgb' => '991B1B'], 'bold' => true],
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'FEE2E2'], // Light Red background
+                            'startColor' => ['rgb' => 'FEE2E2'],
                         ],
                     ];
                 }
 
                 if (!empty($statusStyle)) {
-                    $sheet->getStyle('P' . $row)->applyFromArray($statusStyle);
+                    $sheet1->getStyle('P' . $row1)->applyFromArray($statusStyle);
                 }
 
-                $row++;
+                $row1++;
             }
-        }
 
-        // --- Styling the Spreadsheet ---
-        $lastRow = $row - 1;
-        $totalCols = count($headers);
-        $lastColLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalCols);
-
-        // Header Row Styling
-        $headerRange = 'A1:' . $lastColLetter . '1';
-        $sheet->getStyle($headerRange)->applyFromArray([
-            'font' => [
-                'bold' => true,
-                'color' => ['rgb' => 'FFFFFF'],
-                'size' => 10,
-            ],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '1E293B'], // Slate 800
-            ],
-            'alignment' => [
-                'horizontal' => Alignment::HORIZONTAL_CENTER,
-                'vertical' => Alignment::VERTICAL_CENTER,
-                'wrapText' => true,
-            ],
-        ]);
-        $sheet->getRowDimension(1)->setRowHeight(32);
-
-        // Data Rows Styling
-        if ($lastRow >= 2) {
-            // Apply borders to all cells
-            $fullRange = 'A1:' . $lastColLetter . $lastRow;
-            $sheet->getStyle($fullRange)->applyFromArray([
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => Border::BORDER_THIN,
-                        'color' => ['rgb' => 'E2E8F0'], // Soft border
-                    ],
-                ],
+            // Style Sheet 1
+            $lastRow1 = $row1 - 1;
+            $totalCols1 = count($headers1);
+            $lastColLetter1 = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalCols1);
+            
+            $sheet1->getStyle('A1:' . $lastColLetter1 . '1')->applyFromArray([
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 10],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1E293B']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
             ]);
+            $sheet1->getRowDimension(1)->setRowHeight(32);
 
-            // Alternate row background colors and set heights
-            for ($r = 2; $r <= $lastRow; $r++) {
-                $sheet->getRowDimension($r)->setRowHeight(22);
-                if ($r % 2 === 0) {
-                    $sheet->getStyle('A' . $r . ':' . $lastColLetter . $r)->applyFromArray([
-                        'fill' => [
-                            'fillType' => Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'F8FAFC'],
-                        ],
-                    ]);
+            if ($lastRow1 >= 2) {
+                $sheet1->getStyle('A1:' . $lastColLetter1 . $lastRow1)->applyFromArray([
+                    'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'E2E8F0']]],
+                ]);
+                for ($r = 2; $r <= $lastRow1; $r++) {
+                    $sheet1->getRowDimension($r)->setRowHeight(22);
+                    if ($r % 2 === 0) {
+                        $sheet1->getStyle('A' . $r . ':' . $lastColLetter1 . $r)->applyFromArray([
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F8FAFC']],
+                        ]);
+                    }
+                }
+                $centerCols1 = ['A', 'B', 'D', 'J', 'K', 'P'];
+                $rightCols1 = ['C', 'H', 'I', 'L', 'M', 'N', 'O'];
+                foreach ($centerCols1 as $col) {
+                    $sheet1->getStyle($col . '2:' . $col . $lastRow1)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                }
+                foreach ($rightCols1 as $col) {
+                    $sheet1->getStyle($col . '2:' . $col . $lastRow1)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                 }
             }
-
-            // Set column alignments
-            if ($reportType === 'summary') {
-                $centerCols = ['A', 'E', 'F', 'G', 'H', 'I', 'J'];
-                $rightCols = ['K', 'L'];
-            } elseif ($reportType === 'overtime') {
-                $centerCols = ['A', 'B'];
-                $rightCols = ['E', 'F', 'G', 'H', 'I'];
-            } else {
-                $centerCols = ['A', 'B', 'D', 'J', 'K', 'P'];
-                $rightCols = ['C', 'H', 'I', 'L', 'M', 'N', 'O'];
+            for ($i = 1; $i <= $totalCols1; $i++) {
+                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
+                $sheet1->getColumnDimension($colLetter)->setAutoSize(true);
             }
 
-            foreach ($centerCols as $col) {
-                $sheet->getStyle($col . '2:' . $col . $lastRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            }
-            foreach ($rightCols as $col) {
-                $sheet->getStyle($col . '2:' . $col . $lastRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-            }
-        }
+            // ----------------------------------------------------
+            // SHEET 2: Attendance Summary report
+            // ----------------------------------------------------
+            $sheet2 = $spreadsheet->createSheet();
+            $sheet2->setTitle('Attendance Summary report');
 
-        // Auto-fit column widths
-        for ($i = 1; $i <= $totalCols; $i++) {
-            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
-            $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+            $headers2 = ['Employee ID', 'Employee Name', 'branch', 'Department'];
+            foreach ($dates as $dateStr) {
+                $headers2[] = Carbon::parse($dateStr)->format('d-M');
+            }
+            $summaryHeaders = [
+                'Total worked hours',
+                'Total Overtime',
+                'total incomplete Hour',
+                'Total Break Hours',
+                'Total',
+                'TOTAL ABSENT HRS',
+                'TOTAL PL HRS',
+                'TOTAL UL HRS',
+                'TOTAL WO'
+            ];
+            foreach ($summaryHeaders as $sh) {
+                $headers2[] = $sh;
+            }
+
+            foreach ($headers2 as $key => $header) {
+                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
+                $sheet2->setCellValue($colLetter . '1', $header);
+            }
+
+            $row2 = 2;
+            foreach ($employeesList as $emp) {
+                $sheet2->setCellValue('A' . $row2, $emp->employee_code ?? '-');
+                $sheet2->setCellValue('B' . $row2, $emp->name);
+                $sheet2->setCellValue('C' . $row2, $emp->company->name ?? '-');
+                $sheet2->setCellValue('D' . $row2, $emp->department->name ?? '-');
+
+                $totalWorkedHours = 0;
+                $totalOvertime = 0;
+                $totalIncompleteHours = 0;
+                $totalBreakHours = 0;
+                
+                $presentDays = 0;
+                $absentDays = 0;
+                $paidLeaveDays = 0;
+                $unpaidLeaveDays = 0;
+                $weeklyOffDays = 0;
+
+                $colIdx = 5;
+                foreach ($dates as $dateStr) {
+                    $cellVal = '';
+                    $stdHours = Setting::get('standard_working_hours', 9, $emp->company_id);
+                    
+                    $attendance = $attendanceMap[$emp->id][$dateStr] ?? null;
+                    if ($attendance) {
+                        $stdHours = $attendance->normal_hours ?: $stdHours;
+                        $workedHours = floatval($attendance->hours_worked ?: 0);
+                        $otHours = floatval($attendance->ot ?: 0);
+
+                        $totalHours = 0;
+                        $elapsedMins = 0;
+                        if ($attendance->from_time && $attendance->to_time) {
+                            $from = Carbon::parse($attendance->from_time);
+                            $to = Carbon::parse($attendance->to_time);
+                            $totalHours = round($to->diffInMinutes($from) / 60, 2);
+
+                            $fromParts = explode(':', $attendance->from_time);
+                            $toParts = explode(':', $attendance->to_time);
+                            $fromMin = intval($fromParts[0]) * 60 + intval($fromParts[1]);
+                            $toMin = intval($toParts[0]) * 60 + intval($toParts[1]);
+                            $elapsedMins = $toMin >= $fromMin ? ($toMin - $fromMin) : (($toMin + 1440) - $fromMin);
+                        }
+
+                        $workedMins = round($workedHours * 60);
+                        $breakMins = max(intval($attendance->total_break_minutes ?: 0), $elapsedMins > $workedMins ? ($elapsedMins - $workedMins) : 0);
+                        $breakHours = round($breakMins / 60, 2);
+                        $incompleteHours = $workedHours < $stdHours ? round($stdHours - $workedHours, 2) : 0;
+
+                        $totalWorkedHours += $workedHours;
+                        $totalOvertime += $otHours;
+                        $totalIncompleteHours += $incompleteHours;
+                        $totalBreakHours += $breakHours;
+
+                        $rawStatus = $attendance->attendance;
+                        if (stripos($rawStatus, 'leave') !== false) {
+                            if (stripos($rawStatus, 'unpaid') !== false) {
+                                $cellVal = 'UL';
+                                $unpaidLeaveDays++;
+                            } else {
+                                $cellVal = 'PL';
+                                $paidLeaveDays++;
+                            }
+                        } elseif (stripos($rawStatus, 'off') !== false || stripos($rawStatus, 'weekly') !== false) {
+                            $cellVal = 'WO';
+                            $weeklyOffDays++;
+                        } else {
+                            if ($workedHours > 0) {
+                                $cellVal = floatval($workedHours);
+                                $presentDays++;
+                            } else {
+                                $cellVal = 'AB';
+                                $absentDays++;
+                            }
+                        }
+                    } else {
+                        $isWO = $weeklyOffService->isWeeklyOffFromMap($emp->id, $dateStr, $weeklyOffMap);
+                        if ($isWO) {
+                            $cellVal = 'WO';
+                            $weeklyOffDays++;
+                        } else {
+                            $cellVal = 'AB';
+                            $absentDays++;
+                        }
+                    }
+
+                    $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
+                    $sheet2->setCellValue($colLetter . $row2, $cellVal);
+                    
+                    if ($cellVal === 'WO') {
+                        $sheet2->getStyle($colLetter . $row2)->applyFromArray([
+                            'font' => ['color' => ['rgb' => '475569'], 'bold' => true],
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F3F4F6']]
+                        ]);
+                    } elseif ($cellVal === 'PL' || $cellVal === 'UL') {
+                        $sheet2->getStyle($colLetter . $row2)->applyFromArray([
+                            'font' => ['color' => ['rgb' => '1E40AF'], 'bold' => true],
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'DBEAFE']]
+                        ]);
+                    } elseif ($cellVal === 'AB') {
+                        $sheet2->getStyle($colLetter . $row2)->applyFromArray([
+                            'font' => ['color' => ['rgb' => '991B1B'], 'bold' => true],
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FEE2E2']]
+                        ]);
+                    }
+                    
+                    $colIdx++;
+                }
+
+                $empStdHours = Setting::get('standard_working_hours', 9, $emp->company_id);
+                $sheet2->setCellValueByColumnAndRow($colIdx, $row2, floatval($totalWorkedHours));
+                $sheet2->setCellValueByColumnAndRow($colIdx + 1, $row2, floatval($totalOvertime));
+                $sheet2->setCellValueByColumnAndRow($colIdx + 2, $row2, floatval($totalIncompleteHours));
+                $sheet2->setCellValueByColumnAndRow($colIdx + 3, $row2, floatval($totalBreakHours));
+                $sheet2->setCellValueByColumnAndRow($colIdx + 4, $row2, intval($presentDays));
+                $sheet2->setCellValueByColumnAndRow($colIdx + 5, $row2, floatval($absentDays * $empStdHours));
+                $sheet2->setCellValueByColumnAndRow($colIdx + 6, $row2, floatval($paidLeaveDays * $empStdHours));
+                $sheet2->setCellValueByColumnAndRow($colIdx + 7, $row2, floatval($unpaidLeaveDays * $empStdHours));
+                $sheet2->setCellValueByColumnAndRow($colIdx + 8, $row2, intval($weeklyOffDays));
+
+                $row2++;
+            }
+
+            // Style Sheet 2
+            $lastRow2 = $row2 - 1;
+            $totalCols2 = count($headers2);
+            $lastColLetter2 = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalCols2);
+
+            $sheet2->getStyle('A1:' . $lastColLetter2 . '1')->applyFromArray([
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 10],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1E293B']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+            ]);
+            $sheet2->getRowDimension(1)->setRowHeight(32);
+
+            if ($lastRow2 >= 2) {
+                $sheet2->getStyle('A1:' . $lastColLetter2 . $lastRow2)->applyFromArray([
+                    'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'E2E8F0']]],
+                ]);
+                for ($r = 2; $r <= $lastRow2; $r++) {
+                    $sheet2->getRowDimension($r)->setRowHeight(22);
+                    if ($r % 2 === 0) {
+                        $sheet2->getStyle('A' . $r . ':D' . $r)->applyFromArray([
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F8FAFC']],
+                        ]);
+                        $startSumCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
+                        $sheet2->getStyle($startSumCol . $r . ':' . $lastColLetter2 . $r)->applyFromArray([
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F8FAFC']],
+                        ]);
+                    }
+                }
+                
+                $sheet2->getStyle('A2:A' . $lastRow2)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet2->getStyle('B2:D' . $lastRow2)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $startSumCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(5);
+                $sheet2->getStyle($startSumCol . '2:' . $lastColLetter2 . $lastRow2)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            }
+            
+            for ($i = 1; $i <= $totalCols2; $i++) {
+                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
+                $sheet2->getColumnDimension($colLetter)->setAutoSize(true);
+            }
+
+            // ----------------------------------------------------
+            // SHEET 3: Attendance Status
+            // ----------------------------------------------------
+            $sheet3 = $spreadsheet->createSheet();
+            $sheet3->setTitle('Attendance Status');
+
+            $headers3 = ['Employee ID', 'Employee Name', 'branch', 'Department'];
+            foreach ($dates as $dateStr) {
+                $headers3[] = Carbon::parse($dateStr)->format('d-M');
+            }
+            $statusHeaders = [
+                'Total present days',
+                'Total incomplete days',
+                'Total absent days',
+                'Total leave days',
+                'Total weekly off days'
+            ];
+            foreach ($statusHeaders as $sh) {
+                $headers3[] = $sh;
+            }
+
+            foreach ($headers3 as $key => $header) {
+                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
+                $sheet3->setCellValue($colLetter . '1', $header);
+            }
+
+            $row3 = 2;
+            foreach ($employeesList as $emp) {
+                $sheet3->setCellValue('A' . $row3, $emp->employee_code ?? '-');
+                $sheet3->setCellValue('B' . $row3, $emp->name);
+                $sheet3->setCellValue('C' . $row3, $emp->company->name ?? '-');
+                $sheet3->setCellValue('D' . $row3, $emp->department->name ?? '-');
+
+                $presentDays = 0;
+                $incompleteDays = 0;
+                $absentDays = 0;
+                $leaveDays = 0;
+                $weeklyOffDays = 0;
+
+                $colIdx = 5;
+                foreach ($dates as $dateStr) {
+                    $cellVal = '';
+                    $stdHours = Setting::get('standard_working_hours', 9, $emp->company_id);
+
+                    $attendance = $attendanceMap[$emp->id][$dateStr] ?? null;
+                    if ($attendance) {
+                        $stdHours = $attendance->normal_hours ?: $stdHours;
+                        $workedHours = floatval($attendance->hours_worked ?: 0);
+                        $rawStatus = $attendance->attendance;
+
+                        if (stripos($rawStatus, 'leave') !== false) {
+                            $cellVal = 'PL';
+                            $leaveDays++;
+                        } elseif (stripos($rawStatus, 'off') !== false || stripos($rawStatus, 'weekly') !== false) {
+                            $cellVal = 'WO';
+                            $weeklyOffDays++;
+                        } else {
+                            if ($workedHours > 0 && $workedHours < $stdHours) {
+                                $cellVal = 'INC';
+                                $incompleteDays++;
+                            } elseif ($workedHours >= $stdHours) {
+                                $cellVal = 'P';
+                                $presentDays++;
+                            } else {
+                                $cellVal = 'AB';
+                                $absentDays++;
+                            }
+                        }
+                    } else {
+                        $isWO = $weeklyOffService->isWeeklyOffFromMap($emp->id, $dateStr, $weeklyOffMap);
+                        if ($isWO) {
+                            $cellVal = 'WO';
+                            $weeklyOffDays++;
+                        } else {
+                            $cellVal = 'AB';
+                            $absentDays++;
+                        }
+                    }
+
+                    $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
+                    $sheet3->setCellValue($colLetter . $row3, $cellVal);
+
+                    if ($cellVal === 'P') {
+                        $sheet3->getStyle($colLetter . $row3)->applyFromArray([
+                            'font' => ['color' => ['rgb' => '166534'], 'bold' => true],
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'DCFCE7']]
+                        ]);
+                    } elseif ($cellVal === 'INC') {
+                        $sheet3->getStyle($colLetter . $row3)->applyFromArray([
+                            'font' => ['color' => ['rgb' => '9A3412'], 'bold' => true],
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFEDD5']]
+                        ]);
+                    } elseif ($cellVal === 'PL') {
+                        $sheet3->getStyle($colLetter . $row3)->applyFromArray([
+                            'font' => ['color' => ['rgb' => '1E40AF'], 'bold' => true],
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'DBEAFE']]
+                        ]);
+                    } elseif ($cellVal === 'WO') {
+                        $sheet3->getStyle($colLetter . $row3)->applyFromArray([
+                            'font' => ['color' => ['rgb' => '374151'], 'bold' => true],
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F3F4F6']]
+                        ]);
+                    } elseif ($cellVal === 'AB') {
+                        $sheet3->getStyle($colLetter . $row3)->applyFromArray([
+                            'font' => ['color' => ['rgb' => '991B1B'], 'bold' => true],
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FEE2E2']]
+                        ]);
+                    }
+
+                    $colIdx++;
+                }
+
+                $sheet3->setCellValueByColumnAndRow($colIdx, $row3, intval($presentDays));
+                $sheet3->setCellValueByColumnAndRow($colIdx + 1, $row3, intval($incompleteDays));
+                $sheet3->setCellValueByColumnAndRow($colIdx + 2, $row3, intval($absentDays));
+                $sheet3->setCellValueByColumnAndRow($colIdx + 3, $row3, intval($leaveDays));
+                $sheet3->setCellValueByColumnAndRow($colIdx + 4, $row3, intval($weeklyOffDays));
+
+                $row3++;
+            }
+
+            // Style Sheet 3
+            $lastRow3 = $row3 - 1;
+            $totalCols3 = count($headers3);
+            $lastColLetter3 = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalCols3);
+
+            $sheet3->getStyle('A1:' . $lastColLetter3 . '1')->applyFromArray([
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 10],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1E293B']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+            ]);
+            $sheet3->getRowDimension(1)->setRowHeight(32);
+
+            if ($lastRow3 >= 2) {
+                $sheet3->getStyle('A1:' . $lastColLetter3 . $lastRow3)->applyFromArray([
+                    'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'E2E8F0']]],
+                ]);
+                for ($r = 2; $r <= $lastRow3; $r++) {
+                    $sheet3->getRowDimension($r)->setRowHeight(22);
+                    if ($r % 2 === 0) {
+                        $sheet3->getStyle('A' . $r . ':D' . $r)->applyFromArray([
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F8FAFC']],
+                        ]);
+                        $startSumCol3 = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
+                        $sheet3->getStyle($startSumCol3 . $r . ':' . $lastColLetter3 . $r)->applyFromArray([
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F8FAFC']],
+                        ]);
+                    }
+                }
+
+                $sheet3->getStyle('A2:A' . $lastRow3)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet3->getStyle('B2:D' . $lastRow3)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $startSumCol3 = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(5);
+                $sheet3->getStyle($startSumCol3 . '2:' . $lastColLetter3 . $lastRow3)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            }
+
+            for ($i = 1; $i <= $totalCols3; $i++) {
+                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
+                $sheet3->getColumnDimension($colLetter)->setAutoSize(true);
+            }
+
+            $spreadsheet->setActiveSheetIndex(0);
         }
 
         $writer = new Xlsx($spreadsheet);
-        $fileName = $reportType . '_report_' . now()->format('YmdHis') . '.xlsx';
+        $fileName = 'attendance_report_' . now()->format('YmdHis') . '.xlsx';
         
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment; filename="'. $fileName .'"');
