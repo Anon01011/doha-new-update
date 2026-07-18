@@ -1025,15 +1025,15 @@ class ReportController extends Controller
                 }
 
                 $empStdHours = Setting::get('standard_working_hours', 9, $emp->company_id);
-                $sheet2->setCellValueByColumnAndRow($colIdx, $row2, floatval($totalWorkedHours));
-                $sheet2->setCellValueByColumnAndRow($colIdx + 1, $row2, floatval($totalOvertime));
-                $sheet2->setCellValueByColumnAndRow($colIdx + 2, $row2, floatval($totalIncompleteHours));
-                $sheet2->setCellValueByColumnAndRow($colIdx + 3, $row2, floatval($totalBreakHours));
-                $sheet2->setCellValueByColumnAndRow($colIdx + 4, $row2, intval($presentDays));
-                $sheet2->setCellValueByColumnAndRow($colIdx + 5, $row2, floatval($absentDays * $empStdHours));
-                $sheet2->setCellValueByColumnAndRow($colIdx + 6, $row2, floatval($paidLeaveDays * $empStdHours));
-                $sheet2->setCellValueByColumnAndRow($colIdx + 7, $row2, floatval($unpaidLeaveDays * $empStdHours));
-                $sheet2->setCellValueByColumnAndRow($colIdx + 8, $row2, intval($weeklyOffDays));
+                $sheet2->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx) . $row2, floatval($totalWorkedHours));
+                $sheet2->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 1) . $row2, floatval($totalOvertime));
+                $sheet2->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 2) . $row2, floatval($totalIncompleteHours));
+                $sheet2->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 3) . $row2, floatval($totalBreakHours));
+                $sheet2->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 4) . $row2, intval($presentDays));
+                $sheet2->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 5) . $row2, floatval($absentDays * $empStdHours));
+                $sheet2->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 6) . $row2, floatval($paidLeaveDays * $empStdHours));
+                $sheet2->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 7) . $row2, floatval($unpaidLeaveDays * $empStdHours));
+                $sheet2->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 8) . $row2, intval($weeklyOffDays));
 
                 $row2++;
             }
@@ -1190,11 +1190,11 @@ class ReportController extends Controller
                     $colIdx++;
                 }
 
-                $sheet3->setCellValueByColumnAndRow($colIdx, $row3, intval($presentDays));
-                $sheet3->setCellValueByColumnAndRow($colIdx + 1, $row3, intval($incompleteDays));
-                $sheet3->setCellValueByColumnAndRow($colIdx + 2, $row3, intval($absentDays));
-                $sheet3->setCellValueByColumnAndRow($colIdx + 3, $row3, intval($leaveDays));
-                $sheet3->setCellValueByColumnAndRow($colIdx + 4, $row3, intval($weeklyOffDays));
+                $sheet3->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx) . $row3, intval($presentDays));
+                $sheet3->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 1) . $row3, intval($incompleteDays));
+                $sheet3->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 2) . $row3, intval($absentDays));
+                $sheet3->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 3) . $row3, intval($leaveDays));
+                $sheet3->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 4) . $row3, intval($weeklyOffDays));
 
                 $row3++;
             }
