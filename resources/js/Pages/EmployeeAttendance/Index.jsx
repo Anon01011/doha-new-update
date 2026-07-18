@@ -802,6 +802,25 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                 const incMins = Math.round((incHoursVal - incHrs) * 60);
                                 const incDisplay = incHoursVal > 0 ? `${incHrs}h ${incMins}m` : '0h 0m';
 
+                                // Calculate break minutes: if elapsed hours > worked hours, the difference is break time.
+                                const getElapsedMinutes = (fromTime, toTime) => {
+                                    if (!fromTime || !toTime) return 0;
+                                    const parseTime = (timeStr) => {
+                                        const parts = timeStr.split(':').map(Number);
+                                        return parts[0] * 60 + parts[1];
+                                    };
+                                    const fromMin = parseTime(fromTime);
+                                    const toMin = parseTime(toTime);
+                                    return toMin >= fromMin ? (toMin - fromMin) : ((toMin + 1440) - fromMin);
+                                };
+
+                                const elapsedMins = getElapsedMinutes(selectedBreakup.attendance.from_time, selectedBreakup.attendance.to_time);
+                                const workedMins = Math.round(worked * 60);
+                                const breakMinutesVal = Math.max(
+                                    selectedBreakup.attendance.total_break_minutes || 0,
+                                    elapsedMins > workedMins ? elapsedMins - workedMins : 0
+                                );
+
                                 return (
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                         <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
@@ -812,7 +831,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                         </div>
                                         <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
                                             <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Break Time</p>
-                                            <p className="text-lg font-semibold text-amber-600">{selectedBreakup.attendance.total_break_minutes || 0}m</p>
+                                            <p className="text-lg font-semibold text-amber-600">{breakMinutesVal}m</p>
                                         </div>
                                         <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
                                             <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Overtime</p>

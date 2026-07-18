@@ -721,13 +721,22 @@ class ReportController extends Controller
                 $otHours = floatval($attendance->ot ?: 0);
 
                 $totalHours = 0;
+                $elapsedMins = 0;
                 if ($attendance->from_time && $attendance->to_time) {
                     $from = Carbon::parse($attendance->from_time);
                     $to = Carbon::parse($attendance->to_time);
                     $totalHours = round($to->diffInMinutes($from) / 60, 2);
+
+                    $fromParts = explode(':', $attendance->from_time);
+                    $toParts = explode(':', $attendance->to_time);
+                    $fromMin = intval($fromParts[0]) * 60 + intval($fromParts[1]);
+                    $toMin = intval($toParts[0]) * 60 + intval($toParts[1]);
+                    $elapsedMins = $toMin >= $fromMin ? ($toMin - $fromMin) : (($toMin + 1440) - $fromMin);
                 }
 
-                $breakHours = round(($attendance->total_break_minutes ?: 0) / 60, 2);
+                $workedMins = round($workedHours * 60);
+                $breakMins = max(intval($attendance->total_break_minutes ?: 0), $elapsedMins > $workedMins ? ($elapsedMins - $workedMins) : 0);
+                $breakHours = round($breakMins / 60, 2);
                 $incompleteHours = $workedHours < $stdHours ? round($stdHours - $workedHours, 2) : 0;
 
                 // Status mapping
