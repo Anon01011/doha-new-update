@@ -582,7 +582,7 @@ class ReportController extends Controller
         $reportType = $request->query('report_type', 'detail');
 
         $user = auth()->user();
-        $query = EmployeeAttendance::with(['employee', 'company'])
+        $query = EmployeeAttendance::with(['employee.department', 'company'])
             ->whereBetween('date', [$startDate, $endDate]);
 
         if ($user->role !== 'admin' && $user->employee_id) {
@@ -610,7 +610,7 @@ class ReportController extends Controller
 
         if ($reportType === 'summary') {
             $sheet->setTitle('Attendance Summary Report');
-            $headers = ['Employee ID', 'Employee Name', 'Company', 'Total Days', 'Present', 'Absent', 'Leave', 'Weekly Off', 'Total Work Hours', 'Total OT Hours'];
+            $headers = ['Employee ID', 'Employee Name', 'Company', 'Department', 'Total Days', 'Present', 'Incomplete', 'Absent', 'Leave', 'Weekly Off', 'Total Work Hours', 'Total OT Hours'];
             foreach ($headers as $key => $header) {
                 $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
                 $sheet->setCellValue($colLetter . '1', $header);
@@ -622,23 +622,47 @@ class ReportController extends Controller
             $row = 2;
             foreach ($grouped as $empId => $empAttendances) {
                 $first = $empAttendances->first();
-                $present = $empAttendances->whereIn('attendance', ['Present', 'Late'])->count();
-                $absent = $empAttendances->where('attendance', 'Absent')->count();
-                $leave = $empAttendances->filter(fn($a) => stripos($a->attendance, 'leave') !== false)->count();
-                $weeklyOff = $empAttendances->where('attendance', 'Weekly Off')->count();
+                
+                $present = 0;
+                $incomplete = 0;
+                $absent = 0;
+                $leave = 0;
+                $weeklyOff = 0;
+
+                foreach ($empAttendances as $a) {
+                    $rawStatus = $a->attendance;
+                    if (stripos($rawStatus, 'leave') !== false) {
+                        $leave++;
+                    } elseif (stripos($rawStatus, 'off') !== false || stripos($rawStatus, 'weekly') !== false) {
+                        $weeklyOff++;
+                    } else {
+                        $std = $a->normal_hours ?: Setting::get('standard_working_hours', 9, $a->company_id);
+                        $worked = $a->hours_worked ?: 0;
+                        if ($worked > 0 && $worked < $std) {
+                            $incomplete++;
+                        } elseif ($worked >= $std) {
+                            $present++;
+                        } else {
+                            $absent++;
+                        }
+                    }
+                }
+
                 $workHours = $empAttendances->sum('hours_worked');
                 $otHours = $empAttendances->sum('ot');
 
                 $sheet->setCellValue('A' . $row, $first->employee->employee_code ?? '-');
                 $sheet->setCellValue('B' . $row, $first->employee->name);
-                $sheet->setCellValue('C' . $row, $first->company->name);
-                $sheet->setCellValue('D' . $row, $empAttendances->count());
-                $sheet->setCellValue('E' . $row, $present);
-                $sheet->setCellValue('F' . $row, $absent);
-                $sheet->setCellValue('G' . $row, $leave);
-                $sheet->setCellValue('H' . $row, $weeklyOff);
-                $sheet->setCellValue('I' . $row, $workHours);
-                $sheet->setCellValue('J' . $row, $otHours);
+                $sheet->setCellValue('C' . $row, $first->company->name ?? '-');
+                $sheet->setCellValue('D' . $row, $first->employee->department->name ?? '-');
+                $sheet->setCellValue('E' . $row, $empAttendances->count());
+                $sheet->setCellValue('F' . $row, $present);
+                $sheet->setCellValue('G' . $row, $incomplete);
+                $sheet->setCellValue('H' . $row, $absent);
+                $sheet->setCellValue('I' . $row, $leave);
+                $sheet->setCellValue('J' . $row, $weeklyOff);
+                $sheet->setCellValue('K' . $row, $workHours);
+                $sheet->setCellValue('L' . $row, $otHours);
                 $row++;
             }
         } elseif ($reportType === 'overtime') {
@@ -665,7 +689,24 @@ class ReportController extends Controller
             }
         } else {
             $sheet->setTitle('Attendance Detail Report');
-            $headers = ['Date', 'Employee ID', 'Employee Name', 'Company', 'Status', 'Hours Worked', 'OT Hours'];
+            $headers = [
+                'Date',
+                'Day',
+                'shift hours eg branch hours',
+                'Employee ID',
+                'Employee Name',
+                'branch',
+                'Department',
+                'Hours Worked',
+                'OT Hours',
+                'check in',
+                'check out',
+                'Total hours',
+                'break hours',
+                'overtime',
+                'incomplete h',
+                'Status'
+            ];
             foreach ($headers as $key => $header) {
                 $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
                 $sheet->setCellValue($colLetter . '1', $header);
@@ -674,13 +715,54 @@ class ReportController extends Controller
 
             $row = 2;
             foreach ($attendances as $attendance) {
+                $dayOfWeek = strtoupper(Carbon::parse($attendance->date)->format('l'));
+                $stdHours = $attendance->normal_hours ?: Setting::get('standard_working_hours', 9, $attendance->company_id);
+                $workedHours = floatval($attendance->hours_worked ?: 0);
+                $otHours = floatval($attendance->ot ?: 0);
+
+                $totalHours = 0;
+                if ($attendance->from_time && $attendance->to_time) {
+                    $from = Carbon::parse($attendance->from_time);
+                    $to = Carbon::parse($attendance->to_time);
+                    $totalHours = round($to->diffInMinutes($from) / 60, 2);
+                }
+
+                $breakHours = round(($attendance->total_break_minutes ?: 0) / 60, 2);
+                $incompleteHours = $workedHours < $stdHours ? round($stdHours - $workedHours, 2) : 0;
+
+                // Status mapping
+                $rawStatus = $attendance->attendance;
+                $statusDisplay = $rawStatus;
+                if (stripos($rawStatus, 'leave') !== false) {
+                    $statusDisplay = 'Leave';
+                } elseif (stripos($rawStatus, 'off') !== false || stripos($rawStatus, 'weekly') !== false) {
+                    $statusDisplay = 'Weekoff';
+                } else {
+                    if ($workedHours > 0 && $workedHours < $stdHours) {
+                        $statusDisplay = 'Incomplete';
+                    } elseif ($workedHours >= $stdHours) {
+                        $statusDisplay = 'Present';
+                    } else {
+                        $statusDisplay = $rawStatus ?: 'Absent';
+                    }
+                }
+
                 $sheet->setCellValue('A' . $row, $attendance->date);
-                $sheet->setCellValue('B' . $row, $attendance->employee->employee_code ?? '-');
-                $sheet->setCellValue('C' . $row, $attendance->employee->name);
-                $sheet->setCellValue('D' . $row, $attendance->company->name);
-                $sheet->setCellValue('E' . $row, $attendance->attendance);
-                $sheet->setCellValue('F' . $row, $attendance->hours_worked);
-                $sheet->setCellValue('G' . $row, $attendance->ot);
+                $sheet->setCellValue('B' . $row, $dayOfWeek);
+                $sheet->setCellValue('C' . $row, floatval($stdHours));
+                $sheet->setCellValue('D' . $row, $attendance->employee->employee_code ?? '-');
+                $sheet->setCellValue('E' . $row, $attendance->employee->name);
+                $sheet->setCellValue('F' . $row, $attendance->company->name ?? '-');
+                $sheet->setCellValue('G' . $row, $attendance->employee->department->name ?? '-');
+                $sheet->setCellValue('H' . $row, $workedHours);
+                $sheet->setCellValue('I' . $row, $otHours);
+                $sheet->setCellValue('J' . $row, $attendance->from_time ?: '');
+                $sheet->setCellValue('K' . $row, $attendance->to_time ?: '');
+                $sheet->setCellValue('L' . $row, $totalHours ?: '');
+                $sheet->setCellValue('M' . $row, $breakHours ?: '');
+                $sheet->setCellValue('N' . $row, $otHours ?: '');
+                $sheet->setCellValue('O' . $row, $incompleteHours ?: '');
+                $sheet->setCellValue('P' . $row, $statusDisplay);
                 $row++;
             }
         }
