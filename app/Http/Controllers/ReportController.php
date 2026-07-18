@@ -1078,6 +1078,13 @@ class ReportController extends Controller
                 $sheet2->getColumnDimension($colLetter)->setAutoSize(true);
             }
 
+            // Legend / Key at the bottom
+            $legendRow2 = $lastRow2 + 3;
+            $sheet2->setCellValue('A' . $legendRow2, 'Legend / Key:');
+            $sheet2->getStyle('A' . $legendRow2)->getFont()->setBold(true);
+            $sheet2->setCellValue('B' . $legendRow2, 'PL: Paid Leave  |  UL: Unpaid Leave  |  WO: Weekly Off  |  AB: Absent');
+            $sheet2->getStyle('B' . $legendRow2)->getFont()->setItalic(true);
+
             // ----------------------------------------------------
             // SHEET 3: Attendance Status
             // ----------------------------------------------------
@@ -1238,6 +1245,13 @@ class ReportController extends Controller
                 $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
                 $sheet3->getColumnDimension($colLetter)->setAutoSize(true);
             }
+
+            // Legend / Key at the bottom
+            $legendRow3 = $lastRow3 + 3;
+            $sheet3->setCellValue('A' . $legendRow3, 'Legend / Key:');
+            $sheet3->getStyle('A' . $legendRow3)->getFont()->setBold(true);
+            $sheet3->setCellValue('B' . $legendRow3, 'P: Present  |  INC: Incomplete  |  PL: Paid Leave  |  WO: Weekly Off  |  AB: Absent');
+            $sheet3->getStyle('B' . $legendRow3)->getFont()->setItalic(true);
 
             $spreadsheet->setActiveSheetIndex(0);
         }
