@@ -775,6 +775,55 @@ class ReportController extends Controller
                 $sheet->setCellValue('N' . $row, $otHours ?: '');
                 $sheet->setCellValue('O' . $row, $incompleteHours ?: '');
                 $sheet->setCellValue('P' . $row, $statusDisplay);
+
+                // Apply status color styling
+                $statusStyle = [];
+                if ($statusDisplay === 'Present') {
+                    $statusStyle = [
+                        'font' => ['color' => ['rgb' => '166534'], 'bold' => true], // Dark Green text
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'startColor' => ['rgb' => 'DCFCE7'], // Light Green background
+                        ],
+                    ];
+                } elseif ($statusDisplay === 'Incomplete') {
+                    $statusStyle = [
+                        'font' => ['color' => ['rgb' => '9A3412'], 'bold' => true], // Dark Orange text
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'startColor' => ['rgb' => 'FFEDD5'], // Light Orange background
+                        ],
+                    ];
+                } elseif ($statusDisplay === 'Leave') {
+                    $statusStyle = [
+                        'font' => ['color' => ['rgb' => '1E40AF'], 'bold' => true], // Dark Blue text
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'startColor' => ['rgb' => 'DBEAFE'], // Light Blue background
+                        ],
+                    ];
+                } elseif ($statusDisplay === 'Weekoff') {
+                    $statusStyle = [
+                        'font' => ['color' => ['rgb' => '374151'], 'bold' => true], // Dark Gray text
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'startColor' => ['rgb' => 'F3F4F6'], // Light Gray background
+                        ],
+                    ];
+                } elseif ($statusDisplay === 'Absent') {
+                    $statusStyle = [
+                        'font' => ['color' => ['rgb' => '991B1B'], 'bold' => true], // Dark Red text
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'startColor' => ['rgb' => 'FEE2E2'], // Light Red background
+                        ],
+                    ];
+                }
+
+                if (!empty($statusStyle)) {
+                    $sheet->getStyle('P' . $row)->applyFromArray($statusStyle);
+                }
+
                 $row++;
             }
         }
