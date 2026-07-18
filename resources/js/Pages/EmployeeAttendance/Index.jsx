@@ -789,7 +789,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                             {/* Summary Cards */}
                             {(() => {
                                 const worked = parseFloat(selectedBreakup.attendance.hours_worked || 0);
-                                const std = parseFloat(settings?.standard_working_hours || 9);
+                                const std = parseFloat(selectedBreakup.attendance.normal_hours || settings?.standard_working_hours || 9);
                                 const regularHours = Math.min(worked, std);
                                 
                                 const otHoursVal = worked > std ? worked - std : 0;
@@ -797,8 +797,13 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                 const otMins = Math.round((otHoursVal - otHrs) * 60);
                                 const otDisplay = otHoursVal > 0 ? `${otHrs}h ${otMins}m` : '0h 0m';
 
+                                const incHoursVal = worked < std ? std - worked : 0;
+                                const incHrs = Math.floor(incHoursVal);
+                                const incMins = Math.round((incHoursVal - incHrs) * 60);
+                                const incDisplay = incHoursVal > 0 ? `${incHrs}h ${incMins}m` : '0h 0m';
+
                                 return (
-                                    <div className="grid grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                         <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
                                             <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Regular Hours</p>
                                             <p className={`text-lg font-bold ${
@@ -815,26 +820,15 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                                 otHoursVal > 0 ? 'text-orange-500 font-bold' : 'text-slate-400'
                                             }`}>{otDisplay}</p>
                                         </div>
+                                        <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
+                                            <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Incomplete Hours</p>
+                                            <p className={`text-lg font-bold ${
+                                                incHoursVal > 0 ? 'text-rose-600' : 'text-slate-400'
+                                            }`}>{incDisplay}</p>
+                                        </div>
                                     </div>
                                 );
                             })()}
-
-                            {parseFloat(selectedBreakup.attendance.hours_worked || 0) > 0 && 
-                             parseFloat(selectedBreakup.attendance.hours_worked || 0) < parseFloat(settings?.standard_working_hours || 9) && (
-                                <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl flex gap-3 items-start animate-in fade-in slide-in-from-top-2 duration-200">
-                                    <svg className="w-5 h-5 text-rose-500 shrink-0 mt-0.5 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                    <div>
-                                        <p className="text-xs font-semibold text-rose-800">Hours Under Standard Requirement</p>
-                                        <p className="text-[11px] text-rose-600 mt-1 leading-relaxed">
-                                            Worked {selectedBreakup.attendance.hours_worked}h which is below the target of {settings?.standard_working_hours || 9}h. 
-                                            <span className="block mt-1 font-semibold text-rose-700">💡 Tip for Improvement:</span>
-                                            Focus on core assignments, structure break times effectively, and plan daily goals to meet the standard hours.
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
 
                             {/* Timeline */}
                             <div className="space-y-4">
