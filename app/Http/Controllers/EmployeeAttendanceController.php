@@ -282,20 +282,18 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
 
                 // Determine attendance status
                 $attendanceStatus = 'Present';
+                $isWorked = ($hoursWorked > 0 || ($clockInTime && $clockInTime !== '--') || ($clockOutTime && $clockOutTime !== '--'));
 
-                // Check weekly off FIRST (overrides all other status logic)
+                // Check weekly off FIRST (overrides all other status logic if they didn't work)
                 $weeklyOffService = app(WeeklyOffService::class);
                 $parsedDate = Carbon::parse($date);
-                if ($weeklyOffService->isWeeklyOff($employee, $parsedDate)) {
+                if ($weeklyOffService->isWeeklyOff($employee, $parsedDate) && !$isWorked) {
                     $attendanceStatus = 'Weekly Off';
                 } elseif ($isAbsent || $hoursWorked == 0) {
                     $attendanceStatus = 'Absent';
                 } elseif ($hoursWorked < 4) {
                     $attendanceStatus = 'Half Day';
                 }
-
-                // Calculate normal hours (worked hours - overtime)
-                $normalHours = max(0, $hoursWorked - $overtimeHours);
 
                 // Fetch roster for this day (optional, for reference)
                 $dayName = $parsedDate->format('l');
@@ -304,6 +302,10 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                     ->where('week_start', '<=', $date)
                     ->orderBy('week_start', 'desc')
                     ->first();
+
+                // Determine expected/standard normal hours for the shift
+                $stdHours = Setting::get('standard_working_hours', 9, $companyId);
+                $expectedNormalHours = $roster ? ($roster->shift_duration ?? $stdHours) : $stdHours;
 
                 // Save/Update Attendance
                 EmployeeAttendance::updateOrCreate(
@@ -317,7 +319,7 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                         'from_time' => $attendanceStatus === 'Weekly Off' ? null : $clockInTime,
                         'to_time' => $attendanceStatus === 'Weekly Off' ? null : $clockOutTime,
                         'hours_worked' => $attendanceStatus === 'Weekly Off' ? 0 : $hoursWorked,
-                        'normal_hours' => $attendanceStatus === 'Weekly Off' ? 0 : ($normalHours > 0 ? $normalHours : ($roster ? ($roster->shift_duration ?? 8) : 8)),
+                        'normal_hours' => $attendanceStatus === 'Weekly Off' ? 0 : $expectedNormalHours,
                         'ot' => $attendanceStatus === 'Weekly Off' ? 0 : $overtimeHours,
                         'ot_amt' => null, // Will be calculated in payroll
                         'attendance' => $attendanceStatus,
@@ -887,7 +889,12 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
         // Auto-detect and enforce Weekly Off status
         $employee = Employee::with(['weeklyOffs', 'company'])->findOrFail($validated['employee_id']);
         $weeklyOffService = app(WeeklyOffService::class);
-        if ($weeklyOffService->isWeeklyOff($employee, Carbon::parse($validated['date']))) {
+        $hasWorkData = !empty($validated['hours_worked']) || 
+                       !empty($validated['from_time']) || 
+                       !empty($validated['to_time']) || 
+                       ($validated['attendance'] ?? '') === 'Present';
+
+        if ($weeklyOffService->isWeeklyOff($employee, Carbon::parse($validated['date'])) && !$hasWorkData) {
             $validated['attendance'] = 'Weekly Off';
             $validated['hours_worked'] = 0;
             $validated['normal_hours'] = 0;
@@ -1010,7 +1017,12 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                 ->where('end_date', '>=', $validated['date'])
                 ->exists();
 
-            if ($isWeeklyOff) {
+            $hasWorkData = !empty($validated['hours_worked']) || 
+                           !empty($validated['from_time']) || 
+                           !empty($validated['to_time']) || 
+                           ($validated['attendance'] ?? '') === 'Present';
+
+            if ($isWeeklyOff && !$hasWorkData) {
                 $validated['attendance'] = 'Weekly Off';
                 $validated['hours_worked'] = 0;
                 $validated['normal_hours'] = 0;
@@ -1180,7 +1192,12 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                     });
                 }
 
-                if ($isWeeklyOff) {
+                $hasWorkData = !empty($entry['hours_worked']) || 
+                               !empty($entry['from_time']) || 
+                               !empty($entry['to_time']) || 
+                               ($entry['attendance'] ?? '') === 'Present';
+
+                if ($isWeeklyOff && !$hasWorkData) {
                     $entry['attendance'] = 'Weekly Off';
                     $entry['from_time'] = null;
                     $entry['to_time'] = null;

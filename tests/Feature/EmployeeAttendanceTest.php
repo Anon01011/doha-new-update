@@ -71,6 +71,9 @@ class EmployeeAttendanceTest extends TestCase
             'role' => 'employee',
             'employee_id' => $this->emp1->id,
         ]);
+
+        // Create standard_working_hours setting for Branch 1
+        \App\Models\Setting::set('standard_working_hours', 8, 'Payroll', 'number', $this->branch1->id);
     }
 
     public function test_admin_default_view_returns_all_branches_initially()

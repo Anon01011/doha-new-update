@@ -576,12 +576,14 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                                 </div>
                                             </div>
                                         </td>
-                                        {weekDays.map(day => {                                             const key = `${emp.id}_${day.date}`;
+                                        {weekDays.map(day => {
+                                             const key = `${emp.id}_${day.date}`;
                                              const cell = editData[key] || { attendance: '' };
                                              const dateObj = new Date(day.date);
                                              const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
                                              const plannedShift = rosterMap[`${emp.id}_${dayName}`];
-                                             const isWeeklyOff = cell.attendance === 'Weekly Off' || (plannedShift && plannedShift.is_weekly_off) || isEmployeeWeeklyOff(emp, day.date);
+                                             const scheduledWeeklyOff = (plannedShift && plannedShift.is_weekly_off) || isEmployeeWeeklyOff(emp, day.date);
+                                             const isWeeklyOff = cell.attendance === 'Weekly Off' || (!cell.attendance && scheduledWeeklyOff);
                                              const isLeave = cell.attendance === 'Leave';
 
                                              return (
@@ -606,21 +608,13 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                                                          cell.attendance === 'Present' ? 'text-primary' :
                                                                          'text-slate-400 hover:text-slate-600'
                                                                      }`}
-                                                                     value={isWeeklyOff ? 'Weekly Off' : isLeave ? 'Leave' : (cell.attendance || '')}
+                                                                     value={cell.attendance || (scheduledWeeklyOff ? 'Weekly Off' : '')}
                                                                      onChange={e => handleCellChange(emp.id, day.date, 'attendance', e.target.value)}
-                                                                     disabled={isEmployee || isWeeklyOff || isLeave}
+                                                                     disabled={isEmployee}
                                                                  >
-                                                                     {isWeeklyOff ? (
-                                                                         <option value="Weekly Off">WEEKLY OFF</option>
-                                                                     ) : isLeave ? (
-                                                                         <option value="Leave">LEAVE</option>
-                                                                     ) : (
-                                                                         <>
-                                                                             <option value="">STATUS</option>
-                                                                             {finalAttendanceOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                                             <option value="Weekly Off">Weekly Off</option>
-                                                                         </>
-                                                                     )}
+                                                                     <option value="">STATUS</option>
+                                                                     {finalAttendanceOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                                     <option value="Weekly Off">Weekly Off</option>
                                                                  </select>
                                                                  <FiChevronDown className={`w-3 h-3 -ml-3 pointer-events-none transition-colors ${
                                                                      isWeeklyOff ? 'text-amber-500' :
