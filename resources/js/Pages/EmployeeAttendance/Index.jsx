@@ -285,6 +285,9 @@ export default function Index({ branches = [], employees, attendances = [], rost
                     const normal = getNormalHours(empId, date);
                     updates.normal_hours = normal;
                     updates.ot = hours > normal ? hours - normal : 0;
+                    if (currentCell.attendance === 'Absent' || !currentCell.attendance) {
+                        updates.attendance = 'Present';
+                    }
                 }
             }
 
@@ -675,7 +678,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                                              </div>
                                                              {cell.hours_worked > 0 && (() => {
                                                                  const worked = parseFloat(cell.hours_worked);
-                                                                 const std = parseFloat(settings?.standard_working_hours || 9);
+                                                                 const std = parseFloat(cell.normal_hours || settings?.standard_working_hours || 9);
                                                                  const otHours = worked > std ? fmt(worked - std) : 0;
                                                                  const isOT = worked > std;
                                                                  const isUnder = worked < std;
@@ -689,11 +692,14 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                                                          type="button"
                                                                          onClick={() => handleShowBreakup(emp, day.date, cell)}
                                                                          className={`flex flex-col items-center px-2 py-1 rounded-lg border transition-all duration-200 leading-tight ${colorClass}`}
-                                                                         title={isOT ? `Worked ${fmt(worked)}h — ${otHours}h overtime. Click for details.` : `Worked ${fmt(worked)}h. Click for details.`}
+                                                                         title={isOT ? `Worked ${fmt(worked)}h — ${otHours}h overtime. Click for details.` : isUnder ? `Worked ${fmt(worked)}h — ${fmt(std - worked)}h incomplete. Click for details.` : `Worked ${fmt(worked)}h. Click for details.`}
                                                                      >
                                                                          <span className="text-[9px] font-bold tracking-wide">{fmt(worked)}h</span>
                                                                          {isOT && (
                                                                              <span className="text-[8px] font-normal text-orange-500 leading-none">▲ {otHours}h OT</span>
+                                                                         )}
+                                                                         {isUnder && (
+                                                                             <span className="text-[8px] font-normal text-rose-500 leading-none">▼ {fmt(std - worked)}h INC</span>
                                                                          )}
                                                                      </button>
                                                                  );

@@ -245,6 +245,17 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                     continue;
                 }
 
+                // Determine expected/standard normal hours for the shift early
+                $parsedDate = Carbon::parse($date);
+                $dayName = $parsedDate->format('l');
+                $roster = ShiftRoster::where('employee_id', $employee->id)
+                    ->where('day', $dayName)
+                    ->where('week_start', '<=', $date)
+                    ->orderBy('week_start', 'desc')
+                    ->first();
+                $stdHours = Setting::get('standard_working_hours', 9, $companyId);
+                $expectedNormalHours = $roster ? ($roster->shift_duration ?? $stdHours) : $stdHours;
+
                 // Parse clock-in and clock-out times
                 $clockInTime = null;
                 $clockOutTime = null;
@@ -273,6 +284,35 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                     $hoursWorked = $this->parseTimeToDecimal($workedStr);
                 }
 
+                // Parse absent duration (format: HH:MM)
+                $absentHours = 0;
+                if ($colMap['absent_duration'] !== -1) {
+                    $absentStr = trim($row[$colMap['absent_duration']]);
+                    $absentHours = $this->parseTimeToDecimal($absentStr);
+                }
+
+                // If hours worked is 0/empty:
+                if ($hoursWorked == 0) {
+                    // 1. Try to calculate from expected shift hours and absent duration if available
+                    if ($colMap['absent_duration'] !== -1 && $absentHours > 0 && $clockInTime && $clockInTime !== '--') {
+                        $hoursWorked = max(0, $expectedNormalHours - $absentHours);
+                    }
+                    // 2. Otherwise, calculate from clock-in and clock-out times
+                    elseif ($clockInTime && $clockOutTime && $clockInTime !== '--' && $clockOutTime !== '--') {
+                        try {
+                            $timeIn = Carbon::parse($clockInTime);
+                            $timeOut = Carbon::parse($clockOutTime);
+                            if ($timeOut->lt($timeIn)) {
+                                // Overnight shift
+                                $timeOut->addDay();
+                            }
+                            $hoursWorked = round($timeOut->diffInMinutes($timeIn) / 60, 2);
+                        } catch (\Exception $e) {
+                            Log::error("Error calculating hours worked in import: " . $e->getMessage());
+                        }
+                    }
+                }
+
                 // Parse overtime (format: HH:MM)
                 $overtimeHours = 0;
                 if ($colMap['overtime'] !== -1) {
@@ -286,7 +326,6 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
 
                 // Check weekly off FIRST (overrides all other status logic if they didn't work)
                 $weeklyOffService = app(WeeklyOffService::class);
-                $parsedDate = Carbon::parse($date);
                 if ($weeklyOffService->isWeeklyOff($employee, $parsedDate) && !$isWorked) {
                     $attendanceStatus = 'Weekly Off';
                 } elseif ($isAbsent || $hoursWorked == 0) {
@@ -294,18 +333,6 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                 } elseif ($hoursWorked < 4) {
                     $attendanceStatus = 'Half Day';
                 }
-
-                // Fetch roster for this day (optional, for reference)
-                $dayName = $parsedDate->format('l');
-                $roster = ShiftRoster::where('employee_id', $employee->id)
-                    ->where('day', $dayName)
-                    ->where('week_start', '<=', $date)
-                    ->orderBy('week_start', 'desc')
-                    ->first();
-
-                // Determine expected/standard normal hours for the shift
-                $stdHours = Setting::get('standard_working_hours', 9, $companyId);
-                $expectedNormalHours = $roster ? ($roster->shift_duration ?? $stdHours) : $stdHours;
 
                 // Save/Update Attendance
                 EmployeeAttendance::updateOrCreate(
@@ -1247,10 +1274,16 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                 $key = $entry['employee_id'] . '_' . $entry['date'];
                 $existing = $existingAttendances->get($key)?->first();
 
+                $entryAttendance = $entry['attendance'] ?? null;
+                // If they have worked hours (> 0), default to Present if status is Absent or empty
+                if ($hoursWorked > 0 && ($entryAttendance === 'Absent' || empty($entryAttendance))) {
+                    $entryAttendance = 'Present';
+                }
+
                 if ($existing) {
                     $existing->update([
                         'shift_id' => $roster ? $roster->id : null,
-                        'attendance' => $entry['attendance'] ?? ($hoursWorked > 0 ? 'Present' : null),
+                        'attendance' => $entryAttendance ?? ($hoursWorked > 0 ? 'Present' : null),
                         'from_time' => $entry['from_time'] ?? null,
                         'to_time' => $entry['to_time'] ?? null,
                         'hours_worked' => $hoursWorked,
@@ -1265,7 +1298,7 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                         'company_id' => $entry['company_id'],
                         'date' => $entry['date'],
                         'shift_id' => $roster ? $roster->id : null,
-                        'attendance' => $entry['attendance'] ?? ($hoursWorked > 0 ? 'Present' : null),
+                        'attendance' => $entryAttendance ?? ($hoursWorked > 0 ? 'Present' : null),
                         'from_time' => $entry['from_time'] ?? null,
                         'to_time' => $entry['to_time'] ?? null,
                         'hours_worked' => $hoursWorked,
