@@ -1120,6 +1120,15 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
             ->orderBy('sort_order')
             ->pluck('value');
 
+        $user = auth()->user();
+        $companyId = $user->employee_id ? $user->employee->company_id : $company_id;
+        $settings = [
+            'grace_period_minutes' => Setting::get('clock_in_grace_period', 15, $companyId),
+            'company_opening_time' => Setting::get('company_opening_time', '09:30', $companyId),
+            'company_closing_time' => Setting::get('company_closing_time', '03:00', $companyId),
+            'standard_working_hours' => Setting::get('standard_working_hours', 9, $companyId),
+        ];
+
         return \Inertia\Inertia::render('EmployeeAttendance/Index', [
             'branches' => $companies,
             'employees' => $employees,
@@ -1127,6 +1136,7 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
             'initialCompanyId' => $company_id,
             'initialWeekStart' => $week_start,
             'attendanceOptions' => $attendanceOptions,
+            'settings' => $settings,
         ]);
     }
 
@@ -1253,9 +1263,9 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                         ->sortByDesc('week_start')
                         ->first();
 
-                    // Determine normal hours — prefer entry value, then roster shift duration, then company setting
+                    // Determine normal hours — prefer entry value (if not empty/0), then roster shift duration, then company setting
                     $stdHours = Setting::get('standard_working_hours', 9, $entry['company_id'] ?? $companyId);
-                    $normalHours = $entry['normal_hours'] ?? ($roster ? ($roster->shift_duration ?? $stdHours) : $stdHours);
+                    $normalHours = (!empty($entry['normal_hours']) && $entry['normal_hours'] > 0) ? $entry['normal_hours'] : ($roster ? ($roster->shift_duration ?? $stdHours) : $stdHours);
                     $hoursWorked = $entry['hours_worked'] ?? 0;
 
                     // Auto-calculate OT Hours: hours worked beyond the standard shift
