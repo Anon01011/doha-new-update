@@ -279,7 +279,8 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                         <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal">Employee</th>
                                         <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal">Branch</th>
                                         <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal">Status</th>
-                                        <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal text-center">Clock In/Out</th>
+                                        <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal text-center">Clock In</th>
+                                        <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal text-center">Clock Out</th>
                                         <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal text-right">Worked</th>
                                         <th className="px-6 py-4 text-xs font-normal text-orange-500 uppercase tracking-normal text-right">OT Hours</th>
                                     </tr>
@@ -309,12 +310,11 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-normal text-slate-500">{att.company?.name}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap">{statusBadge(att.attendance)}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                        <div className="text-xs font-normal text-slate-600">
-                                                            {att.from_time ? <span className="text-emerald-600">{att.from_time}</span> : <span className="text-slate-300">--:--</span>}
-                                                            <span className="mx-1 text-slate-300">→</span>
-                                                            {att.to_time ? <span className="text-rose-500">{att.to_time}</span> : <span className="text-slate-300">--:--</span>}
-                                                        </div>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-xs font-normal">
+                                                        {att.from_time ? <span className="text-emerald-600 font-medium">{att.from_time}</span> : <span className="text-slate-300">--:--</span>}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-xs font-normal">
+                                                        {att.to_time ? <span className="text-rose-500 font-medium">{att.to_time}</span> : <span className="text-slate-300">--:--</span>}
                                                     </td>
                                                     <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${colorClass}`}>
                                                         {worked > 0 ? (
