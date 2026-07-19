@@ -1270,8 +1270,12 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
 
                     // Auto-calculate OT Hours: hours worked beyond the standard shift
                     $otHours = $entry['ot'] ?? 0;
-                    if ($hoursWorked > $normalHours && $otHours == 0) {
-                        $otHours = round($hoursWorked - $normalHours, 3);
+                    if ($hoursWorked > 0) {
+                        $calculatedOt = $hoursWorked > $normalHours ? round($hoursWorked - $normalHours, 3) : 0;
+                        // Ensure OT is recalculated if it doesn't align with current normal hours
+                        if ($otHours == 0 || $otHours != $calculatedOt) {
+                            $otHours = $calculatedOt;
+                        }
                     }
 
                     // Auto-calculate OT Amount if OT hours exist and Amount is not manually provided

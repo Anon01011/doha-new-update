@@ -356,8 +356,13 @@ export default function Index({ branches = [], employees, attendances = [], rost
         // Add company_id to each attendance record
         const attendancesWithCompany = Object.values(editData).map(record => {
             const emp = employeeList.find(e => e.id === record.employee_id);
+            const normal = getNormalHours(record.employee_id, record.date);
+            const worked = parseFloat(record.hours_worked || 0);
+            const ot = worked > normal ? parseFloat((worked - normal).toFixed(2)) : 0;
             return {
                 ...record,
+                normal_hours: normal,
+                ot: ot,
                 company_id: selectedBranch || emp?.company_id
             };
         });
@@ -678,7 +683,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                                              </div>
                                                              {cell.hours_worked > 0 && (() => {
                                                                  const worked = parseFloat(cell.hours_worked);
-                                                                 const std = parseFloat(cell.normal_hours || settings?.standard_working_hours || 9);
+                                                                 const std = getNormalHours(emp.id, day.date);
                                                                  const otHours = worked > std ? fmt(worked - std) : 0;
                                                                  const isOT = worked > std;
                                                                  const isUnder = worked < std;
@@ -789,7 +794,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                             {/* Summary Cards */}
                             {(() => {
                                 const worked = parseFloat(selectedBreakup.attendance.hours_worked || 0);
-                                const std = parseFloat(selectedBreakup.attendance.normal_hours || settings?.standard_working_hours || 9);
+                                const std = getNormalHours(selectedBreakup.employee.id, selectedBreakup.date);
                                 const regularHours = Math.min(worked, std);
                                 
                                 const otHoursVal = worked > std ? worked - std : 0;
@@ -853,7 +858,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                             <div className="space-y-4">
                                 <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-normal">Session Timeline</h4>
                                 {(() => {
-                                    const parsed = parsePunches(selectedBreakup.attendance.punches, selectedBreakup.attendance.normal_hours || parseFloat(settings?.standard_working_hours || 9));
+                                    const parsed = parsePunches(selectedBreakup.attendance.punches, getNormalHours(selectedBreakup.employee.id, selectedBreakup.date));
                                     if (!parsed || parsed.sessions.length === 0) {
                                         return (
                                             <div className="p-4 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-400 italic">
