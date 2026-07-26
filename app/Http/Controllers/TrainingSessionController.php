@@ -12,11 +12,11 @@ class TrainingSessionController extends Controller
     public function store(Request $request, Training $training)
     {
         $user = auth()->user();
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             abort(403, 'Unauthorized access.');
         }
 
-        if ($user->role !== 'admin' && $user->employee_id && $training->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $training->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access to another branch.');
         }
 
@@ -35,11 +35,11 @@ class TrainingSessionController extends Controller
     public function update(Request $request, TrainingSession $session)
     {
         $user = auth()->user();
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             abort(403, 'Unauthorized access.');
         }
 
-        if ($user->role !== 'admin' && $user->employee_id && $session->training->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $session->training->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access to another branch.');
         }
 
@@ -58,11 +58,11 @@ class TrainingSessionController extends Controller
     public function destroy(TrainingSession $session)
     {
         $user = auth()->user();
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             abort(403, 'Unauthorized access.');
         }
 
-        if ($user->role !== 'admin' && $user->employee_id && $session->training->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $session->training->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access to another branch.');
         }
 

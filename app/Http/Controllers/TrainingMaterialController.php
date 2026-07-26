@@ -13,7 +13,7 @@ class TrainingMaterialController extends Controller
     public function store(Request $request, Training $training)
     {
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->employee_id && $training->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $training->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -46,11 +46,11 @@ class TrainingMaterialController extends Controller
         // Check access
         $user = auth()->user();
 
-        if ($user->role !== 'admin' && $user->employee_id && $material->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $material->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             // Record view/download for progress tracking
             $this->recordMaterialView($material, $user->employee_id);
         }
@@ -65,11 +65,11 @@ class TrainingMaterialController extends Controller
     public function destroy(TrainingMaterial $material)
     {
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->employee_id && $material->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $material->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             abort(403, 'Unauthorized access.');
         }
 

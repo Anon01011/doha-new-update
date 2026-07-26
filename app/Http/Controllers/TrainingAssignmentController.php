@@ -21,7 +21,7 @@ class TrainingAssignmentController extends Controller
         $user       = auth()->user();
 
         // Admin sees all assignments without any company scope
-        if ($user->role === 'admin') {
+        if ($user->isAdmin()) {
             $query = TrainingAssignment::withoutGlobalScopes()
                 ->with(['training', 'employee', 'assigner']);
         } else {
@@ -37,7 +37,7 @@ class TrainingAssignmentController extends Controller
         }
 
         // Non-admin: scope by their own company
-        if ($user->role !== 'admin' && $user->employee_id) {
+        if (!$user->isAdmin() && $user->employee_id) {
             $companyId = $user->company_id
                 ?? \Illuminate\Support\Facades\DB::table('employees')->where('id', $user->employee_id)->value('company_id');
             if ($companyId) {
@@ -61,9 +61,9 @@ class TrainingAssignmentController extends Controller
         $user = auth()->user();
         $companyId = null;
 
-        if ($user->role !== 'admin' && $user->employee_id) {
+        if (!$user->isAdmin() && $user->employee_id) {
             $companyId = $user->employee->company_id;
-        } elseif ($user->role === 'admin' && $request->has('company_id')) {
+        } elseif ($user->isAdmin() && $request->has('company_id')) {
             $companyId = $request->input('company_id');
         }
 
@@ -101,7 +101,7 @@ class TrainingAssignmentController extends Controller
         $companyId = $training->company_id;
 
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->employee_id && $companyId != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $companyId != $user->employee->company_id) {
             abort(403, 'Unauthorized access to this training.');
         }
 
@@ -135,7 +135,7 @@ class TrainingAssignmentController extends Controller
             // Use loose == (not ===): DB may return int or string for company_id.
             // Admin can assign any employee to any training — no company restriction.
             // Non-admin: employee must belong to the same company as the training.
-            $companyMatch = $user->role === 'admin'
+            $companyMatch = $user->isAdmin()
                 || is_null($companyId)
                 || is_null($employee->company_id)
                 || $employee->company_id == $companyId;
@@ -204,7 +204,7 @@ class TrainingAssignmentController extends Controller
     public function updateStatus(Request $request, TrainingAssignment $assignment)
     {
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->employee_id && $assignment->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $assignment->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -273,7 +273,7 @@ class TrainingAssignmentController extends Controller
         $user = auth()->user();
 
         // Ensure user owns this assignment
-        if ($user->role === 'employee' && $assignment->employee_id !== $user->employee_id) {
+        if ($user->isEmployee() && $assignment->employee_id !== $user->employee_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -314,7 +314,7 @@ class TrainingAssignmentController extends Controller
     public function destroy(TrainingAssignment $assignment)
     {
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->employee_id && $assignment->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $assignment->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 

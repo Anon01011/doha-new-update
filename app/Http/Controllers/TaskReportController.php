@@ -18,13 +18,13 @@ class TaskReportController extends Controller
         $user = Auth::user();
         $branchId = null;
 
-        if ($user->role !== 'admin' && $user->employee_id) {
+        if (!$user->isAdmin() && $user->employee_id) {
             $branchId = $user->employee->company_id;
-        } elseif ($request->has('company_id') && $user->role === 'admin') {
+        } elseif ($request->has('company_id') && $user->isAdmin()) {
             $branchId = $request->input('company_id');
         }
 
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             abort(403, 'Unauthorized access.');
         }
 

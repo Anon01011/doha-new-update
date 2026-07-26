@@ -19,16 +19,16 @@ class TrainingCategoryController extends Controller
         }
 
         // Otherwise return the management view (Admin/HR/Manager only)
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             abort(403, 'Unauthorized access.');
         }
 
         $query = TrainingCategory::query();
 
         // Filter by company for multi-tenancy
-        if ($user->role !== 'admin' && $user->employee_id) {
+        if (!$user->isAdmin() && $user->employee_id) {
             $query->where('company_id', $user->employee->company_id);
-        } elseif ($user->role === 'admin' && $request->has('company_id')) {
+        } elseif ($user->isAdmin() && $request->has('company_id')) {
             $query->where('company_id', $request->input('company_id'));
         }
 
@@ -49,7 +49,7 @@ class TrainingCategoryController extends Controller
     public function store(Request $request)
     {
         $user = auth()->user();
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -59,10 +59,18 @@ class TrainingCategoryController extends Controller
             'color_code' => 'nullable|string|max:7',
         ]);
 
-        $validated['company_id'] = ($user->role !== 'admin' && $user->employee_id) ? $user->employee->company_id : ($request->input('company_id') ?? 1);
+        $validated['company_id'] = (!$user->isAdmin() && $user->employee_id) ? $user->employee->company_id : ($request->input('company_id') ?? 1);
         $validated['is_active'] = true;
 
-        TrainingCategory::create($validated);
+        $category = TrainingCategory::create($validated);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'category' => $category,
+                'message' => 'Category created successfully!'
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Category created successfully!');
     }
@@ -70,7 +78,7 @@ class TrainingCategoryController extends Controller
     public function update(Request $request, TrainingCategory $trainingCategory)
     {
         $user = auth()->user();
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -81,7 +89,7 @@ class TrainingCategoryController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        if ($user->role !== 'admin' && $user->employee_id && $trainingCategory->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $trainingCategory->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
         $trainingCategory->update($validated);
@@ -92,11 +100,11 @@ class TrainingCategoryController extends Controller
     public function destroy(TrainingCategory $trainingCategory)
     {
         $user = auth()->user();
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             abort(403, 'Unauthorized access.');
         }
 
-        if ($user->role !== 'admin' && $user->employee_id && $trainingCategory->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $trainingCategory->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
         $trainingCategory->delete();

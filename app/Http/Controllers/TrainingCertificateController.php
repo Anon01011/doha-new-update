@@ -13,7 +13,7 @@ class TrainingCertificateController extends Controller
     {
         // Verify access
         $user = auth()->user();
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             if ($certificate->employee_id !== $user->employee_id) {
                 abort(403, 'Unauthorized access.');
             }
@@ -33,7 +33,7 @@ class TrainingCertificateController extends Controller
 
         // Allow if admin/manager OR if employee generating their *own* certificate
         // but only if training is completed (checked below)
-        if ($user->role === 'employee' && $assignment->employee_id !== $user->employee_id) {
+        if ($user->isEmployee() && $assignment->employee_id !== $user->employee_id) {
             abort(403, 'Unauthorized access.');
         }
 

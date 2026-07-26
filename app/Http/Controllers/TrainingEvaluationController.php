@@ -13,11 +13,11 @@ class TrainingEvaluationController extends Controller
     {
         $user = auth()->user();
 
-        if ($user->role === 'employee' && $assignment->employee_id !== $user->employee_id) {
+        if ($user->isEmployee() && $assignment->employee_id !== $user->employee_id) {
             abort(403, 'Unauthorized access.');
         }
 
-        if ($user->role !== 'admin' && $user->role !== 'employee' && $user->employee_id && $assignment->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && !$user->isEmployee() && $user->employee_id && $assignment->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access to another branch.');
         }
 

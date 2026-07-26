@@ -19,7 +19,7 @@ class TaskAssignmentController extends Controller
 
         // Multi-tenancy scoping
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->employee_id) {
+        if (!$user->isAdmin() && $user->employee_id) {
             $query->whereHas('employee', function ($q) use ($user) {
                 $q->where('company_id', $user->employee->company_id);
             });
@@ -45,9 +45,9 @@ class TaskAssignmentController extends Controller
         $taskId = $request->query('task_id');
         $tasksQuery = Task::query();
         $employeesQuery = Employee::query();
-        $branches = $user->role === 'admin' ? \App\Models\Company::orderBy('name')->get(['id', 'name']) : [];
+        $branches = $user->isAdmin() ? \App\Models\Company::orderBy('name')->get(['id', 'name']) : [];
 
-        if ($user->role !== 'admin' && $user->employee_id) {
+        if (!$user->isAdmin() && $user->employee_id) {
             $tasksQuery->where('branch_id', $user->employee->company_id);
             $employeesQuery->where('company_id', $user->employee->company_id);
         }
@@ -77,7 +77,7 @@ class TaskAssignmentController extends Controller
         $task = Task::with('project.members')->findOrFail($validated['task_id']);
 
         // Multi-tenancy check
-        if ($user->role !== 'admin' && $user->employee_id && $task->branch_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $task->branch_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access to this task.');
         }
 
@@ -156,7 +156,7 @@ class TaskAssignmentController extends Controller
         ]);
 
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->employee_id && $assignment->employee->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $assignment->employee->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -173,7 +173,7 @@ class TaskAssignmentController extends Controller
     public function destroy(TaskAssignment $assignment)
     {
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->employee_id && $assignment->employee->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $assignment->employee->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 

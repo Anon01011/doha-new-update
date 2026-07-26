@@ -16,7 +16,7 @@ class TrainingSessionAttendanceController extends Controller
         $user = auth()->user();
 
         // Ensure user belongs to same company as session
-        if ($user->role !== 'admin' && $user->employee_id && $session->training->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $session->training->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access to session in another branch.');
         }
 
@@ -43,11 +43,11 @@ class TrainingSessionAttendanceController extends Controller
     public function store(Request $request, TrainingSession $session)
     {
         $user = auth()->user();
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             abort(403, 'Unauthorized. Only admins, HR, or managers can mark attendance.');
         }
 
-        if ($user->role !== 'admin' && $user->employee_id && $session->training->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $session->training->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access to session in another branch.');
         }
 

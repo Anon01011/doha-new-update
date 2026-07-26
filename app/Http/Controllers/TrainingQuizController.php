@@ -18,7 +18,7 @@ class TrainingQuizController extends Controller
     public function store(Request $request, Training $training)
     {
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->employee_id && $training->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $training->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -67,7 +67,7 @@ class TrainingQuizController extends Controller
         $user = auth()->user();
         $employee = $user->employee;
 
-        if ($user->role !== 'admin' && $employee && $quiz->training->company_id != $employee->company_id) {
+        if (!$user->isAdmin() && $employee && $quiz->training->company_id != $employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -125,7 +125,7 @@ class TrainingQuizController extends Controller
     public function destroy(TrainingQuiz $quiz)
     {
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->employee_id && $quiz->training->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $quiz->training->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
         $quiz->delete();
