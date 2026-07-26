@@ -6,7 +6,9 @@ import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 
 export default function Index({ salaryPostings, month, year, userRole = 'employee' }) {
-    const { appSettings } = usePage().props;
+    const { auth, appSettings } = usePage().props;
+    const user = auth?.user || {};
+    const canManagePayroll = user.role === 'admin' || (user.permissions && user.permissions.includes('manage-payroll'));
     const currency = appSettings?.currency || 'QAR';
 
     const [modal, setModal] = useState({
@@ -307,18 +309,22 @@ export default function Index({ salaryPostings, month, year, userRole = 'employe
                                                         >
                                                             <FaEye size={12} />
                                                         </Link>
-                                                        <Link
-                                                            href={route('salary-postings.edit', posting.id)}
-                                                            className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded transition-all"
-                                                        >
-                                                            <FaEdit size={12} />
-                                                        </Link>
-                                                        <button
-                                                            onClick={() => handleDelete(posting.id)}
-                                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-all"
-                                                        >
-                                                            <FaTrash size={12} />
-                                                        </button>
+                                                        {canManagePayroll && (
+                                                            <>
+                                                                <Link
+                                                                    href={route('salary-postings.edit', posting.id)}
+                                                                    className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded transition-all"
+                                                                >
+                                                                    <FaEdit size={12} />
+                                                                </Link>
+                                                                <button
+                                                                    onClick={() => handleDelete(posting.id)}
+                                                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-all"
+                                                                >
+                                                                    <FaTrash size={12} />
+                                                                </button>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -335,13 +341,15 @@ export default function Index({ salaryPostings, month, year, userRole = 'employe
                                                 <p className="text-xs text-slate-300 mt-1 max-w-xs">
                                                     No records found for the selected period.
                                                 </p>
-                                                <Link
-                                                    href={route('salary-postings.create')}
-                                                    className="mt-5 flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-xs font-normal hover:brightness-110 shadow shadow-primary/20 transition-all active:scale-95"
-                                                >
-                                                    <FaPlus size={10} />
-                                                    Calculate Salary
-                                                </Link>
+                                                {canManagePayroll && (
+                                                    <Link
+                                                        href={route('salary-postings.create')}
+                                                        className="mt-5 flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-xs font-normal hover:brightness-110 shadow shadow-primary/20 transition-all active:scale-95"
+                                                    >
+                                                        <FaPlus size={10} />
+                                                        Calculate Salary
+                                                    </Link>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

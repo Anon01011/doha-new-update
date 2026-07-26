@@ -30,7 +30,7 @@ class SettingsController extends Controller
 
     public function updateMailSettings(Request $request)
     {
-        if (auth()->user()->role !== 'admin') {
+        if (!auth()->user()->isAdmin()) {
             abort(403, 'Unauthorized. Only Super Admin can modify mail settings.');
         }
 
@@ -65,7 +65,7 @@ class SettingsController extends Controller
 
     public function testMailSettings(Request $request)
     {
-        if (auth()->user()->role !== 'admin') {
+        if (!auth()->user()->isAdmin()) {
             abort(403, 'Unauthorized.');
         }
 
@@ -102,7 +102,7 @@ class SettingsController extends Controller
     public function updateSystemSettings(Request $request)
     {
         $user = auth()->user();
-        if ($user->role !== 'admin' && !$request->has('company_id')) {
+        if (!$user->isAdmin() && !$request->has('company_id')) {
             // Managers must have a company_id context for branding
             $companyId = $user->employee_id ? $user->employee->company_id : null;
         } else {
@@ -111,7 +111,7 @@ class SettingsController extends Controller
 
         // Only Super Admin can save to .env
         $saveToEnv = $request->input('save_to_env');
-        if ($saveToEnv && $user->role !== 'admin') {
+        if ($saveToEnv && !$user->isAdmin()) {
             abort(403, 'Unauthorized. Only Super Admin can save settings to the environment file.');
         }
 

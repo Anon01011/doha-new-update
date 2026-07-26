@@ -6,7 +6,9 @@ import ConfirmationModal from '@/Components/ConfirmationModal';
 import { FaArrowLeft, FaEdit, FaCheckCircle, FaTimesCircle, FaMoneyBillWave, FaHistory, FaShieldAlt, FaPrint, FaClock, FaChartPie, FaPlus, FaMinus, FaFileInvoiceDollar, FaInfoCircle } from 'react-icons/fa';
 
 export default function Show({ salaryPosting, userRole = 'employee', loanInstallments = [], advances = [] }) {
-    const { appSettings } = usePage().props;
+    const { auth, appSettings } = usePage().props;
+    const user = auth?.user || {};
+    const canManagePayroll = user.role === 'admin' || (user.permissions && user.permissions.includes('manage-payroll'));
     const currency = appSettings?.currency || 'QAR';
 
     const [modal, setModal] = useState({
@@ -131,7 +133,7 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                             <FaPrint size={10} />
                             Generate Slip
                         </a>
-                        {['admin', 'hr', 'manager', 'system admin', 'system_admin', 'super admin', 'superadmin'].includes(String(userRole).toLowerCase()) && ['draft', 'pending'].includes(salaryPosting.status?.toLowerCase()) && (
+                        {canManagePayroll && ['draft', 'pending'].includes(salaryPosting.status?.toLowerCase()) && (
                             <div className="flex items-center gap-2 w-full sm:w-auto">
                                 <button
                                     onClick={handleApprove}
@@ -149,7 +151,7 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                                 </button>
                             </div>
                         )}
-                        {['admin', 'hr', 'manager', 'system admin', 'system_admin', 'super admin', 'superadmin'].includes(String(userRole).toLowerCase()) && (
+                        {canManagePayroll && (
                             <Link
                                 href={route('salary-postings.edit', salaryPosting.id)}
                                 className="w-full sm:w-auto px-6 py-2.5 bg-slate-900 text-white rounded-lg text-[10px] font-normal uppercase tracking-normal hover:bg-primary transition-all shadow-lg shadow-slate-200 active:scale-95 flex items-center justify-center gap-2"

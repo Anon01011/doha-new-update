@@ -379,7 +379,7 @@ class EmployeeController extends Controller
         \Log::info('Employee update validated payload:', $validated);
 
         // Role-based field protection: Only Admin and HR can change company, department, or status
-        if (!$user->isAdmin() && $user->role !== 'hr') {
+        if (!$user->isAdmin() && !$user->isHR()) {
             unset($validated['company_id'], $validated['department_id'], $validated['manual_status']);
         }
 
@@ -549,10 +549,9 @@ class EmployeeController extends Controller
      */
     public function destroy(Employee $employee)
     {
-        // Only admin can delete employees
         $user = auth()->user();
-        if ($user->role !== 'admin') {
-            abort(403, 'Unauthorized. Only admin can delete employees.');
+        if (!$user->isAdmin() && !$user->hasPermission('delete-employees')) {
+            abort(403, 'Unauthorized. You do not have permission to delete employees.');
         }
 
         try {
@@ -644,10 +643,9 @@ class EmployeeController extends Controller
 
     public function bulkTransfer(Request $request)
     {
-        // Only admin and HR can transfer employees
         $user = auth()->user();
-        if (!in_array($user->role, ['admin', 'hr'])) {
-            abort(403, 'Unauthorized. Only admin and HR can transfer employees.');
+        if (!$user->isAdmin() && !$user->hasPermission('edit-employees')) {
+            abort(403, 'Unauthorized. You do not have permission to transfer employees.');
         }
 
         $validated = $request->validate([
@@ -673,9 +671,14 @@ class EmployeeController extends Controller
                 }
             }
 
-            // Verify department belongs to company
+            // Verify department belongs to company (supports both direct company_id and pivot)
             $department = Department::where('id', $validated['department_id'])
-                ->where('company_id', $validated['company_id'])
+                ->where(function ($q) use ($validated) {
+                    $q->where('company_id', $validated['company_id'])
+                      ->orWhereHas('companies', function ($sub) use ($validated) {
+                          $sub->where('companies.id', $validated['company_id']);
+                      });
+                })
                 ->first();
 
             if (!$department) {

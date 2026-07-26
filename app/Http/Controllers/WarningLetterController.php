@@ -108,7 +108,7 @@ class WarningLetterController extends Controller
         // Send Email
         if ($employee->email) {
             try {
-                Mail::to($employee->email)->send(new WarningLetterMail($warningLetter));
+                Mail::to($employee->email)->queue(new WarningLetterMail($warningLetter));
             } catch (\Exception $e) {
                 \Log::error('Failed to send warning letter email: ' . $e->getMessage());
             }

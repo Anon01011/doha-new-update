@@ -42,7 +42,16 @@ class ShiftRosterController extends Controller
                 $company_id = $user->employee->company_id;
             }
 
-            $companies = Company::orderBy('name')->get(['id', 'name', 'slug']);
+            $companiesQuery = Company::orderBy('name');
+            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
+                $companiesQuery->where('id', $user->employee->company_id);
+            }
+            $companies = $companiesQuery->get(['id', 'name', 'slug']);
+
+            // Default to first company if no company_id provided
+            if (!$company_id && $companies->isNotEmpty()) {
+                $company_id = $companies->first()->id;
+            }
 
             // Fetch departments for the selected company via pivot
             $departmentsQuery = \App\Models\Department::orderBy('name');
@@ -63,7 +72,7 @@ class ShiftRosterController extends Controller
             }
 
             // If employee, only show themselves
-            if ($user->role === 'employee' && $user->employee_id) {
+            if ($user->isEmployee() && $user->employee_id) {
                 $employeesQuery->where('id', $user->employee_id);
             }
 
@@ -106,7 +115,11 @@ class ShiftRosterController extends Controller
             if (!$user->isAdmin() && !$user->hasPermission('manage-rosters')) {
                 abort(403, 'Unauthorized.');
             }
-            $companies = Company::orderBy('name')->get(['id', 'name', 'slug']);
+            $companiesQuery = Company::orderBy('name');
+            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
+                $companiesQuery->where('id', $user->employee->company_id);
+            }
+            $companies = $companiesQuery->get(['id', 'name', 'slug']);
             $companyParam = $request->input('company');
             $departmentParam = $request->input('department');
 
@@ -140,12 +153,17 @@ class ShiftRosterController extends Controller
                 $employeesQuery->whereRaw('1 = 0');
             }
 
-            // Fetch departments for the selected company
+            // Fetch departments for the selected company (supports both direct and pivot)
             $departmentsQuery = \App\Models\Department::orderBy('name');
             if ($company_id) {
-                $departmentsQuery->where('company_id', $company_id);
+                $departmentsQuery->where(function ($q) use ($company_id) {
+                    $q->where('company_id', $company_id)
+                      ->orWhereHas('companies', function ($sub) use ($company_id) {
+                          $sub->where('companies.id', $company_id);
+                      });
+                });
             }
-            $departments = $departmentsQuery->get(['id', 'name', 'company_id']);
+            $departments = $departmentsQuery->get(['departments.id', 'name', 'departments.company_id']);
 
             // Filter by department if provided
             if ($departmentParam && is_numeric($departmentParam)) {

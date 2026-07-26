@@ -10,7 +10,7 @@
  */
 export function hasPermission(user, permission) {
     if (!user || !permission) return false;
-    if (user.role === 'admin') return true; // Admin has all permissions
+    if (user.role === 'admin' || (user.roles && Array.isArray(user.roles) && user.roles.some(r => (r.slug || r) === 'admin'))) return true;
     if (!user.permissions || !Array.isArray(user.permissions)) return false;
     return user.permissions.includes(permission);
 }
@@ -23,7 +23,7 @@ export function hasPermission(user, permission) {
  */
 export function hasAnyPermission(user, permissions) {
     if (!user || !permissions || permissions.length === 0) return true;
-    if (user.role === 'admin') return true;
+    if (user.role === 'admin' || (user.roles && Array.isArray(user.roles) && user.roles.some(r => (r.slug || r) === 'admin'))) return true;
     if (!user.permissions || !Array.isArray(user.permissions)) return false;
     return permissions.some(perm => user.permissions.includes(perm));
 }
@@ -36,7 +36,7 @@ export function hasAnyPermission(user, permissions) {
  */
 export function hasAllPermissions(user, permissions) {
     if (!user || !permissions || permissions.length === 0) return true;
-    if (user.role === 'admin') return true;
+    if (user.role === 'admin' || (user.roles && Array.isArray(user.roles) && user.roles.some(r => (r.slug || r) === 'admin'))) return true;
     if (!user.permissions || !Array.isArray(user.permissions)) return false;
     return permissions.every(perm => user.permissions.includes(perm));
 }
