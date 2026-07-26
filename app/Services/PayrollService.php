@@ -136,9 +136,9 @@ class PayrollService
 
         // 6. Rates
         $companyId = $employee->company_id;
-        $otRateMultiplier = Setting::get('overtime_rate_multiplier', 1.5, $companyId);
+        $hourlyRate = $this->getHourlyRate($employee);
+        $otRate = $this->getOvertimeRate($employee);
         $daysPerMonth = Setting::get('default_working_days_per_month', 30, $companyId);
-        $workHoursPerDay = Setting::get('default_working_hours_per_day', 8, $companyId);
 
         // True working days = calendar days - weekly offs - holidays
         $calendarDays = $startDate->daysInMonth;
@@ -147,9 +147,8 @@ class PayrollService
         // Use configured daysPerMonth for daily rate unless not set
         $effectiveDaysPerMonth = $daysPerMonth > 0 ? $daysPerMonth : $workingDays;
         $dailyRate = $basicSalary / $effectiveDaysPerMonth;
-        $hourlyRate = $dailyRate / $workHoursPerDay;
 
-        $overtimeAmount = $totalOtHours * $hourlyRate * $otRateMultiplier;
+        $overtimeAmount = $totalOtHours * $otRate;
 
         // Absent Deduction — weekly off days are excluded (never counted above)
         $absentDeduction = $totalAbsentDays * $dailyRate;
@@ -178,6 +177,8 @@ class PayrollService
             'allowances'             => $allowances,
             'deductions'             => $deductions,
             'overtime_hours'         => $totalOtHours,
+            'hourly_rate'            => round($hourlyRate, 2),
+            'overtime_rate'          => round($otRate, 2),
             'overtime_amount'        => round($overtimeAmount, 2),
             'absent_days'            => $totalAbsentDays,
             'leave_deduction'        => round($absentDeduction, 2),
@@ -188,5 +189,48 @@ class PayrollService
             'working_days_in_month'  => $workingDays,
             'calendar_days'          => $calendarDays,
         ];
+    }
+
+    /**
+     * Calculate hourly rate based on employee basic salary.
+     */
+    public function getHourlyRate(Employee $employee): float
+    {
+        $companyId = $employee->company_id;
+        $daysPerMonth = (int) Setting::get('default_working_days_per_month', 30, $companyId);
+        if ($daysPerMonth <= 0) {
+            $daysPerMonth = 30;
+        }
+        $workHoursPerDay = (int) Setting::get('default_working_hours_per_day', 8, $companyId);
+        if ($workHoursPerDay <= 0) {
+            $workHoursPerDay = 8;
+        }
+
+        $basicSalary = (float) $employee->basic_salary;
+        $dailyRate = $basicSalary / $daysPerMonth;
+        return $dailyRate / $workHoursPerDay;
+    }
+
+    /**
+     * Get overtime hourly rate based on overtime calculation mode in payroll settings.
+     */
+    public function getOvertimeRate(Employee $employee): float
+    {
+        $companyId = $employee->company_id;
+        $otMode = Setting::get('overtime_calculation_mode', 'base_salary', $companyId);
+
+        if ($otMode === 'fixed') {
+            return (float) Setting::get('payroll_overtime_rate', 0, $companyId);
+        }
+
+        $hourlyRate = $this->getHourlyRate($employee);
+
+        if ($otMode === 'multiplier') {
+            $otRateMultiplier = (float) Setting::get('overtime_rate_multiplier', 1.5, $companyId);
+            return $hourlyRate * $otRateMultiplier;
+        }
+
+        // Default 'base_salary' mode: exact base hourly rate without extra multiplier or fixed amount
+        return $hourlyRate;
     }
 }

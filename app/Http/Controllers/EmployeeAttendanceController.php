@@ -1280,8 +1280,12 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
 
                     // Auto-calculate OT Amount if OT hours exist and Amount is not manually provided
                     $otAmount = $entry['ot_amt'] ?? null;
-                    if ($otHours > 0 && empty($otAmount) && $overtimeRate > 0) {
-                        $otAmount = $otHours * $overtimeRate;
+                    if ($otHours > 0 && empty($otAmount)) {
+                        $empForOt = $employee ?? Employee::find($entry['employee_id']);
+                        $calculatedOtRate = $empForOt ? app(\App\Services\PayrollService::class)->getOvertimeRate($empForOt) : 0;
+                        if ($calculatedOtRate > 0) {
+                            $otAmount = $otHours * $calculatedOtRate;
+                        }
                     }
                 }
 

@@ -19,13 +19,22 @@ class RolePermissionController extends Controller
             'role_id' => 'required|exists:roles,id',
         ]);
 
-        $user->assignRole($validated['role_id']);
+        $role = Role::findOrFail($validated['role_id']);
+        if ($role->slug === 'admin' && !auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized. Only administrators can assign the admin role.');
+        }
+
+        $user->assignRole($role);
 
         return redirect()->back()->with('success', 'Role assigned successfully!');
     }
 
     public function removeRoleFromUser(Request $request, User $user, Role $role)
     {
+        if ($role->slug === 'admin' && !auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized. Only administrators can remove the admin role.');
+        }
+
         $user->removeRole($role->id);
 
         return redirect()->back()->with('success', 'Role removed successfully!');

@@ -290,10 +290,27 @@
                                 @endif
                             @endforeach
                             <tr style="border-top: 1px solid #000;"><td class="label" style="font-weight: bold;">Total</td><td class="value" style="text-align: right;">{{ $formatCurrency($basicSalary + $allowancesTotal) }}</td></tr>
-                            <tr class="bg-light"><td class="label">Number of working days</td><td class="value" style="text-align: right;">30</td></tr>
+                            <tr class="bg-light"><td class="label">Number of working days</td><td class="value" style="text-align: right;">{{ $overtimeDetails['days_per_month'] ?? ($appSettings['default_working_days_per_month'] ?? 30) }} days</td></tr>
                             <tr class="bg-light"><td class="label">Gross salary for the month</td><td class="value" style="text-align: right;">{{ $formatCurrency($basicSalary + $allowancesTotal) }}</td></tr>
                             @if($overtimeAmount > 0)
-                            <tr class="bg-light"><td class="label">(Add) Overtime</td><td class="value" style="text-align: right;">{{ $formatCurrency($overtimeAmount) }}</td></tr>
+                            @php
+                                $dPerMonth = $overtimeDetails['days_per_month'] ?? ($appSettings['default_working_days_per_month'] ?? 30);
+                                $hPerDay = $overtimeDetails['hours_per_day'] ?? ($appSettings['default_working_hours_per_day'] ?? 8);
+                                $hRate = $overtimeDetails['hourly_rate'] ?? ($basicSalary > 0 ? ($basicSalary / $dPerMonth / $hPerDay) : 0);
+                                $otRate = $overtimeDetails['overtime_rate'] ?? $hRate;
+                                $otHours = $overtimeDetails['hours'] ?? ($otRate > 0 ? round($overtimeAmount / $otRate, 2) : 0);
+                            @endphp
+                            <tr style="background-color: #f0fdf4;">
+                                <td class="label" style="font-weight: bold; color: #166534;">
+                                    (Add) Overtime Pay
+                                    <div style="font-size: 7.5px; font-weight: normal; color: #15803d; margin-top: 2px;">
+                                        &bull; Worked Hours: <strong>{{ $otHours }} hrs</strong><br>
+                                        &bull; Hourly Rate: <strong>{{ $formatCurrency($otRate) }}/hr</strong><br>
+                                        <span style="font-style: italic; color: #64748b;">({{ $formatCurrency($basicSalary) }} &divide; {{ $dPerMonth }}d &divide; {{ $hPerDay }}h &times; {{ $otHours }}h)</span>
+                                    </div>
+                                </td>
+                                <td class="value" style="text-align: right; font-weight: bold; color: #166534; vertical-align: top; padding-top: 5px;">{{ $formatCurrency($overtimeAmount) }}</td>
+                            </tr>
                             @endif
                             <tr class="bg-light"><td class="label" style="font-weight: bold;">Total Additions</td><td class="value" style="text-align: right;">{{ $formatCurrency($totalEarnings) }}</td></tr>
                         </table>

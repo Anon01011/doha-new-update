@@ -6,6 +6,7 @@ use App\Models\Role;
 use App\Models\Permission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class RoleController extends Controller
@@ -30,6 +31,12 @@ class RoleController extends Controller
 
     public function store(Request $request)
     {
+        if (!$request->filled('slug') && $request->filled('name')) {
+            $request->merge([
+                'slug' => Str::slug($request->name),
+            ]);
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name',
             'slug' => 'required|string|max:255|unique:roles,slug',
@@ -63,6 +70,10 @@ class RoleController extends Controller
 
     public function edit(Role $role)
     {
+        if ($role->slug === 'admin' && !auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized. Only administrators can edit the admin role.');
+        }
+
         $permissions = Permission::where('is_active', true)->orderBy('module')->orderBy('name')->get();
         $role->load('permissions');
         return Inertia::render('Role/Edit', [
@@ -73,6 +84,16 @@ class RoleController extends Controller
 
     public function update(Request $request, Role $role)
     {
+        if ($role->slug === 'admin' && !auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized. Only administrators can edit the admin role.');
+        }
+
+        if (!$request->filled('slug') && $request->filled('name')) {
+            $request->merge([
+                'slug' => Str::slug($request->name),
+            ]);
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name,' . $role->id,
             'slug' => 'required|string|max:255|unique:roles,slug,' . $role->id,
@@ -98,9 +119,14 @@ class RoleController extends Controller
 
     public function destroy(Role $role)
     {
-        // Prevent deleting admin role
-        if ($role->slug === 'admin') {
-            return redirect()->back()->with('error', 'Cannot delete admin role.');
+        if ($role->slug === 'admin' && !auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized. Only administrators can delete the admin role.');
+        }
+
+        // Prevent deleting predefined default system roles
+        $predefinedRoles = ['admin', 'hr', 'manager', 'employee'];
+        if (in_array($role->slug, $predefinedRoles)) {
+            return redirect()->back()->with('error', 'Cannot delete predefined system roles (' . implode(', ', $predefinedRoles) . ').');
         }
 
         $role->delete();

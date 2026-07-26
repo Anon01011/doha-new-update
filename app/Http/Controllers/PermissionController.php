@@ -6,6 +6,7 @@ use App\Models\Permission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class PermissionController extends Controller
@@ -49,6 +50,12 @@ class PermissionController extends Controller
 
     public function store(Request $request)
     {
+        if (!$request->filled('slug') && $request->filled('name')) {
+            $request->merge([
+                'slug' => Str::slug($request->name),
+            ]);
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'slug' => 'required|string|max:255|unique:permissions,slug',
@@ -87,6 +94,12 @@ class PermissionController extends Controller
 
     public function update(Request $request, Permission $permission)
     {
+        if (!$request->filled('slug') && $request->filled('name')) {
+            $request->merge([
+                'slug' => Str::slug($request->name),
+            ]);
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'slug' => 'required|string|max:255|unique:permissions,slug,' . $permission->id,

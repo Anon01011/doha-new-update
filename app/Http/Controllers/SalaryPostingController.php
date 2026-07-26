@@ -320,6 +320,36 @@ class SalaryPostingController extends Controller
             ->whereBetween('repayment_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->get();
 
+        // Calculate Overtime Details Breakdown
+        $employee = $salaryPosting->employee;
+        $companyId = $employee ? $employee->company_id : null;
+        $payrollService = app(\App\Services\PayrollService::class);
+
+        $daysPerMonth = (int) \App\Models\Setting::get('default_working_days_per_month', 30, $companyId);
+        if ($daysPerMonth <= 0) $daysPerMonth = 30;
+        $workHoursPerDay = (int) \App\Models\Setting::get('default_working_hours_per_day', 8, $companyId);
+        if ($workHoursPerDay <= 0) $workHoursPerDay = 8;
+
+        $hourlyRate = $employee ? $payrollService->getHourlyRate($employee) : 0;
+        $otRate = $employee ? $payrollService->getOvertimeRate($employee) : 0;
+
+        $totalOtHours = \App\Models\EmployeeAttendance::where('employee_id', $employeeId)
+            ->whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->sum('ot') ?: 0;
+
+        if ($salaryPosting->overtime_amount > 0 && $totalOtHours == 0 && $otRate > 0) {
+            $totalOtHours = round($salaryPosting->overtime_amount / $otRate, 2);
+        }
+
+        $overtimeDetails = [
+            'hours' => (float) round($totalOtHours, 2),
+            'hourly_rate' => (float) round($hourlyRate, 2),
+            'overtime_rate' => (float) round($otRate, 2),
+            'days_per_month' => $daysPerMonth,
+            'hours_per_day' => $workHoursPerDay,
+            'mode' => \App\Models\Setting::get('overtime_calculation_mode', 'base_salary', $companyId),
+        ];
+
         if ($request->has('download')) {
             if ($salaryPosting->status !== 'approved') {
                 return back()->with('error', 'You cannot download an unapproved salary slip.');
@@ -330,6 +360,7 @@ class SalaryPostingController extends Controller
                 'loanInstallments' => $loanInstallments,
                 'advances' => $advances,
                 'appSettings' => $appSettings,
+                'overtimeDetails' => $overtimeDetails,
             ]);
             return $pdf->download('Salary_Slip_' . str_replace(' ', '_', $salaryPosting->employee->name) . '_' . $month . '_' . $year . '.pdf');
         }
@@ -338,13 +369,14 @@ class SalaryPostingController extends Controller
             'salaryPosting' => $salaryPosting,
             'loanInstallments' => $loanInstallments,
             'advances' => $advances,
+            'overtimeDetails' => $overtimeDetails,
         ]);
     }
 
     public function reject(Request $request, SalaryPosting $salaryPosting)
     {
         $user = auth()->user();
-        if (!$user->isAdmin() && !in_array(strtolower($user->role), ['admin', 'hr', 'manager', 'system admin', 'system_admin', 'super admin', 'superadmin']) && !$user->hasPermission('approve-salary-postings')) {
+        if (!$user->isAdmin() && !$user->isHR() && !$user->isManager() && !$user->hasPermission('approve-salary-postings')) {
             abort(403, 'Unauthorized.');
         }
 
@@ -361,11 +393,11 @@ class SalaryPostingController extends Controller
     {
         // Only admin, HR, and authorized users can approve salary postings
         $user = auth()->user();
-        if (!$user->isAdmin() && !in_array(strtolower($user->role), ['admin', 'hr', 'manager', 'system admin', 'system_admin', 'super admin', 'superadmin']) && !$user->hasPermission('approve-salary-postings')) {
+        if (!$user->isAdmin() && !$user->isHR() && !$user->isManager() && !$user->hasPermission('approve-salary-postings')) {
             abort(403, 'Unauthorized. Only authorized users can approve salary postings.');
         }
 
-        if ($user->role !== 'admin' && $user->employee_id && $salaryPosting->employee->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $salaryPosting->employee->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 

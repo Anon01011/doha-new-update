@@ -28,8 +28,8 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
 
-        // Redirect employees to their own dashboard (only if they are NOT admin, HR, or manager)
-        if ($user->isEmployee() && $user->employee_id && !$user->isAdmin() && !$user->isHR() && !$user->isManager()) {
+        // Redirect non-management users (not admin, hr, or manager) to their own employee dashboard
+        if (!$user->isAdmin() && !$user->isHR() && !$user->isManager() && $user->employee_id) {
             return redirect()->route('employee.dashboard');
         }
 
@@ -66,7 +66,9 @@ class DashboardController extends Controller
             $taskQuery->where('branch_id', $branchId);
             $grievanceQuery->whereHas('employee', fn($q) => $q->where('company_id', $branchId));
             $docQuery->whereHas('employee', fn($q) => $q->where('company_id', $branchId));
-            $deptQuery->where('company_id', $branchId);
+            $deptQuery->whereHas('companies', function($q) use ($branchId) {
+                $q->where('companies.id', $branchId);
+            });
             $evalQuery->where('company_id', $branchId);
         }
 

@@ -65,13 +65,29 @@ class User extends Authenticatable
      */
     public function getAllPermissions()
     {
-        $permissions = $this->permissions;
+        // Admin has all permissions
+        if ($this->isAdmin()) {
+            return Permission::where('is_active', true)->get();
+        }
 
-        foreach ($this->roles as $role) {
+        $this->loadMissing('permissions');
+        $this->loadMissing('roles.permissions');
+
+        $permissions = collect()->merge($this->permissions);
+
+        $roles = $this->roles;
+        if ($roles->isEmpty() && !empty($this->role)) {
+            $matchingRole = Role::where('slug', $this->role)->with('permissions')->first();
+            if ($matchingRole) {
+                $roles = collect([$matchingRole]);
+            }
+        }
+
+        foreach ($roles as $role) {
             $permissions = $permissions->merge($role->permissions);
         }
 
-        return $permissions->unique('id');
+        return $permissions->unique('id')->values();
     }
 
     /**
@@ -170,6 +186,14 @@ class User extends Authenticatable
             }
         }
 
+        // Fallback: Check role via $this->role column if user_roles relation had no match
+        if (!empty($this->role)) {
+            $matchingRole = Role::where('slug', $this->role)->first();
+            if ($matchingRole && $matchingRole->hasPermission($permission)) {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -186,6 +210,7 @@ class User extends Authenticatable
 
         if ($role && !$this->roles()->where('roles.id', $role->id)->exists()) {
             $this->roles()->attach($role->id);
+            $this->update(['role' => $role->slug]);
         }
     }
 
@@ -202,6 +227,10 @@ class User extends Authenticatable
 
         if ($role) {
             $this->roles()->detach($role->id);
+            if ($this->role === $role->slug) {
+                $nextRole = $this->roles()->first();
+                $this->update(['role' => $nextRole ? $nextRole->slug : 'employee']);
+            }
         }
     }
 

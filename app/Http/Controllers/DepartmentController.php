@@ -12,6 +12,9 @@ class DepartmentController extends Controller
     public function index()
     {
         $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('view-departments')) {
+            abort(403, 'Unauthorized. You do not have permission to view departments.');
+        }
         $query = Department::with('companies')->withCount('employees');
 
         if (!$user->isAdmin() && $user->employee_id && $user->employee) {

@@ -96,7 +96,7 @@ const numberToWords = (num) => {
     return str.trim();
 };
 
-export default function Slip({ salaryPosting, loanInstallments = [], advances = [] }) {
+export default function Slip({ salaryPosting, loanInstallments = [], advances = [], overtimeDetails = null }) {
     const { appSettings } = usePage().props;
     const currency = appSettings?.currency || 'QAR';
     
@@ -360,18 +360,41 @@ export default function Slip({ salaryPosting, loanInstallments = [], advances = 
                                     </div>
                                     <div className="flex border-b border-gray-200 p-1 px-2 justify-between bg-gray-50">
                                         <div>Number of working days</div>
-                                        <div className="font-normal">30</div>
+                                        <div className="font-normal">{overtimeDetails?.days_per_month || appSettings?.default_working_days_per_month || 30} days</div>
                                     </div>
                                     <div className="flex border-b border-gray-200 p-1 px-2 justify-between bg-gray-50">
                                         <div>Gross salary for the month</div>
                                         <div className="font-normal">{formatCurrency(basicSalary + allowancesTotal)}</div>
                                     </div>
-                                    {overtimeAmount > 0 && (
-                                        <div className="flex border-b border-gray-200 p-1 px-2 justify-between bg-gray-50">
-                                            <div>(Add) Overtime</div>
-                                            <div className="font-normal">{formatCurrency(overtimeAmount)}</div>
-                                        </div>
-                                    )}
+                                    {overtimeAmount > 0 && (() => {
+                                        const dPerMonth = overtimeDetails?.days_per_month || appSettings?.default_working_days_per_month || 30;
+                                        const hPerDay = overtimeDetails?.hours_per_day || appSettings?.default_working_hours_per_day || 8;
+                                        const hRate = overtimeDetails?.hourly_rate || (basicSalary > 0 ? (basicSalary / dPerMonth / hPerDay) : 0);
+                                        const rate = overtimeDetails?.overtime_rate || hRate;
+                                        const hours = overtimeDetails?.hours || (rate > 0 ? Math.round((overtimeAmount / rate) * 100) / 100 : 0);
+
+                                        return (
+                                            <div className="border-b border-gray-200 p-1 px-2 bg-emerald-50/40">
+                                                <div className="flex justify-between items-center font-normal">
+                                                    <div>(Add) Overtime Pay</div>
+                                                    <div className="font-normal">{formatCurrency(overtimeAmount)}</div>
+                                                </div>
+                                                <div className="text-[10px] text-emerald-900 font-normal mt-1 space-y-0.5 pl-2 border-l-2 border-emerald-500">
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-600">Overtime Worked Hours:</span>
+                                                        <span className="font-normal">{hours} hrs</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-600">Hourly Rate (Base Salary):</span>
+                                                        <span className="font-normal">{formatCurrency(rate)}/hr</span>
+                                                    </div>
+                                                    <div className="text-[9px] text-gray-500 italic mt-0.5">
+                                                        Calculation: ({formatCurrency(basicSalary)} ÷ {dPerMonth} days ÷ {hPerDay} hrs) × {hours} hrs
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
 
                                     <div className="flex p-1 px-2 justify-between bg-gray-50">
                                         <div className="font-normal">Total Additions</div>

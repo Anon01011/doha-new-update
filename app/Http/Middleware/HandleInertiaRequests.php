@@ -37,10 +37,7 @@ class HandleInertiaRequests extends Middleware
         $user = $request->user();
 
         if ($user) {
-            // Load roles if not already loaded
-            if (!$user->relationLoaded('roles')) {
-                $user->load('roles');
-            }
+            $user->loadMissing('roles.permissions');
         }
 
         return [
@@ -53,12 +50,16 @@ class HandleInertiaRequests extends Middleware
                     'image' => $user->image ?: ($user->employee ? $user->employee->employee_image : null),
                     'role' => $user->role,
                     'employee_id' => $user->employee_id,
-                    'roles' => $user->roles ? $user->roles->map(fn($role) => [
-                        'id' => $role->id,
-                        'name' => $role->name,
-                        'slug' => $role->slug,
-                    ])->toArray() : [],
-                    'permissions' => $user ? $user->getAllPermissions()->map(fn($perm) => $perm->slug)->toArray() : [],
+                    'roles' => $user ? (
+                        $user->roles && $user->roles->isNotEmpty()
+                            ? $user->roles->map(fn($role) => [
+                                'id' => $role->id,
+                                'name' => $role->name,
+                                'slug' => $role->slug,
+                            ])->toArray()
+                            : (!empty($user->role) ? [['id' => 0, 'name' => ucfirst($user->role), 'slug' => $user->role]] : [])
+                    ) : [],
+                    'permissions' => $user ? $user->getAllPermissions()->pluck('slug')->toArray() : [],
                     'employee' => $user->employee ? [
                         'id' => $user->employee->id,
                         'employee_image' => $user->employee->employee_image,
