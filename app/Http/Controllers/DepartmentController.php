@@ -32,6 +32,9 @@ class DepartmentController extends Controller
     public function create()
     {
         $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('manage-departments')) {
+            abort(403, 'Unauthorized. You do not have permission to manage departments.');
+        }
         $query = Company::orderBy('name');
 
         if (!$user->isAdmin() && $user->employee_id && $user->employee) {
@@ -47,6 +50,9 @@ class DepartmentController extends Controller
     public function store(Request $request)
     {
         $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('manage-departments')) {
+            abort(403, 'Unauthorized. You do not have permission to manage departments.');
+        }
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'company_ids' => 'required|array',
@@ -71,6 +77,9 @@ class DepartmentController extends Controller
     public function show(Department $department)
     {
         $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('view-departments')) {
+            abort(403, 'Unauthorized. You do not have permission to view departments.');
+        }
         if (!$user->isAdmin() && $user->employee_id && $user->employee) {
             if (!$department->companies()->where('companies.id', $user->employee->company_id)->exists()) {
                 abort(403, 'Unauthorized access to department in another branch.');
@@ -91,6 +100,9 @@ class DepartmentController extends Controller
     public function edit(Department $department)
     {
         $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('manage-departments')) {
+            abort(403, 'Unauthorized. You do not have permission to manage departments.');
+        }
         if (!$user->isAdmin() && $user->employee_id && $user->employee) {
             if (!$department->companies()->where('companies.id', $user->employee->company_id)->exists()) {
                 abort(403, 'Unauthorized access to department in another branch.');
@@ -113,7 +125,10 @@ class DepartmentController extends Controller
     public function update(Request $request, Department $department)
     {
         $user = auth()->user();
-        
+        if (!$user->isAdmin() && !$user->hasPermission('manage-departments')) {
+            abort(403, 'Unauthorized. You do not have permission to manage departments.');
+        }
+
         // Multi-tenancy check for existing department
         if (!$user->isAdmin() && $user->employee_id && $user->employee) {
             if (!$department->companies()->where('companies.id', $user->employee->company_id)->exists()) {
@@ -145,6 +160,9 @@ class DepartmentController extends Controller
     public function destroy(Department $department)
     {
         $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('manage-departments')) {
+            abort(403, 'Unauthorized. You do not have permission to manage departments.');
+        }
         if (!$user->isAdmin() && $user->employee_id && $user->employee) {
             if (!$department->companies()->where('companies.id', $user->employee->company_id)->exists()) {
                 abort(403, 'Unauthorized access.');
@@ -175,6 +193,9 @@ class DepartmentController extends Controller
     public function toggleStatus(Request $request, Department $department)
     {
         $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('manage-departments')) {
+            abort(403, 'Unauthorized. You do not have permission to manage departments.');
+        }
         if (!$user->isAdmin() && $user->employee_id && $user->employee) {
             if (!$department->companies()->where('companies.id', $user->employee->company_id)->exists()) {
                 abort(403, 'Unauthorized access.');
@@ -193,6 +214,9 @@ class DepartmentController extends Controller
     public function transferStaff(Request $request, Department $department)
     {
         $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('manage-departments')) {
+            abort(403, 'Unauthorized. You do not have permission to manage departments.');
+        }
         if (!$user->isAdmin() && $user->employee_id && $user->employee) {
             if (!$department->companies()->where('companies.id', $user->employee->company_id)->exists()) {
                 abort(403, 'Unauthorized access.');

@@ -116,13 +116,13 @@ Route::middleware('auth')->group(function () {
         Route::post('loans/{loan}/reject', [\App\Http\Controllers\LoanController::class, 'reject'])->name('loans.reject');
         Route::post('loans/{loan}/disburse', [\App\Http\Controllers\LoanController::class, 'disburse'])->name('loans.disburse');
         Route::post('loans/installments/{installment}/pay', [\App\Http\Controllers\LoanController::class, 'payInstallment'])->name('loans.installments.pay');
-        Route::post('advances/{advance}/approve', [\App\Http\Controllers\AdvanceController::class, 'approve'])->name('advances.approve');
-        Route::post('salary-postings/calculate', [\App\Http\Controllers\SalaryPostingController::class, 'calculateSalary'])->name('salary-postings.calculate');
-        Route::post('salary-postings/{salaryPosting}/approve', [\App\Http\Controllers\SalaryPostingController::class, 'approve'])->name('salary-postings.approve');
-        Route::post('salary-postings/{salaryPosting}/reject', [\App\Http\Controllers\SalaryPostingController::class, 'reject'])->name('salary-postings.reject');
+        Route::post('advances/{advance}/approve', [\App\Http\Controllers\AdvanceController::class, 'approve'])->name('advances.approve')->middleware('permission:approve-advances');
+        Route::post('salary-postings/calculate', [\App\Http\Controllers\SalaryPostingController::class, 'calculateSalary'])->name('salary-postings.calculate')->middleware('permission:create-salary-postings');
+        Route::post('salary-postings/{salaryPosting}/approve', [\App\Http\Controllers\SalaryPostingController::class, 'approve'])->name('salary-postings.approve')->middleware('permission:approve-salary-postings');
+        Route::post('salary-postings/{salaryPosting}/reject', [\App\Http\Controllers\SalaryPostingController::class, 'reject'])->name('salary-postings.reject')->middleware('permission:approve-salary-postings');
 
         // Reports routes
-        Route::prefix('reports')->name('reports.')->group(function () {
+        Route::prefix('reports')->name('reports.')->middleware('permission:view-reports')->group(function () {
             Route::get('/', [\App\Http\Controllers\ReportController::class, 'index'])->name('index');
             
             // Attendance
@@ -172,20 +172,22 @@ Route::middleware('auth')->group(function () {
         });
     });
 
-    // Admin only routes
-    Route::middleware('role:admin')->group(function () {
+    // Roles, Permissions & Audit Logs
+    Route::middleware('permission:manage-roles')->group(function () {
         Route::resource('roles', \App\Http\Controllers\RoleController::class);
-        Route::resource('permissions', \App\Http\Controllers\PermissionController::class);
-
-        // Audit Logs
-        Route::get('audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])->name('audit-logs.index');
-        Route::get('audit-logs/{auditLog}', [\App\Http\Controllers\AuditLogController::class, 'show'])->name('audit-logs.show');
-
-        // User role and permission assignment
         Route::post('users/{user}/assign-role', [\App\Http\Controllers\RolePermissionController::class, 'assignRoleToUser'])->name('users.assign-role');
         Route::delete('users/{user}/remove-role/{role}', [\App\Http\Controllers\RolePermissionController::class, 'removeRoleFromUser'])->name('users.remove-role');
+    });
+
+    Route::middleware('permission:manage-permissions')->group(function () {
+        Route::resource('permissions', \App\Http\Controllers\PermissionController::class);
         Route::post('users/{user}/assign-permission', [\App\Http\Controllers\RolePermissionController::class, 'assignPermissionToUser'])->name('users.assign-permission');
         Route::delete('users/{user}/remove-permission/{permission}', [\App\Http\Controllers\RolePermissionController::class, 'removePermissionFromUser'])->name('users.remove-permission');
+    });
+
+    Route::middleware('permission:view-audit-logs')->group(function () {
+        Route::get('audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])->name('audit-logs.index');
+        Route::get('audit-logs/{auditLog}', [\App\Http\Controllers\AuditLogController::class, 'show'])->name('audit-logs.show');
     });
 
     // Mixed routes (Controller handles filtering)

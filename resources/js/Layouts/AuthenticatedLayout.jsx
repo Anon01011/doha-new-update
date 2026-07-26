@@ -157,7 +157,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     current: route().current('employees.*') || route().current('settings.dropdown-options.*'),
                     permissions: ['view-employees'],
                     subMenu: [
-                        { name: 'Directory', href: route('employees.index'), current: route().current('employees.*'), permissions: ['view-employees'] },
+                        { name: 'Directory', href: route('employees.index'), current: route().current('employees.*'), permissions: ['view-employees'], roles: ['admin', 'hr', 'manager'] },
                         { name: 'Configurations', href: route('settings.dropdown-options.index'), current: route().current('settings.dropdown-options.*'), permissions: ['manage-dropdowns'] }
                     ]
                 },
@@ -166,7 +166,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     href: route('evaluations.index'),
                     icon: <FiAward className="h-4 w-4" />,
                     current: route().current('evaluations.*'),
-                    roles: ['admin', 'hr', 'manager', 'employee']
+                    permissions: ['view-evaluations']
                 },
                 {
                     name: 'Attendance',
@@ -180,7 +180,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     href: route('shift-rosters.index'),
                     icon: <FiCalendar className="h-4 w-4" />,
                     current: route().current('shift-rosters.*'),
-                    permissions: ['view-shift-roster']
+                    permissions: ['view-shift-rosters']
                 },
                 {
                     name: 'Leave & Holidays',
@@ -203,7 +203,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     subMenu: [
                         { name: 'Courses', href: route('trainings.index'), current: route().current('trainings.*'), permissions: ['view-trainings'] },
                         { name: 'Assignments', href: route('training-assignments.index'), current: route().current('training-assignments.*'), permissions: ['view-training-assignments'] },
-                        { name: 'Categories', href: route('training-categories.index'), current: route().current('training-categories.*'), roles: ['admin', 'hr', 'manager'] }
+                        { name: 'Categories', href: route('training-categories.index'), current: route().current('training-categories.*'), permissions: ['create-trainings'] }
                     ]
                 },
                 {
@@ -211,14 +211,14 @@ export default function AuthenticatedLayout({ header, children }) {
                     href: route('grievances.index'),
                     icon: <FiAlertCircle className="h-4 w-4" />,
                     current: route().current('grievances.*'),
-                    roles: ['admin', 'hr', 'manager', 'employee']
+                    permissions: ['view-grievances']
                 },
                 {
                     name: 'Warning Letters',
                     href: route('warning-letters.index'),
                     icon: <FiFileText className="h-4 w-4" />,
                     current: route().current('warning-letters.*'),
-                    roles: ['admin', 'hr', 'manager', 'employee']
+                    permissions: ['view-warning-letters']
                 }
             ]
         },
@@ -226,13 +226,13 @@ export default function AuthenticatedLayout({ header, children }) {
             title: 'OPERATIONS',
             items: [
                 {
-                    name: 'Payroll',
+                    name: userRole === 'employee' ? 'My Payslips' : 'Payroll',
                     href: route('salary-postings.index'),
                     icon: <FiDollarSign className="h-4 w-4" />,
                     current: route().current('salary-postings.*') || route().current('salary-components.*'),
                     permissions: ['view-salary-postings'],
                     subMenu: [
-                        { name: 'Salary Postings', href: route('salary-postings.index'), current: route().current('salary-postings.*'), permissions: ['view-salary-postings'] },
+                        { name: userRole === 'employee' ? 'My Payslips' : 'Salary Postings', href: route('salary-postings.index'), current: route().current('salary-postings.*'), permissions: ['view-salary-postings'] },
                         { name: 'Components', href: route('salary-components.index'), current: route().current('salary-components.*'), permissions: ['manage-salary-components'] }
                     ]
                 },
@@ -268,7 +268,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     href: route('companies.index'),
                     icon: <FiBriefcase className="h-4 w-4" />,
                     current: route().current('companies.*') || route().current('departments.*'),
-                    permissions: ['view-branches'],
+                    permissions: ['view-branches', 'view-departments'],
                     subMenu: [
                         { name: 'Branches', href: route('companies.index'), current: route().current('companies.*'), permissions: ['view-branches'] },
                         { name: 'Departments', href: route('departments.index'), current: route().current('departments.*'), permissions: ['view-departments'] }
@@ -279,10 +279,10 @@ export default function AuthenticatedLayout({ header, children }) {
                     href: '#',
                     icon: <FiShield className="h-4 w-4" />,
                     current: route().current('roles.*') || route().current('permissions.*'),
-                    permissions: ['manage-roles-permissions'],
+                    permissions: ['manage-roles', 'manage-permissions'],
                     subMenu: [
-                        { name: 'Roles', href: route('roles.index'), current: route().current('roles.*'), permissions: ['manage-roles-permissions'] },
-                        { name: 'Permissions', href: route('permissions.index'), current: route().current('permissions.*'), permissions: ['manage-roles-permissions'] }
+                        { name: 'Roles', href: route('roles.index'), current: route().current('roles.*'), permissions: ['manage-roles'] },
+                        { name: 'Permissions', href: route('permissions.index'), current: route().current('permissions.*'), permissions: ['manage-permissions'] }
                     ]
                 },
                 {
@@ -300,7 +300,6 @@ export default function AuthenticatedLayout({ header, children }) {
                     href: route('audit-logs.index'),
                     icon: <FiDatabase className="h-4 w-4" />,
                     current: route().current('audit-logs.*'),
-                    roles: ['admin'],
                     permissions: ['view-audit-logs']
                 },
                 {
@@ -320,6 +319,14 @@ export default function AuthenticatedLayout({ header, children }) {
         const visibleItems = group.items.filter(item => {
             const hasAccess = canAccess(item.roles, item.permissions);
             const hasVisibleSub = item.subMenu?.some(sub => canAccess(sub.roles, sub.permissions));
+
+            // If the item has a submenu, and none of them are visible, and the parent is a dropdown wrapper (no href or href is '#')
+            if (item.subMenu && item.subMenu.length > 0 && !hasVisibleSub) {
+                if (!item.href || item.href === '#') {
+                    return false;
+                }
+            }
+
             if (!hasAccess && !hasVisibleSub) return false;
 
             if (!searchQuery) return true;
@@ -333,20 +340,24 @@ export default function AuthenticatedLayout({ header, children }) {
             return matchesSelf || matchesSub;
         });
 
-        // Filter submenus inside visibleItems if there is a search query
+        // Always filter submenus inside visibleItems by user permissions
         const processedItems = visibleItems.map(item => {
-            if (!searchQuery || !item.subMenu) return item;
-            
-            const filteredSub = item.subMenu.filter(sub => {
-                const subHasAccess = canAccess(sub.roles, sub.permissions);
-                return subHasAccess && sub.name.toLowerCase().includes(searchQuery.toLowerCase());
-            });
+            if (!item.subMenu) return item;
+
+            // Filter by permission first
+            let filteredSub = item.subMenu.filter(sub => canAccess(sub.roles, sub.permissions));
+
+            // If there is a search query, filter further by name
+            if (searchQuery) {
+                const parentMatches = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+                if (!parentMatches) {
+                    filteredSub = filteredSub.filter(sub => sub.name.toLowerCase().includes(searchQuery.toLowerCase()));
+                }
+            }
 
             return {
                 ...item,
-                // If the parent item matches the search query itself, keep all submenus.
-                // Otherwise, show only the matching submenus.
-                subMenu: item.name.toLowerCase().includes(searchQuery.toLowerCase()) ? item.subMenu : filteredSub
+                subMenu: filteredSub
             };
         });
 

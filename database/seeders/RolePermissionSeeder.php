@@ -154,6 +154,20 @@ class RolePermissionSeeder extends Seeder
             // Company & Department Module
             ['name' => 'Manage Companies', 'slug' => 'manage-companies', 'module' => 'company', 'description' => 'Can manage companies/branches'],
             ['name' => 'Manage Departments', 'slug' => 'manage-departments', 'module' => 'company', 'description' => 'Can manage departments'],
+
+            // Added Permissions for sidebar and dashboard alignment
+            ['name' => 'View Evaluations', 'slug' => 'view-evaluations', 'module' => 'employee', 'description' => 'Can view employee evaluations'],
+            ['name' => 'Create Evaluations', 'slug' => 'create-evaluations', 'module' => 'employee', 'description' => 'Can create employee evaluations'],
+            ['name' => 'View Holidays', 'slug' => 'view-holidays', 'module' => 'leave', 'description' => 'Can view upcoming holidays'],
+            ['name' => 'Manage Holidays', 'slug' => 'manage-holidays', 'module' => 'leave', 'description' => 'Can manage holidays'],
+            ['name' => 'View Projects', 'slug' => 'view-projects', 'module' => 'task', 'description' => 'Can view projects'],
+            ['name' => 'Manage Projects', 'slug' => 'manage-projects', 'module' => 'task', 'description' => 'Can manage projects'],
+            ['name' => 'View Documents', 'slug' => 'view-documents', 'module' => 'employee', 'description' => 'Can view documents'],
+            ['name' => 'Manage Document Types', 'slug' => 'manage-document-types', 'module' => 'employee', 'description' => 'Can manage document types'],
+            ['name' => 'View Expiring Documents', 'slug' => 'view-expiring-documents', 'module' => 'employee', 'description' => 'Can view expiring documents list'],
+            ['name' => 'Manage Dropdowns', 'slug' => 'manage-dropdowns', 'module' => 'settings', 'description' => 'Can manage dropdown configurations'],
+            ['name' => 'View Branches', 'slug' => 'view-branches', 'module' => 'company', 'description' => 'Can view branches list'],
+            ['name' => 'View Departments', 'slug' => 'view-departments', 'module' => 'company', 'description' => 'Can view departments list'],
         ];
 
         $permissionModels = [];
@@ -174,8 +188,8 @@ class RolePermissionSeeder extends Seeder
 
         // Assign HR permissions
         $hrPermissions = collect($permissionModels)->filter(function ($p) {
-            return in_array($p->module, ['employee', 'leave', 'salary', 'loan', 'grievance', 'attendance', 'report', 'shift-roster', 'training', 'training-assignment', 'task', 'task-assignment', 'warning-letter'])
-                && !in_array($p->slug, ['delete-employees', 'manage-settings', 'manage-roles', 'manage-permissions', 'delete-trainings', 'delete-tasks']);
+            return in_array($p->module, ['employee', 'leave', 'salary', 'loan', 'grievance', 'attendance', 'report', 'shift-roster', 'training', 'training-assignment', 'task', 'task-assignment', 'warning-letter', 'company'])
+                && !in_array($p->slug, ['delete-employees', 'manage-settings', 'manage-roles', 'manage-permissions', 'delete-trainings', 'delete-tasks', 'manage-companies', 'manage-departments']);
         })->pluck('id')->toArray();
         $hrRole->assignPermissions($hrPermissions);
 
@@ -198,7 +212,17 @@ class RolePermissionSeeder extends Seeder
                 'view-attendance-reports',
                 'view-leave-reports',
                 'view-task-reports',
-                'manage-leave-types', // Added permission
+                'manage-leave-types',
+                'view-evaluations',
+                'create-evaluations',
+                'view-holidays',
+                'view-projects',
+                'manage-projects',
+                'view-documents',
+                'view-expiring-documents',
+                'view-branches',
+                'view-departments',
+                'view-warning-letters',
             ]);
         })->pluck('id')->toArray();
         $managerRole->assignPermissions($managerPermissions);
@@ -221,21 +245,23 @@ class RolePermissionSeeder extends Seeder
                 'view-task-assignments', // Assigned to them
                 'view-grievances', // Only their own
                 'create-grievances',
+                'view-evaluations',
+                'view-holidays',
+                'view-projects',
+                'view-documents',
+                'view-warning-letters',
             ]);
         })->pluck('id')->toArray();
         $employeeRole->assignPermissions($employeePermissions);
 
-        // Assign roles to existing users based on their role field
-        User::chunk(100, function ($users) use ($adminRole, $hrRole, $managerRole, $employeeRole) {
+        // Assign roles to existing users based on their role field (supports all dynamic roles)
+        User::chunk(100, function ($users) {
             foreach ($users as $user) {
-                if ($user->role === 'admin' && !$user->roles()->where('slug', 'admin')->exists()) {
-                    $user->assignRole($adminRole);
-                } elseif ($user->role === 'hr' && !$user->roles()->where('slug', 'hr')->exists()) {
-                    $user->assignRole($hrRole);
-                } elseif ($user->role === 'manager' && !$user->roles()->where('slug', 'manager')->exists()) {
-                    $user->assignRole($managerRole);
-                } elseif ($user->role === 'employee' && !$user->roles()->where('slug', 'employee')->exists()) {
-                    $user->assignRole($employeeRole);
+                if (!empty($user->role)) {
+                    $roleObj = Role::where('slug', $user->role)->first();
+                    if ($roleObj && !$user->roles()->where('roles.id', $roleObj->id)->exists()) {
+                        $user->assignRole($roleObj);
+                    }
                 }
             }
         });

@@ -39,8 +39,8 @@ class SalaryPostingController extends Controller
             ->where('year', $year);
         $user = auth()->user();
 
-        // Role-based filtering
-        if ($user->role === 'employee' && $user->employee_id) {
+        // Permission-based filtering: employees without view-salary-postings for all see only their own
+        if (!$user->isAdmin() && !$user->hasPermission('view-salary-postings') && $user->employee_id) {
             // Employees can only see their own salary postings
             $query->where('employee_id', $user->employee_id);
         }
@@ -147,7 +147,7 @@ class SalaryPostingController extends Controller
     public function show(SalaryPosting $salaryPosting)
     {
         $user = auth()->user();
-        if ($user->role === 'employee' && $salaryPosting->employee_id != $user->employee_id) {
+        if (!$user->isAdmin() && !$user->hasPermission('view-salary-postings') && $salaryPosting->employee_id != $user->employee_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -292,11 +292,11 @@ class SalaryPostingController extends Controller
     public function generateSlip(SalaryPosting $salaryPosting, \Illuminate\Http\Request $request)
     {
         $user = auth()->user();
-        if ($user->role === 'employee' && $salaryPosting->employee_id != $user->employee_id) {
+        if (!$user->isAdmin() && !$user->hasPermission('view-salary-postings') && $salaryPosting->employee_id != $user->employee_id) {
             abort(403, 'Unauthorized access.');
         }
 
-        if ($user->role !== 'admin' && $user->employee_id && $salaryPosting->employee->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $salaryPosting->employee->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -425,7 +425,7 @@ class SalaryPostingController extends Controller
         ]);
 
         $employee = Employee::findOrFail($request->employee_id);
-        if ($user->role !== 'admin' && $user->employee_id && $employee->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $employee->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
