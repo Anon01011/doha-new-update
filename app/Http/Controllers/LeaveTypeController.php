@@ -23,7 +23,7 @@ class LeaveTypeController extends Controller
             $companyId = $user->employee->company_id;
         }
 
-        if ($user->role !== 'admin' && $companyId) {
+        if (!$user->isAdmin() && $companyId) {
             $query->where('company_id', $companyId);
         }
 
@@ -88,7 +88,7 @@ class LeaveTypeController extends Controller
             $companyId = $user->employee->company_id;
         }
 
-        if ($user->role !== 'admin' && $companyId) {
+        if (!$user->isAdmin() && $companyId) {
             if ($leaveType->company_id != $companyId) {
                 abort(403, 'Unauthorized access to leave type of another branch.');
             }
@@ -112,7 +112,7 @@ class LeaveTypeController extends Controller
             $companyId = $user->employee->company_id;
         }
 
-        if ($user->role !== 'admin' && $companyId) {
+        if (!$user->isAdmin() && $companyId) {
             if ($leaveType->company_id != $companyId) {
                 abort(403, 'Unauthorized access to leave type of another branch.');
             }
@@ -136,7 +136,7 @@ class LeaveTypeController extends Controller
             $companyId = $user->employee->company_id;
         }
 
-        if ($user->role !== 'admin' && $companyId) {
+        if (!$user->isAdmin() && $companyId) {
             if ($leaveType->company_id != $companyId) {
                 abort(403, 'Unauthorized access to leave type of another branch.');
             }
@@ -182,7 +182,7 @@ class LeaveTypeController extends Controller
             $companyId = $user->employee->company_id;
         }
 
-        if ($user->role !== 'admin' && $companyId) {
+        if (!$user->isAdmin() && $companyId) {
             if ($leaveType->company_id != $companyId) {
                 abort(403, 'Unauthorized access to leave type of another branch.');
             }

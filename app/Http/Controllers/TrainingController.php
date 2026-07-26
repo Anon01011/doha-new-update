@@ -64,12 +64,27 @@ class TrainingController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
-        $companies = $user->role === 'admin' ? \App\Models\Company::select('id', 'name')->get() : [];
+        $companies = $user->isAdmin() ? \App\Models\Company::select('id', 'name')->get() : [];
         $categories = \App\Models\TrainingCategory::active()->get();
 
+        // Load employees for trainer dropdown, scoped to user's company
+        $employeeQuery = Employee::select('id', 'name', 'designation', 'company_id')
+            ->where(function ($q) {
+                $q->where('exit_status', '!=', 'exited')->orWhereNull('exit_status');
+            })
+            ->orderBy('name');
+        if (!$user->isAdmin() && $user->employee_id) {
+            $companyId = $user->employee->company_id ?? null;
+            if ($companyId) {
+                $employeeQuery->where('company_id', $companyId);
+            }
+        }
+        $employees = $employeeQuery->get();
+
         return Inertia::render('Training/Create', [
-            'companies' => $companies,
+            'companies'  => $companies,
             'categories' => $categories,
+            'employees'  => $employees,
         ]);
     }
 
@@ -164,13 +179,34 @@ class TrainingController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
-        $companies = $user->role === 'admin' ? \App\Models\Company::select('id', 'name')->get() : [];
+        $companies = $user->isAdmin() ? \App\Models\Company::select('id', 'name')->get() : [];
         $categories = \App\Models\TrainingCategory::active()->get();
 
+        // Load employees from the training's company for the trainer dropdown
+        $employeeQuery = Employee::select('id', 'name', 'designation', 'company_id')
+            ->orderBy('name');
+        if ($training->company_id) {
+            $employeeQuery->where('company_id', $training->company_id);
+        } elseif (!$user->isAdmin() && $user->employee_id) {
+            $companyId = $user->employee->company_id ?? null;
+            if ($companyId) {
+                $employeeQuery->where('company_id', $companyId);
+            }
+        }
+        // Exclude exited employees but keep the current trainer if already set
+        $employees = $employeeQuery
+            ->where(function ($q) use ($training) {
+                $q->where(function ($q2) {
+                    $q2->where('exit_status', '!=', 'exited')->orWhereNull('exit_status');
+                })->orWhere('name', $training->trainer_name);
+            })
+            ->get();
+
         return Inertia::render('Training/Edit', [
-            'training' => $training,
-            'companies' => $companies,
+            'training'   => $training,
+            'companies'  => $companies,
             'categories' => $categories,
+            'employees'  => $employees,
         ]);
     }
 

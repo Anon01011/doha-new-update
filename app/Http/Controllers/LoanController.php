@@ -331,8 +331,7 @@ class LoanController extends Controller
             // -- WhatsApp --
             try {
                 if ($sendWhatsapp && !empty($employee->mobile)) {
-                    $waService = new WhatsAppService();
-                    $waService->sendLoanNotification($employee, $company, $loan, 'disbursed');
+                    \App\Jobs\SendWhatsAppLoanNotification::dispatch($employee, $company, $loan, 'disbursed');
                 }
             } catch (\Exception $e) {
                 Log::error('Loan disburse WhatsApp failed: ' . $e->getMessage());
@@ -446,8 +445,7 @@ class LoanController extends Controller
 
                 try {
                     if ($sendWhatsapp && !empty($employee->mobile)) {
-                        $waService = new WhatsAppService();
-                        $waService->sendLoanNotification($employee, $company, $loan, 'completed', (float) $installment->amount);
+                        \App\Jobs\SendWhatsAppLoanNotification::dispatch($employee, $company, $loan, 'completed', (float) $installment->amount);
                     }
                 } catch (\Exception $e) {
                     Log::error('Loan completed WhatsApp failed: ' . $e->getMessage());
@@ -479,8 +477,7 @@ class LoanController extends Controller
 
                 try {
                     if ($sendWhatsapp && !empty($employee->mobile)) {
-                        $waService = new WhatsAppService();
-                        $waService->sendLoanNotification($employee, $company, $loan, 'installment_paid', (float) $installment->amount);
+                        \App\Jobs\SendWhatsAppLoanNotification::dispatch($employee, $company, $loan, 'installment_paid', (float) $installment->amount);
                     }
                 } catch (\Exception $e) {
                     Log::error('Loan installment WhatsApp failed: ' . $e->getMessage());
@@ -592,32 +589,6 @@ class LoanController extends Controller
                 $message = "Dear {$employee->name}, your loan status has been updated. Contact HR for details.";
         }
 
-        $smsUrl    = Setting::get('sms_api_url', null, $companyId);
-        $smsToken  = Setting::get('sms_api_token', null, $companyId);
-        $smsSender = Setting::get('sms_sender_id', null, $companyId);
-
-        if (!$smsUrl || !$smsToken) {
-            Log::info('Loan SMS not configured, skipping.', ['employee' => $employee->name, 'type' => $type]);
-            return;
-        }
-
-        try {
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'Authorization' => 'Bearer ' . $smsToken,
-                'Content-Type'  => 'application/json',
-            ])->post($smsUrl, [
-                'to'      => $mobile,
-                'from'    => $smsSender,
-                'message' => $message,
-            ]);
-
-            if ($response->successful()) {
-                Log::info("Loan SMS sent to {$employee->name} ({$type})");
-            } else {
-                Log::error("Loan SMS failed for {$employee->name}: " . $response->body());
-            }
-        } catch (\Exception $e) {
-            Log::error('Loan SMS exception: ' . $e->getMessage());
-        }
+        \App\Jobs\SendLoanSmsNotification::dispatch($employee, $companyId, $mobile, $message, $type);
     }
 }

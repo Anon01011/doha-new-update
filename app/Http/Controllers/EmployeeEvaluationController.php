@@ -14,21 +14,21 @@ class EmployeeEvaluationController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        if (!$user->employee_id && $user->role !== 'admin') {
+        if (!$user->isEmployee() && !$user->isAdmin() && !$user->hasPermission('view-evaluations')) {
             abort(403, 'Unauthorized.');
         }
 
         $query = EmployeeEvaluation::with(['employee.company', 'employee.department', 'evaluator']);
 
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             $query->where('employee_id', $user->employee_id);
-        } elseif (!$user->isAdmin() && $user->role !== 'hr' && $user->employee_id && $user->employee) {
+        } elseif (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
             $query->where('company_id', $user->employee->company_id);
         }
 
         if ($request->has('search')) {
             $search = $request->input('search');
-            $query->whereHas('employee', function($q) use ($search) {
+            $query->whereHas('employee', function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('employee_code', 'like', "%{$search}%");
             });
@@ -57,11 +57,16 @@ class EmployeeEvaluationController extends Controller
         $evaluation->load(['employee.company', 'employee.department', 'evaluator']);
 
         // Authorization
-        if ($user->role === 'employee' && $evaluation->employee_id !== $user->employee_id) {
+        if ($user->isEmployee() && $evaluation->employee_id !== $user->employee_id) {
             abort(403, 'Unauthorized.');
         }
 
-        if (!$user->isAdmin() && $user->role !== 'hr' && $user->employee_id && $user->employee) {
+        if (!$user->isEmployee() && !$user->isAdmin() && !$user->hasPermission('view-evaluations')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        // Branch isolation for managers
+        if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee && !$user->isEmployee()) {
             if ($evaluation->company_id != $user->employee->company_id) {
                 abort(403, 'Unauthorized.');
             }
@@ -75,8 +80,7 @@ class EmployeeEvaluationController extends Controller
     public function create()
     {
         $user = auth()->user();
-        // Only managers, HR, Admin can create evaluations
-        if (!in_array($user->role, ['admin', 'hr', 'manager'])) {
+        if (!$user->isAdmin() && !$user->hasPermission('create-evaluations')) {
             abort(403, 'Unauthorized.');
         }
 
@@ -85,12 +89,17 @@ class EmployeeEvaluationController extends Controller
         $employeesQuery = Employee::query()->active();
 
         $compQuery = Company::orderBy('name');
-        $deptQuery = Department::orderBy('name');
+        $deptQuery = Department::with('companies:id')->orderBy('name');
 
         if ($companyId) {
             $employeesQuery->where('company_id', $companyId);
             $compQuery->where('id', $companyId);
-            $deptQuery->where('company_id', $companyId);
+            $deptQuery->where(function ($q) use ($companyId) {
+                $q->where('company_id', $companyId)
+                  ->orWhereHas('companies', function ($sub) use ($companyId) {
+                      $sub->where('companies.id', $companyId);
+                  });
+            });
         }
 
         $employees = $employeesQuery->get(['id', 'name', 'employee_image', 'company_id', 'department_id']);
@@ -98,7 +107,7 @@ class EmployeeEvaluationController extends Controller
         return Inertia::render('Evaluation/Create', [
             'employees' => $employees,
             'branches' => $compQuery->get(['id', 'name']),
-            'departments' => $deptQuery->get(['id', 'name', 'company_id']),
+            'departments' => $deptQuery->get(['departments.id', 'name', 'departments.company_id']),
             'criteria' => $this->getEvaluationCriteria(),
         ]);
     }
@@ -106,7 +115,7 @@ class EmployeeEvaluationController extends Controller
     public function store(Request $request)
     {
         $user = auth()->user();
-        if (!in_array($user->role, ['admin', 'hr', 'manager'])) {
+        if (!$user->isAdmin() && !$user->hasPermission('create-evaluations')) {
             abort(403, 'Unauthorized.');
         }
 
@@ -128,7 +137,7 @@ class EmployeeEvaluationController extends Controller
         $employee = Employee::findOrFail($validated['employee_id']);
 
         // Multi-tenancy check
-        if (!$user->isAdmin() && $user->role !== 'hr' && $user->employee_id && $user->employee) {
+        if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
             if ($employee->company_id != $user->employee->company_id) {
                 abort(403, 'Unauthorized access to another branch.');
             }
@@ -160,15 +169,15 @@ class EmployeeEvaluationController extends Controller
         $evaluation->load(['employee.company', 'employee.department', 'evaluator']);
 
         // Authorization
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             abort(403, 'Employees cannot edit evaluations.');
         }
 
-        if (!in_array($user->role, ['admin', 'hr', 'manager'])) {
+        if (!$user->isAdmin() && !$user->hasPermission('create-evaluations')) {
             abort(403, 'Unauthorized.');
         }
 
-        if (!$user->isAdmin() && $user->role !== 'hr' && $user->employee_id && $user->employee) {
+        if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
             if ($evaluation->company_id != $user->employee->company_id) {
                 abort(403, 'Unauthorized access to another branch.');
             }
@@ -178,12 +187,17 @@ class EmployeeEvaluationController extends Controller
         $employeesQuery = Employee::query()->active();
 
         $compQuery = Company::orderBy('name');
-        $deptQuery = Department::orderBy('name');
+        $deptQuery = Department::with('companies:id')->orderBy('name');
 
         if ($companyId) {
             $employeesQuery->where('company_id', $companyId);
             $compQuery->where('id', $companyId);
-            $deptQuery->where('company_id', $companyId);
+            $deptQuery->where(function ($q) use ($companyId) {
+                $q->where('company_id', $companyId)
+                  ->orWhereHas('companies', function ($sub) use ($companyId) {
+                      $sub->where('companies.id', $companyId);
+                  });
+            });
         }
 
         $employees = $employeesQuery->get(['id', 'name', 'employee_image', 'company_id', 'department_id']);
@@ -192,7 +206,7 @@ class EmployeeEvaluationController extends Controller
             'evaluation' => $evaluation,
             'employees' => $employees,
             'branches' => $compQuery->get(['id', 'name']),
-            'departments' => $deptQuery->get(['id', 'name', 'company_id']),
+            'departments' => $deptQuery->get(['departments.id', 'name', 'departments.company_id']),
             'criteria' => $this->getEvaluationCriteria(),
         ]);
     }
@@ -200,7 +214,7 @@ class EmployeeEvaluationController extends Controller
     public function update(Request $request, EmployeeEvaluation $evaluation)
     {
         $user = auth()->user();
-        if (!in_array($user->role, ['admin', 'hr', 'manager'])) {
+        if (!$user->isAdmin() && !$user->hasPermission('create-evaluations')) {
             abort(403, 'Unauthorized.');
         }
 
@@ -222,7 +236,7 @@ class EmployeeEvaluationController extends Controller
         $employee = Employee::findOrFail($validated['employee_id']);
 
         // Multi-tenancy check
-        if (!$user->isAdmin() && $user->role !== 'hr' && $user->employee_id && $user->employee) {
+        if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
             if ($employee->company_id != $user->employee->company_id) {
                 abort(403, 'Unauthorized access to another branch.');
             }
@@ -249,8 +263,8 @@ class EmployeeEvaluationController extends Controller
     public function destroy(EmployeeEvaluation $evaluation)
     {
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->role !== 'hr') {
-            abort(403, 'Only admins and HR can delete evaluations.');
+        if (!$user->isAdmin() && !$user->hasPermission('create-evaluations')) {
+            abort(403, 'Unauthorized.');
         }
 
         $evaluation->delete();
@@ -269,7 +283,7 @@ class EmployeeEvaluationController extends Controller
             'Leadership',
             'Professional Behavior',
             'Work Under Pressure',
-            
+
             // Responsibility
             'Attendance Punctuality',
             'Accuracy in Cash Handling',
@@ -278,7 +292,7 @@ class EmployeeEvaluationController extends Controller
             'Work on Deadline',
             'Willingness to take more responsibility',
             'Open to feedback',
-            
+
             // Competency
             'Creativity',
             'Speed & Efficiency at Checkout',

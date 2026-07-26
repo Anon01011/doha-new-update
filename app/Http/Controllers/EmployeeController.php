@@ -24,6 +24,10 @@ class EmployeeController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('view-employees')) {
+            abort(403, 'Unauthorized. You do not have permission to view employees.');
+        }
+
         $status = $request->query('status');
         $search = $request->query('search');
         $query = Employee::query();
@@ -40,11 +44,18 @@ class EmployeeController extends Controller
 
         // Calculate stats before applying status filter
         $statsQuery = clone $query;
+        $deptCountQuery = Department::query();
+        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+            $companyId = $user->employee->company_id;
+            $deptCountQuery->whereHas('companies', function ($q) use ($companyId) {
+                $q->where('companies.id', $companyId);
+            });
+        }
         $stats = [
             'total' => $statsQuery->count(),
             'active' => (clone $statsQuery)->active()->count(),
             'waiting' => (clone $statsQuery)->where('manual_status', 'waiting')->count(),
-            'departments' => Department::count(),
+            'departments' => $deptCountQuery->count(),
             'this_month' => (clone $statsQuery)->whereMonth('joined_date', now()->month)
                 ->whereYear('joined_date', now()->year)
                 ->count(),
@@ -68,7 +79,15 @@ class EmployeeController extends Controller
             ->withQueryString();
 
         $companies = Company::orderBy('name')->get(['id', 'name']);
-        $departments = Department::orderBy('name')->get(['id', 'name', 'company_id']);
+        // Branch-scope departments for non-admin users
+        $departmentsQuery = Department::with('companies:id')->orderBy('name');
+        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+            $companyId = $user->employee->company_id;
+            $departmentsQuery->whereHas('companies', function ($q) use ($companyId) {
+                $q->where('companies.id', $companyId);
+            });
+        }
+        $departments = $departmentsQuery->get(['departments.id', 'name', 'departments.company_id']);
 
         return Inertia::render('Employee/Index', [
             'employees' => $employees,
@@ -91,7 +110,15 @@ class EmployeeController extends Controller
         }
 
         $companies = Company::orderBy('name')->get(['id', 'name']);
-        $departments = Department::orderBy('name')->get(['id', 'name']);
+        // Branch-scope departments
+        $departmentsQuery = Department::orderBy('name');
+        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+            $companyId = $user->employee->company_id;
+            $departmentsQuery->whereHas('companies', function ($q) use ($companyId) {
+                $q->where('companies.id', $companyId);
+            });
+        }
+        $departments = $departmentsQuery->get(['departments.id', 'name']);
         $salaryComponents = \App\Models\SalaryComponent::where('is_active', true)->get();
         $availableRoles = Role::where('is_active', true)->get(['id', 'name', 'slug']);
 
@@ -273,7 +300,12 @@ class EmployeeController extends Controller
 
         // Multi-tenancy check: BelongsToCompany handles global filtering.
         // We only need to check if an employee is trying to see someone else's record.
-        if ($user->role === 'employee' && $user->employee_id !== $employee->id) {
+        if ($user->isEmployee() && $user->employee_id !== $employee->id) {
+            abort(403, 'Unauthorized access.');
+        }
+
+        // Non-employees with no view permission also denied
+        if (!$user->isEmployee() && !$user->isAdmin() && !$user->hasPermission('view-employees')) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -309,7 +341,15 @@ class EmployeeController extends Controller
 
         $employee->load(['salaryStructures.component', 'weeklyOffs']);
         $companies = Company::orderBy('name')->get(['id', 'name']);
-        $departments = Department::orderBy('name')->get(['id', 'name']);
+        // Branch-scope departments
+        $departmentsQuery = Department::orderBy('name');
+        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+            $companyId = $user->employee->company_id;
+            $departmentsQuery->whereHas('companies', function ($q) use ($companyId) {
+                $q->where('companies.id', $companyId);
+            });
+        }
+        $departments = $departmentsQuery->get(['departments.id', 'name']);
         $salaryComponents = \App\Models\SalaryComponent::where('is_active', true)->get();
         $availableRoles = Role::where('is_active', true)->get(['id', 'name', 'slug']);
 

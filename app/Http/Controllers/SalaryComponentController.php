@@ -41,7 +41,7 @@ class SalaryComponentController extends Controller
     {
         // Only admin and HR can create salary components
         $user = auth()->user();
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        if (!$user->isAdmin() && !$user->isHR()) {
             abort(403, 'Unauthorized. Only admin and HR can create salary components.');
         }
 
@@ -52,7 +52,7 @@ class SalaryComponentController extends Controller
     {
         // Only admin and HR can create salary components
         $user = auth()->user();
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        if (!$user->isAdmin() && !$user->isHR()) {
             abort(403, 'Unauthorized. Only admin and HR can create salary components.');
         }
 
@@ -129,7 +129,7 @@ class SalaryComponentController extends Controller
     {
         // Only admin can delete salary components
         $user = auth()->user();
-        if ($user->role !== 'admin') {
+        if (!$user->isAdmin()) {
             abort(403, 'Unauthorized. Only admin can delete salary components.');
         }
 

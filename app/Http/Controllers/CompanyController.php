@@ -10,9 +10,13 @@ class CompanyController extends Controller
     public function index()
     {
         $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('view-branches')) {
+            abort(403, 'Unauthorized. You do not have permission to view branches.');
+        }
+
         $query = Company::withCount('employees');
 
-        if ($user->role !== 'admin' && $user->employee_id) {
+        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
             $query->where('id', $user->employee->company_id);
         }
 
@@ -24,15 +28,17 @@ class CompanyController extends Controller
 
     public function create()
     {
-        if (auth()->user()->role !== 'admin') {
-            abort(403, 'Only super-admins can create new branches.');
+        $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('manage-companies')) {
+            abort(403, 'Only administrators can create new branches.');
         }
         return inertia('Company/Create');
     }
 
     public function store(Request $request)
     {
-        if (auth()->user()->role !== 'admin') {
+        $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('manage-companies')) {
             abort(403, 'Unauthorized.');
         }
         $validated = $request->validate([
@@ -51,7 +57,10 @@ class CompanyController extends Controller
     public function show(Company $company)
     {
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->employee_id && $company->id != $user->employee->company_id) {
+        if (!$user->isAdmin() && !$user->hasPermission('view-branches')) {
+            abort(403, 'Unauthorized.');
+        }
+        if (!$user->isAdmin() && $user->employee_id && $user->employee && $company->id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -65,7 +74,10 @@ class CompanyController extends Controller
     public function edit(Company $company)
     {
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->employee_id && $company->id != $user->employee->company_id) {
+        if (!$user->isAdmin() && !$user->hasPermission('manage-companies')) {
+            abort(403, 'Unauthorized.');
+        }
+        if (!$user->isAdmin() && $user->employee_id && $user->employee && $company->id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
         return inertia('Company/Edit', [
@@ -76,7 +88,10 @@ class CompanyController extends Controller
     public function update(Request $request, Company $company)
     {
         $user = auth()->user();
-        if ($user->role !== 'admin' && $user->employee_id && $company->id != $user->employee->company_id) {
+        if (!$user->isAdmin() && !$user->hasPermission('manage-companies')) {
+            abort(403, 'Unauthorized.');
+        }
+        if (!$user->isAdmin() && $user->employee_id && $user->employee && $company->id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -95,8 +110,9 @@ class CompanyController extends Controller
 
     public function destroy(Company $company)
     {
-        if (auth()->user()->role !== 'admin') {
-            abort(403, 'Only super-admins can delete branches.');
+        $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('manage-companies')) {
+            abort(403, 'Only administrators can delete branches.');
         }
         $company->delete();
         return redirect()->route('companies.index')->with('success', 'Branch deleted successfully.');

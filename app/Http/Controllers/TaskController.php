@@ -67,7 +67,7 @@ class TaskController extends Controller
         $projects = $projectsQuery->get(['id', 'name']);
 
         $leadProjectIds = [];
-        if ($user && $user->role === 'employee' && $user->employee_id) {
+        if ($user && $user->isEmployee() && $user->employee_id) {
             $leadProjectIds = \App\Models\ProjectMember::where('employee_id', $user->employee_id)
                 ->where('role', 'lead')
                 ->pluck('project_id')

@@ -983,8 +983,7 @@ class ShiftRosterController extends Controller
                     }
 
                     if ($sendWhatsapp && !empty($employee->mobile)) {
-                        $waService = new \App\Services\WhatsAppService();
-                        $waService->sendRosterNotification($employee, $company, $employeeRoster, $dateRange);
+                        \App\Jobs\SendWhatsAppRosterNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
                     }
 
                     if ($sendSms && !empty($employee->mobile)) {
@@ -1191,8 +1190,7 @@ class ShiftRosterController extends Controller
                     }
 
                     if ($sendWhatsapp && !empty($employee->mobile)) {
-                        $waService = new \App\Services\WhatsAppService();
-                        $waService->sendRosterNotification($employee, $company, $employeeRoster, $dateRange);
+                        \App\Jobs\SendWhatsAppRosterNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
                     }
 
                     if ($sendSms && !empty($employee->mobile)) {
@@ -1355,8 +1353,7 @@ class ShiftRosterController extends Controller
                 }
 
                 if ($sendWhatsapp && !empty($employee->mobile)) {
-                    $waService = new \App\Services\WhatsAppService();
-                    $waService->sendRosterNotification($employee, $company, $employeeRoster, $dateRange);
+                    \App\Jobs\SendWhatsAppRosterNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
                     $sentChannels[] = 'WhatsApp';
                 }
 
@@ -1441,8 +1438,7 @@ class ShiftRosterController extends Controller
                     ]
                 ];
 
-                $waService = new \App\Services\WhatsAppService();
-                $waService->sendRosterNotification($shiftRoster->employee, $shiftRoster->company, $employeeRoster, $dateRange);
+                \App\Jobs\SendWhatsAppRosterNotification::dispatch($shiftRoster->employee, $shiftRoster->company, $employeeRoster, $dateRange);
             } catch (\Exception $e) {
                 Log::error('Auto-WhatsApp notification failed: ' . $e->getMessage());
             }
@@ -1556,8 +1552,8 @@ class ShiftRosterController extends Controller
                     ])->values()->toArray();
 
                 try {
-                    $waService->sendRosterNotification($employee, $company, $employeeRoster, $dateRange);
-                    Log::info("sendBulkAutomaticNotifications: WhatsApp sent to {$employee->name} (ID: {$empId}), shifts: " . count($employeeRoster));
+                    \App\Jobs\SendWhatsAppRosterNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
+                    Log::info("sendBulkAutomaticNotifications: WhatsApp queued for {$employee->name} (ID: {$empId}), shifts: " . count($employeeRoster));
                 } catch (\Exception $e) {
                     Log::error("sendBulkAutomaticNotifications: Failed for employee {$empId}: " . $e->getMessage());
                 }
