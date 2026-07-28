@@ -557,18 +557,18 @@ export default function Create({ employees, salaryComponents = [], companies = [
                                     <button
                                         type="submit"
                                         disabled={processing || !data.employee_id}
-                                        className="w-full py-3.5 bg-indigo-600 text-white rounded-lg text-[10px] font-normal uppercase tracking-normal shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                                        className="w-full py-3.5 bg-white text-slate-900 rounded-lg text-[11px] font-bold uppercase tracking-wider shadow-xl hover:bg-slate-100 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                                     >
                                         {processing ? (
-                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                            <div className="w-5 h-5 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin"></div>
                                         ) : (
-                                            <FaSave size={14} className="text-white" />
+                                            <FaSave size={14} />
                                         )}
                                         <span>Save Salary</span>
                                     </button>
                                     <Link
                                         href={route('salary-postings.index')}
-                                        className="w-full flex items-center justify-center py-3 rounded-lg border border-white/10 text-[10px] font-normal text-white uppercase tracking-normal hover:bg-white/5 transition-all"
+                                        className="w-full flex items-center justify-center py-3 rounded-lg border border-white/20 bg-white/10 text-[10px] font-medium text-white uppercase tracking-wider hover:bg-white/20 transition-all"
                                     >
                                         Cancel
                                     </Link>

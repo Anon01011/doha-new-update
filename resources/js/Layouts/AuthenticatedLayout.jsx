@@ -543,23 +543,40 @@ export default function AuthenticatedLayout({ header, children }) {
                     border-right-color: #1e293b;
                 }
 
-                /* Force white buttons on primary/theme backgrounds */
-                .bg-primary button.bg-primary, .bg-primary a.bg-primary,
-                .bg-primary button.bg-indigo-600, .bg-primary a.bg-indigo-600,
-                .bg-slate-900 button.bg-primary, .bg-slate-900 a.bg-primary,
-                .bg-slate-900 button.bg-slate-900, .bg-slate-900 a.bg-slate-900,
-                .bg-primary .bg-white\/10:not(svg), .bg-slate-900 .bg-white\/10:not(svg) {
-                    background-color: white !important;
-                    color: var(--primary-color) !important;
-                    border-color: white !important;
+                /* Force high-contrast white buttons on primary/theme/dark card backgrounds */
+                .bg-primary button:not(.bg-transparent):not(.bg-white\/10):not(.bg-white\/20),
+                .bg-primary a.btn:not(.bg-transparent):not(.bg-white\/10):not(.bg-white\/20),
+                .bg-slate-900 button:not(.bg-transparent):not(.bg-white\/10):not(.bg-white\/20),
+                .bg-slate-900 a.btn:not(.bg-transparent):not(.bg-white\/10):not(.bg-white\/20),
+                .bg-gray-900 button:not(.bg-transparent):not(.bg-white\/10):not(.bg-white\/20),
+                .bg-gray-900 a.btn:not(.bg-transparent):not(.bg-white\/10):not(.bg-white\/20) {
+                    background-color: #ffffff !important;
+                    color: var(--primary-color, #090b4e) !important;
+                    border-color: #ffffff !important;
+                    font-weight: 700 !important;
+                    box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.25) !important;
                 }
                 
-                /* Ensure icons inside forced white buttons take the primary color */
-                .bg-primary .bg-white svg, .bg-slate-900 .bg-white svg,
-                .bg-primary button.bg-white svg, .bg-primary a.bg-white svg,
-                .bg-slate-900 button.bg-white svg, .bg-slate-900 a.bg-white svg {
-                    color: var(--primary-color) !important;
-                    stroke: var(--primary-color) !important;
+                /* Ensure icons inside high-contrast buttons take primary color */
+                .bg-primary button svg, .bg-primary a svg,
+                .bg-slate-900 button svg, .bg-slate-900 a svg,
+                .bg-gray-900 button svg, .bg-gray-900 a svg {
+                    color: var(--primary-color, #090b4e) !important;
+                    stroke: var(--primary-color, #090b4e) !important;
+                }
+                
+                /* Icons in transparent/outline white links inside dark cards stay white */
+                .bg-primary a.border-white\/10 svg, .bg-primary a.border-white\/20 svg,
+                .bg-slate-900 a.border-white\/10 svg, .bg-slate-900 a.border-white\/20 svg,
+                .bg-gray-900 a.border-white\/10 svg, .bg-gray-900 a.border-white\/20 svg {
+                    color: #ffffff !important;
+                    stroke: #ffffff !important;
+                }
+
+                .bg-primary .bg-white\/10, .bg-slate-900 .bg-white\/10, .bg-gray-900 .bg-white\/10 {
+                    background-color: rgba(255, 255, 255, 0.12) !important;
+                    color: #ffffff !important;
+                    border-color: rgba(255, 255, 255, 0.25) !important;
                 }
                 .text-primary-dark { color: color-mix(in srgb, var(--primary-color), black 20%) !important; }
                 
