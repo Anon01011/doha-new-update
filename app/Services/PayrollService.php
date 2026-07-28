@@ -17,7 +17,7 @@ class PayrollService
         $this->weeklyOffService = $weeklyOffService;
     }
 
-    public function calculateMonthlyPayroll($employeeId, $month, $year)
+    public function calculateMonthlyPayroll($employeeId, $month, $year): array
     {
         $employee = Employee::with(['salaryStructures.component', 'weeklyOffs', 'company'])
             ->findOrFail($employeeId);

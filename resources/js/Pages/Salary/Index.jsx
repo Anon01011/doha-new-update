@@ -40,6 +40,8 @@ export default function Index({
     });
     const [companyDropOpen, setCompanyDropOpen] = useState(false);
     const [deptDropOpen, setDeptDropOpen] = useState(false);
+    const [companySearch, setCompanySearch] = useState('');
+    const [deptSearch, setDeptSearch] = useState('');
     const companyDropRef = useRef(null);
     const deptDropRef = useRef(null);
 
@@ -47,9 +49,11 @@ export default function Index({
         const handleClickOutside = (e) => {
             if (companyDropRef.current && !companyDropRef.current.contains(e.target)) {
                 setCompanyDropOpen(false);
+                setCompanySearch('');
             }
             if (deptDropRef.current && !deptDropRef.current.contains(e.target)) {
                 setDeptDropOpen(false);
+                setDeptSearch('');
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -533,7 +537,7 @@ export default function Index({
                                         {/* Trigger Button */}
                                         <button
                                             type="button"
-                                            onClick={() => { setCompanyDropOpen(v => !v); setDeptDropOpen(false); }}
+                                            onClick={() => { setCompanyDropOpen(v => !v); setDeptDropOpen(false); setDeptSearch(''); }}
                                             className="w-full flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2 bg-white text-xs text-slate-700 hover:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
                                         >
                                             <span className="truncate">
@@ -550,49 +554,71 @@ export default function Index({
                                         </button>
 
                                         {/* Dropdown Panel */}
-                                        {companyDropOpen && (
-                                            <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
-                                                {/* Select All */}
-                                                <div
-                                                    className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100"
-                                                    onClick={() => {
-                                                        const allSelected = bulkData.company_ids.length === companies.length;
-                                                        setBulkData({ ...bulkData, company_ids: allSelected ? [] : companies.map(c => c.id) });
-                                                    }}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        readOnly
-                                                        className="rounded text-primary focus:ring-primary/20 pointer-events-none"
-                                                        checked={bulkData.company_ids.length === companies.length && companies.length > 0}
-                                                    />
-                                                    <span className="text-xs font-semibold text-slate-700">Select All</span>
-                                                </div>
-                                                {/* Individual items */}
-                                                <div className="max-h-[160px] overflow-y-auto">
-                                                    {companies.map(c => (
-                                                        <div
-                                                            key={c.id}
-                                                            className="flex items-center gap-2 px-3 py-2 hover:bg-primary/5 cursor-pointer"
-                                                            onClick={() => {
-                                                                const newIds = bulkData.company_ids.includes(c.id)
-                                                                    ? bulkData.company_ids.filter(id => id !== c.id)
-                                                                    : [...bulkData.company_ids, c.id];
-                                                                setBulkData({ ...bulkData, company_ids: newIds });
-                                                            }}
-                                                        >
+                                        {companyDropOpen && (() => {
+                                            const filteredCompanies = companies.filter(c =>
+                                                c.name.toLowerCase().includes(companySearch.toLowerCase())
+                                            );
+                                            return (
+                                                <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+                                                    {/* Search Bar */}
+                                                    <div className="px-3 py-2 border-b border-slate-100">
+                                                        <div className="relative">
+                                                            <FaSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300" size={10} />
                                                             <input
-                                                                type="checkbox"
-                                                                readOnly
-                                                                className="rounded text-primary focus:ring-primary/20 pointer-events-none"
-                                                                checked={bulkData.company_ids.includes(c.id)}
+                                                                type="text"
+                                                                autoFocus
+                                                                placeholder="Search companies..."
+                                                                value={companySearch}
+                                                                onChange={(e) => setCompanySearch(e.target.value)}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary/20 focus:border-primary/40"
                                                             />
-                                                            <span className="text-xs text-slate-600">{c.name}</span>
                                                         </div>
-                                                    ))}
+                                                    </div>
+                                                    {/* Select All */}
+                                                    <div
+                                                        className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100"
+                                                        onClick={() => {
+                                                            const allSelected = bulkData.company_ids.length === companies.length;
+                                                            setBulkData({ ...bulkData, company_ids: allSelected ? [] : companies.map(c => c.id) });
+                                                        }}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            readOnly
+                                                            className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                            checked={bulkData.company_ids.length === companies.length && companies.length > 0}
+                                                        />
+                                                        <span className="text-xs font-semibold text-slate-700">Select All</span>
+                                                    </div>
+                                                    {/* Individual items */}
+                                                    <div className="max-h-[150px] overflow-y-auto">
+                                                        {filteredCompanies.length === 0 ? (
+                                                            <p className="px-3 py-2 text-xs text-slate-400">No results found</p>
+                                                        ) : filteredCompanies.map(c => (
+                                                            <div
+                                                                key={c.id}
+                                                                className="flex items-center gap-2 px-3 py-2 hover:bg-primary/5 cursor-pointer"
+                                                                onClick={() => {
+                                                                    const newIds = bulkData.company_ids.includes(c.id)
+                                                                        ? bulkData.company_ids.filter(id => id !== c.id)
+                                                                        : [...bulkData.company_ids, c.id];
+                                                                    setBulkData({ ...bulkData, company_ids: newIds });
+                                                                }}
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    readOnly
+                                                                    className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                                    checked={bulkData.company_ids.includes(c.id)}
+                                                                />
+                                                                <span className="text-xs text-slate-600">{c.name}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             )}
@@ -604,7 +630,7 @@ export default function Index({
                                     {/* Trigger Button */}
                                     <button
                                         type="button"
-                                        onClick={() => { setDeptDropOpen(v => !v); setCompanyDropOpen(false); }}
+                                        onClick={() => { setDeptDropOpen(v => !v); setCompanyDropOpen(false); setCompanySearch(''); }}
                                         className="w-full flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2 bg-white text-xs text-slate-700 hover:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
                                     >
                                         <span className="truncate">
@@ -623,29 +649,49 @@ export default function Index({
 
                                     {/* Dropdown Panel */}
                                     {deptDropOpen && (() => {
-                                        const visibleDepts = departments.filter(d => bulkData.company_ids.length === 0 || bulkData.company_ids.includes(d.company_id));
+                                        const visibleDepts = departments
+                                            .filter(d => bulkData.company_ids.length === 0 || bulkData.company_ids.includes(d.company_id))
+                                            .filter(d => d.name.toLowerCase().includes(deptSearch.toLowerCase()));
+                                        const allVisible = departments.filter(d => bulkData.company_ids.length === 0 || bulkData.company_ids.includes(d.company_id));
                                         return (
                                             <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+                                                {/* Search Bar */}
+                                                <div className="px-3 py-2 border-b border-slate-100">
+                                                    <div className="relative">
+                                                        <FaSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300" size={10} />
+                                                        <input
+                                                            type="text"
+                                                            autoFocus
+                                                            placeholder="Search departments..."
+                                                            value={deptSearch}
+                                                            onChange={(e) => setDeptSearch(e.target.value)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary/20 focus:border-primary/40"
+                                                        />
+                                                    </div>
+                                                </div>
                                                 {/* Select All */}
                                                 <div
                                                     className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100"
                                                     onClick={() => {
-                                                        const allSelected = bulkData.department_ids.length === visibleDepts.length;
-                                                        setBulkData({ ...bulkData, department_ids: allSelected ? [] : visibleDepts.map(d => d.id) });
+                                                        const allSelected = bulkData.department_ids.length === allVisible.length;
+                                                        setBulkData({ ...bulkData, department_ids: allSelected ? [] : allVisible.map(d => d.id) });
                                                     }}
                                                 >
                                                     <input
                                                         type="checkbox"
                                                         readOnly
                                                         className="rounded text-primary focus:ring-primary/20 pointer-events-none"
-                                                        checked={visibleDepts.length > 0 && bulkData.department_ids.length === visibleDepts.length}
+                                                        checked={allVisible.length > 0 && bulkData.department_ids.length === allVisible.length}
                                                     />
                                                     <span className="text-xs font-semibold text-slate-700">Select All</span>
                                                 </div>
                                                 {/* Individual items */}
-                                                <div className="max-h-[160px] overflow-y-auto">
+                                                <div className="max-h-[150px] overflow-y-auto">
                                                     {visibleDepts.length === 0 ? (
-                                                        <p className="px-3 py-2 text-xs text-slate-400">No departments available</p>
+                                                        <p className="px-3 py-2 text-xs text-slate-400">
+                                                            {deptSearch ? 'No results found' : 'No departments available'}
+                                                        </p>
                                                     ) : visibleDepts.map(d => (
                                                         <div
                                                             key={d.id}
