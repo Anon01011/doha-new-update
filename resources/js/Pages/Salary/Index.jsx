@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { FaPlus, FaSearch, FaEye, FaEdit, FaTrash, FaMoneyBillWave, FaCheckCircle, FaTimesCircle, FaClock, FaChevronDown, FaFileInvoiceDollar, FaCalculator } from 'react-icons/fa';
 import Avatar from '@/Components/Avatar';
@@ -38,6 +38,23 @@ export default function Index({
         company_ids: [],
         department_ids: []
     });
+    const [companyDropOpen, setCompanyDropOpen] = useState(false);
+    const [deptDropOpen, setDeptDropOpen] = useState(false);
+    const companyDropRef = useRef(null);
+    const deptDropRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (companyDropRef.current && !companyDropRef.current.contains(e.target)) {
+                setCompanyDropOpen(false);
+            }
+            if (deptDropRef.current && !deptDropRef.current.contains(e.target)) {
+                setDeptDropOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const handleBulkGenerate = (e) => {
         e.preventDefault();
@@ -508,91 +525,154 @@ export default function Index({
                                 </div>
                             </div>
 
-                            {/* Company Filter (Admin Only) */}
+                            {/* Company Multi-Select Dropdown (Admin Only) */}
                             {companies.length > 0 && (
-                                <div className="space-y-1">
+                                <div className="space-y-1" ref={companyDropRef}>
                                     <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Companies (Branches)</label>
-                                    <div className="border border-slate-200 rounded-lg p-3 max-h-[120px] overflow-y-auto space-y-1.5 bg-slate-50">
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="checkbox"
-                                                id="select-all-companies"
-                                                className="rounded text-primary focus:ring-primary/20"
-                                                checked={bulkData.company_ids.length === companies.length}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) {
-                                                        setBulkData({ ...bulkData, company_ids: companies.map(c => c.id) });
-                                                    } else {
-                                                        setBulkData({ ...bulkData, company_ids: [] });
-                                                    }
-                                                }}
+                                    <div className="relative">
+                                        {/* Trigger Button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => { setCompanyDropOpen(v => !v); setDeptDropOpen(false); }}
+                                            className="w-full flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2 bg-white text-xs text-slate-700 hover:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+                                        >
+                                            <span className="truncate">
+                                                {bulkData.company_ids.length === 0
+                                                    ? 'All Companies'
+                                                    : bulkData.company_ids.length === companies.length
+                                                        ? 'All Companies Selected'
+                                                        : `${bulkData.company_ids.length} selected`}
+                                            </span>
+                                            <FaChevronDown
+                                                size={9}
+                                                className={`ml-2 text-slate-400 transition-transform duration-200 ${companyDropOpen ? 'rotate-180' : ''}`}
                                             />
-                                            <label htmlFor="select-all-companies" className="text-xs font-semibold text-slate-700 cursor-pointer">Select All</label>
-                                        </div>
-                                        <hr className="border-slate-200 my-1" />
-                                        {companies.map(c => (
-                                            <div key={c.id} className="flex items-center gap-2">
-                                                <input
-                                                    type="checkbox"
-                                                    id={`company-checkbox-${c.id}`}
-                                                    className="rounded text-primary focus:ring-primary/20"
-                                                    checked={bulkData.company_ids.includes(c.id)}
-                                                    onChange={(e) => {
-                                                        const newIds = e.target.checked
-                                                            ? [...bulkData.company_ids, c.id]
-                                                            : bulkData.company_ids.filter(id => id !== c.id);
-                                                        setBulkData({ ...bulkData, company_ids: newIds });
+                                        </button>
+
+                                        {/* Dropdown Panel */}
+                                        {companyDropOpen && (
+                                            <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+                                                {/* Select All */}
+                                                <div
+                                                    className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100"
+                                                    onClick={() => {
+                                                        const allSelected = bulkData.company_ids.length === companies.length;
+                                                        setBulkData({ ...bulkData, company_ids: allSelected ? [] : companies.map(c => c.id) });
                                                     }}
-                                                />
-                                                <label htmlFor={`company-checkbox-${c.id}`} className="text-xs text-slate-600 cursor-pointer">{c.name}</label>
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        readOnly
+                                                        className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                        checked={bulkData.company_ids.length === companies.length && companies.length > 0}
+                                                    />
+                                                    <span className="text-xs font-semibold text-slate-700">Select All</span>
+                                                </div>
+                                                {/* Individual items */}
+                                                <div className="max-h-[160px] overflow-y-auto">
+                                                    {companies.map(c => (
+                                                        <div
+                                                            key={c.id}
+                                                            className="flex items-center gap-2 px-3 py-2 hover:bg-primary/5 cursor-pointer"
+                                                            onClick={() => {
+                                                                const newIds = bulkData.company_ids.includes(c.id)
+                                                                    ? bulkData.company_ids.filter(id => id !== c.id)
+                                                                    : [...bulkData.company_ids, c.id];
+                                                                setBulkData({ ...bulkData, company_ids: newIds });
+                                                            }}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                readOnly
+                                                                className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                                checked={bulkData.company_ids.includes(c.id)}
+                                                            />
+                                                            <span className="text-xs text-slate-600">{c.name}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        ))}
+                                        )}
                                     </div>
                                 </div>
                             )}
 
-                            {/* Department Filter */}
-                            <div className="space-y-1">
+                            {/* Department Multi-Select Dropdown */}
+                            <div className="space-y-1" ref={deptDropRef}>
                                 <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Departments</label>
-                                <div className="border border-slate-200 rounded-lg p-3 max-h-[120px] overflow-y-auto space-y-1.5 bg-slate-50">
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            id="select-all-departments"
-                                            className="rounded text-primary focus:ring-primary/20"
-                                            checked={bulkData.department_ids.length === departments.length}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setBulkData({ ...bulkData, department_ids: departments.map(d => d.id) });
-                                                } else {
-                                                    setBulkData({ ...bulkData, department_ids: [] });
-                                                }
-                                            }}
+                                <div className="relative">
+                                    {/* Trigger Button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => { setDeptDropOpen(v => !v); setCompanyDropOpen(false); }}
+                                        className="w-full flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2 bg-white text-xs text-slate-700 hover:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+                                    >
+                                        <span className="truncate">
+                                            {(() => {
+                                                const visibleDepts = departments.filter(d => bulkData.company_ids.length === 0 || bulkData.company_ids.includes(d.company_id));
+                                                if (bulkData.department_ids.length === 0) return 'All Departments';
+                                                if (bulkData.department_ids.length === visibleDepts.length) return 'All Departments Selected';
+                                                return `${bulkData.department_ids.length} selected`;
+                                            })()}
+                                        </span>
+                                        <FaChevronDown
+                                            size={9}
+                                            className={`ml-2 text-slate-400 transition-transform duration-200 ${deptDropOpen ? 'rotate-180' : ''}`}
                                         />
-                                        <label htmlFor="select-all-departments" className="text-xs font-semibold text-slate-700 cursor-pointer">Select All</label>
-                                    </div>
-                                    <hr className="border-slate-200 my-1" />
-                                    {departments
-                                        .filter(d => bulkData.company_ids.length === 0 || bulkData.company_ids.includes(d.company_id))
-                                        .map(d => (
-                                            <div key={d.id} className="flex items-center gap-2">
-                                                <input
-                                                    type="checkbox"
-                                                    id={`dept-checkbox-${d.id}`}
-                                                    className="rounded text-primary focus:ring-primary/20"
-                                                    checked={bulkData.department_ids.includes(d.id)}
-                                                    onChange={(e) => {
-                                                        const newIds = e.target.checked
-                                                            ? [...bulkData.department_ids, d.id]
-                                                            : bulkData.department_ids.filter(id => id !== d.id);
-                                                        setBulkData({ ...bulkData, department_ids: newIds });
+                                    </button>
+
+                                    {/* Dropdown Panel */}
+                                    {deptDropOpen && (() => {
+                                        const visibleDepts = departments.filter(d => bulkData.company_ids.length === 0 || bulkData.company_ids.includes(d.company_id));
+                                        return (
+                                            <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+                                                {/* Select All */}
+                                                <div
+                                                    className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100"
+                                                    onClick={() => {
+                                                        const allSelected = bulkData.department_ids.length === visibleDepts.length;
+                                                        setBulkData({ ...bulkData, department_ids: allSelected ? [] : visibleDepts.map(d => d.id) });
                                                     }}
-                                                />
-                                                <label htmlFor={`dept-checkbox-${d.id}`} className="text-xs text-slate-600 cursor-pointer">{d.name}</label>
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        readOnly
+                                                        className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                        checked={visibleDepts.length > 0 && bulkData.department_ids.length === visibleDepts.length}
+                                                    />
+                                                    <span className="text-xs font-semibold text-slate-700">Select All</span>
+                                                </div>
+                                                {/* Individual items */}
+                                                <div className="max-h-[160px] overflow-y-auto">
+                                                    {visibleDepts.length === 0 ? (
+                                                        <p className="px-3 py-2 text-xs text-slate-400">No departments available</p>
+                                                    ) : visibleDepts.map(d => (
+                                                        <div
+                                                            key={d.id}
+                                                            className="flex items-center gap-2 px-3 py-2 hover:bg-primary/5 cursor-pointer"
+                                                            onClick={() => {
+                                                                const newIds = bulkData.department_ids.includes(d.id)
+                                                                    ? bulkData.department_ids.filter(id => id !== d.id)
+                                                                    : [...bulkData.department_ids, d.id];
+                                                                setBulkData({ ...bulkData, department_ids: newIds });
+                                                            }}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                readOnly
+                                                                className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                                checked={bulkData.department_ids.includes(d.id)}
+                                                            />
+                                                            <span className="text-xs text-slate-600">{d.name}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        ))}
-                                </div>
-                            </div>
+                                        );
+                                    })()}
+
+                                </div>{/* end relative */}
+                            </div>{/* end dept space-y-1 */}
 
                             <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-6">
                                 <button
