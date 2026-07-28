@@ -245,7 +245,8 @@ class LeaveRequestController extends Controller
                     throw new \Exception("Insufficient leave balance for {$employee->name}. Available: {$availableDays} days, Requested: {$daysRequested} days.");
                 }
 
-                // Prepare request data
+                // Prepare request data — always start as pending regardless of role
+                // HR/Admin must explicitly approve via the approve() action
                 $requestData = [
                     'employee_id' => $empId,
                     'leave_type_id' => $validated['leave_type_id'],
@@ -254,37 +255,29 @@ class LeaveRequestController extends Controller
                     'reason' => $validated['reason'],
                     'days_requested' => $daysRequested,
                     'company_id' => $companyId,
+                    'status' => 'pending',
+                    'hr_approval_status' => 'pending',
                 ];
 
-                if ($isAdminOrHR) {
-                    $requestData['status'] = 'approved';
-                    $requestData['manager_approval_status'] = 'approved';
-                    $requestData['hr_approval_status'] = 'approved';
-                    $requestData['approved_by'] = $user->id;
-                    $requestData['approved_at'] = now();
+                // Set manager approval chain
+                if ($employee->reports_to_id) {
+                    $requestData['manager_approval_status'] = 'pending';
+                    $requestData['manager_id'] = $employee->reports_to_id;
                 } else {
-                    $requestData['status'] = 'pending';
-                    $requestData['hr_approval_status'] = 'pending';
-                    if ($employee->reports_to_id) {
-                        $requestData['manager_approval_status'] = 'pending';
-                        $requestData['manager_id'] = $employee->reports_to_id;
-                    } else {
-                        $requestData['manager_approval_status'] = 'approved';
-                    }
+                    // No manager in chain — skip manager step
+                    $requestData['manager_approval_status'] = 'approved';
                 }
 
                 $leaveRequest = LeaveRequest::create($requestData);
                 $createdRequestsCount++;
 
-                // If auto-approved (HR/Admin), apply balances and attendance
-                if ($isAdminOrHR) {
-                    $this->updateLeaveBalance($leaveRequest);
-                    $this->createAttendanceFromLeave($leaveRequest);
-                } else {
-                    // Notify Manager if exists
-                    if ($leaveRequest->manager_id) {
-                        $this->notifyEmployee($leaveRequest->manager_id, new \App\Notifications\LeaveRequested($leaveRequest, $employee->name));
-                    }
+                // Notify Manager if exists
+                if ($leaveRequest->manager_id) {
+                    $this->notifyEmployee($leaveRequest->manager_id, new \App\Notifications\LeaveRequested($leaveRequest, $employee->name));
+                } elseif ($isAdminOrHR) {
+                    // HR/Admin submitted on behalf of employee — notify HR for their own approval
+                    // The request still needs explicit HR approval
+                    $this->notifyEmployee($leaveRequest->employee_id, new \App\Notifications\LeaveRequested($leaveRequest, $employee->name));
                 }
             }
 

@@ -105,11 +105,13 @@ function parsePunches(punches = [], normalHours = 8) {
 
 const defaultAttendanceOptions = ['Present', 'Absent', 'Leave', 'Late', 'Half Day'];
 
-// Format hours: remove trailing zeros, max 2 decimals
+// Format decimal hours as HH:MM (e.g. 8.8 → "8:48", 9 → "9:00", 0.5 → "0:30")
 const fmt = (val) => {
     const n = parseFloat(val);
-    if (isNaN(n) || n === 0) return '0';
-    return n % 1 === 0 ? String(Math.round(n)) : parseFloat(n.toFixed(2)).toString();
+    if (isNaN(n) || n === 0) return '0:00';
+    const h = Math.floor(n);
+    const m = Math.round((n - h) * 60);
+    return `${h}:${String(m).padStart(2, '0')}`;
 };
 
 export default function Index({ branches = [], employees, attendances = [], rosters = [], initialCompanyId = null, initialWeekStart = null, attendanceOptions = [], userRole = 'admin', settings }) {
@@ -846,8 +848,15 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                             }`}>{fmt(regularHours)}h</p>
                                         </div>
                                         <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
-                                            <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Break Time</p>
-                                            <p className="text-lg font-semibold text-amber-600">{breakMinutesVal}m</p>
+                                            <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Break / Absent Dur.</p>
+                                            <p className="text-lg font-semibold text-amber-600">
+                                                {(() => {
+                                                    const bMins = breakMinutesVal;
+                                                    const bH = Math.floor(bMins / 60);
+                                                    const bM = bMins % 60;
+                                                    return bH > 0 ? `${bH}h ${bM}m` : `${bM}m`;
+                                                })()}
+                                            </p>
                                         </div>
                                         <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
                                             <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Overtime</p>

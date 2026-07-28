@@ -394,12 +394,12 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-normal text-blue-600 text-center">{item.leave}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-normal text-amber-600 text-center">{item.weekly_off}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                    <span className="text-sm font-bold text-slate-700">{item.hours_worked.toFixed(2)}h</span>
+                                                    <span className="text-sm font-bold text-slate-700">{(() => { const n = parseFloat(item.hours_worked || 0); const h = Math.floor(n); const m = Math.round((n - h) * 60); return `${h}:${String(m).padStart(2,'0')}`; })()}h</span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
                                                     {item.ot > 0 ? (
                                                         <div className="flex flex-col items-end">
-                                                            <span className="text-sm font-bold text-orange-500">{item.ot.toFixed(2)}h</span>
+                                                            <span className="text-sm font-bold text-orange-500">{(() => { const n = parseFloat(item.ot || 0); const h = Math.floor(n); const m = Math.round((n - h) * 60); return `${h}:${String(m).padStart(2,'0')}`; })()}h</span>
                                                             <span className="text-[9px] text-orange-400">overtime</span>
                                                         </div>
                                                     ) : <span className="text-slate-300 text-sm">—</span>}

@@ -124,7 +124,8 @@ ID,Name,Date,Clock-In,Clock-Out,Worked Hours,Overtime
             'clock_out_time' => -1,
             'worked_hours' => -1,
             'overtime' => -1,
-            'absent_duration' => -1,
+            'absent_duration' => -1,  // Absent Hours: used to deduct from worked hours
+            'break_duration' => -1,   // Absent Duration: stored as total_break_minutes
         ];
 
         foreach ($header as $index => $col) {
@@ -162,9 +163,13 @@ ID,Name,Date,Clock-In,Clock-Out,Worked Hours,Overtime
             if (str_contains($col, 'overtime duration') || str_contains($col, 'overtime') || $col === 'ot') {
                 $colMap['overtime'] = $index;
             }
-            // Match Absent Duration
-            if (str_contains($col, 'absent duration')) {
+            // Match Absent Duration / Absent Hours (used to deduct from worked hours)
+            if (str_contains($col, 'absent hours') || str_contains($col, 'absent_hours')) {
                 $colMap['absent_duration'] = $index;
+            }
+            // Match Absent Duration (used as break time)
+            if (str_contains($col, 'absent duration') || str_contains($col, 'absent_duration') || str_contains($col, 'break duration') || str_contains($col, 'break time')) {
+                $colMap['break_duration'] = $index;
             }
         }
 
@@ -284,11 +289,21 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                     $hoursWorked = $this->parseTimeToDecimal($workedStr);
                 }
 
-                // Parse absent duration (format: HH:MM)
+                // Parse absent duration (format: HH:MM) — used to deduct from worked hours
                 $absentHours = 0;
                 if ($colMap['absent_duration'] !== -1) {
                     $absentStr = trim($row[$colMap['absent_duration']]);
                     $absentHours = $this->parseTimeToDecimal($absentStr);
+                }
+
+                // Parse break duration (Absent Duration column) — stored as total_break_minutes
+                $breakMinutes = 0;
+                if ($colMap['break_duration'] !== -1 && isset($row[$colMap['break_duration']])) {
+                    $breakStr = trim($row[$colMap['break_duration']]);
+                    if ($breakStr && $breakStr !== '--' && $breakStr !== '00:00') {
+                        $breakDecimal = $this->parseTimeToDecimal($breakStr);
+                        $breakMinutes = (int) round($breakDecimal * 60);
+                    }
                 }
 
                 // If hours worked is 0/empty:
@@ -351,6 +366,7 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                         'ot_amt' => null, // Will be calculated in payroll
                         'attendance' => $attendanceStatus,
                         'is_paid' => false,
+                        'total_break_minutes' => $attendanceStatus === 'Weekly Off' ? 0 : $breakMinutes,
                     ]
                 );
                 $importedCount++;
@@ -397,7 +413,9 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
             'Clock-In',
             'Clock-Out',
             'Worked Hours',
-            'Overtime'
+            'Overtime',
+            'Absent Hours',
+            'Absent Duration'
         ];
 
         $includeEmployees = $request->input('include_employees');
@@ -428,6 +446,8 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                         '08:00',
                         '17:00',
                         '09:00',
+                        '00:00',
+                        '00:00',
                         '00:00'
                     ]);
                 }
@@ -449,6 +469,8 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                     '08:00',
                     '17:00',
                     '09:00',
+                    '00:00',
+                    '00:00',
                     '00:00'
                 ]);
 
