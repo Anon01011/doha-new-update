@@ -19,6 +19,7 @@ class EmployeeAttendance extends Model
         'normal_hours',
         'ot',
         'ot_amt',
+        'no_overtime',
         'attendance',
         'is_paid',
         'reason',

@@ -1,11 +1,22 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import React, { useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { FaPlus, FaSearch, FaEye, FaEdit, FaTrash, FaMoneyBillWave, FaCheckCircle, FaTimesCircle, FaClock, FaChevronDown, FaFileInvoiceDollar } from 'react-icons/fa';
+import { FaPlus, FaSearch, FaEye, FaEdit, FaTrash, FaMoneyBillWave, FaCheckCircle, FaTimesCircle, FaClock, FaChevronDown, FaFileInvoiceDollar, FaCalculator } from 'react-icons/fa';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 
-export default function Index({ salaryPostings, month, year, userRole = 'employee' }) {
+export default function Index({ 
+    salaryPostings, 
+    month, 
+    year, 
+    companyId = '', 
+    departmentId = '', 
+    employeeId = '', 
+    companies = [], 
+    departments = [], 
+    employees = [], 
+    userRole = 'employee' 
+}) {
     const { auth, appSettings } = usePage().props;
     const user = auth?.user || {};
     const canManagePayroll = user.role === 'admin' || (user.permissions && user.permissions.includes('manage-payroll'));
@@ -19,6 +30,21 @@ export default function Index({ salaryPostings, month, year, userRole = 'employe
         onConfirm: () => { },
         processing: false
     });
+
+    const [bulkModal, setBulkModal] = useState(false);
+    const [bulkData, setBulkData] = useState({
+        month: month || new Date().getMonth() + 1,
+        year: year || new Date().getFullYear(),
+        company_id: '',
+        department_id: ''
+    });
+
+    const handleBulkGenerate = (e) => {
+        e.preventDefault();
+        router.post(route('salary-postings.bulk-generate'), bulkData, {
+            onSuccess: () => setBulkModal(false)
+        });
+    };
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('en-US', {
@@ -182,9 +208,9 @@ export default function Index({ salaryPostings, month, year, userRole = 'employe
                 </div>
 
                 {/* Filter / Controls */}
-                <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                        <div className="relative flex-1 md:w-56">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-sm overflow-x-auto">
+                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                        <div className="relative min-w-[150px]">
                             <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={11} />
                             <input
                                 type="text"
@@ -196,7 +222,7 @@ export default function Index({ salaryPostings, month, year, userRole = 'employe
                             <select
                                 className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all"
                                 value={month}
-                                onChange={(e) => router.get(route('salary-postings.index'), { month: e.target.value, year }, { preserveState: true })}
+                                onChange={(e) => router.get(route('salary-postings.index'), { month: e.target.value, year, company_id: companyId, department_id: departmentId, employee_id: employeeId }, { preserveState: true })}
                             >
                                 {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                             </select>
@@ -206,9 +232,56 @@ export default function Index({ salaryPostings, month, year, userRole = 'employe
                             <select
                                 className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all"
                                 value={year}
-                                onChange={(e) => router.get(route('salary-postings.index'), { month, year: e.target.value }, { preserveState: true })}
+                                onChange={(e) => router.get(route('salary-postings.index'), { month, year: e.target.value, company_id: companyId, department_id: departmentId, employee_id: employeeId }, { preserveState: true })}
                             >
                                 {years.map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                            <FaChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={9} />
+                        </div>
+
+                        {/* Company Filter (Admin Only) */}
+                        {companies.length > 0 && (
+                            <div className="relative">
+                                <select
+                                    className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all min-w-[130px]"
+                                    value={companyId}
+                                    onChange={(e) => router.get(route('salary-postings.index'), { month, year, company_id: e.target.value, department_id: '', employee_id: '' }, { preserveState: true })}
+                                >
+                                    <option value="">All Companies</option>
+                                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                                <FaChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={9} />
+                            </div>
+                        )}
+
+                        {/* Department Filter */}
+                        <div className="relative">
+                            <select
+                                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all min-w-[130px]"
+                                value={departmentId}
+                                onChange={(e) => router.get(route('salary-postings.index'), { month, year, company_id: companyId, department_id: e.target.value, employee_id: '' }, { preserveState: true })}
+                            >
+                                <option value="">All Departments</option>
+                                {departments
+                                    .filter(d => !companyId || d.company_id == companyId)
+                                    .map(d => <option key={d.id} value={d.id}>{d.name}</option>)
+                                }
+                            </select>
+                            <FaChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={9} />
+                        </div>
+
+                        {/* Employee Filter */}
+                        <div className="relative">
+                            <select
+                                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all min-w-[130px]"
+                                value={employeeId}
+                                onChange={(e) => router.get(route('salary-postings.index'), { month, year, company_id: companyId, department_id: departmentId, employee_id: e.target.value }, { preserveState: true })}
+                            >
+                                <option value="">All Employees</option>
+                                {employees
+                                    .filter(emp => (!companyId || emp.company_id == companyId) && (!departmentId || emp.department_id == departmentId))
+                                    .map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)
+                                }
                             </select>
                             <FaChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={9} />
                         </div>
@@ -223,13 +296,22 @@ export default function Index({ salaryPostings, month, year, userRole = 'employe
                             </div>
                         )}
                         {['admin', 'hr', 'manager'].includes(userRole) && (
-                            <Link
-                                href={route('salary-postings.create')}
-                                className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-xs font-normal hover:brightness-110 shadow shadow-primary/20 transition-all active:scale-95"
-                            >
-                                <FaPlus size={10} />
-                                Calculate Salary
-                            </Link>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setBulkModal(true)}
+                                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-normal hover:brightness-110 shadow shadow-slate-900/20 transition-all active:scale-95"
+                                >
+                                    <FaCalculator size={10} />
+                                    Bulk Generate
+                                </button>
+                                <Link
+                                    href={route('salary-postings.create')}
+                                    className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-xs font-normal hover:brightness-110 shadow shadow-primary/20 transition-all active:scale-95"
+                                >
+                                    <FaPlus size={10} />
+                                    Calculate Salary
+                                </Link>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -391,6 +473,92 @@ export default function Index({ salaryPostings, month, year, userRole = 'employe
                 type={modal.type}
                 processing={modal.processing}
             />
+
+            {/* Bulk Generate Modal */}
+            {bulkModal && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                        <div className="p-6 border-b border-slate-100">
+                            <h3 className="text-base font-normal text-slate-800">Bulk Generate Payroll</h3>
+                            <p className="text-xs text-slate-400 mt-1">Generate salary postings in bulk for selected month and year.</p>
+                        </div>
+                        <form onSubmit={handleBulkGenerate} className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Month</label>
+                                    <select
+                                        className="w-full rounded-lg border-slate-200 text-xs focus:ring-primary/20 focus:border-primary py-2"
+                                        value={bulkData.month}
+                                        onChange={(e) => setBulkData({ ...bulkData, month: e.target.value })}
+                                        required
+                                    >
+                                        {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Year</label>
+                                    <select
+                                        className="w-full rounded-lg border-slate-200 text-xs focus:ring-primary/20 focus:border-primary py-2"
+                                        value={bulkData.year}
+                                        onChange={(e) => setBulkData({ ...bulkData, year: e.target.value })}
+                                        required
+                                    >
+                                        {years.map(y => <option key={y} value={y}>{y}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Company Filter (Admin Only) */}
+                            {companies.length > 0 && (
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Company</label>
+                                    <select
+                                        className="w-full rounded-lg border-slate-200 text-xs focus:ring-primary/20 focus:border-primary py-2"
+                                        value={bulkData.company_id}
+                                        onChange={(e) => setBulkData({ ...bulkData, company_id: e.target.value, department_id: '' })}
+                                    >
+                                        <option value="">All Companies</option>
+                                        {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Department Filter */}
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Department</label>
+                                <select
+                                    className="w-full rounded-lg border-slate-200 text-xs focus:ring-primary/20 focus:border-primary py-2"
+                                    value={bulkData.department_id}
+                                    onChange={(e) => setBulkData({ ...bulkData, department_id: e.target.value })}
+                                >
+                                    <option value="">All Departments</option>
+                                    {departments
+                                        .filter(d => !bulkData.company_id || d.company_id == bulkData.company_id)
+                                        .map(d => <option key={d.id} value={d.id}>{d.name}</option>)
+                                    }
+                                </select>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setBulkModal(false)}
+                                    className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-normal hover:bg-slate-50 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-normal hover:brightness-110 transition-all flex items-center gap-1.5"
+                                >
+                                    <FaCalculator size={11} />
+                                    Generate
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </AuthenticatedLayout>
     );
 }

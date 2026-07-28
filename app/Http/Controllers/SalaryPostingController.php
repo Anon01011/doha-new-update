@@ -33,11 +33,28 @@ class SalaryPostingController extends Controller
     {
         $month = $request->query('month', now()->month);
         $year = $request->query('year', now()->year);
+        $companyId = $request->query('company_id');
+        $departmentId = $request->query('department_id');
+        $employeeId = $request->query('employee_id');
 
-        $query = SalaryPosting::with('employee')
+        $query = SalaryPosting::with(['employee.company', 'employee.department'])
             ->where('month', $month)
             ->where('year', $year);
         $user = auth()->user();
+
+        if ($companyId) {
+            $query->whereHas('employee', function ($q) use ($companyId) {
+                $q->where('company_id', $companyId);
+            });
+        }
+        if ($departmentId) {
+            $query->whereHas('employee', function ($q) use ($departmentId) {
+                $q->where('department_id', $departmentId);
+            });
+        }
+        if ($employeeId) {
+            $query->where('employee_id', $employeeId);
+        }
 
         // Permission-based filtering: employees without view-salary-postings for all see only their own
         if (!$user->isAdmin() && !$user->hasPermission('view-salary-postings') && $user->employee_id) {
@@ -47,10 +64,24 @@ class SalaryPostingController extends Controller
 
         $salaryPostings = $query->latest()->paginate(10);
 
+        $companies = [];
+        if ($user->isAdmin()) {
+            $companies = \App\Models\Company::orderBy('name')->get(['id', 'name']);
+        }
+        
+        $departments = \App\Models\Department::orderBy('name')->get(['id', 'name', 'company_id']);
+        $employees = Employee::active()->orderBy('name')->get(['id', 'name', 'employee_code', 'company_id', 'department_id']);
+
         return Inertia::render('Salary/Index', [
             'salaryPostings' => $salaryPostings,
             'month' => $month,
             'year' => $year,
+            'companyId' => $companyId,
+            'departmentId' => $departmentId,
+            'employeeId' => $employeeId,
+            'companies' => $companies,
+            'departments' => $departments,
+            'employees' => $employees,
             'userRole' => $user->role,
         ]);
     }
@@ -561,6 +592,7 @@ class SalaryPostingController extends Controller
             'month' => 'required|integer|between:1,12',
             'year' => 'required|integer|min:2000|max:2100',
             'company_id' => 'nullable|exists:companies,id',
+            'department_id' => 'nullable|exists:departments,id',
         ]);
 
         $month = $request->month;
@@ -570,6 +602,9 @@ class SalaryPostingController extends Controller
         $query = Employee::active();
         if ($user->isAdmin() && $request->company_id) {
             $query->where('company_id', $request->company_id);
+        }
+        if ($request->department_id) {
+            $query->where('department_id', $request->department_id);
         }
 
         $employees = $query->get();

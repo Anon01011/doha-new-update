@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { FiArrowLeft, FiFilter, FiDownload, FiFileText, FiTable, FiDollarSign, FiUsers, FiPlusCircle, FiMinusCircle } from 'react-icons/fi';
 import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
 
-export default function Salary({ salaryPostings, summary, month, year, companyId, companies, employees, employeeId }) {
+export default function Salary({ salaryPostings, summary, month, year, companyId, companies, departments = [], departmentId, employees, employeeId }) {
     const [filters, setFilters] = useState({
         month: month 
             ? (Array.isArray(month) ? month.map(String) : [String(month)]) 
@@ -13,33 +13,64 @@ export default function Salary({ salaryPostings, summary, month, year, companyId
         company_id: companyId 
             ? (Array.isArray(companyId) ? companyId.map(String) : [String(companyId)])
             : [],
+        department_id: departmentId
+            ? (Array.isArray(departmentId) ? departmentId.map(String) : [String(departmentId)])
+            : [],
         employee_id: employeeId 
             ? (Array.isArray(employeeId) ? employeeId.map(String) : [String(employeeId)])
             : []
     });
 
-    // Filter employees based on selected company_id
-    const filteredEmployees = (() => {
-        if (!employees) return [];
+    // Filter departments based on selected company_id
+    const filteredDepartments = (() => {
+        if (!departments) return [];
         if (!filters.company_id || filters.company_id.length === 0) {
-            return employees;
+            return departments;
         }
-        return employees.filter(emp => filters.company_id.includes(String(emp.company_id)));
+        return departments.filter(d => filters.company_id.includes(String(d.company_id)));
     })();
 
-    // Remove any selected employee IDs that do not belong to the selected branches
+    // Filter employees based on selected company_id and department_id
+    const filteredEmployees = (() => {
+        if (!employees) return [];
+        let list = employees;
+        if (filters.company_id && filters.company_id.length > 0) {
+            list = list.filter(emp => filters.company_id.includes(String(emp.company_id)));
+        }
+        if (filters.department_id && filters.department_id.length > 0) {
+            list = list.filter(emp => filters.department_id.includes(String(emp.department_id)));
+        }
+        return list;
+    })();
+
+    // Remove any selected department IDs that do not belong to selected companies
     useEffect(() => {
         if (filters.company_id && filters.company_id.length > 0) {
-            const allowedEmpIds = employees
-                .filter(emp => filters.company_id.includes(String(emp.company_id)))
-                .map(emp => String(emp.id));
-            
-            const newEmployeeIds = filters.employee_id.filter(id => allowedEmpIds.includes(id));
-            if (newEmployeeIds.length !== filters.employee_id.length) {
-                setFilters(prev => ({ ...prev, employee_id: newEmployeeIds }));
+            const allowedDeptIds = departments
+                .filter(d => filters.company_id.includes(String(d.company_id)))
+                .map(d => String(d.id));
+            const newDeptIds = filters.department_id.filter(id => allowedDeptIds.includes(id));
+            if (newDeptIds.length !== filters.department_id.length) {
+                setFilters(prev => ({ ...prev, department_id: newDeptIds }));
             }
         }
-    }, [filters.company_id, employees]);
+    }, [filters.company_id, departments]);
+
+    // Remove any selected employee IDs that do not belong to selected companies/departments
+    useEffect(() => {
+        const allowedEmpIds = employees
+            .filter(emp => {
+                const matchesCompany = !filters.company_id || filters.company_id.length === 0 || filters.company_id.includes(String(emp.company_id));
+                const matchesDept = !filters.department_id || filters.department_id.length === 0 || filters.department_id.includes(String(emp.department_id));
+                return matchesCompany && matchesDept;
+            })
+            .map(emp => String(emp.id));
+        
+        const newEmployeeIds = filters.employee_id.filter(id => allowedEmpIds.includes(id));
+        if (newEmployeeIds.length !== filters.employee_id.length) {
+            setFilters(prev => ({ ...prev, employee_id: newEmployeeIds }));
+        }
+    }, [filters.company_id, filters.department_id, employees]);
 
     const handleFilter = () => {
         router.get(route('reports.salary'), filters, { preserveState: true });
@@ -112,7 +143,7 @@ export default function Salary({ salaryPostings, summary, month, year, companyId
                         </div>
                         <h3 className="text-base font-normal text-slate-800">Parameters</h3>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-6 items-end">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
                         <div className="space-y-2">
                             <label className="block text-xs font-normal text-slate-500 uppercase tracking-normal ml-1">Month</label>
                             <MultiCheckboxSelect
@@ -141,6 +172,15 @@ export default function Salary({ salaryPostings, summary, month, year, companyId
                                 options={companies?.map(c => ({ value: String(c.id), label: c.name })) || []}
                                 onChange={(e) => setFilters({ ...filters, company_id: e.target.value })}
                                 placeholder="Select Branches"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="block text-xs font-normal text-slate-500 uppercase tracking-normal ml-1">Department</label>
+                            <MultiCheckboxSelect
+                                value={filters.department_id}
+                                options={filteredDepartments?.map(d => ({ value: String(d.id), label: d.name })) || []}
+                                onChange={(e) => setFilters({ ...filters, department_id: e.target.value })}
+                                placeholder="Select Departments"
                             />
                         </div>
                         <div className="space-y-2">

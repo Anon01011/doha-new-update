@@ -6,10 +6,12 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { FiMail, FiArrowRight, FiCheckCircle, FiShield, FiArrowLeft } from 'react-icons/fi';
 
-export default function ForgotPassword({ status }) {
+export default function ForgotPassword({ status, allowDirectReset }) {
     const { appSettings } = usePage().props;
     const { data, setData, post, processing, errors } = useForm({
         email: '',
+        password: '',
+        password_confirmation: '',
     });
 
     const submit = (e) => {
@@ -100,7 +102,10 @@ export default function ForgotPassword({ status }) {
                         </Link>
                         <h2 className="text-4xl font-normal text-slate-900 tracking-normal mb-3">Recover Password</h2>
                         <p className="text-slate-500 font-normal">
-                            Forgot your password? No problem. Just let us know your email address and we will email you a password reset link.
+                            {allowDirectReset 
+                                ? "Enter your email address and a new password below to reset your account credentials immediately."
+                                : "Forgot your password? No problem. Just let us know your email address and we will email you a password reset link."
+                            }
                         </p>
                     </div>
 
@@ -133,6 +138,48 @@ export default function ForgotPassword({ status }) {
                                 <InputError message={errors.email} className="mt-2 text-xs font-normal" />
                             </div>
 
+                            {allowDirectReset && (
+                                <>
+                                    <div>
+                                        <InputLabel htmlFor="password" value="New Password" className="text-[11px] font-normal text-slate-400 uppercase tracking-normal mb-2 block" />
+                                        <div className="relative group">
+                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-indigo-600">
+                                                <svg className="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                            </div>
+                                            <TextInput
+                                                id="password"
+                                                type="password"
+                                                name="password"
+                                                value={data.password}
+                                                className="pl-12 block w-full bg-slate-50 border-transparent rounded-lg py-3.5 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-300 placeholder:text-slate-300 text-slate-700 font-normal"
+                                                placeholder="••••••••"
+                                                onChange={(e) => setData('password', e.target.value)}
+                                            />
+                                        </div>
+                                        <InputError message={errors.password} className="mt-2 text-xs font-normal" />
+                                    </div>
+
+                                    <div>
+                                        <InputLabel htmlFor="password_confirmation" value="Confirm New Password" className="text-[11px] font-normal text-slate-400 uppercase tracking-normal mb-2 block" />
+                                        <div className="relative group">
+                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-indigo-600">
+                                                <svg className="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                            </div>
+                                            <TextInput
+                                                id="password_confirmation"
+                                                type="password"
+                                                name="password_confirmation"
+                                                value={data.password_confirmation}
+                                                className="pl-12 block w-full bg-slate-50 border-transparent rounded-lg py-3.5 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all duration-300 placeholder:text-slate-300 text-slate-700 font-normal"
+                                                placeholder="••••••••"
+                                                onChange={(e) => setData('password_confirmation', e.target.value)}
+                                            />
+                                        </div>
+                                        <InputError message={errors.password_confirmation} className="mt-2 text-xs font-normal" />
+                                    </div>
+                                </>
+                            )}
+
                             <button
                                 type="submit"
                                 disabled={processing}
@@ -145,7 +192,7 @@ export default function ForgotPassword({ status }) {
                                     </svg>
                                 ) : (
                                     <>
-                                        Email Password Reset Link
+                                        {allowDirectReset ? "Reset Password" : "Email Password Reset Link"}
                                         <FiArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
                                     </>
                                 )}

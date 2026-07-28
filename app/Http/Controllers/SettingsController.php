@@ -449,7 +449,11 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'pay_period' => 'nullable|in:weekly,bi-weekly,monthly',
             'salary_calculation_method' => 'nullable|in:attendance,fixed',
+            'overtime_calculation_mode' => 'nullable|string',
             'overtime_rate_multiplier' => 'nullable|numeric|min:0',
+            'overtime_day_multiplier' => 'nullable|numeric|min:0',
+            'overtime_night_multiplier' => 'nullable|numeric|min:0',
+            'overtime_holiday_multiplier' => 'nullable|numeric|min:0',
             'payroll_overtime_rate' => 'nullable|numeric|min:0',
             'default_working_hours_per_day' => 'nullable|integer|min:0',
             'default_working_days_per_month' => 'nullable|integer|min:0',

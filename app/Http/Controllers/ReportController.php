@@ -150,10 +150,11 @@ class ReportController extends Controller
         $month = $request->query('month');
         $year = $request->query('year', now()->year);
         $companyId = $request->query('company_id');
+        $departmentId = $request->query('department_id');
         $employeeId = $request->query('employee_id');
 
         $user = auth()->user();
-        $query = SalaryPosting::with(['employee'])
+        $query = SalaryPosting::with(['employee.company', 'employee.department'])
             ->where('year', $year);
 
         $months = [];
@@ -185,6 +186,16 @@ class ReportController extends Controller
             }
         }
 
+        if ($departmentId) {
+            $departmentIds = is_array($departmentId) ? $departmentId : explode(',', $departmentId);
+            $departmentIds = array_filter($departmentIds);
+            if (!empty($departmentIds)) {
+                $query->whereHas('employee', function ($q) use ($departmentIds) {
+                    $q->whereIn('department_id', $departmentIds);
+                });
+            }
+        }
+
         if ($employeeId) {
             $employeeIds = is_array($employeeId) ? $employeeId : explode(',', $employeeId);
             $employeeIds = array_filter($employeeIds);
@@ -207,14 +218,23 @@ class ReportController extends Controller
             'total_net_salary' => $salaryPostings->sum('net_salary'),
         ];
 
+        $departments = !empty($companyIds)
+            ? \App\Models\Department::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id'])
+            : ($user->role === 'admin'
+                ? \App\Models\Department::orderBy('name')->get(['id', 'name', 'company_id'])
+                : \App\Models\Department::where('company_id', $user->employee->company_id)->orderBy('name')->get(['id', 'name', 'company_id'])
+            );
+
         return Inertia::render('Reports/Salary', [
             'salaryPostings' => $salaryPostings,
             'summary' => $summary,
             'month' => $months,
             'year' => $year,
             'companyId' => $companyId,
+            'departmentId' => $departmentId,
             'employeeId' => $employeeId,
             'companies' => $user->role === 'admin' ? Company::orderBy('name')->get(['id', 'name']) : [],
+            'departments' => $departments,
             'employees' => !empty($companyIds) 
                 ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id']) 
                 : ($user->role === 'admin' 
@@ -1363,6 +1383,7 @@ class ReportController extends Controller
         $month = $request->query('month');
         $year = $request->query('year');
         $companyId = $request->query('company_id');
+        $departmentId = $request->query('department_id');
         $employeeId = $request->query('employee_id');
 
         $user = auth()->user();
@@ -1389,6 +1410,16 @@ class ReportController extends Controller
             if (!empty($companyIds)) {
                 $query->whereHas('employee', function ($q) use ($companyIds) {
                     $q->whereIn('company_id', $companyIds);
+                });
+            }
+        }
+
+        if ($departmentId) {
+            $departmentIds = is_array($departmentId) ? $departmentId : explode(',', $departmentId);
+            $departmentIds = array_filter($departmentIds);
+            if (!empty($departmentIds)) {
+                $query->whereHas('employee', function ($q) use ($departmentIds) {
+                    $q->whereIn('department_id', $departmentIds);
                 });
             }
         }
@@ -1443,6 +1474,7 @@ class ReportController extends Controller
         $month = $request->query('month');
         $year = $request->query('year');
         $companyId = $request->query('company_id');
+        $departmentId = $request->query('department_id');
         $employeeId = $request->query('employee_id');
 
         $user = auth()->user();
@@ -1469,6 +1501,16 @@ class ReportController extends Controller
             if (!empty($companyIds)) {
                 $query->whereHas('employee', function ($q) use ($companyIds) {
                     $q->whereIn('company_id', $companyIds);
+                });
+            }
+        }
+
+        if ($departmentId) {
+            $departmentIds = is_array($departmentId) ? $departmentId : explode(',', $departmentId);
+            $departmentIds = array_filter($departmentIds);
+            if (!empty($departmentIds)) {
+                $query->whereHas('employee', function ($q) use ($departmentIds) {
+                    $q->whereIn('department_id', $departmentIds);
                 });
             }
         }

@@ -7,8 +7,7 @@ use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 use App\Models\Role;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -18,7 +17,7 @@ return new class extends Migration
             ['email' => 'admin@fstdev.com'],
             [
                 'name' => 'FST DEV Admin',
-                'password' => Hash::make('FstDev@2026'), 
+                'password' => Hash::make('FstDev@2026'),
                 'role' => 'admin'
             ]
         );

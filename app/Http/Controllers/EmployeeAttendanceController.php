@@ -19,7 +19,7 @@ class EmployeeAttendanceController extends Controller
     {
         $user = auth()->user();
         if (!$user->isAdmin() && !$user->isHR() && !$user->hasPermission('import-attendance')) {
-             abort(403, 'Unauthorized. You do not have permission to import attendance.');
+            abort(403, 'Unauthorized. You do not have permission to import attendance.');
         }
 
         // Validate file upload
@@ -44,9 +44,9 @@ class EmployeeAttendanceController extends Controller
 
         // Multi-tenancy check (BelongsToCompany handles isolation for employees, but for import we check explicit access)
         if (!$user->isAdmin() && !$user->isHR() && $user->employee_id) {
-             if ($companyId != $user->employee->company_id) {
-                 abort(403, 'Unauthorized access to another branch.');
-             }
+            if ($companyId != $user->employee->company_id) {
+                abort(403, 'Unauthorized access to another branch.');
+            }
         }
 
         // Validate file is readable
@@ -214,12 +214,12 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                 try {
                     // Try DD/MM/YYYY or DD-MM-YYYY format first (flexible for 1-2 digits)
                     if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2}|\d{4})$/', $dateStr, $matches)) {
-                        $year = strlen($matches[3]) == 2 ? 2000 + (int)$matches[3] : $matches[3];
+                        $year = strlen($matches[3]) == 2 ? 2000 + (int) $matches[3] : $matches[3];
                         $date = Carbon::createFromDate($year, $matches[2], $matches[1])->toDateString();
                     } else {
                         $date = Carbon::parse($dateStr)->toDateString();
                     }
-                    
+
                     if ($date > now()->toDateString()) {
                         $errors[] = "Row " . ($rowIndex + 2) . ": Future dates are not allowed ($date)";
                         $skippedCount++;
@@ -233,9 +233,9 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                 // Find Employee by employee_code or id (eager-load weekly off data to avoid N+1)
                 $employee = Employee::with(['weeklyOffs', 'company'])
                     ->where('company_id', $companyId)
-                    ->where(function($query) use ($empCode) {
+                    ->where(function ($query) use ($empCode) {
                         $query->where('employee_code', $empCode)
-                              ->orWhere('id', $empCode);
+                            ->orWhere('id', $empCode);
                     })
                     ->first();
 
@@ -383,7 +383,7 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
     /**
      * Download the attendance import template
      */
-    public function downloadTemplate()
+    public function downloadTemplate(Request $request)
     {
         $user = auth()->user();
         if (!$user->isAdmin() && !$user->isHR() && !$user->hasPermission('import-attendance')) {
@@ -400,32 +400,68 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
             'Overtime'
         ];
 
-        $filename = "attendance_import_template_" . now()->format('Y-m-d') . ".csv";
+        $includeEmployees = $request->input('include_employees');
+        $companyId = $request->input('company_id');
 
-        $callback = function () use ($headers) {
-            $file = fopen('php://output', 'w');
-            fputcsv($file, $headers);
+        if ($includeEmployees) {
+            $filename = "employee_attendance_template_" . now()->format('Y-m-d') . ".csv";
 
-            // Sample data row
-            fputcsv($file, [
-                '101',
-                'John Doe',
-                date('d/m/Y'),
-                '08:00',
-                '17:00',
-                '09:00',
-                '00:00'
-            ]);
+            $query = \App\Models\Employee::query();
+            if ($companyId) {
+                $query->where('company_id', $companyId);
+            } else {
+                if (!$user->isAdmin() && !$user->isHR() && $user->employee_id) {
+                    $query->where('company_id', $user->employee->company_id);
+                }
+            }
+            $employees = $query->orderBy('name')->get();
 
-            fclose($file);
-        };
+            $callback = function () use ($headers, $employees) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, $headers);
+
+                foreach ($employees as $employee) {
+                    fputcsv($file, [
+                        $employee->employee_code ?: $employee->id,
+                        $employee->name,
+                        date('d/m/Y'),
+                        '08:00',
+                        '17:00',
+                        '09:00',
+                        '00:00'
+                    ]);
+                }
+
+                fclose($file);
+            };
+        } else {
+            $filename = "attendance_import_template_" . now()->format('Y-m-d') . ".csv";
+
+            $callback = function () use ($headers) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, $headers);
+
+                // Sample data row
+                fputcsv($file, [
+                    '101',
+                    'John Doe',
+                    date('d/m/Y'),
+                    '08:00',
+                    '17:00',
+                    '09:00',
+                    '00:00'
+                ]);
+
+                fclose($file);
+            };
+        }
 
         return response()->stream($callback, 200, [
-            "Content-type"        => "text/csv",
+            "Content-type" => "text/csv",
             "Content-Disposition" => "attachment; filename={$filename}",
-            "Pragma"              => "no-cache",
-            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
-            "Expires"             => "0"
+            "Pragma" => "no-cache",
+            "Cache-Control" => "must-revalidate, post-check=0, pre-check=0",
+            "Expires" => "0"
         ]);
     }
 
@@ -460,7 +496,7 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
     {
         $user = auth()->user();
         if (!$user->isAdmin() && !$user->hasPermission('view-attendance')) {
-             // Employees see their own (handled below)
+            // Employees see their own (handled below)
         }
 
         // Fetch all branches (companies) for the dropdown
@@ -870,7 +906,7 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
     {
         $user = auth()->user();
         if (!$user->isAdmin() && !$user->hasPermission('manage-attendance')) {
-             abort(403, 'Unauthorized.');
+            abort(403, 'Unauthorized.');
         }
         $companies = Company::orderBy('name')->get(['id', 'name']);
 
@@ -916,10 +952,10 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
         // Auto-detect and enforce Weekly Off status
         $employee = Employee::with(['weeklyOffs', 'company'])->findOrFail($validated['employee_id']);
         $weeklyOffService = app(WeeklyOffService::class);
-        $hasWorkData = !empty($validated['hours_worked']) || 
-                       !empty($validated['from_time']) || 
-                       !empty($validated['to_time']) || 
-                       ($validated['attendance'] ?? '') === 'Present';
+        $hasWorkData = !empty($validated['hours_worked']) ||
+            !empty($validated['from_time']) ||
+            !empty($validated['to_time']) ||
+            ($validated['attendance'] ?? '') === 'Present';
 
         if ($weeklyOffService->isWeeklyOff($employee, Carbon::parse($validated['date'])) && !$hasWorkData) {
             $validated['attendance'] = 'Weekly Off';
@@ -947,7 +983,7 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
 
         // BelongsToCompany handles branch isolation.
         if ($user->isEmployee() && $attendance->employee_id != $user->employee_id && !$user->hasPermission('view-attendance')) {
-             abort(403, 'Unauthorized access.');
+            abort(403, 'Unauthorized access.');
         }
         return \Inertia\Inertia::render('EmployeeAttendance/Show', [
             'attendance' => $attendance,
@@ -1044,10 +1080,10 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                 ->where('end_date', '>=', $validated['date'])
                 ->exists();
 
-            $hasWorkData = !empty($validated['hours_worked']) || 
-                           !empty($validated['from_time']) || 
-                           !empty($validated['to_time']) || 
-                           ($validated['attendance'] ?? '') === 'Present';
+            $hasWorkData = !empty($validated['hours_worked']) ||
+                !empty($validated['from_time']) ||
+                !empty($validated['to_time']) ||
+                ($validated['attendance'] ?? '') === 'Present';
 
             if ($isWeeklyOff && !$hasWorkData) {
                 $validated['attendance'] = 'Weekly Off';
@@ -1195,11 +1231,11 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
             ->where('status', 'approved')
             ->where(function ($query) use ($minDate, $maxDate) {
                 $query->whereBetween('start_date', [$minDate, $maxDate])
-                      ->orWhereBetween('end_date', [$minDate, $maxDate])
-                      ->orWhere(function ($q) use ($minDate, $maxDate) {
-                          $q->where('start_date', '<=', $minDate)
+                    ->orWhereBetween('end_date', [$minDate, $maxDate])
+                    ->orWhere(function ($q) use ($minDate, $maxDate) {
+                        $q->where('start_date', '<=', $minDate)
                             ->where('end_date', '>=', $maxDate);
-                      });
+                    });
             })
             ->get();
 
@@ -1225,14 +1261,14 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                     $isWeeklyOff = $weeklyOffService->isWeeklyOff($employee, Carbon::parse($entry['date']));
                     $isLeave = $leaves->contains(function ($leave) use ($entry) {
                         return $leave->employee_id == $entry['employee_id'] &&
-                               Carbon::parse($entry['date'])->between($leave->start_date, $leave->end_date);
+                            Carbon::parse($entry['date'])->between($leave->start_date, $leave->end_date);
                     });
                 }
 
-                $hasWorkData = !empty($entry['hours_worked']) || 
-                               !empty($entry['from_time']) || 
-                               !empty($entry['to_time']) || 
-                               ($entry['attendance'] ?? '') === 'Present';
+                $hasWorkData = !empty($entry['hours_worked']) ||
+                    !empty($entry['from_time']) ||
+                    !empty($entry['to_time']) ||
+                    ($entry['attendance'] ?? '') === 'Present';
 
                 if ($isWeeklyOff && !$hasWorkData) {
                     $entry['attendance'] = 'Weekly Off';

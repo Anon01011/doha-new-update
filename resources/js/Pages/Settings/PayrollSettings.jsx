@@ -11,6 +11,9 @@ export default function PayrollSettings({ settings }) {
         salary_calculation_method: settings.salary_calculation_method || 'attendance',
         overtime_calculation_mode: settings.overtime_calculation_mode || 'base_salary',
         overtime_rate_multiplier: settings.overtime_rate_multiplier || 1.5,
+        overtime_day_multiplier: settings.overtime_day_multiplier || 1.25,
+        overtime_night_multiplier: settings.overtime_night_multiplier || 1.50,
+        overtime_holiday_multiplier: settings.overtime_holiday_multiplier || 2.25,
         default_working_hours_per_day: settings.default_working_hours_per_day || 8,
         default_working_days_per_month: settings.default_working_days_per_month || 26,
         payroll_overtime_rate: settings.payroll_overtime_rate || '',
@@ -311,24 +314,6 @@ export default function PayrollSettings({ settings }) {
                                         </label>
 
                                         <label className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-all ${
-                                            data.overtime_calculation_mode === 'multiplier'
-                                                ? 'border-indigo-500 bg-indigo-50/40 text-indigo-900 font-normal'
-                                                : 'border-gray-200 hover:bg-gray-50 text-gray-700 font-normal'
-                                        }`}>
-                                            <span className="flex items-center gap-2">
-                                                <input
-                                                    type="radio"
-                                                    name="overtime_calculation_mode"
-                                                    value="multiplier"
-                                                    checked={data.overtime_calculation_mode === 'multiplier'}
-                                                    onChange={(e) => setData('overtime_calculation_mode', e.target.value)}
-                                                    className="text-indigo-600 focus:ring-indigo-500"
-                                                />
-                                                Rate Multiplier (e.g. 1.5x)
-                                            </span>
-                                        </label>
-
-                                        <label className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-all ${
                                             data.overtime_calculation_mode === 'fixed'
                                                 ? 'border-purple-500 bg-purple-50/40 text-purple-900 font-normal'
                                                 : 'border-gray-200 hover:bg-gray-50 text-gray-700 font-normal'
@@ -345,34 +330,87 @@ export default function PayrollSettings({ settings }) {
                                                 Fixed Hourly Rate
                                             </span>
                                         </label>
+
+                                        <label className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-all ${
+                                            data.overtime_calculation_mode === 'none'
+                                                ? 'border-rose-500 bg-rose-50/40 text-rose-900 font-normal'
+                                                : 'border-gray-200 hover:bg-gray-50 text-gray-700 font-normal'
+                                        }`}>
+                                            <span className="flex items-center gap-2">
+                                                <input
+                                                    type="radio"
+                                                    name="overtime_calculation_mode"
+                                                    value="none"
+                                                    checked={data.overtime_calculation_mode === 'none'}
+                                                    onChange={(e) => setData('overtime_calculation_mode', e.target.value)}
+                                                    className="text-rose-600 focus:ring-rose-500"
+                                                />
+                                                No Overtime (Do not pay OT)
+                                            </span>
+                                        </label>
                                     </div>
                                 </div>
 
-                                <div className="space-y-1 pt-3 border-t border-gray-100">
-                                    <label className="text-[10px] font-normal text-gray-400 uppercase tracking-normal ml-1">OT Multiplier</label>
-                                    <div className="relative">
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            min="0"
-                                            disabled={data.overtime_calculation_mode !== 'multiplier'}
-                                            value={data.overtime_rate_multiplier}
-                                            onChange={(e) => setData('overtime_rate_multiplier', e.target.value)}
-                                            className={`w-full rounded-lg border-gray-200 px-3 py-2 transition-all font-normal text-sm ${
-                                                data.overtime_calculation_mode !== 'multiplier'
-                                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200 opacity-60'
-                                                    : 'bg-gray-50/50 text-gray-900 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500'
-                                            }`}
-                                        />
-                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-normal text-xs">x</span>
+                                <div className="space-y-4 pt-3 border-t border-gray-100">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-normal text-gray-400 uppercase tracking-normal ml-1">Day Overtime Multiplier</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.05"
+                                                min="0"
+                                                disabled={data.overtime_calculation_mode === 'none' || data.overtime_calculation_mode === 'fixed'}
+                                                value={data.overtime_day_multiplier}
+                                                onChange={(e) => setData('overtime_day_multiplier', e.target.value)}
+                                                className={`w-full rounded-lg border-gray-200 px-3 py-2 transition-all font-normal text-sm ${
+                                                    data.overtime_calculation_mode === 'none' || data.overtime_calculation_mode === 'fixed'
+                                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200 opacity-60'
+                                                        : 'bg-gray-50/50 text-gray-900 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500'
+                                                }`}
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-normal text-xs">x</span>
+                                        </div>
                                     </div>
-                                    <p className="text-[10px] text-gray-500 font-normal px-1 leading-relaxed">
-                                        {data.overtime_calculation_mode === 'base_salary' 
-                                            ? 'Disabled: Base Salary Hourly rate active.'
-                                            : data.overtime_calculation_mode === 'fixed'
-                                            ? 'Disabled: Fixed Hourly rate active.'
-                                            : 'Standard is 1.5x for normal OT and 2.0x for holidays.'}
-                                    </p>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-normal text-gray-400 uppercase tracking-normal ml-1">Night Overtime Multiplier</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.05"
+                                                min="0"
+                                                disabled={data.overtime_calculation_mode === 'none' || data.overtime_calculation_mode === 'fixed'}
+                                                value={data.overtime_night_multiplier}
+                                                onChange={(e) => setData('overtime_night_multiplier', e.target.value)}
+                                                className={`w-full rounded-lg border-gray-200 px-3 py-2 transition-all font-normal text-sm ${
+                                                    data.overtime_calculation_mode === 'none' || data.overtime_calculation_mode === 'fixed'
+                                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200 opacity-60'
+                                                        : 'bg-gray-50/50 text-gray-900 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500'
+                                                }`}
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-normal text-xs">x</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-normal text-gray-400 uppercase tracking-normal ml-1">Holiday Overtime Multiplier</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.05"
+                                                min="0"
+                                                disabled={data.overtime_calculation_mode === 'none' || data.overtime_calculation_mode === 'fixed'}
+                                                value={data.overtime_holiday_multiplier}
+                                                onChange={(e) => setData('overtime_holiday_multiplier', e.target.value)}
+                                                className={`w-full rounded-lg border-gray-200 px-3 py-2 transition-all font-normal text-sm ${
+                                                    data.overtime_calculation_mode === 'none' || data.overtime_calculation_mode === 'fixed'
+                                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200 opacity-60'
+                                                        : 'bg-gray-50/50 text-gray-900 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500'
+                                                }`}
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-normal text-xs">x</span>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-1 pt-3 border-t border-gray-100">
@@ -399,8 +437,8 @@ export default function PayrollSettings({ settings }) {
                                     <p className="text-[10px] text-gray-500 font-normal px-1 leading-relaxed">
                                         {data.overtime_calculation_mode === 'base_salary' 
                                             ? 'Disabled: Base Salary Hourly rate active.'
-                                            : data.overtime_calculation_mode === 'multiplier'
-                                            ? 'Disabled: Multiplier rate active.'
+                                            : data.overtime_calculation_mode === 'none'
+                                            ? 'Disabled: Overtime payment is disabled.'
                                             : 'Set a fixed hourly rate instead of multiplier.'}
                                     </p>
                                 </div>

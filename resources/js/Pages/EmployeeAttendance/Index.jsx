@@ -440,12 +440,23 @@ export default function Index({ branches = [], employees, attendances = [], rost
                             <p className="text-[11px] font-normal text-slate-400 uppercase tracking-normal mb-6">Upload a CSV file to import attendance data</p>
                             
                             <div className="mb-8 p-4 bg-primary/5 rounded-lg border border-primary/10">
-                                <p className="text-[11px] text-primary leading-relaxed font-normal uppercase tracking-normal">
+                                <p className="text-[11px] text-primary leading-relaxed font-normal uppercase tracking-normal mb-3">
                                     Make sure your CSV file has <strong>Employee Name</strong> and <strong>Date</strong> columns.
-                                    <a href={route('employee-attendances.template')} className="block mt-2 font-normal text-primary hover:underline underline-offset-4">
+                                </p>
+                                <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
+                                    <a 
+                                        href={route('employee-attendances.template')} 
+                                        className="text-[11px] font-normal text-primary hover:underline underline-offset-4"
+                                    >
                                         Download Sample Template
                                     </a>
-                                </p>
+                                    <a 
+                                        href={route('employee-attendances.template', { company_id: selectedBranch, include_employees: true })} 
+                                        className="text-[11px] font-normal text-primary hover:underline underline-offset-4"
+                                    >
+                                        Download Employee Template (with staff)
+                                    </a>
+                                </div>
                             </div>
 
                             <form onSubmit={handleImportSubmit} className="space-y-6">
