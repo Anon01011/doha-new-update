@@ -35,8 +35,8 @@ export default function Index({
     const [bulkData, setBulkData] = useState({
         month: month || new Date().getMonth() + 1,
         year: year || new Date().getFullYear(),
-        company_id: '',
-        department_id: ''
+        company_ids: [],
+        department_ids: []
     });
 
     const handleBulkGenerate = (e) => {
@@ -511,32 +511,87 @@ export default function Index({
                             {/* Company Filter (Admin Only) */}
                             {companies.length > 0 && (
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Company</label>
-                                    <select
-                                        className="w-full rounded-lg border-slate-200 text-xs focus:ring-primary/20 focus:border-primary py-2"
-                                        value={bulkData.company_id}
-                                        onChange={(e) => setBulkData({ ...bulkData, company_id: e.target.value, department_id: '' })}
-                                    >
-                                        <option value="">All Companies</option>
-                                        {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
+                                    <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Companies (Branches)</label>
+                                    <div className="border border-slate-200 rounded-lg p-3 max-h-[120px] overflow-y-auto space-y-1.5 bg-slate-50">
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                id="select-all-companies"
+                                                className="rounded text-primary focus:ring-primary/20"
+                                                checked={bulkData.company_ids.length === companies.length}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setBulkData({ ...bulkData, company_ids: companies.map(c => c.id) });
+                                                    } else {
+                                                        setBulkData({ ...bulkData, company_ids: [] });
+                                                    }
+                                                }}
+                                            />
+                                            <label htmlFor="select-all-companies" className="text-xs font-semibold text-slate-700 cursor-pointer">Select All</label>
+                                        </div>
+                                        <hr className="border-slate-200 my-1" />
+                                        {companies.map(c => (
+                                            <div key={c.id} className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id={`company-checkbox-${c.id}`}
+                                                    className="rounded text-primary focus:ring-primary/20"
+                                                    checked={bulkData.company_ids.includes(c.id)}
+                                                    onChange={(e) => {
+                                                        const newIds = e.target.checked
+                                                            ? [...bulkData.company_ids, c.id]
+                                                            : bulkData.company_ids.filter(id => id !== c.id);
+                                                        setBulkData({ ...bulkData, company_ids: newIds });
+                                                    }}
+                                                />
+                                                <label htmlFor={`company-checkbox-${c.id}`} className="text-xs text-slate-600 cursor-pointer">{c.name}</label>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
                             {/* Department Filter */}
                             <div className="space-y-1">
-                                <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Department</label>
-                                <select
-                                    className="w-full rounded-lg border-slate-200 text-xs focus:ring-primary/20 focus:border-primary py-2"
-                                    value={bulkData.department_id}
-                                    onChange={(e) => setBulkData({ ...bulkData, department_id: e.target.value })}
-                                >
-                                    <option value="">All Departments</option>
+                                <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Departments</label>
+                                <div className="border border-slate-200 rounded-lg p-3 max-h-[120px] overflow-y-auto space-y-1.5 bg-slate-50">
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            id="select-all-departments"
+                                            className="rounded text-primary focus:ring-primary/20"
+                                            checked={bulkData.department_ids.length === departments.length}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setBulkData({ ...bulkData, department_ids: departments.map(d => d.id) });
+                                                } else {
+                                                    setBulkData({ ...bulkData, department_ids: [] });
+                                                }
+                                            }}
+                                        />
+                                        <label htmlFor="select-all-departments" className="text-xs font-semibold text-slate-700 cursor-pointer">Select All</label>
+                                    </div>
+                                    <hr className="border-slate-200 my-1" />
                                     {departments
-                                        .filter(d => !bulkData.company_id || d.company_id == bulkData.company_id)
-                                        .map(d => <option key={d.id} value={d.id}>{d.name}</option>)
-                                    }
-                                </select>
+                                        .filter(d => bulkData.company_ids.length === 0 || bulkData.company_ids.includes(d.company_id))
+                                        .map(d => (
+                                            <div key={d.id} className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id={`dept-checkbox-${d.id}`}
+                                                    className="rounded text-primary focus:ring-primary/20"
+                                                    checked={bulkData.department_ids.includes(d.id)}
+                                                    onChange={(e) => {
+                                                        const newIds = e.target.checked
+                                                            ? [...bulkData.department_ids, d.id]
+                                                            : bulkData.department_ids.filter(id => id !== d.id);
+                                                        setBulkData({ ...bulkData, department_ids: newIds });
+                                                    }}
+                                                />
+                                                <label htmlFor={`dept-checkbox-${d.id}`} className="text-xs text-slate-600 cursor-pointer">{d.name}</label>
+                                            </div>
+                                        ))}
+                                </div>
                             </div>
 
                             <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-6">

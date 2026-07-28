@@ -87,11 +87,13 @@ class PayrollService
         $totalAbsentDays = 0;
 
         $summary = [
-            'present'     => 0,
-            'absent'      => 0,
-            'leave'       => 0,
-            'weekly_off'  => 0,
-            'half_day'    => 0,
+            'present'      => 0,
+            'absent'       => 0,
+            'leave'        => 0,
+            'leave_paid'   => 0,
+            'leave_unpaid' => 0,
+            'weekly_off'   => 0,
+            'half_day'     => 0,
         ];
 
         // Index attendance records by date for quick lookup
@@ -110,8 +112,8 @@ class PayrollService
             $dateStr = $current->toDateString();
             $attendance = $attendanceByDate[$dateStr] ?? null;
 
-            // Weekly off takes highest priority (resolved from staff/branch)
             $isWeeklyOffDay = in_array($current->format('l'), $resolvedOffDayNames);
+            $isHoliday = isset($holidayDates[$dateStr]);
 
             if ($isWeeklyOffDay) {
                 $summary['weekly_off']++;
@@ -136,6 +138,14 @@ class PayrollService
                         $summary['present']++;
                     } elseif (in_array($status, ['Leave', 'Sick Leave', 'Annual Leave'])) {
                         $summary['leave']++;
+                        $isPaid = filter_var($attendance->is_paid ?? true, FILTER_VALIDATE_BOOLEAN);
+                        if ($isPaid) {
+                            $summary['leave_paid']++;
+                        } else {
+                            $summary['leave_unpaid']++;
+                            $totalAbsentDays++; // Unpaid leave is treated as absent and deducted
+                            $summary['absent']++;
+                        }
                     } elseif ($status === 'Weekly Off') {
                         $summary['weekly_off']++;
                     }
@@ -143,8 +153,13 @@ class PayrollService
             } else {
                 if (!$isWeeklyOffDay) {
                     if ($current->lte(now())) {
-                        $totalAbsentDays++;
-                        $summary['absent']++;
+                        if ($isHoliday) {
+                            // Paid Holiday (no attendance record required)
+                            $summary['present']++;
+                        } else {
+                            $totalAbsentDays++;
+                            $summary['absent']++;
+                        }
                     }
                 }
             }
@@ -157,7 +172,6 @@ class PayrollService
                     $multiplier = 0;
                     $baseOtRate = 0;
                 } else {
-                    $isHoliday = isset($holidayDates[$dateStr]);
                     
                     // Resolve shift type
                     $shiftType = 'Day';
@@ -201,20 +215,28 @@ class PayrollService
             $current->addDay();
         }
 
-        // 6. Rates
+        // 6. Rates & Salary Calculation Method
         $companyId = $employee->company_id;
         $otRate = $this->getOvertimeRate($employee); // Kept for backward compatibility
         $daysPerMonth = Setting::get('default_working_days_per_month', 30, $companyId);
+        $calcMethod = Setting::get('salary_calculation_method', 'fixed', $companyId);
 
         // True working days = calendar days - weekly offs - holidays
         $calendarDays = $startDate->daysInMonth;
         $workingDays = max(1, $calendarDays - $weeklyOffDaysCount - $holidayCount);
 
-        // Use configured daysPerMonth for daily rate unless not set
-        $effectiveDaysPerMonth = $daysPerMonth > 0 ? $daysPerMonth : $workingDays;
-        $dailyRate = $basicSalary / $effectiveDaysPerMonth;
+        // Determine effective days per month and daily rate based on configuration
+        if ($calcMethod === 'attendance') {
+            // Attendance-based: Daily rate is based on the actual working days in the month
+            $effectiveDaysPerMonth = $workingDays;
+        } else {
+            // Fixed mode: Daily rate uses default working days per month (default 30)
+            $effectiveDaysPerMonth = $daysPerMonth > 0 ? $daysPerMonth : 30;
+        }
 
-        // Absent Deduction — weekly off days are excluded (never counted above)
+        $dailyRate = $effectiveDaysPerMonth > 0 ? ($basicSalary / $effectiveDaysPerMonth) : 0;
+
+        // Absent/Unpaid days deduction (inclusive of unpaid leaves)
         $absentDeduction = $totalAbsentDays * $dailyRate;
 
         $totalAllowances = array_sum($allowances);

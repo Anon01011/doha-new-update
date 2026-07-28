@@ -591,6 +591,11 @@ class SalaryPostingController extends Controller
         $request->validate([
             'month' => 'required|integer|between:1,12',
             'year' => 'required|integer|min:2000|max:2100',
+            'company_ids' => 'nullable|array',
+            'company_ids.*' => 'exists:companies,id',
+            'department_ids' => 'nullable|array',
+            'department_ids.*' => 'exists:departments,id',
+            // Keep single inputs for backward compatibility if any client triggers it
             'company_id' => 'nullable|exists:companies,id',
             'department_id' => 'nullable|exists:departments,id',
         ]);
@@ -600,10 +605,20 @@ class SalaryPostingController extends Controller
 
         // Scoping is handled by BelongsToCompany on Employee::active()
         $query = Employee::active();
-        if ($user->isAdmin() && $request->company_id) {
-            $query->where('company_id', $request->company_id);
+
+        // Handle multiple/single company selections
+        if ($user->isAdmin()) {
+            if ($request->has('company_ids') && is_array($request->company_ids) && count($request->company_ids) > 0) {
+                $query->whereIn('company_id', $request->company_ids);
+            } elseif ($request->company_id) {
+                $query->where('company_id', $request->company_id);
+            }
         }
-        if ($request->department_id) {
+
+        // Handle multiple/single department selections
+        if ($request->has('department_ids') && is_array($request->department_ids) && count($request->department_ids) > 0) {
+            $query->whereIn('department_id', $request->department_ids);
+        } elseif ($request->department_id) {
             $query->where('department_id', $request->department_id);
         }
 
