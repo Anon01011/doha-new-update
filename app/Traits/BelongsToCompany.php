@@ -24,6 +24,21 @@ trait BelongsToCompany
             // would trigger a recursive database query on the User model, leading to an infinite loop.
             if (Auth::hasUser()) {
                 $user = Auth::user();
+
+                // Admins have unrestricted access to all records across all branches.
+                // Applying the company scope to admin users caused 404 errors when:
+                // - Admin tries to create a new branch (Company model scoped to only their company)
+                // - Admin assigns roles to users in other companies (User model scope hides them)
+                if ($user->role === 'admin') {
+                    return;
+                }
+
+                // Also skip scope for the User model itself to avoid recursive issues
+                // and to allow role/permission management across companies.
+                if (static::class === \App\Models\User::class) {
+                    return;
+                }
+
                 // Prioritize company_id directly on the user model to avoid relationship recursion
                 $companyId = $user->company_id;
 
@@ -57,8 +72,20 @@ trait BelongsToCompany
         });
 
         static::creating(function ($model) {
+            // Skip auto-setting company_id for admin users and for User model itself
             if (Auth::hasUser()) {
                 $user = Auth::user();
+
+                // Admins can create records without auto-assigning their company_id
+                if ($user->role === 'admin') {
+                    return;
+                }
+
+                // Don't auto-assign company_id on the User model itself
+                if ($model instanceof \App\Models\User) {
+                    return;
+                }
+
                 $companyId = $user->company_id;
 
                 if (!$companyId && $user->employee_id) {

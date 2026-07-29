@@ -11,10 +11,26 @@ use Inertia\Inertia;
 
 class RolePermissionController extends Controller
 {
-    // Authorization is handled by route middleware 'role:admin' in routes/web.php
+    // Authorization is handled by route middleware 'permission:manage-roles' in routes/web.php
 
-    public function assignRoleToUser(Request $request, User $user)
+    /**
+     * Resolve user by ID bypassing BelongsToCompany global scope.
+     * Without this, route model binding returns 404 when the target user
+     * belongs to a different company or has no company_id.
+     */
+    private function resolveUser(int $userId): User
     {
+        $user = User::withoutGlobalScopes()->find($userId);
+        if (!$user) {
+            abort(404, 'User not found.');
+        }
+        return $user;
+    }
+
+    public function assignRoleToUser(Request $request, $userId)
+    {
+        $user = $this->resolveUser((int) $userId);
+
         $validated = $request->validate([
             'role_id' => 'required|exists:roles,id',
         ]);
@@ -29,8 +45,11 @@ class RolePermissionController extends Controller
         return redirect()->back()->with('success', 'Role assigned successfully!');
     }
 
-    public function removeRoleFromUser(Request $request, User $user, Role $role)
+    public function removeRoleFromUser(Request $request, $userId, $roleId)
     {
+        $user = $this->resolveUser((int) $userId);
+        $role = Role::findOrFail($roleId);
+
         if ($role->slug === 'admin' && !auth()->user()->isAdmin()) {
             abort(403, 'Unauthorized. Only administrators can remove the admin role.');
         }
@@ -40,8 +59,10 @@ class RolePermissionController extends Controller
         return redirect()->back()->with('success', 'Role removed successfully!');
     }
 
-    public function assignPermissionToUser(Request $request, User $user)
+    public function assignPermissionToUser(Request $request, $userId)
     {
+        $user = $this->resolveUser((int) $userId);
+
         $validated = $request->validate([
             'permission_id' => 'required|exists:permissions,id',
         ]);
@@ -51,8 +72,11 @@ class RolePermissionController extends Controller
         return redirect()->back()->with('success', 'Permission assigned successfully!');
     }
 
-    public function removePermissionFromUser(Request $request, User $user, Permission $permission)
+    public function removePermissionFromUser(Request $request, $userId, $permissionId)
     {
+        $user = $this->resolveUser((int) $userId);
+        $permission = Permission::findOrFail($permissionId);
+
         $user->removePermission($permission->id);
 
         return redirect()->back()->with('success', 'Permission removed successfully!');
