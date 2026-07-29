@@ -662,6 +662,80 @@ class SalaryPostingController extends Controller
         return redirect()->route('salary-postings.index')->with('success', "Generated salary postings for $count employees.");
     }
 
+    public function autoUpdate(Request $request)
+    {
+        $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('manage-payroll')) {
+            abort(403, 'Unauthorized. You do not have permission to manage payroll.');
+        }
+
+        $request->validate([
+            'month' => 'required|integer|between:1,12',
+            'year' => 'required|integer|min:2000|max:2100',
+            'department_ids' => 'nullable|array',
+            'department_ids.*' => 'exists:departments,id',
+            'employee_ids' => 'nullable|array',
+            'employee_ids.*' => 'exists:employees,id',
+        ]);
+
+        $month = $request->month;
+        $year = $request->year;
+
+        $query = Employee::active();
+
+        if ($request->filled('employee_ids')) {
+            $query->whereIn('id', $request->employee_ids);
+        } elseif ($request->filled('department_ids')) {
+            $query->whereIn('department_id', $request->department_ids);
+        } else {
+            return redirect()->back()->with('error', 'Please select at least a department or employee(s) to update.');
+        }
+
+        $employees = $query->get();
+        $updatedCount = 0;
+        $createdCount = 0;
+
+        foreach ($employees as $employee) {
+            try {
+                $data = $this->payrollService->calculateMonthlyPayroll($employee->id, $month, $year);
+
+                $posting = SalaryPosting::where('employee_id', $employee->id)
+                    ->where('month', $month)
+                    ->where('year', $year)
+                    ->first();
+
+                $postingData = [
+                    'basic_salary' => $data['basic_salary'],
+                    'allowances' => $data['allowances'],
+                    'deductions' => $data['deductions'],
+                    'overtime_amount' => $data['overtime_amount'],
+                    'leave_deduction' => $data['leave_deduction'],
+                    'net_salary' => $data['net_salary'],
+                    'posted_by' => auth()->id(),
+                ];
+
+                if ($posting) {
+                    if ($posting->status !== 'approved') {
+                        $posting->update($postingData);
+                        $updatedCount++;
+                    }
+                } else {
+                    $postingData['employee_id'] = $employee->id;
+                    $postingData['month'] = $month;
+                    $postingData['year'] = $year;
+                    $postingData['status'] = 'draft';
+                    SalaryPosting::create($postingData);
+                    $createdCount++;
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Auto-update payroll error for employee ' . $employee->id . ': ' . $e->getMessage());
+                continue;
+            }
+        }
+
+        return redirect()->back()->with('success', "Payroll auto-update completed successfully. (Updated: $updatedCount, Created: $createdCount records). Approved records were skipped.");
+    }
+
     private function ensureComponentsExist(array $components, string $type, $companyId = null)
     {
         // Fallback to user's company only if no specific company provided (and not admin)

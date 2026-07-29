@@ -1478,7 +1478,7 @@ class ReportController extends Controller
         $employeeId = $request->query('employee_id');
 
         $user = auth()->user();
-        $query = SalaryPosting::with(['employee'])
+        $query = SalaryPosting::with(['employee.company', 'employee.department', 'poster', 'approver'])
             ->where('year', $year);
 
         $months = [];
@@ -1490,8 +1490,10 @@ class ReportController extends Controller
             $query->whereIn('month', $months);
         }
 
+        $companyIds = [];
         if ($user->role !== 'admin' && $user->employee_id) {
             $companyId = $user->employee->company_id;
+            $companyIds = [$companyId];
             $query->whereHas('employee', function ($q) use ($companyId) {
                 $q->where('company_id', $companyId);
             });
@@ -1525,35 +1527,192 @@ class ReportController extends Controller
 
         $salaryPostings = $query->orderBy('employee_id')->get();
 
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Salary Report');
+        // Fetch active employees for status sheet matching filters
+        $employeeQuery = Employee::with(['company', 'department'])->active();
+        if ($user->role !== 'admin' && $user->employee_id) {
+            $employeeQuery->where('company_id', $user->employee->company_id);
+        } elseif (!empty($companyId) && $user->role === 'admin') {
+            if (!empty($companyIds)) {
+                $employeeQuery->whereIn('company_id', $companyIds);
+            }
+        }
+        if ($departmentId) {
+            $departmentIds = is_array($departmentId) ? $departmentId : explode(',', $departmentId);
+            $departmentIds = array_filter($departmentIds);
+            if (!empty($departmentIds)) {
+                $employeeQuery->whereIn('department_id', $departmentIds);
+            }
+        }
+        if ($employeeId) {
+            $employeeIds = is_array($employeeId) ? $employeeId : explode(',', $employeeId);
+            $employeeIds = array_filter($employeeIds);
+            if (!empty($employeeIds)) {
+                $employeeQuery->whereIn('id', $employeeIds);
+            }
+        }
+        $employeesList = $employeeQuery->orderBy('name')->get();
 
-        $headers = ['Employee ID', 'Employee Name', 'Basic Salary', 'Allowances', 'Deductions', 'Net Salary'];
-        foreach ($headers as $key => $header) {
+        $spreadsheet = new Spreadsheet();
+
+        $monthsArray = [
+            1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April', 5 => 'May', 6 => 'June',
+            7 => 'July', 8 => 'August', 9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December'
+        ];
+
+        // ----------------------------------------------------
+        // SHEET 1: Payroll Detail Report
+        // ----------------------------------------------------
+        $sheet1 = $spreadsheet->getActiveSheet();
+        $sheet1->setTitle('Payroll Detail Report');
+
+        $headers1 = ['Month', 'Year', 'Employee ID', 'Employee Name', 'Branch', 'Department', 'Basic Salary', 'Allowances', 'Overtime Amount', 'Leave Deduction', 'Deductions', 'Net Salary', 'Status', 'Posted By', 'Approved By'];
+        foreach ($headers1 as $key => $header) {
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
-            $sheet->setCellValue($colLetter . '1', $header);
-            $sheet->getStyle($colLetter . '1')->getFont()->setBold(true);
+            $sheet1->setCellValue($colLetter . '1', $header);
         }
 
-        $row = 2;
+        $row1 = 2;
         foreach ($salaryPostings as $post) {
             $allowances = is_array($post->allowances) ? array_sum($post->allowances) : 0;
             $deductions = is_array($post->deductions) ? array_sum($post->deductions) : 0;
-            
-            $sheet->setCellValue('A' . $row, $post->employee->employee_code ?? '-');
-            $sheet->setCellValue('B' . $row, $post->employee->name);
-            $sheet->setCellValue('C' . $row, $post->basic_salary);
-            $sheet->setCellValue('D' . $row, $allowances);
-            $sheet->setCellValue('E' . $row, $deductions);
-            $sheet->setCellValue('F' . $row, $post->net_salary);
-            $row++;
+            $totalDeductions = $deductions + ($post->leave_deduction ?? 0);
+
+            $sheet1->setCellValue('A' . $row1, $monthsArray[$post->month] ?? $post->month);
+            $sheet1->setCellValue('B' . $row1, $post->year);
+            $sheet1->setCellValue('C' . $row1, $post->employee->employee_code ?? '-');
+            $sheet1->setCellValue('D' . $row1, $post->employee->name);
+            $sheet1->setCellValue('E' . $row1, $post->employee->company->name ?? '-');
+            $sheet1->setCellValue('F' . $row1, $post->employee->department->name ?? '-');
+            $sheet1->setCellValue('G' . $row1, floatval($post->basic_salary));
+            $sheet1->setCellValue('H' . $row1, floatval($allowances));
+            $sheet1->setCellValue('I' . $row1, floatval($post->overtime_amount ?? 0));
+            $sheet1->setCellValue('J' . $row1, floatval($totalDeductions));
+            $sheet1->setCellValue('K' . $row1, floatval($post->net_salary));
+            $sheet1->setCellValue('L' . $row1, ucfirst($post->status));
+            $sheet1->setCellValue('M' . $row1, $post->poster->name ?? '-');
+            $sheet1->setCellValue('N' . $row1, $post->approver->name ?? '-');
+            $row1++;
+        }
+
+        // ----------------------------------------------------
+        // SHEET 2: Payroll Summary Report
+        // ----------------------------------------------------
+        $sheet2 = $spreadsheet->createSheet();
+        $sheet2->setTitle('Payroll Summary Report');
+
+        $headers2 = ['Branch', 'Department', 'Total Employees', 'Total Basic Salary', 'Total Allowances', 'Total Overtime Amount', 'Total Deductions', 'Total Net Salary'];
+        foreach ($headers2 as $key => $header) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
+            $sheet2->setCellValue($colLetter . '1', $header);
+        }
+
+        $grouped = $salaryPostings->groupBy(function ($post) {
+            $compId = $post->employee->company_id ?? 0;
+            $deptId = $post->employee->department_id ?? 0;
+            return $compId . '_' . $deptId;
+        });
+
+        $row2 = 2;
+        foreach ($grouped as $posts) {
+            $first = $posts->first();
+            $compName = $first->employee->company->name ?? '-';
+            $deptName = $first->employee->department->name ?? '-';
+
+            $totalBasic = $posts->sum('basic_salary');
+            $totalAllowances = $posts->sum(function ($p) {
+                return is_array($p->allowances) ? array_sum($p->allowances) : 0;
+            });
+            $totalOt = $posts->sum('overtime_amount');
+            $totalDeductions = $posts->sum(function ($p) {
+                $ded = is_array($p->deductions) ? array_sum($p->deductions) : 0;
+                return $ded + ($p->leave_deduction ?? 0);
+            });
+            $totalNet = $posts->sum('net_salary');
+
+            $sheet2->setCellValue('A' . $row2, $compName);
+            $sheet2->setCellValue('B' . $row2, $deptName);
+            $sheet2->setCellValue('C' . $row2, $posts->count());
+            $sheet2->setCellValue('D' . $row2, floatval($totalBasic));
+            $sheet2->setCellValue('E' . $row2, floatval($totalAllowances));
+            $sheet2->setCellValue('F' . $row2, floatval($totalOt));
+            $sheet2->setCellValue('G' . $row2, floatval($totalDeductions));
+            $sheet2->setCellValue('H' . $row2, floatval($totalNet));
+            $row2++;
+        }
+
+        // ----------------------------------------------------
+        // SHEET 3: Payroll Status Report
+        // ----------------------------------------------------
+        $sheet3 = $spreadsheet->createSheet();
+        $sheet3->setTitle('Payroll Status Report');
+
+        $headers3 = ['Employee ID', 'Employee Name', 'Branch', 'Department', 'Month', 'Year', 'Net Salary', 'Status'];
+        foreach ($headers3 as $key => $header) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
+            $sheet3->setCellValue($colLetter . '1', $header);
+        }
+
+        $postLookup = [];
+        foreach ($salaryPostings as $post) {
+            $postLookup[$post->employee_id][$post->month] = $post;
+        }
+
+        $monthsToProcess = !empty($months) ? $months : [now()->month];
+
+        $row3 = 2;
+        foreach ($employeesList as $emp) {
+            foreach ($monthsToProcess as $m) {
+                $post = $postLookup[$emp->id][$m] ?? null;
+
+                $sheet3->setCellValue('A' . $row3, $emp->employee_code ?? '-');
+                $sheet3->setCellValue('B' . $row3, $emp->name);
+                $sheet3->setCellValue('C' . $row3, $emp->company->name ?? '-');
+                $sheet3->setCellValue('D' . $row3, $emp->department->name ?? '-');
+                $sheet3->setCellValue('E' . $row3, $monthsArray[$m] ?? $m);
+                $sheet3->setCellValue('F' . $row3, $year);
+                $sheet3->setCellValue('G' . $row3, $post ? floatval($post->net_salary) : 0);
+                $sheet3->setCellValue('H' . $row3, $post ? ucfirst($post->status) : 'Not Generated');
+                $row3++;
+            }
+        }
+
+        // Style all sheets
+        foreach ([$sheet1, $sheet2, $sheet3] as $s) {
+            $lastRow = $s->getHighestRow();
+            $lastColLetter = $s->getHighestColumn();
+            $totalCols = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($lastColLetter);
+
+            $s->getStyle('A1:' . $lastColLetter . '1')->applyFromArray([
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 10],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1E293B']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+            ]);
+            $s->getRowDimension(1)->setRowHeight(30);
+
+            if ($lastRow >= 2) {
+                $s->getStyle('A1:' . $lastColLetter . $lastRow)->applyFromArray([
+                    'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'E2E8F0']]],
+                ]);
+                for ($r = 2; $r <= $lastRow; $r++) {
+                    $s->getRowDimension($r)->setRowHeight(20);
+                    if ($r % 2 === 0) {
+                        $s->getStyle('A' . $r . ':' . $lastColLetter . $r)->applyFromArray([
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F8FAFC']],
+                        ]);
+                    }
+                }
+            }
+
+            for ($i = 1; $i <= $totalCols; $i++) {
+                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
+                $s->getColumnDimension($colLetter)->setAutoSize(true);
+            }
         }
 
         $writer = new Xlsx($spreadsheet);
-        $fileName = 'salary_report_' . $year . '_' . implode('_', $months) . '.xlsx';
+        $fileName = 'salary_report_' . $year . '_' . implode('_', $monthsToProcess) . '.xlsx';
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="'. $fileName .'"');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
         $writer->save('php://output');
         exit;
     }

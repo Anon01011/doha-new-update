@@ -206,6 +206,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('salary-postings', \App\Http\Controllers\SalaryPostingController::class);
     Route::post('salary-postings/bulk-action', [\App\Http\Controllers\SalaryPostingController::class, 'bulkAction'])->name('salary-postings.bulk-action');
     Route::post('salary-postings/bulk-generate', [\App\Http\Controllers\SalaryPostingController::class, 'bulkGenerate'])->name('salary-postings.bulk-generate');
+    Route::post('salary-postings/auto-update', [\App\Http\Controllers\SalaryPostingController::class, 'autoUpdate'])->name('salary-postings.auto-update');
     Route::get('salary-postings/{salaryPosting}/slip', [\App\Http\Controllers\SalaryPostingController::class, 'generateSlip'])->name('salary-postings.slip');
     Route::resource('loans', \App\Http\Controllers\LoanController::class);
     Route::resource('advances', \App\Http\Controllers\AdvanceController::class);

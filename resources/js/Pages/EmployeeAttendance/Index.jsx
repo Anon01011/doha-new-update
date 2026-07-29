@@ -409,7 +409,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
             onError: (errors) => {
                 setImportProcessing(false);
                 console.error(errors);
-                
+
                 let errorMsg = 'Failed to import attendance. Please check the file format.';
                 if (errors.import_errors) {
                     errorMsg = errors.import_errors;
@@ -440,20 +440,20 @@ export default function Index({ branches = [], employees, attendances = [], rost
                         <div className="p-8">
                             <h3 className="text-xl font-normal text-slate-900 tracking-normal mb-2">Import Attendance CSV</h3>
                             <p className="text-[11px] font-normal text-slate-400 uppercase tracking-normal mb-6">Upload a CSV file to import attendance data</p>
-                            
+
                             <div className="mb-8 p-4 bg-primary/5 rounded-lg border border-primary/10">
                                 <p className="text-[11px] text-primary leading-relaxed font-normal uppercase tracking-normal mb-3">
                                     Make sure your CSV file has <strong>Employee Name</strong> and <strong>Date</strong> columns.
                                 </p>
                                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
-                                    <a 
-                                        href={route('employee-attendances.template')} 
+                                    <a
+                                        href={route('employee-attendances.template')}
                                         className="text-[11px] font-normal text-primary hover:underline underline-offset-4"
                                     >
                                         Download Sample Template
                                     </a>
-                                    <a 
-                                        href={route('employee-attendances.template', { company_id: selectedBranch, include_employees: true })} 
+                                    <a
+                                        href={route('employee-attendances.template', { company_id: selectedBranch, include_employees: true })}
                                         className="text-[11px] font-normal text-primary hover:underline underline-offset-4"
                                     >
                                         Download Employee Template (with staff)
@@ -463,11 +463,11 @@ export default function Index({ branches = [], employees, attendances = [], rost
 
                             <form onSubmit={handleImportSubmit} className="space-y-6">
                                 <div className="relative group">
-                                    <input 
-                                        type="file" 
-                                        ref={fileInputRef} 
-                                        accept=".csv,.txt" 
-                                        onChange={e => setImportFile(e.target.files[0])} 
+                                    <input
+                                        type="file"
+                                        ref={fileInputRef}
+                                        accept=".csv,.txt"
+                                        onChange={e => setImportFile(e.target.files[0])}
                                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                     />
                                     <div className="border-2 border-dashed border-slate-200 rounded-lg p-8 text-center group-hover:border-primary group-hover:bg-primary/5 transition-all">
@@ -481,16 +481,16 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                 </div>
 
                                 <div className="flex gap-3">
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setIsImportModalOpen(false)} 
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsImportModalOpen(false)}
                                         className="flex-1 px-4 py-3 bg-slate-50 text-slate-400 rounded-lg text-[10px] font-normal uppercase tracking-normal hover:bg-slate-100 transition-all"
                                     >
                                         Cancel
                                     </button>
-                                    <button 
-                                        type="submit" 
-                                        disabled={importProcessing} 
+                                    <button
+                                        type="submit"
+                                        disabled={importProcessing}
                                         className="flex-[2] px-4 py-3 bg-primary text-white rounded-lg text-[10px] font-normal uppercase tracking-normal hover:brightness-110 shadow-lg shadow-primary/20 transition-all active:scale-95 disabled:opacity-50"
                                     >
                                         {importProcessing ? 'Importing...' : 'Import Now'}
@@ -508,9 +508,9 @@ export default function Index({ branches = [], employees, attendances = [], rost
                     <div className="flex items-center gap-6 w-full md:w-auto">
                         {!isEmployee && (
                             <div className="relative">
-                                <select 
-                                    className="appearance-none bg-slate-50 border-slate-200 rounded-lg text-[11px] font-normal uppercase tracking-normal min-w-[240px] pl-4 pr-10 py-2.5 focus:border-primary focus:ring-primary/10 transition-all outline-none" 
-                                    value={selectedBranch} 
+                                <select
+                                    className="appearance-none bg-slate-50 border-slate-200 rounded-lg text-[11px] font-normal uppercase tracking-normal min-w-[240px] pl-4 pr-10 py-2.5 focus:border-primary focus:ring-primary/10 transition-all outline-none"
+                                    value={selectedBranch}
                                     onChange={e => { setSelectedBranch(e.target.value); updateParams({ company_id: e.target.value }); }}
                                 >
                                     <option value="">All Branches</option>
@@ -546,12 +546,12 @@ export default function Index({ branches = [], employees, attendances = [], rost
                             </div>
                         )}
                         {!isEmployee && (
-                            <button 
-                                onClick={() => setIsImportModalOpen(true)} 
+                            <button
+                                onClick={() => setIsImportModalOpen(true)}
                                 className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-normal uppercase tracking-normal hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
                             >
                                 <FiDownload className="w-3.5 h-3.5" />
-                                <span>Import CSV</span>
+                                <span>Import/Export CSV</span>
                             </button>
                         )}
                     </div>
@@ -598,133 +598,130 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                             </div>
                                         </td>
                                         {weekDays.map(day => {
-                                             const key = `${emp.id}_${day.date}`;
-                                             const cell = editData[key] || { attendance: '' };
-                                             const dateObj = new Date(day.date);
-                                             const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
-                                             const plannedShift = rosterMap[`${emp.id}_${dayName}`];
-                                             const scheduledWeeklyOff = (plannedShift && plannedShift.is_weekly_off) || isEmployeeWeeklyOff(emp, day.date);
-                                             const isWeeklyOff = cell.attendance === 'Weekly Off' || (!cell.attendance && scheduledWeeklyOff);
-                                             const isLeave = cell.attendance === 'Leave';
+                                            const key = `${emp.id}_${day.date}`;
+                                            const cell = editData[key] || { attendance: '' };
+                                            const dateObj = new Date(day.date);
+                                            const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+                                            const plannedShift = rosterMap[`${emp.id}_${dayName}`];
+                                            const scheduledWeeklyOff = (plannedShift && plannedShift.is_weekly_off) || isEmployeeWeeklyOff(emp, day.date);
+                                            const isWeeklyOff = cell.attendance === 'Weekly Off' || (!cell.attendance && scheduledWeeklyOff);
+                                            const isLeave = cell.attendance === 'Leave';
 
-                                             return (
-                                                 <td key={day.date} className="px-2 py-2 align-top border-r border-slate-50 last:border-r-0">
-                                                     <div className={`p-2 rounded-lg border transition-all duration-300 ${
-                                                         isWeeklyOff ? 'bg-amber-50/70 border-amber-200 shadow-sm shadow-amber-100/30' :
-                                                         isLeave ? 'bg-indigo-50/70 border-indigo-200 shadow-sm shadow-indigo-100/30' :
-                                                         cell.attendance === 'Absent' ? 'bg-rose-50 border-rose-100 shadow-sm shadow-rose-100/50' : 
-                                                         cell.attendance === 'Late' ? 'bg-amber-50 border-amber-100 shadow-sm shadow-amber-100/50' : 
-                                                         cell.attendance === 'Present' ? 'bg-white border-primary/20 shadow-sm ring-1 ring-primary/5' :
-                                                         'bg-slate-50/50 border-slate-100'
-                                                     }`}>
-                                                         {/* Status Controls */}
-                                                         <div className="flex justify-between items-center mb-2">
-                                                             <div className="relative flex items-center group/sel">
-                                                                 <select
-                                                                     className={`p-0 pr-4 text-[10px] font-medium uppercase tracking-normal border-none bg-transparent bg-none focus:ring-0 cursor-pointer appearance-none transition-colors ${
-                                                                         isWeeklyOff ? 'text-amber-600 font-bold' :
-                                                                         isLeave ? 'text-indigo-600 font-bold' :
-                                                                         cell.attendance === 'Absent' ? 'text-rose-600' : 
-                                                                         cell.attendance === 'Late' ? 'text-amber-600' : 
-                                                                         cell.attendance === 'Present' ? 'text-primary' :
-                                                                         'text-slate-400 hover:text-slate-600'
-                                                                     }`}
-                                                                     value={cell.attendance || (scheduledWeeklyOff ? 'Weekly Off' : '')}
-                                                                     onChange={e => handleCellChange(emp.id, day.date, 'attendance', e.target.value)}
-                                                                     disabled={isEmployee}
-                                                                 >
-                                                                     <option value="">STATUS</option>
-                                                                     {finalAttendanceOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                                     <option value="Weekly Off">Weekly Off</option>
-                                                                 </select>
-                                                                 <FiChevronDown className={`w-3 h-3 -ml-3 pointer-events-none transition-colors ${
-                                                                     isWeeklyOff ? 'text-amber-500' :
-                                                                     isLeave ? 'text-indigo-500' :
-                                                                     cell.attendance === 'Absent' ? 'text-rose-500' : 
-                                                                     cell.attendance === 'Late' ? 'text-amber-500' : 
-                                                                     cell.attendance === 'Present' ? 'text-primary' :
-                                                                     'text-slate-400 group-hover/sel:text-slate-600'
-                                                                 }`} />
-                                                             </div>
-                                                             {plannedShift && !isWeeklyOff && !isLeave && (
-                                                                 <button 
-                                                                     type="button" 
-                                                                     onClick={() => applyRoster(emp.id, day.date, plannedShift)} 
-                                                                     className="text-[8px] font-normal text-slate-400 hover:text-primary hover:bg-primary/5 px-2 py-0.5 rounded-lg border border-slate-100 bg-white shadow-sm transition-all uppercase tracking-normal"
-                                                                     title={`Planned Shift: ${plannedShift.shift_time}`}
-                                                                 >
-                                                                     ROSTER
-                                                                 </button>
-                                                             )}
-                                                         </div>
+                                            return (
+                                                <td key={day.date} className="px-2 py-2 align-top border-r border-slate-50 last:border-r-0">
+                                                    <div className={`p-2 rounded-lg border transition-all duration-300 ${isWeeklyOff ? 'bg-amber-50/70 border-amber-200 shadow-sm shadow-amber-100/30' :
+                                                            isLeave ? 'bg-indigo-50/70 border-indigo-200 shadow-sm shadow-indigo-100/30' :
+                                                                cell.attendance === 'Absent' ? 'bg-rose-50 border-rose-100 shadow-sm shadow-rose-100/50' :
+                                                                    cell.attendance === 'Late' ? 'bg-amber-50 border-amber-100 shadow-sm shadow-amber-100/50' :
+                                                                        cell.attendance === 'Present' ? 'bg-white border-primary/20 shadow-sm ring-1 ring-primary/5' :
+                                                                            'bg-slate-50/50 border-slate-100'
+                                                        }`}>
+                                                        {/* Status Controls */}
+                                                        <div className="flex justify-between items-center mb-2">
+                                                            <div className="relative flex items-center group/sel">
+                                                                <select
+                                                                    className={`p-0 pr-4 text-[10px] font-medium uppercase tracking-normal border-none bg-transparent bg-none focus:ring-0 cursor-pointer appearance-none transition-colors ${isWeeklyOff ? 'text-amber-600 font-bold' :
+                                                                            isLeave ? 'text-indigo-600 font-bold' :
+                                                                                cell.attendance === 'Absent' ? 'text-rose-600' :
+                                                                                    cell.attendance === 'Late' ? 'text-amber-600' :
+                                                                                        cell.attendance === 'Present' ? 'text-primary' :
+                                                                                            'text-slate-400 hover:text-slate-600'
+                                                                        }`}
+                                                                    value={cell.attendance || (scheduledWeeklyOff ? 'Weekly Off' : '')}
+                                                                    onChange={e => handleCellChange(emp.id, day.date, 'attendance', e.target.value)}
+                                                                    disabled={isEmployee}
+                                                                >
+                                                                    <option value="">STATUS</option>
+                                                                    {finalAttendanceOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                                    <option value="Weekly Off">Weekly Off</option>
+                                                                </select>
+                                                                <FiChevronDown className={`w-3 h-3 -ml-3 pointer-events-none transition-colors ${isWeeklyOff ? 'text-amber-500' :
+                                                                        isLeave ? 'text-indigo-500' :
+                                                                            cell.attendance === 'Absent' ? 'text-rose-500' :
+                                                                                cell.attendance === 'Late' ? 'text-amber-500' :
+                                                                                    cell.attendance === 'Present' ? 'text-primary' :
+                                                                                        'text-slate-400 group-hover/sel:text-slate-600'
+                                                                    }`} />
+                                                            </div>
+                                                            {plannedShift && !isWeeklyOff && !isLeave && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => applyRoster(emp.id, day.date, plannedShift)}
+                                                                    className="text-[8px] font-normal text-slate-400 hover:text-primary hover:bg-primary/5 px-2 py-0.5 rounded-lg border border-slate-100 bg-white shadow-sm transition-all uppercase tracking-normal"
+                                                                    title={`Planned Shift: ${plannedShift.shift_time}`}
+                                                                >
+                                                                    ROSTER
+                                                                </button>
+                                                            )}
+                                                        </div>
 
-                                                         {/* Time Management */}
-                                                         <div className="flex gap-2 mb-2">
-                                                             <div className="relative flex-1 group/input">
-                                                                 <input
-                                                                     type="time"
-                                                                     className="w-full text-[10px] p-1 border border-slate-100 rounded-md bg-white focus:border-primary focus:ring-4 focus:ring-primary/5 text-center font-normal transition-all h-7 outline-none disabled:opacity-50 disabled:bg-slate-100/50"
-                                                                     value={isWeeklyOff || isLeave ? '' : (cell.from_time || '')}
-                                                                     onChange={e => handleCellChange(emp.id, day.date, 'from_time', e.target.value)}
-                                                                     disabled={isEmployee || isWeeklyOff || isLeave}
-                                                                 />
-                                                                 <span className="absolute -top-2 left-2 px-1 bg-white text-[7px] font-normal text-slate-300 uppercase tracking-normal border border-slate-100 rounded">IN</span>
-                                                             </div>
-                                                             <div className="relative flex-1 group/input">
-                                                                 <input
-                                                                     type="time"
-                                                                     className="w-full text-[10px] p-1 border border-slate-100 rounded-md bg-white focus:border-primary focus:ring-4 focus:ring-primary/5 text-center font-normal transition-all h-7 outline-none disabled:opacity-50 disabled:bg-slate-100/50"
-                                                                     value={isWeeklyOff || isLeave ? '' : (cell.to_time || '')}
-                                                                     onChange={e => handleCellChange(emp.id, day.date, 'to_time', e.target.value)}
-                                                                     disabled={isEmployee || isWeeklyOff || isLeave}
-                                                                 />
-                                                                 <span className="absolute -top-2 left-2 px-1 bg-white text-[7px] font-normal text-slate-300 uppercase tracking-normal border border-slate-100 rounded">OUT</span>
-                                                             </div>
-                                                         </div>
+                                                        {/* Time Management */}
+                                                        <div className="flex gap-2 mb-2">
+                                                            <div className="relative flex-1 group/input">
+                                                                <input
+                                                                    type="time"
+                                                                    className="w-full text-[10px] p-1 border border-slate-100 rounded-md bg-white focus:border-primary focus:ring-4 focus:ring-primary/5 text-center font-normal transition-all h-7 outline-none disabled:opacity-50 disabled:bg-slate-100/50"
+                                                                    value={isWeeklyOff || isLeave ? '' : (cell.from_time || '')}
+                                                                    onChange={e => handleCellChange(emp.id, day.date, 'from_time', e.target.value)}
+                                                                    disabled={isEmployee || isWeeklyOff || isLeave}
+                                                                />
+                                                                <span className="absolute -top-2 left-2 px-1 bg-white text-[7px] font-normal text-slate-300 uppercase tracking-normal border border-slate-100 rounded">IN</span>
+                                                            </div>
+                                                            <div className="relative flex-1 group/input">
+                                                                <input
+                                                                    type="time"
+                                                                    className="w-full text-[10px] p-1 border border-slate-100 rounded-md bg-white focus:border-primary focus:ring-4 focus:ring-primary/5 text-center font-normal transition-all h-7 outline-none disabled:opacity-50 disabled:bg-slate-100/50"
+                                                                    value={isWeeklyOff || isLeave ? '' : (cell.to_time || '')}
+                                                                    onChange={e => handleCellChange(emp.id, day.date, 'to_time', e.target.value)}
+                                                                    disabled={isEmployee || isWeeklyOff || isLeave}
+                                                                />
+                                                                <span className="absolute -top-2 left-2 px-1 bg-white text-[7px] font-normal text-slate-300 uppercase tracking-normal border border-slate-100 rounded">OUT</span>
+                                                            </div>
+                                                        </div>
 
-                                                         {/* Metadata & Insights */}
-                                                         <div className="flex items-center gap-2">
-                                                             <div className="relative flex-1">
-                                                                 <input
-                                                                     type="text"
-                                                                     placeholder={isWeeklyOff ? 'Weekly Off' : isLeave ? 'On Leave' : 'Add note...'}
-                                                                     className="w-full min-w-0 text-[9px] px-0 py-1 bg-transparent border-none focus:ring-0 text-slate-600 font-normal placeholder:text-slate-300 placeholder:font-normal disabled:opacity-50"
-                                                                     value={isWeeklyOff ? '' : isLeave ? (cell.reason || 'On Leave') : (cell.reason || '')}
-                                                                     onChange={e => handleCellChange(emp.id, day.date, 'reason', e.target.value)}
-                                                                     disabled={isEmployee || isWeeklyOff || isLeave}
-                                                                 />
-                                                             </div>
-                                                             {cell.hours_worked > 0 && (() => {
-                                                                 const worked = parseFloat(cell.hours_worked);
-                                                                 const std = getNormalHours(emp.id, day.date);
-                                                                 const otHours = worked > std ? fmt(worked - std) : 0;
-                                                                 const isOT = worked > std;
-                                                                 const isUnder = worked < std;
-                                                                 const colorClass = isUnder
-                                                                     ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100/80'
-                                                                     : isOT
-                                                                         ? 'bg-orange-50 border-orange-200 text-orange-600 hover:bg-orange-100/80'
-                                                                         : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100/80';
-                                                                 return (
-                                                                     <button
-                                                                         type="button"
-                                                                         onClick={() => handleShowBreakup(emp, day.date, cell)}
-                                                                         className={`flex flex-col items-center px-2 py-1 rounded-lg border transition-all duration-200 leading-tight ${colorClass}`}
-                                                                         title={isOT ? `Worked ${fmt(worked)}h — ${otHours}h overtime. Click for details.` : isUnder ? `Worked ${fmt(worked)}h — ${fmt(std - worked)}h incomplete. Click for details.` : `Worked ${fmt(worked)}h. Click for details.`}
-                                                                     >
-                                                                         <span className="text-[9px] font-bold tracking-wide">{fmt(worked)}h</span>
-                                                                         {isOT && (
-                                                                             <span className="text-[8px] font-normal text-orange-500 leading-none">▲ {otHours}h OT</span>
-                                                                         )}
-                                                                         {isUnder && (
-                                                                             <span className="text-[8px] font-normal text-rose-500 leading-none">▼ {fmt(std - worked)}h INC</span>
-                                                                         )}
-                                                                     </button>
-                                                                 );
-                                                             })()}
-                                                         </div>
-                                                     </div>
-                                                 </td>
+                                                        {/* Metadata & Insights */}
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="relative flex-1">
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder={isWeeklyOff ? 'Weekly Off' : isLeave ? 'On Leave' : 'Add note...'}
+                                                                    className="w-full min-w-0 text-[9px] px-0 py-1 bg-transparent border-none focus:ring-0 text-slate-600 font-normal placeholder:text-slate-300 placeholder:font-normal disabled:opacity-50"
+                                                                    value={isWeeklyOff ? '' : isLeave ? (cell.reason || 'On Leave') : (cell.reason || '')}
+                                                                    onChange={e => handleCellChange(emp.id, day.date, 'reason', e.target.value)}
+                                                                    disabled={isEmployee || isWeeklyOff || isLeave}
+                                                                />
+                                                            </div>
+                                                            {cell.hours_worked > 0 && (() => {
+                                                                const worked = parseFloat(cell.hours_worked);
+                                                                const std = getNormalHours(emp.id, day.date);
+                                                                const otHours = worked > std ? fmt(worked - std) : 0;
+                                                                const isOT = worked > std;
+                                                                const isUnder = worked < std;
+                                                                const colorClass = isUnder
+                                                                    ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100/80'
+                                                                    : isOT
+                                                                        ? 'bg-orange-50 border-orange-200 text-orange-600 hover:bg-orange-100/80'
+                                                                        : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100/80';
+                                                                return (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleShowBreakup(emp, day.date, cell)}
+                                                                        className={`flex flex-col items-center px-2 py-1 rounded-lg border transition-all duration-200 leading-tight ${colorClass}`}
+                                                                        title={isOT ? `Worked ${fmt(worked)}h — ${otHours}h overtime. Click for details.` : isUnder ? `Worked ${fmt(worked)}h — ${fmt(std - worked)}h incomplete. Click for details.` : `Worked ${fmt(worked)}h. Click for details.`}
+                                                                    >
+                                                                        <span className="text-[9px] font-bold tracking-wide">{fmt(worked)}h</span>
+                                                                        {isOT && (
+                                                                            <span className="text-[8px] font-normal text-orange-500 leading-none">▲ {otHours}h OT</span>
+                                                                        )}
+                                                                        {isUnder && (
+                                                                            <span className="text-[8px] font-normal text-rose-500 leading-none">▼ {fmt(std - worked)}h INC</span>
+                                                                        )}
+                                                                    </button>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+                                                </td>
                                             );
                                         })}
                                     </tr>
@@ -740,18 +737,17 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                 <Link
                                     key={i}
                                     href={link.url || '#'}
-                                    className={`px-3.5 py-2 rounded-lg text-[10px] font-normal uppercase tracking-normal transition-all ${
-                                        link.active ? 'bg-primary text-white shadow-lg shadow-primary/25' :
-                                        !link.url ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:bg-white hover:text-primary'
-                                    }`}
+                                    className={`px-3.5 py-2 rounded-lg text-[10px] font-normal uppercase tracking-normal transition-all ${link.active ? 'bg-primary text-white shadow-lg shadow-primary/25' :
+                                            !link.url ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:bg-white hover:text-primary'
+                                        }`}
                                     dangerouslySetInnerHTML={{ __html: link.label }}
                                 />
                             ))}
                         </div>
 
                         {!isEmployee && (
-                            <button 
-                                type="submit" 
+                            <button
+                                type="submit"
                                 className="group relative overflow-hidden bg-slate-900 text-white px-8 py-3.5 rounded-lg text-[11px] font-normal uppercase tracking-[0.15em] hover:bg-primary transition-all active:scale-95 shadow-xl shadow-slate-200"
                             >
                                 <span className="relative z-10">Save Changes</span>
@@ -761,7 +757,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                     </div>
                 </form>
             </div>
-            
+
             <ConfirmationModal
                 show={confirmingAction.show}
                 title={confirmingAction.title}
@@ -809,7 +805,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                 const worked = parseFloat(selectedBreakup.attendance.hours_worked || 0);
                                 const std = getNormalHours(selectedBreakup.employee.id, selectedBreakup.date);
                                 const regularHours = Math.min(worked, std);
-                                
+
                                 const otHoursVal = worked > std ? worked - std : 0;
                                 const otHrs = Math.floor(otHoursVal);
                                 const otMins = Math.round((otHoursVal - otHrs) * 60);
@@ -843,9 +839,8 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                         <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
                                             <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Regular Hours</p>
-                                            <p className={`text-lg font-bold ${
-                                                worked < std ? 'text-rose-600' : 'text-emerald-600'
-                                            }`}>{fmt(regularHours)}h</p>
+                                            <p className={`text-lg font-bold ${worked < std ? 'text-rose-600' : 'text-emerald-600'
+                                                }`}>{fmt(regularHours)}h</p>
                                         </div>
                                         <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
                                             <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Break / Absent Dur.</p>
@@ -860,15 +855,13 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                         </div>
                                         <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
                                             <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Overtime</p>
-                                            <p className={`text-lg font-bold ${
-                                                otHoursVal > 0 ? 'text-orange-500 font-bold' : 'text-slate-400'
-                                            }`}>{otDisplay}</p>
+                                            <p className={`text-lg font-bold ${otHoursVal > 0 ? 'text-orange-500 font-bold' : 'text-slate-400'
+                                                }`}>{otDisplay}</p>
                                         </div>
                                         <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-center">
                                             <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Incomplete Hours</p>
-                                            <p className={`text-lg font-bold ${
-                                                incHoursVal > 0 ? 'text-rose-600' : 'text-slate-400'
-                                            }`}>{incDisplay}</p>
+                                            <p className={`text-lg font-bold ${incHoursVal > 0 ? 'text-rose-600' : 'text-slate-400'
+                                                }`}>{incDisplay}</p>
                                         </div>
                                     </div>
                                 );

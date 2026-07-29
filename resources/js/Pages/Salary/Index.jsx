@@ -45,6 +45,20 @@ export default function Index({
     const companyDropRef = useRef(null);
     const deptDropRef = useRef(null);
 
+    const [autoUpdateModal, setAutoUpdateModal] = useState(false);
+    const [autoUpdateData, setAutoUpdateData] = useState({
+        department_ids: [],
+        employee_ids: [],
+        month: month || new Date().getMonth() + 1,
+        year: year || new Date().getFullYear(),
+    });
+    const [autoDeptDropOpen, setAutoDeptDropOpen] = useState(false);
+    const [autoDeptSearch, setAutoDeptSearch] = useState('');
+    const autoDeptDropRef = useRef(null);
+    const [empDropOpen, setEmpDropOpen] = useState(false);
+    const [empSearch, setEmpSearch] = useState('');
+    const empDropRef = useRef(null);
+
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (companyDropRef.current && !companyDropRef.current.contains(e.target)) {
@@ -55,6 +69,14 @@ export default function Index({
                 setDeptDropOpen(false);
                 setDeptSearch('');
             }
+            if (autoDeptDropRef.current && !autoDeptDropRef.current.contains(e.target)) {
+                setAutoDeptDropOpen(false);
+                setAutoDeptSearch('');
+            }
+            if (empDropRef.current && !empDropRef.current.contains(e.target)) {
+                setEmpDropOpen(false);
+                setEmpSearch('');
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -64,6 +86,56 @@ export default function Index({
         e.preventDefault();
         router.post(route('salary-postings.bulk-generate'), bulkData, {
             onSuccess: () => setBulkModal(false)
+        });
+    };
+
+    const handleAutoUpdateApply = (e) => {
+        e.preventDefault();
+
+        if (autoUpdateData.department_ids.length === 0 && autoUpdateData.employee_ids.length === 0) {
+            setModal({
+                show: true,
+                title: 'Selection Required',
+                message: 'Please select at least one department or employee to update.',
+                type: 'warning',
+                onConfirm: closeModal,
+                hideCancel: true
+            });
+            return;
+        }
+
+        let targetMsg = '';
+        if (autoUpdateData.employee_ids.length > 0) {
+            targetMsg = `${autoUpdateData.employee_ids.length} selected employee(s)`;
+        } else {
+            targetMsg = `all employees in the ${autoUpdateData.department_ids.length} selected department(s)`;
+        }
+
+        setModal({
+            show: true,
+            title: 'Confirm Auto Update',
+            message: `Are you sure you want to automatically update the payroll details for ${targetMsg}? This will recalculate salary, attendance, overtime, and leave details for ${months.find(m => m.value == autoUpdateData.month)?.label} ${autoUpdateData.year}.`,
+            type: 'warning',
+            onConfirm: () => {
+                setModal(prev => ({ ...prev, processing: true }));
+                router.post(route('salary-postings.auto-update'), autoUpdateData, {
+                    onSuccess: () => {
+                        setAutoUpdateModal(false);
+                        setAutoUpdateData({
+                            department_ids: [],
+                            employee_ids: [],
+                            month: month || new Date().getMonth() + 1,
+                            year: year || new Date().getFullYear(),
+                        });
+                        closeModal();
+                    },
+                    onError: (err) => {
+                        console.error(err);
+                        setModal(prev => ({ ...prev, processing: false }));
+                    },
+                    onFinish: () => closeModal()
+                });
+            }
         });
     };
 
@@ -317,17 +389,24 @@ export default function Index({
                             </div>
                         )}
                         {['admin', 'hr', 'manager'].includes(userRole) && (
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 flex-wrap md:flex-nowrap">
                                 <button
-                                    onClick={() => setBulkModal(true)}
-                                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-normal hover:brightness-110 shadow shadow-slate-900/20 transition-all active:scale-95"
+                                    onClick={() => setAutoUpdateModal(true)}
+                                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-normal hover:brightness-110 shadow shadow-indigo-600/20 transition-all active:scale-95 whitespace-nowrap"
                                 >
                                     <FaCalculator size={10} />
-                                    Bulk Generate
+                                    Auto Update Payroll
+                                </button>
+                                <button
+                                    onClick={() => setBulkModal(true)}
+                                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-normal hover:brightness-110 shadow shadow-slate-900/20 transition-all active:scale-95 whitespace-nowrap"
+                                >
+                                    <FaCalculator size={10} />
+                                    Bulk Generate Payroll
                                 </button>
                                 <Link
                                     href={route('salary-postings.create')}
-                                    className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-xs font-normal hover:brightness-110 shadow shadow-primary/20 transition-all active:scale-95"
+                                    className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-xs font-normal hover:brightness-110 shadow shadow-primary/20 transition-all active:scale-95 whitespace-nowrap"
                                 >
                                     <FaPlus size={10} />
                                     Calculate Salary
@@ -498,10 +577,12 @@ export default function Index({
             {/* Bulk Generate Modal */}
             {bulkModal && (
                 <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-                        <div className="p-6 border-b border-slate-100">
-                            <h3 className="text-base font-normal text-slate-800">Bulk Generate Payroll</h3>
-                            <p className="text-xs text-slate-400 mt-1">Generate salary postings in bulk for selected month and year.</p>
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-md w-full animate-in fade-in zoom-in-95 duration-150">
+                        <div className="p-6 border-b border-slate-100 rounded-t-2xl bg-slate-50/50">
+                            <h3 className="text-base font-semibold text-slate-800">Bulk Generate Payroll</h3>
+                            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                                Initializes monthly payroll drafts for the selected company branch and departments. <strong>Note:</strong> Employees who already have a payroll record for the chosen month will be skipped to protect existing data from overrides.
+                            </p>
                         </div>
                         <form onSubmit={handleBulkGenerate} className="p-6 space-y-4">
                             <div className="grid grid-cols-2 gap-4">
@@ -734,6 +815,269 @@ export default function Index({
                                 >
                                     <FaCalculator size={11} />
                                     Generate
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {autoUpdateModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in duration-200">
+                        <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-start justify-between rounded-t-2xl">
+                            <div className="pr-4">
+                                <h3 className="text-base font-semibold text-slate-900">Auto Update Payroll</h3>
+                                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                                    Recalculates basic salary, attendance, leaves, and overtime for selected departments or employees. Existing <strong>Draft</strong> or <strong>Rejected</strong> records will be updated, while finalized <strong>Approved</strong> records will be skipped.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setAutoUpdateModal(false)}
+                                className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleAutoUpdateApply} className="p-6 space-y-4">
+                            {/* Month Select */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Month</label>
+                                    <select
+                                        className="w-full rounded-lg border-slate-200 focus:border-primary focus:ring-primary text-xs bg-slate-50/50 py-2"
+                                        value={autoUpdateData.month}
+                                        onChange={(e) => setAutoUpdateData({ ...autoUpdateData, month: e.target.value })}
+                                    >
+                                        {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Year</label>
+                                    <select
+                                        className="w-full rounded-lg border-slate-200 focus:border-primary focus:ring-primary text-xs bg-slate-50/50 py-2"
+                                        value={autoUpdateData.year}
+                                        onChange={(e) => setAutoUpdateData({ ...autoUpdateData, year: e.target.value })}
+                                    >
+                                        {years.map(y => <option key={y} value={y}>{y}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Department Multi-Select Dropdown */}
+                            <div className="space-y-1" ref={autoDeptDropRef}>
+                                <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Departments</label>
+                                <div className="relative">
+                                    {/* Trigger Button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => { setAutoDeptDropOpen(v => !v); setEmpDropOpen(false); }}
+                                        className="w-full flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2 bg-white text-xs text-slate-700 hover:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+                                    >
+                                        <span className="truncate">
+                                            {autoUpdateData.department_ids.length === 0
+                                                ? 'All Departments'
+                                                : autoUpdateData.department_ids.length === departments.length
+                                                    ? 'All Departments Selected'
+                                                    : `${autoUpdateData.department_ids.length} selected`}
+                                        </span>
+                                        <FaChevronDown
+                                            size={9}
+                                            className={`ml-2 text-slate-400 transition-transform duration-200 ${autoDeptDropOpen ? 'rotate-180' : ''}`}
+                                        />
+                                    </button>
+
+                                    {/* Dropdown Panel */}
+                                    {autoDeptDropOpen && (() => {
+                                        const filteredDepts = departments.filter(d =>
+                                            d.name.toLowerCase().includes(autoDeptSearch.toLowerCase())
+                                        );
+                                        return (
+                                            <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+                                                {/* Search Bar */}
+                                                <div className="px-3 py-2 border-b border-slate-100">
+                                                    <div className="relative">
+                                                        <FaSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300" size={10} />
+                                                        <input
+                                                            type="text"
+                                                            autoFocus
+                                                            placeholder="Search departments..."
+                                                            value={autoDeptSearch}
+                                                            onChange={(e) => setAutoDeptSearch(e.target.value)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary/20 focus:border-primary/40"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                {/* Select All */}
+                                                <div
+                                                    className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100"
+                                                    onClick={() => {
+                                                        const allSelected = autoUpdateData.department_ids.length === departments.length;
+                                                        setAutoUpdateData({
+                                                            ...autoUpdateData,
+                                                            department_ids: allSelected ? [] : departments.map(d => d.id),
+                                                            employee_ids: [] // reset employee selection on change
+                                                        });
+                                                    }}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        readOnly
+                                                        className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                        checked={departments.length > 0 && autoUpdateData.department_ids.length === departments.length}
+                                                    />
+                                                    <span className="text-xs font-semibold text-slate-700">Select All</span>
+                                                </div>
+                                                {/* Individual items */}
+                                                <div className="max-h-[150px] overflow-y-auto">
+                                                    {filteredDepts.length === 0 ? (
+                                                        <p className="px-3 py-2 text-xs text-slate-400">No results found</p>
+                                                    ) : filteredDepts.map(d => (
+                                                        <div
+                                                            key={d.id}
+                                                            className="flex items-center gap-2 px-3 py-2 hover:bg-primary/5 cursor-pointer"
+                                                            onClick={() => {
+                                                                const newIds = autoUpdateData.department_ids.includes(d.id)
+                                                                    ? autoUpdateData.department_ids.filter(id => id !== d.id)
+                                                                    : [...autoUpdateData.department_ids, d.id];
+                                                                setAutoUpdateData({
+                                                                    ...autoUpdateData,
+                                                                    department_ids: newIds,
+                                                                    employee_ids: [] // reset employee selection on change
+                                                                });
+                                                            }}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                readOnly
+                                                                className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                                checked={autoUpdateData.department_ids.includes(d.id)}
+                                                            />
+                                                            <span className="text-xs text-slate-600">{d.name}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+
+                            {/* Employee Multi-Select Dropdown */}
+                            <div className="space-y-1" ref={empDropRef}>
+                                <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Employees</label>
+                                <div className="relative">
+                                    {/* Trigger Button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => { setEmpDropOpen(v => !v); setAutoDeptDropOpen(false); }}
+                                        className="w-full flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2 bg-white text-xs text-slate-700 hover:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+                                    >
+                                        <span className="truncate">
+                                            {(() => {
+                                                const visibleEmps = employees.filter(emp => autoUpdateData.department_ids.length === 0 || autoUpdateData.department_ids.includes(emp.department_id));
+                                                if (autoUpdateData.employee_ids.length === 0) return 'All Employees';
+                                                if (autoUpdateData.employee_ids.length === visibleEmps.length) return 'All Employees Selected';
+                                                return `${autoUpdateData.employee_ids.length} selected`;
+                                            })()}
+                                        </span>
+                                        <FaChevronDown
+                                            size={9}
+                                            className={`ml-2 text-slate-400 transition-transform duration-200 ${empDropOpen ? 'rotate-180' : ''}`}
+                                        />
+                                    </button>
+
+                                    {/* Dropdown Panel */}
+                                    {empDropOpen && (() => {
+                                        const visibleEmps = employees
+                                            .filter(emp => autoUpdateData.department_ids.length === 0 || autoUpdateData.department_ids.includes(emp.department_id))
+                                            .filter(emp => emp.name.toLowerCase().includes(empSearch.toLowerCase()));
+                                        const allVisible = employees.filter(emp => autoUpdateData.department_ids.length === 0 || autoUpdateData.department_ids.includes(emp.department_id));
+                                        return (
+                                            <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+                                                {/* Search Bar */}
+                                                <div className="px-3 py-2 border-b border-slate-100">
+                                                    <div className="relative">
+                                                        <FaSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300" size={10} />
+                                                        <input
+                                                            type="text"
+                                                            autoFocus
+                                                            placeholder="Search employees..."
+                                                            value={empSearch}
+                                                            onChange={(e) => setEmpSearch(e.target.value)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary/20 focus:border-primary/40"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                {/* Select All */}
+                                                <div
+                                                    className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100"
+                                                    onClick={() => {
+                                                        const allSelected = autoUpdateData.employee_ids.length === allVisible.length;
+                                                        setAutoUpdateData({ ...autoUpdateData, employee_ids: allSelected ? [] : allVisible.map(emp => emp.id) });
+                                                    }}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        readOnly
+                                                        className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                        checked={allVisible.length > 0 && autoUpdateData.employee_ids.length === allVisible.length}
+                                                    />
+                                                    <span className="text-xs font-semibold text-slate-700">Select All</span>
+                                                </div>
+                                                {/* Individual items */}
+                                                <div className="max-h-[150px] overflow-y-auto">
+                                                    {visibleEmps.length === 0 ? (
+                                                        <p className="px-3 py-2 text-xs text-slate-400">
+                                                            {empSearch ? 'No results found' : 'No employees available'}
+                                                        </p>
+                                                    ) : visibleEmps.map(emp => (
+                                                        <div
+                                                            key={emp.id}
+                                                            className="flex items-center gap-2 px-3 py-2 hover:bg-primary/5 cursor-pointer"
+                                                            onClick={() => {
+                                                                const newIds = autoUpdateData.employee_ids.includes(emp.id)
+                                                                    ? autoUpdateData.employee_ids.filter(id => id !== emp.id)
+                                                                    : [...autoUpdateData.employee_ids, emp.id];
+                                                                setAutoUpdateData({ ...autoUpdateData, employee_ids: newIds });
+                                                            }}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                readOnly
+                                                                className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                                checked={autoUpdateData.employee_ids.includes(emp.id)}
+                                                            />
+                                                            <span className="text-xs text-slate-600">{emp.name} ({emp.employee_code})</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setAutoUpdateModal(false)}
+                                    className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-normal hover:bg-slate-50 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-normal hover:brightness-110 transition-all flex items-center gap-1.5"
+                                >
+                                    <FaCalculator size={11} />
+                                    Apply
                                 </button>
                             </div>
                         </form>

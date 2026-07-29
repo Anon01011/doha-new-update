@@ -59,6 +59,7 @@
                 <th>Allowances</th>
                 <th>Deductions</th>
                 <th>Net Salary</th>
+                <th>Status</th>
             </tr>
         </thead>
         <tbody>
@@ -80,6 +81,7 @@
                     {{ number_format($deductions, 2) }}
                 </td>
                 <td class="text-right" style="font-weight: bold;">{{ number_format($posting->net_salary, 2) }}</td>
+                <td>{{ ucfirst($posting->status) }}</td>
             </tr>
             @endforeach
         </tbody>
