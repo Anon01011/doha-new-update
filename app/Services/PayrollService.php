@@ -319,13 +319,14 @@ class PayrollService
             'absent_days'            => $totalAbsentDays,
             'leave_deduction'        => round($absentDeduction, 2),
             'net_salary'             => round(max(0, $netSalary), 2),
+            'gross_salary'           => round($basicSalary + $totalAllowances + $overtimeAmount, 2),
             'attendance_summary'     => $summary,
             'weekly_off_days'        => $weeklyOffDaysCount,
             'holiday_days'           => $holidayCount,
             'working_days_in_month'  => $workingDays,
             'calendar_days'          => $calendarDays,
-            
-            // New detailed fields for modal breakdown
+
+            // Detailed fields for modal breakdown
             'total_hours_worked'     => round($totalHoursWorked, 2),
             'shift_summary'          => $shiftCounts,
             'overtime_breakdown'     => $otBreakdown,
@@ -334,6 +335,66 @@ class PayrollService
             'salary_calculation_method' => $calcMethod,
             'effective_days_per_month'  => $effectiveDaysPerMonth,
             'daily_rate'             => round($dailyRate, 2),
+
+            // Leave details — one entry per leave-status attendance record
+            'leave_breakdown'        => $this->buildLeaveBreakdown($attendances),
+
+            // Employee shift info from roster
+            'employee_shift_info'    => $this->buildShiftInfo($employee, $startDate, $endDate),
+        ];
+    }
+
+    /**
+     * Build a leave breakdown array from attendance records.
+     */
+    private function buildLeaveBreakdown($attendances): array
+    {
+        $leaves = [];
+        foreach ($attendances as $att) {
+            $status = $att->attendance ?? '';
+            if (in_array($status, ['Leave', 'Sick Leave', 'Annual Leave'])) {
+                $isPaid = filter_var($att->is_paid ?? true, FILTER_VALIDATE_BOOLEAN);
+                $dateStr = $att->date instanceof \Carbon\Carbon
+                    ? $att->date->toDateString()
+                    : (string) $att->date;
+                $leaves[] = [
+                    'date'    => $dateStr,
+                    'type'    => $status,
+                    'is_paid' => $isPaid,
+                    'reason'  => $att->reason ?? null,
+                ];
+            }
+        }
+        usort($leaves, fn($a, $b) => strcmp($a['date'], $b['date']));
+        return $leaves;
+    }
+
+    /**
+     * Build employee primary shift info from the most recent roster entries in the month.
+     */
+    private function buildShiftInfo($employee, $startDate, $endDate): array
+    {
+        $rosters = \App\Models\ShiftRoster::where('employee_id', $employee->id)
+            ->where('week_start', '<=', $endDate->toDateString())
+            ->orderBy('week_start', 'desc')
+            ->get();
+
+        $shiftTypes = [];
+        $shiftTimes = [];
+        foreach ($rosters as $roster) {
+            if ($roster->shift_type && !in_array($roster->shift_type, $shiftTypes)) {
+                $shiftTypes[] = $roster->shift_type;
+            }
+            if ($roster->shift_time && !in_array($roster->shift_time, $shiftTimes)) {
+                $shiftTimes[] = $roster->shift_time;
+            }
+        }
+
+        return [
+            'shift_types'        => $shiftTypes,
+            'shift_times'        => $shiftTimes,
+            'primary_shift_type' => $shiftTypes[0] ?? 'Day',
+            'primary_shift_time' => $shiftTimes[0] ?? null,
         ];
     }
 

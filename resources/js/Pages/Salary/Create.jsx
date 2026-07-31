@@ -6,7 +6,23 @@ import ConfirmationModal from '@/Components/ConfirmationModal';
 import Modal from '@/Components/Modal';
 import { FaUser, FaCalendarAlt, FaMoneyBillWave, FaCalculator, FaPlus, FaTrash, FaArrowLeft, FaSave, FaMinus, FaInfoCircle, FaExclamationCircle, FaBuilding, FaChevronDown, FaClock, FaChartLine } from 'react-icons/fa';
 
+/** Reusable section header row for the salary detail modal */
+function SectionHeader({ icon, iconBg, iconColor, title, subtitle }) {
+    return (
+        <div className="flex items-start gap-3">
+            <div className={`w-7 h-7 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                <span className={`${iconColor} text-xs`}>{icon}</span>
+            </div>
+            <div>
+                <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-widest">{title}</h4>
+                {subtitle && <p className="text-[10px] text-slate-400 mt-0.5">{subtitle}</p>}
+            </div>
+        </div>
+    );
+}
+
 export default function Create({ employees, salaryComponents = [], companies = [] }) {
+
     const { appSettings, auth } = usePage().props;
     const userRole = auth.user.role;
     const isAdminUser = ['admin', 'system admin', 'system_admin', 'super admin', 'superadmin'].includes(String(userRole).toLowerCase());
@@ -635,192 +651,329 @@ export default function Create({ employees, salaryComponents = [], companies = [
                 confirmText="ACKNOWLEDGE"
             />
 
-            <Modal show={showDetailsModal} onClose={() => setShowDetailsModal(false)} maxWidth="2xl">
-                <div className="p-6 space-y-6">
-                    {/* Header */}
-                    <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                        <div>
-                            <h3 className="text-lg font-semibold text-slate-900">Salary Calculation Breakdown</h3>
-                            <p className="text-[10px] text-slate-500 uppercase tracking-wider">
-                                Detailed audit for Month: {months.find(m => m.value == data.month)?.label || data.month}, Year: {data.year}
-                            </p>
+            <Modal show={showDetailsModal} onClose={() => setShowDetailsModal(false)} maxWidth="3xl">
+                <div className="bg-white rounded-2xl overflow-hidden shadow-2xl">
+
+                    {/* ── Header ── */}
+                    <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 px-6 py-5">
+                        <div className="flex items-start justify-between">
+                            <div>
+                                <p className="text-[10px] font-semibold text-indigo-300 uppercase tracking-widest mb-1">Salary Audit Report</p>
+                                <h3 className="text-lg font-bold text-white">
+                                    {months.find(m => m.value == data.month)?.label || data.month} {data.year}
+                                </h3>
+                                {calculationDetails?.employee_shift_info?.primary_shift_type && (
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/10 rounded-full text-[10px] text-white font-semibold">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 inline-block" />
+                                            {calculationDetails.employee_shift_info.primary_shift_type} Shift
+                                        </span>
+                                        {calculationDetails?.employee_shift_info?.primary_shift_time && (
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/10 rounded-full text-[10px] text-slate-300 font-medium">
+                                                🕐 {calculationDetails.employee_shift_info.primary_shift_time}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowDetailsModal(false)}
+                                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-all"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => setShowDetailsModal(false)}
-                            className="text-slate-400 hover:text-slate-600 text-sm font-bold p-2"
-                        >
-                            ✕
-                        </button>
+
+                        {/* Quick stats bar */}
+                        <div className="grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-white/10">
+                            {[
+                                { label: 'Basic', value: formatCurrency(calculationDetails?.basic_salary), color: 'text-slate-200' },
+                                { label: '+ Overtime', value: `+${formatCurrency(calculationDetails?.overtime_amount)}`, color: 'text-emerald-300' },
+                                { label: '- Deduction', value: `-${formatCurrency(calculationDetails?.leave_deduction)}`, color: 'text-rose-300' },
+                                { label: 'Net Salary', value: formatCurrency(calculationDetails?.net_salary), color: 'text-white font-black' },
+                            ].map(item => (
+                                <div key={item.label} className="text-center">
+                                    <p className="text-[9px] text-slate-400 uppercase tracking-wider">{item.label}</p>
+                                    <p className={`text-xs font-bold mt-0.5 ${item.color}`}>{item.value}</p>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
-                    {/* Content Grid */}
-                    <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-                        {/* Section 1: Attendance & Shift Summary */}
-                        <div className="space-y-3">
-                            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                <FaClock className="text-indigo-600" /> Attendance & Shifts
-                            </h4>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                <div className="p-3 bg-slate-50 rounded-lg text-center border border-slate-100">
-                                    <span className="text-[9px] font-medium text-slate-400 uppercase">Present</span>
-                                    <p className="text-xl font-bold text-slate-700">{calculationDetails?.attendance_summary?.present || 0} Days</p>
-                                </div>
-                                <div className="p-3 bg-slate-50 rounded-lg text-center border border-slate-100">
-                                    <span className="text-[9px] font-medium text-slate-400 uppercase">Absent</span>
-                                    <p className="text-xl font-bold text-rose-600">{calculationDetails?.attendance_summary?.absent || 0} Days</p>
-                                </div>
-                                <div className="p-3 bg-slate-50 rounded-lg text-center border border-slate-100">
-                                    <span className="text-[9px] font-medium text-slate-400 uppercase">Paid Leaves</span>
-                                    <p className="text-xl font-bold text-emerald-600">{calculationDetails?.attendance_summary?.leave_paid || 0} Days</p>
-                                </div>
-                                <div className="p-3 bg-slate-50 rounded-lg text-center border border-slate-100">
-                                    <span className="text-[9px] font-medium text-slate-400 uppercase">Unpaid Leaves</span>
-                                    <p className="text-xl font-bold text-rose-500">{calculationDetails?.attendance_summary?.leave_unpaid || 0} Days</p>
-                                </div>
-                            </div>
+                    {/* ── Body ── */}
+                    <div className="max-h-[72vh] overflow-y-auto divide-y divide-slate-100">
 
-                            {/* Roster vs Attendance Shift breakdown */}
-                            <div className="bg-slate-50/50 p-4 rounded-lg border border-slate-100 space-y-3">
-                                <h5 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                                    <span>Shift Roster vs Attendance Details</span>
-                                    <span className="text-[9px] font-normal text-slate-400 lowercase">Calculated based on daily roster schedules and clock-in records</span>
-                                </h5>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    {['Morning', 'Evening', 'Night'].map((shift) => {
-                                        const rostered = calculationDetails?.shift_summary?.rostered?.[shift] || 0;
-                                        const attended = calculationDetails?.shift_summary?.attended?.[shift] || 0;
-                                        return (
-                                            <div key={shift} className="p-3 bg-white rounded-lg border border-slate-100 shadow-sm flex flex-col justify-between">
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <span className="text-[10px] font-bold text-slate-700 uppercase">{shift} Shift</span>
-                                                    {shift === 'Night' && (
-                                                        <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 text-[8px] font-semibold rounded uppercase tracking-wider">
-                                                            OT Multiplier
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-2 text-center border-t border-slate-50 pt-2">
-                                                    <div>
-                                                        <p className="text-[8px] font-normal text-slate-400 uppercase">Rostered</p>
-                                                        <p className="text-xs font-semibold text-slate-600">{rostered}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[8px] font-normal text-slate-400 uppercase">Attended</p>
-                                                        <p className="text-xs font-semibold text-emerald-600">{attended}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                <div className="text-[9px] text-slate-400 leading-relaxed bg-white/60 p-2.5 rounded border border-slate-100">
-                                    <strong>Night Shift Calculation:</strong> Night shifts require checking the roster schedules and matching them with actual clock-in attendance records. If the employee worked a Night Shift (as defined by roster/attendance) and worked overtime, the night overtime hours are calculated at a higher multiplier (e.g. {calculationDetails?.overtime_breakdown?.Night?.multiplier || '1.50'}x) compared to Day/Morning/Evening shifts (e.g. {calculationDetails?.overtime_breakdown?.Day?.multiplier || '1.25'}x).
-                                </div>
+                        {/* ── 1. Attendance Overview ── */}
+                        <div className="px-6 py-5">
+                            <SectionHeader icon={<FaClock />} iconBg="bg-indigo-100" iconColor="text-indigo-600" title="Attendance Overview" subtitle={`${calculationDetails?.calendar_days || 0} calendar days · ${calculationDetails?.working_days_in_month || 0} working days · ${calculationDetails?.weekly_off_days || 0} weekly offs · ${calculationDetails?.holiday_days || 0} holidays`} />
+                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-3">
+                                {[
+                                    { label: 'Present', value: calculationDetails?.attendance_summary?.present || 0, bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+                                    { label: 'Absent', value: calculationDetails?.attendance_summary?.absent || 0, bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
+                                    { label: 'Half Day', value: calculationDetails?.attendance_summary?.half_day || 0, bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+                                    { label: 'Paid Leave', value: calculationDetails?.attendance_summary?.leave_paid || 0, bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+                                    { label: 'Unpaid Leave', value: calculationDetails?.attendance_summary?.leave_unpaid || 0, bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+                                    { label: 'Weekly Off', value: calculationDetails?.attendance_summary?.weekly_off || 0, bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200' },
+                                ].map(item => (
+                                    <div key={item.label} className={`${item.bg} border ${item.border} rounded-xl p-2.5 text-center`}>
+                                        <p className={`text-lg font-black ${item.text}`}>{item.value}</p>
+                                        <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider leading-tight mt-0.5">{item.label}</p>
+                                    </div>
+                                ))}
                             </div>
                         </div>
 
-                        {/* Section 2: Salary Calculation Details */}
-                        <div className="space-y-3">
-                            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                <FaMoneyBillWave className="text-emerald-500" /> Salary Formula
-                            </h4>
-                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-4">
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                    <div>
-                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Basic Salary</span>
-                                        <p className="text-xs font-semibold text-slate-800">{formatCurrency(calculationDetails?.basic_salary)}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Calculation Method</span>
-                                        <p className="text-xs font-semibold text-indigo-600 uppercase">{calculationDetails?.salary_calculation_method || 'Fixed'}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Effective Days</span>
-                                        <p className="text-xs font-semibold text-slate-800">{calculationDetails?.effective_days_per_month || 30} Days</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Daily Rate</span>
-                                        <p className="text-xs font-semibold text-slate-800">{formatCurrency(calculationDetails?.daily_rate)} / Day</p>
-                                    </div>
-                                </div>
-
-                                <div className="border-t border-slate-200/60 pt-3">
-                                    <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Deduction Details</p>
-                                    <div className="flex justify-between items-center text-xs text-slate-600">
-                                        <span>Absent/Unpaid Days Deduction ({calculationDetails?.absent_days || 0} days × {formatCurrency(calculationDetails?.daily_rate)})</span>
-                                        <span className="font-semibold text-rose-600">-{formatCurrency(calculationDetails?.leave_deduction)}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Section 3: Overtime Breakdown */}
-                        <div className="space-y-3">
-                            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                <FaChartLine className="text-indigo-500" /> Overtime Details
-                            </h4>
-                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-4">
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                    <div>
-                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Total OT Hours</span>
-                                        <p className="text-xs font-semibold text-slate-800">{calculationDetails?.overtime_hours || 0} Hours</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Base OT Rate</span>
-                                        <p className="text-xs font-semibold text-slate-800">{formatCurrency(calculationDetails?.overtime_base_rate)} / Hour</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-[8px] font-medium text-slate-400 uppercase">OT Mode</span>
-                                        <p className="text-xs font-semibold text-slate-800 uppercase">{calculationDetails?.overtime_calculation_mode?.replace('_', ' ') || 'base_salary'}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Total OT Amount</span>
-                                        <p className="text-xs font-bold text-emerald-600">{formatCurrency(calculationDetails?.overtime_amount)}</p>
-                                    </div>
-                                </div>
-
-                                <div className="border-t border-slate-200/60 pt-3 space-y-2">
-                                    <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Overtime Breakdown by Category</p>
-                                    {['Day', 'Night', 'Holiday'].map((category) => {
-                                        const otData = calculationDetails?.overtime_breakdown?.[category] || { hours: 0, multiplier: 0, amount: 0 };
-                                        if (otData.hours === 0) return null;
-                                        return (
-                                            <div key={category} className="flex justify-between items-center text-xs text-slate-600">
-                                                <span>
-                                                    {category === 'Day' ? 'Regular Day/Morning/Evening Shift' : category === 'Night' ? 'Night Shift' : 'Holiday'} Overtime ({otData.hours} hours × multiplier {otData.multiplier}x)
-                                                </span>
-                                                <span className="font-semibold text-slate-800">+{formatCurrency(otData.amount)}</span>
+                        {/* ── 2. Leave Details ── */}
+                        {(() => {
+                            const leaves = calculationDetails?.leave_breakdown || [];
+                            const paidCount = leaves.filter(l => l.is_paid).length;
+                            const unpaidCount = leaves.filter(l => !l.is_paid).length;
+                            return (
+                                <div className="px-6 py-5">
+                                    <SectionHeader icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>} iconBg="bg-blue-100" iconColor="text-blue-600" title="Leave Details" subtitle={leaves.length === 0 ? 'No leaves taken this period' : `${leaves.length} leave day(s) · ${paidCount} paid · ${unpaidCount} unpaid`} />
+                                    {leaves.length === 0 ? (
+                                        <div className="mt-3 flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                            <span className="text-xl">🎉</span>
+                                            <p className="text-xs text-slate-500">No leaves taken — full attendance bonus may apply.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
+                                            <div className="grid grid-cols-4 bg-slate-50 px-4 py-2 border-b border-slate-200">
+                                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Date</span>
+                                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Leave Type</span>
+                                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">Status</span>
+                                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Reason</span>
                                             </div>
-                                        );
-                                    })}
-                                    {(!calculationDetails?.overtime_breakdown?.Day?.hours && !calculationDetails?.overtime_breakdown?.Night?.hours && !calculationDetails?.overtime_breakdown?.Holiday?.hours) && (
-                                        <p className="text-xs text-slate-400 italic">No overtime hours recorded for this period.</p>
+                                            {leaves.map((leave, idx) => (
+                                                <div key={idx} className={`grid grid-cols-4 items-center px-4 py-2.5 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
+                                                    <span className="text-[11px] text-slate-600 font-medium">
+                                                        {new Date(leave.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                                                    </span>
+                                                    <span className="text-[11px] text-slate-700 font-semibold">{leave.type}</span>
+                                                    <div className="text-center">
+                                                        {leave.is_paid ? (
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold border border-emerald-200">PAID</span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[9px] font-bold border border-rose-200">UNPAID</span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-[10px] text-slate-400 truncate">{leave.reason || '—'}</span>
+                                                </div>
+                                            ))}
+                                            {unpaidCount > 0 && (
+                                                <div className="px-4 py-2.5 bg-rose-50 border-t border-rose-100 flex justify-between items-center">
+                                                    <span className="text-[10px] text-rose-600 font-semibold">{unpaidCount} unpaid day(s) deducted from salary</span>
+                                                    <span className="text-xs font-bold text-rose-700">-{formatCurrency((calculationDetails?.leave_deduction || 0))}</span>
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
+                            );
+                        })()}
+
+                        {/* ── 3. Shift Roster vs Attendance ── */}
+                        <div className="px-6 py-5">
+                            <SectionHeader icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>} iconBg="bg-violet-100" iconColor="text-violet-600" title="Shift Roster vs Attendance" subtitle="Compares rostered shifts against actual clock-in records" />
+                            <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
+                                <div className="grid grid-cols-4 bg-slate-50 px-4 py-2.5 border-b border-slate-200">
+                                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Shift</span>
+                                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">Rostered Days</span>
+                                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">Days Attended</span>
+                                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">OT Rate</span>
+                                </div>
+                                {[
+                                    { key: 'Morning', label: 'Morning', icon: '🌅', otKey: 'Day', def: '1.25', badgeBg: 'bg-amber-50', badgeText: 'text-amber-700', badgeBorder: 'border-amber-200' },
+                                    { key: 'Day', label: 'Day', icon: '☀️', otKey: 'Day', def: '1.25', badgeBg: 'bg-sky-50', badgeText: 'text-sky-700', badgeBorder: 'border-sky-200' },
+                                    { key: 'Evening', label: 'Evening', icon: '🌆', otKey: 'Day', def: '1.25', badgeBg: 'bg-orange-50', badgeText: 'text-orange-700', badgeBorder: 'border-orange-200' },
+                                    { key: 'Night', label: 'Night', icon: '🌙', otKey: 'Night', def: '1.50', badgeBg: 'bg-indigo-50', badgeText: 'text-indigo-700', badgeBorder: 'border-indigo-200' },
+                                ].map((shift, idx) => {
+                                    const rostered = calculationDetails?.shift_summary?.rostered?.[shift.key] || 0;
+                                    const attended = calculationDetails?.shift_summary?.attended?.[shift.key] || 0;
+                                    const rawMult = calculationDetails?.overtime_breakdown?.[shift.otKey]?.multiplier;
+                                    const mult = rawMult ? parseFloat(rawMult).toFixed(2) : shift.def;
+                                    return (
+                                        <div key={shift.key} className={`grid grid-cols-4 items-center px-4 py-3 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm">{shift.icon}</span>
+                                                <span className="text-[11px] font-semibold text-slate-700">{shift.label} Shift</span>
+                                            </div>
+                                            <div className="text-center">
+                                                <span className={`text-[13px] font-bold ${rostered > 0 ? 'text-slate-700' : 'text-slate-300'}`}>{rostered}</span>
+                                                <span className="text-[9px] text-slate-400 ml-1">days</span>
+                                            </div>
+                                            <div className="text-center">
+                                                <span className={`text-[13px] font-bold ${attended > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>{attended}</span>
+                                                <span className="text-[9px] text-slate-400 ml-1">days</span>
+                                            </div>
+                                            <div className="text-center">
+                                                <span className={`inline-flex px-2.5 py-1 rounded-full border text-[10px] font-bold ${shift.badgeBg} ${shift.badgeText} ${shift.badgeBorder}`}>{mult}×</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <p className="text-[9px] text-slate-400 mt-2 px-1">
+                                Night shifts use a higher OT multiplier ({parseFloat(calculationDetails?.overtime_breakdown?.Night?.multiplier || 1.50).toFixed(2)}×) vs Day shifts ({parseFloat(calculationDetails?.overtime_breakdown?.Day?.multiplier || 1.25).toFixed(2)}×). Holiday OT uses {parseFloat(calculationDetails?.overtime_breakdown?.Holiday?.multiplier || 2.25).toFixed(2)}×.
+                            </p>
+                        </div>
+
+                        {/* ── 4. Salary Formula ── */}
+                        <div className="px-6 py-5">
+                            <SectionHeader icon={<FaMoneyBillWave />} iconBg="bg-emerald-100" iconColor="text-emerald-600" title="Salary Calculation" subtitle={`Method: ${(calculationDetails?.salary_calculation_method || 'fixed').toUpperCase()} · ${calculationDetails?.effective_days_per_month || 30} effective days/month`} />
+
+                            {/* Formula chain */}
+                            <div className="mt-3 space-y-2">
+                                {/* Basic salary */}
+                                <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                                    <div>
+                                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">① Basic Salary</p>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">Fixed monthly salary</p>
+                                    </div>
+                                    <span className="text-sm font-bold text-slate-800">{formatCurrency(calculationDetails?.basic_salary)}</span>
+                                </div>
+
+                                {/* Daily rate */}
+                                <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                                    <div>
+                                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">② Daily Rate</p>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">{formatCurrency(calculationDetails?.basic_salary)} ÷ {calculationDetails?.effective_days_per_month || 30} days</p>
+                                    </div>
+                                    <span className="text-sm font-bold text-slate-700">{formatCurrency(calculationDetails?.daily_rate)} / day</span>
+                                </div>
+
+                                {/* Absent deduction */}
+                                {(calculationDetails?.absent_days || 0) > 0 && (
+                                    <div className="flex items-center justify-between bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
+                                        <div>
+                                            <p className="text-[10px] font-semibold text-rose-600 uppercase tracking-wider">③ Absent Deduction</p>
+                                            <p className="text-[11px] text-rose-500 mt-0.5">{calculationDetails?.absent_days || 0} absent/unpaid days × {formatCurrency(calculationDetails?.daily_rate)}</p>
+                                        </div>
+                                        <span className="text-sm font-bold text-rose-700">-{formatCurrency(calculationDetails?.leave_deduction)}</span>
+                                    </div>
+                                )}
+
+                                {/* Allowances */}
+                                {Object.keys(calculationDetails?.allowances || {}).length > 0 && (
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                                        <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider mb-2">④ Allowances</p>
+                                        {Object.entries(calculationDetails.allowances).map(([name, amount]) => (
+                                            <div key={name} className="flex justify-between items-center py-0.5">
+                                                <span className="text-[11px] text-slate-600">{name}</span>
+                                                <span className="text-[11px] font-semibold text-emerald-700">+{formatCurrency(amount)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Struct deductions */}
+                                {Object.entries(calculationDetails?.deductions || {}).filter(([k]) => !['Loan Repayment','Advance Repayment'].includes(k)).length > 0 && (
+                                    <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
+                                        <p className="text-[10px] font-semibold text-rose-600 uppercase tracking-wider mb-2">⑤ Deductions</p>
+                                        {Object.entries(calculationDetails.deductions).filter(([k]) => !['Loan Repayment','Advance Repayment'].includes(k)).map(([name, amount]) => (
+                                            <div key={name} className="flex justify-between items-center py-0.5">
+                                                <span className="text-[11px] text-slate-600">{name}</span>
+                                                <span className="text-[11px] font-semibold text-rose-700">-{formatCurrency(amount)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        {/* Section 4: Total Working Hours Summary */}
-                        <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-lg flex justify-between items-center">
-                            <div>
-                                <h4 className="text-xs font-bold text-indigo-800 uppercase">Total Work Hours Recorded</h4>
-                                <p className="text-[10px] text-indigo-500 uppercase tracking-wide">Sum of hours worked from daily attendance punches</p>
+                        {/* ── 5. Overtime Breakdown ── */}
+                        <div className="px-6 py-5">
+                            <SectionHeader icon={<FaChartLine />} iconBg="bg-indigo-100" iconColor="text-indigo-600" title="Overtime Breakdown" subtitle={`${parseFloat(calculationDetails?.overtime_hours || 0).toFixed(2)} total OT hours · Base rate: ${formatCurrency(calculationDetails?.overtime_base_rate)}/hr`} />
+                            {/* OT formula cards */}
+                            <div className="grid grid-cols-3 gap-2 mt-3">
+                                {[
+                                    { label: 'OT Hours', value: `${parseFloat(calculationDetails?.overtime_hours || 0).toFixed(2)} hrs`, icon: '⏱️' },
+                                    { label: 'Base Rate / Hr', value: formatCurrency(calculationDetails?.overtime_base_rate), icon: '💵' },
+                                    { label: 'Total OT Pay', value: formatCurrency(calculationDetails?.overtime_amount), icon: '✅' },
+                                ].map(item => (
+                                    <div key={item.label} className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-center">
+                                        <p className="text-lg">{item.icon}</p>
+                                        <p className="text-xs font-bold text-indigo-800 mt-1">{item.value}</p>
+                                        <p className="text-[9px] text-indigo-500 uppercase tracking-wider mt-0.5">{item.label}</p>
+                                    </div>
+                                ))}
                             </div>
-                            <div className="text-right">
-                                <p className="text-2xl font-bold text-indigo-600">{calculationDetails?.total_hours_worked || 0} Hrs</p>
+                            {/* OT per shift type */}
+                            <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
+                                {[
+                                    { key: 'Day', label: 'Day/Morning/Evening OT', icon: '☀️', color: 'text-amber-600' },
+                                    { key: 'Night', label: 'Night Shift OT', icon: '🌙', color: 'text-indigo-600' },
+                                    { key: 'Holiday', label: 'Holiday OT', icon: '🎉', color: 'text-rose-600' },
+                                ].map((row, idx) => {
+                                    const ot = calculationDetails?.overtime_breakdown?.[row.key];
+                                    const hrs = parseFloat(ot?.hours || 0);
+                                    if (hrs === 0) return null;
+                                    const mult = parseFloat(ot?.multiplier || 0).toFixed(2);
+                                    const baseRate = parseFloat(calculationDetails?.overtime_base_rate || 0);
+                                    return (
+                                        <div key={row.key} className={`flex items-center justify-between px-4 py-3 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
+                                            <div className="flex items-center gap-2.5">
+                                                <span className="text-base">{row.icon}</span>
+                                                <div>
+                                                    <p className="text-[11px] font-semibold text-slate-700">{row.label}</p>
+                                                    <p className="text-[10px] text-slate-400">{hrs.toFixed(2)} hrs × {mult}× × {formatCurrency(baseRate)}/hr</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className={`text-[10px] font-bold ${row.color}`}>{mult}×</p>
+                                                <p className="text-xs font-bold text-emerald-700">+{formatCurrency(ot.amount)}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {!calculationDetails?.overtime_breakdown?.Day?.hours && !calculationDetails?.overtime_breakdown?.Night?.hours && !calculationDetails?.overtime_breakdown?.Holiday?.hours && (
+                                    <div className="px-4 py-5 text-center text-[11px] text-slate-400 italic">No overtime recorded this period.</div>
+                                )}
                             </div>
                         </div>
+
+                        {/* ── 6. Final Summary ── */}
+                        <div className="px-6 py-5">
+                            <SectionHeader icon={<FaMoneyBillWave />} iconBg="bg-slate-800" iconColor="text-white" title="Net Salary Summary" subtitle="Final calculation breakdown" />
+                            <div className="mt-3 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+                                {[
+                                    { label: 'Basic Salary', value: formatCurrency(calculationDetails?.basic_salary), color: 'text-slate-800', sign: '' },
+                                    { label: 'Allowances (total)', value: formatCurrency(Object.values(calculationDetails?.allowances || {}).reduce((a, b) => a + b, 0)), color: 'text-emerald-700', sign: '+' },
+                                    { label: 'Overtime Pay', value: formatCurrency(calculationDetails?.overtime_amount), color: 'text-emerald-700', sign: '+' },
+                                    { label: 'Absent/Unpaid Deduction', value: formatCurrency(calculationDetails?.leave_deduction), color: 'text-rose-600', sign: '-' },
+                                    { label: 'Other Deductions', value: formatCurrency(Object.values(calculationDetails?.deductions || {}).reduce((a, b) => a + b, 0)), color: 'text-rose-600', sign: '-' },
+                                ].map((row, idx) => (
+                                    <div key={idx} className={`flex justify-between items-center px-4 py-2.5 ${idx < 4 ? 'border-b border-slate-200' : ''}`}>
+                                        <span className="text-[11px] text-slate-600">{row.label}</span>
+                                        <span className={`text-[11px] font-bold ${row.color}`}>{row.sign}{row.value}</span>
+                                    </div>
+                                ))}
+                                <div className="flex justify-between items-center px-4 py-3 bg-slate-800">
+                                    <span className="text-xs font-bold text-white uppercase tracking-wider">🟢 Net Salary</span>
+                                    <span className="text-base font-black text-emerald-400">{formatCurrency(calculationDetails?.net_salary)}</span>
+                                </div>
+                            </div>
+                            {/* Total hours */}
+                            <div className="mt-3 flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                                <div>
+                                    <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">Total Hours Worked</p>
+                                    <p className="text-[10px] text-indigo-400 mt-0.5">Sum of all clock-in/out punches</p>
+                                </div>
+                                <p className="text-xl font-black text-indigo-700">{parseFloat(calculationDetails?.total_hours_worked || 0).toFixed(2)}<span className="text-xs font-semibold ml-1">hrs</span></p>
+                            </div>
+                        </div>
+
                     </div>
 
-                    {/* Footer Actions */}
-                    <div className="flex justify-end pt-4 border-t border-slate-100">
+                    {/* ── Footer ── */}
+                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end">
                         <button
                             type="button"
                             onClick={() => setShowDetailsModal(false)}
-                            className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                            className="px-6 py-2 bg-slate-900 hover:bg-slate-700 text-white rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all active:scale-95"
                         >
-                            Close Details
+                            Close
                         </button>
                     </div>
                 </div>
