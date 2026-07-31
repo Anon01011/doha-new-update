@@ -4,7 +4,7 @@ import { Head, useForm, Link, usePage } from '@inertiajs/react';
 import { useState, useMemo, useEffect } from 'react';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Modal from '@/Components/Modal';
-import { FaUser, FaCalendarAlt, FaMoneyBillWave, FaCalculator, FaPlus, FaTrash, FaArrowLeft, FaSave, FaMinus, FaInfoCircle, FaExclamationCircle, FaBuilding, FaChevronDown, FaClock, FaChartLine, FaSun, FaMoon, FaCloudSun, FaStopwatch, FaDollarSign, FaGift, FaCheckCircle, FaRegularCalendarAlt, FaBriefcase } from 'react-icons/fa';
+import { FaUser, FaCalendarAlt, FaMoneyBillWave, FaCalculator, FaPlus, FaTrash, FaArrowLeft, FaSave, FaMinus, FaInfoCircle, FaExclamationCircle, FaBuilding, FaChevronDown, FaClock, FaChartLine, FaSun, FaMoon, FaCloudSun, FaStopwatch, FaDollarSign, FaGift, FaCheckCircle, FaBriefcase } from 'react-icons/fa';
 
 /** Reusable section header row for the salary detail modal */
 function SectionHeader({ icon, iconBg, iconColor, title, subtitle }) {
