@@ -378,11 +378,12 @@ class SalaryPostingController extends Controller
         // Calculate Overtime Details Breakdown
         $employee = $salaryPosting->employee;
         $companyId = $employee ? $employee->company_id : null;
+        $departmentId = $employee ? $employee->department_id : null;
         $payrollService = app(\App\Services\PayrollService::class);
 
-        $daysPerMonth = (int) \App\Models\Setting::get('default_working_days_per_month', 30, $companyId);
+        $daysPerMonth = (int) \App\Models\Setting::get('default_working_days_per_month', 30, $companyId, $departmentId);
         if ($daysPerMonth <= 0) $daysPerMonth = 30;
-        $workHoursPerDay = (int) \App\Models\Setting::get('default_working_hours_per_day', 8, $companyId);
+        $workHoursPerDay = (int) \App\Models\Setting::get('default_working_hours_per_day', 8, $companyId, $departmentId);
         if ($workHoursPerDay <= 0) $workHoursPerDay = 8;
 
         $hourlyRate = $employee ? $payrollService->getHourlyRate($employee) : 0;
@@ -402,7 +403,7 @@ class SalaryPostingController extends Controller
             'overtime_rate' => (float) round($otRate, 2),
             'days_per_month' => $daysPerMonth,
             'hours_per_day' => $workHoursPerDay,
-            'mode' => \App\Models\Setting::get('overtime_calculation_mode', 'base_salary', $companyId),
+            'mode' => \App\Models\Setting::get('overtime_calculation_mode', 'base_salary', $companyId, $departmentId),
         ];
 
         if ($request->has('download')) {
