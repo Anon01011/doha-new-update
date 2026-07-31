@@ -1,10 +1,10 @@
-﻿import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import Avatar from '@/Components/Avatar';
 import { useState } from 'react';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Modal from '@/Components/Modal';
-import { FaArrowLeft, FaEdit, FaCheckCircle, FaTimesCircle, FaMoneyBillWave, FaHistory, FaShieldAlt, FaPrint, FaClock, FaChartPie, FaChartLine, FaPlus, FaMinus, FaFileInvoiceDollar, FaInfoCircle } from 'react-icons/fa';
+import { FaArrowLeft, FaEdit, FaCheckCircle, FaTimesCircle, FaMoneyBillWave, FaHistory, FaShieldAlt, FaPrint, FaClock, FaChartPie, FaChartLine, FaPlus, FaMinus, FaFileInvoiceDollar, FaInfoCircle, FaSun, FaMoon, FaCloudSun, FaStopwatch, FaDollarSign, FaGift } from 'react-icons/fa';
 
 /** Reusable section header row for the salary detail modal */
 function SectionHeader({ icon, iconBg, iconColor, title, subtitle }) {
@@ -413,7 +413,7 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                                         </span>
                                         {calculationDetails?.employee_shift_info?.primary_shift_time && (
                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/10 rounded-full text-[10px] text-slate-300 font-medium">
-                                                🕐 {calculationDetails.employee_shift_info.primary_shift_time}
+                                                <FaClock className="text-indigo-300" size={9} /> {calculationDetails.employee_shift_info.primary_shift_time}
                                             </span>
                                         )}
                                     </div>
@@ -476,9 +476,11 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                                 <div className="px-6 py-5">
                                     <SectionHeader icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>} iconBg="bg-blue-100" iconColor="text-blue-600" title="Leave Details" subtitle={leaves.length === 0 ? 'No leaves taken this period' : `${leaves.length} leave day(s) · ${paidCount} paid · ${unpaidCount} unpaid`} />
                                     {leaves.length === 0 ? (
-                                        <div className="mt-3 flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                                            <span className="text-xl">🎉</span>
-                                            <p className="text-xs text-slate-500">No leaves taken — full attendance bonus may apply.</p>
+                                        <div className="mt-3 flex items-center gap-2.5 p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                                            <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                                                <FaCheckCircle className="text-emerald-500" size={14} />
+                                            </div>
+                                            <p className="text-xs text-emerald-700 font-medium">No leaves taken — full attendance this period.</p>
                                         </div>
                                     ) : (
                                         <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
@@ -527,10 +529,10 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">OT Rate</span>
                                 </div>
                                 {[
-                                    { key: 'Morning', label: 'Morning', icon: '🌅', otKey: 'Day', def: '1.25', badgeBg: 'bg-amber-50', badgeText: 'text-amber-700', badgeBorder: 'border-amber-200' },
-                                    { key: 'Day', label: 'Day', icon: '☀️', otKey: 'Day', def: '1.25', badgeBg: 'bg-sky-50', badgeText: 'text-sky-700', badgeBorder: 'border-sky-200' },
-                                    { key: 'Evening', label: 'Evening', icon: '🌆', otKey: 'Day', def: '1.25', badgeBg: 'bg-orange-50', badgeText: 'text-orange-700', badgeBorder: 'border-orange-200' },
-                                    { key: 'Night', label: 'Night', icon: '🌙', otKey: 'Night', def: '1.50', badgeBg: 'bg-indigo-50', badgeText: 'text-indigo-700', badgeBorder: 'border-indigo-200' },
+                                    { key: 'Morning', label: 'Morning', Icon: FaSun, iconColor: 'text-amber-500', otKey: 'Day', def: '1.25', badgeBg: 'bg-amber-50', badgeText: 'text-amber-700', badgeBorder: 'border-amber-200' },
+                                    { key: 'Day', label: 'Day', Icon: FaSun, iconColor: 'text-sky-500', otKey: 'Day', def: '1.25', badgeBg: 'bg-sky-50', badgeText: 'text-sky-700', badgeBorder: 'border-sky-200' },
+                                    { key: 'Evening', label: 'Evening', Icon: FaCloudSun, iconColor: 'text-orange-500', otKey: 'Day', def: '1.25', badgeBg: 'bg-orange-50', badgeText: 'text-orange-700', badgeBorder: 'border-orange-200' },
+                                    { key: 'Night', label: 'Night', Icon: FaMoon, iconColor: 'text-indigo-500', otKey: 'Night', def: '1.50', badgeBg: 'bg-indigo-50', badgeText: 'text-indigo-700', badgeBorder: 'border-indigo-200' },
                                 ].map((shift, idx) => {
                                     const rostered = calculationDetails?.shift_summary?.rostered?.[shift.key] || 0;
                                     const attended = calculationDetails?.shift_summary?.attended?.[shift.key] || 0;
@@ -539,7 +541,7 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                                     return (
                                         <div key={shift.key} className={`grid grid-cols-4 items-center px-4 py-3 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-sm">{shift.icon}</span>
+                                                <shift.Icon className={shift.iconColor} size={13} />
                                                 <span className="text-[11px] font-semibold text-slate-700">{shift.label} Shift</span>
                                             </div>
                                             <div className="text-center">
@@ -619,22 +621,22 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                             <SectionHeader icon={<FaChartLine />} iconBg="bg-indigo-100" iconColor="text-indigo-600" title="Overtime Breakdown" subtitle={`${parseFloat(calculationDetails?.overtime_hours || 0).toFixed(2)} total OT hours · Base rate: ${formatCurrency(calculationDetails?.overtime_base_rate)}/hr`} />
                             <div className="grid grid-cols-3 gap-2 mt-3">
                                 {[
-                                    { label: 'OT Hours', value: `${parseFloat(calculationDetails?.overtime_hours || 0).toFixed(2)} hrs`, icon: '⏱️' },
-                                    { label: 'Base Rate / Hr', value: formatCurrency(calculationDetails?.overtime_base_rate), icon: '💵' },
-                                    { label: 'Total OT Pay', value: formatCurrency(calculationDetails?.overtime_amount), icon: '✅' },
+                                    { label: 'OT Hours', value: `${parseFloat(calculationDetails?.overtime_hours || 0).toFixed(2)} hrs`, Icon: FaStopwatch, iconColor: 'text-indigo-600' },
+                                    { label: 'Base Rate / Hr', value: formatCurrency(calculationDetails?.overtime_base_rate), Icon: FaDollarSign, iconColor: 'text-indigo-600' },
+                                    { label: 'Total OT Pay', value: formatCurrency(calculationDetails?.overtime_amount), Icon: FaCheckCircle, iconColor: 'text-emerald-600' },
                                 ].map(item => (
                                     <div key={item.label} className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-center">
-                                        <p className="text-lg">{item.icon}</p>
-                                        <p className="text-xs font-bold text-indigo-800 mt-1">{item.value}</p>
+                                        <div className="flex justify-center"><item.Icon className={item.iconColor} size={16} /></div>
+                                        <p className="text-xs font-bold text-indigo-800 mt-1.5">{item.value}</p>
                                         <p className="text-[9px] text-indigo-500 uppercase tracking-wider mt-0.5">{item.label}</p>
                                     </div>
                                 ))}
                             </div>
                             <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
                                 {[
-                                    { key: 'Day', label: 'Day/Morning/Evening OT', icon: '☀️', color: 'text-amber-600' },
-                                    { key: 'Night', label: 'Night Shift OT', icon: '🌙', color: 'text-indigo-600' },
-                                    { key: 'Holiday', label: 'Holiday OT', icon: '🎉', color: 'text-rose-600' },
+                                    { key: 'Day', label: 'Day/Morning/Evening OT', Icon: FaSun, iconColor: 'text-amber-500', color: 'text-amber-600' },
+                                    { key: 'Night', label: 'Night Shift OT', Icon: FaMoon, iconColor: 'text-indigo-500', color: 'text-indigo-600' },
+                                    { key: 'Holiday', label: 'Holiday OT', Icon: FaGift, iconColor: 'text-rose-500', color: 'text-rose-600' },
                                 ].map((row, idx) => {
                                     const ot = calculationDetails?.overtime_breakdown?.[row.key];
                                     const hrs = parseFloat(ot?.hours || 0);
@@ -644,7 +646,7 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                                     return (
                                         <div key={row.key} className={`flex items-center justify-between px-4 py-3 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
                                             <div className="flex items-center gap-2.5">
-                                                <span className="text-base">{row.icon}</span>
+                                                <row.Icon className={row.iconColor} size={14} />
                                                 <div>
                                                     <p className="text-[11px] font-semibold text-slate-700">{row.label}</p>
                                                     <p className="text-[10px] text-slate-400">{hrs.toFixed(2)} hrs × {mult}× × {formatCurrency(baseRate)}/hr</p>
@@ -680,7 +682,7 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                                     </div>
                                 ))}
                                 <div className="flex justify-between items-center px-4 py-3 bg-slate-800">
-                                    <span className="text-xs font-bold text-white uppercase tracking-wider">🟢 Net Salary</span>
+                                    <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5"><FaCheckCircle className="text-emerald-400" size={11} /> Net Salary</span>
                                     <span className="text-base font-black text-emerald-400">{formatCurrency(calculationDetails?.net_salary)}</span>
                                 </div>
                             </div>
