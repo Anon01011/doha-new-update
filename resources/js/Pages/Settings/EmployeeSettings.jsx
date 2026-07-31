@@ -124,7 +124,7 @@ export default function EmployeeSettings({ settings }) {
                             <div className="absolute -right-8 -top-8 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
                             <h4 className="text-sm font-normal tracking-normal mb-2 relative z-10">Data Tip</h4>
                             <p className="text-xs text-indigo-50 leading-relaxed font-normal relative z-10">
-                                Disallowing duplicate emails and mobile numbers ensures cleaner data and avoids issues during multi-salon transitions.
+                                Disallowing duplicate emails and mobile numbers ensures cleaner data and avoids issues during multi-branch transitions.
                             </p>
                         </div>
 

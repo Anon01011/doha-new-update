@@ -218,7 +218,7 @@ export default function Show({ department, employees = [] }) {
                             </div>
                             <div>
                                 <p className="text-[11px] font-normal text-primary uppercase tracking-normal leading-relaxed">
-                                    This unit matrix is restricted. Personnel reallocations and structural shifts are audited in real-time to maintain organizational integrity across the global salon network.
+                                    This unit matrix is restricted. Personnel reallocations and structural shifts are audited in real-time to maintain organizational integrity across the global branch network.
                                 </p>
                             </div>
                         </div>

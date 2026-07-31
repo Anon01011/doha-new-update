@@ -105,7 +105,7 @@ export default function PayrollSettings({ settings, companies = [], departments 
                             <div>
                                 <h3 className="text-lg font-normal text-gray-900 tracking-normal">Payroll Setting Scope</h3>
                                 <p className="text-xs text-gray-500 mt-0.5">
-                                    Apply rules globally across all salons/branches or customize specifically for a Branch or Department.
+                                    Apply rules globally across all company branches or customize specifically for a Branch or Department.
                                 </p>
                             </div>
                         </div>
@@ -159,7 +159,7 @@ export default function PayrollSettings({ settings, companies = [], departments 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100">
                             {(scopeType === 'company' || scopeType === 'department') && (
                                 <div className="space-y-1">
-                                    <label className="text-xs font-normal text-gray-700 ml-1">Select Branch / Salon</label>
+                                    <label className="text-xs font-normal text-gray-700 ml-1">Select Branch</label>
                                     <select
                                         value={selectedCompany}
                                         onChange={(e) => handleCompanySelect(e.target.value)}
