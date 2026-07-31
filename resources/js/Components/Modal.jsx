@@ -11,7 +11,7 @@ export default function Modal({
     maxWidth = '2xl',
     closeable = true,
     onClose = () => {},
-    zIndexClass = 'z-50',
+    zIndexClass = 'z-[800]',
 }) {
     const close = () => {
         if (closeable) {
@@ -25,7 +25,9 @@ export default function Modal({
         lg: 'sm:max-w-lg',
         xl: 'sm:max-w-xl',
         '2xl': 'sm:max-w-2xl',
-    }[maxWidth];
+        '3xl': 'sm:max-w-3xl',
+        '4xl': 'sm:max-w-4xl',
+    }[maxWidth] ?? 'sm:max-w-2xl';
 
     return (
         <Transition show={show} leave="duration-200">
@@ -43,7 +45,7 @@ export default function Modal({
                     leaveFrom="opacity-100"
                     leaveTo="opacity-0"
                 >
-                    <div className="absolute inset-0 bg-gray-500/75" />
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" />
                 </TransitionChild>
 
                 <TransitionChild
