@@ -195,4 +195,80 @@ class EmployeeAttendanceTest extends TestCase
         $this->assertEquals(1.0, $attendance->ot); // 9h - 8h normal = 1h OT
         $this->assertEquals(45, $attendance->total_break_minutes); // 12:30 to 13:15 is 45 mins break
     }
+
+    public function test_import_and_export_matching_template()
+    {
+        // 1. Test template download
+        $response = $this->actingAs($this->adminUser)
+            ->get(route('employee-attendances.template'));
+        $response->assertStatus(200);
+        $content = $response->streamedContent();
+        $this->assertStringContainsString('Full Name', $content);
+        $this->assertStringContainsString('ID', $content);
+        $this->assertStringContainsString('Clock-In Time', $content);
+        $this->assertStringContainsString('Absent Duration', $content);
+
+        // 2. Test export actual data
+        // Create an attendance record
+        EmployeeAttendance::create([
+            'employee_id' => $this->emp1->id,
+            'company_id' => $this->branch1->id,
+            'date' => '2026-07-01',
+            'from_time' => '16:15',
+            'to_time' => '01:58',
+            'hours_worked' => 9.72,
+            'normal_hours' => 9.00,
+            'ot' => 0.72,
+            'attendance' => 'Present',
+        ]);
+
+        $response = $this->actingAs($this->adminUser)
+            ->get(route('employee-attendances.template', [
+                'company_id' => $this->branch1->id,
+                'week_start' => '2026-06-29', // Monday of the week containing 2026-07-01
+                'export_data' => true
+            ]));
+        $response->assertStatus(200);
+        $content = $response->streamedContent();
+        
+        // Verify CSV content format (with double quotes for values with spaces)
+        $this->assertStringContainsString('"Employee One",EMP001,2026-07-01,16:15,01:58,09:43,00:00,00:43,--', $content);
+
+        // 3. Test importing attendance CSV
+        $csvData = "Full Name,ID,Date,Clock-In Time,Clock-Out Time,Worked Hours,Absent Duration,Overtime Duration,Leave Type\n" .
+                   "Employee One,EMP001,2026-07-02,08:00,17:00,09:00,00:00,00:00,--\n" .
+                   "Employee One,EMP001,2026-07-03,--,--,00:00,09:00,00:00,Casual Leave\n";
+
+        // Write temp CSV file
+        $tempFile = tempnam(sys_get_temp_dir(), 'att');
+        file_put_contents($tempFile, $csvData);
+
+        $uploadedFile = new \Illuminate\Http\UploadedFile(
+            $tempFile,
+            'attendance_import.csv',
+            'text/csv',
+            null,
+            true
+        );
+
+        $response = $this->actingAs($this->adminUser)
+            ->post(route('employee-attendances.import'), [
+                'file' => $uploadedFile,
+            ]);
+
+        $response->assertSessionHas('success');
+
+        // Check imported records
+        $att1 = EmployeeAttendance::where('employee_id', $this->emp1->id)->where('date', '2026-07-02')->first();
+        $this->assertNotNull($att1);
+        $this->assertEquals('Present', $att1->attendance);
+        $this->assertEquals(9.00, $att1->hours_worked);
+
+        $att2 = EmployeeAttendance::where('employee_id', $this->emp1->id)->where('date', '2026-07-03')->first();
+        $this->assertNotNull($att2);
+        $this->assertEquals('Leave', $att2->attendance);
+        $this->assertEquals(0, $att2->hours_worked);
+
+        unlink($tempFile);
+    }
 }

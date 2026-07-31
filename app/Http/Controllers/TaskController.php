@@ -56,7 +56,7 @@ class TaskController extends Controller
             $query->where('project_id', $projectId);
         }
 
-        $tasks = $query->latest()->paginate(10);
+        $tasks = $query->latest()->paginate(10)->withQueryString();
 
         $projectsQuery = \App\Models\Project::query();
         if ($user && !$user->isAdmin() && !$user->hasPermission('view-tasks')) {
@@ -626,7 +626,7 @@ class TaskController extends Controller
             $query->where('priority', $priority);
         }
 
-        $tasks = $query->latest()->paginate(10);
+        $tasks = $query->latest()->paginate(10)->withQueryString();
 
         return Inertia::render('Task/MyTasks', [
             'tasks' => $tasks,

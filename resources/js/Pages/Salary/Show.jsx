@@ -3,14 +3,17 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import Avatar from '@/Components/Avatar';
 import { useState } from 'react';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import Modal from '@/Components/Modal';
 import { FaArrowLeft, FaEdit, FaCheckCircle, FaTimesCircle, FaMoneyBillWave, FaHistory, FaShieldAlt, FaPrint, FaClock, FaChartPie, FaPlus, FaMinus, FaFileInvoiceDollar, FaInfoCircle } from 'react-icons/fa';
 
-export default function Show({ salaryPosting, userRole = 'employee', loanInstallments = [], advances = [] }) {
+export default function Show({ salaryPosting, userRole = 'employee', loanInstallments = [], advances = [], payrollDetails = null }) {
     const { auth, appSettings } = usePage().props;
     const user = auth?.user || {};
     const canManagePayroll = user.role === 'admin' || (user.permissions && user.permissions.includes('manage-payroll'));
     const currency = appSettings?.currency || 'QAR';
 
+    const [calculationDetails, setCalculationDetails] = useState(payrollDetails);
+    const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [modal, setModal] = useState({
         show: false,
         title: '',
@@ -125,6 +128,16 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                     </div>
 
                     <div className="flex items-center gap-3 relative z-10 w-full sm:w-auto">
+                        {calculationDetails && (
+                            <button
+                                type="button"
+                                onClick={() => setShowDetailsModal(true)}
+                                className="w-full sm:w-auto px-6 py-2.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-normal uppercase tracking-normal hover:bg-indigo-100 transition-all border border-indigo-100 active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <FaInfoCircle size={10} />
+                                View Breakdown
+                            </button>
+                        )}
                         <a
                             href={route('salary-postings.slip', salaryPosting.id)}
                             target="_blank"
@@ -365,6 +378,197 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                 type={modal.type}
                 processing={modal.processing}
             />
+
+            <Modal show={showDetailsModal} onClose={() => setShowDetailsModal(false)} maxWidth="2xl">
+                <div className="p-6 space-y-6">
+                    {/* Header */}
+                    <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+                        <div>
+                            <h3 className="text-lg font-semibold text-slate-900">Salary Calculation Breakdown</h3>
+                            <p className="text-[10px] text-slate-500 uppercase tracking-wider">
+                                Detailed audit for Month: {new Date(salaryPosting.year, salaryPosting.month - 1).toLocaleDateString('en-US', { month: 'long' })}, Year: {salaryPosting.year}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowDetailsModal(false)}
+                            className="text-slate-400 hover:text-slate-600 text-sm font-bold p-2"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    {/* Content Grid */}
+                    <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+                        {/* Section 1: Attendance & Shift Summary */}
+                        <div className="space-y-3">
+                            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                <FaClock className="text-indigo-600" /> Attendance & Shifts
+                            </h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="p-3 bg-slate-50 rounded-lg text-center border border-slate-100">
+                                    <span className="text-[9px] font-medium text-slate-400 uppercase">Present</span>
+                                    <p className="text-xl font-bold text-slate-700">{calculationDetails?.attendance_summary?.present || 0} Days</p>
+                                </div>
+                                <div className="p-3 bg-slate-50 rounded-lg text-center border border-slate-100">
+                                    <span className="text-[9px] font-medium text-slate-400 uppercase">Absent</span>
+                                    <p className="text-xl font-bold text-rose-600">{calculationDetails?.attendance_summary?.absent || 0} Days</p>
+                                </div>
+                                <div className="p-3 bg-slate-50 rounded-lg text-center border border-slate-100">
+                                    <span className="text-[9px] font-medium text-slate-400 uppercase">Paid Leaves</span>
+                                    <p className="text-xl font-bold text-emerald-600">{calculationDetails?.attendance_summary?.leave_paid || 0} Days</p>
+                                </div>
+                                <div className="p-3 bg-slate-50 rounded-lg text-center border border-slate-100">
+                                    <span className="text-[9px] font-medium text-slate-400 uppercase">Unpaid Leaves</span>
+                                    <p className="text-xl font-bold text-rose-500">{calculationDetails?.attendance_summary?.leave_unpaid || 0} Days</p>
+                                </div>
+                            </div>
+
+                            {/* Roster vs Attendance Shift breakdown */}
+                            <div className="bg-slate-50/50 p-4 rounded-lg border border-slate-100 space-y-3">
+                                <h5 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                                    <span>Shift Roster vs Attendance Details</span>
+                                    <span className="text-[9px] font-normal text-slate-400 lowercase">Calculated based on daily roster schedules and clock-in records</span>
+                                </h5>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    {['Morning', 'Evening', 'Night'].map((shift) => {
+                                        const rostered = calculationDetails?.shift_summary?.rostered?.[shift] || 0;
+                                        const attended = calculationDetails?.shift_summary?.attended?.[shift] || 0;
+                                        return (
+                                            <div key={shift} className="p-3 bg-white rounded-lg border border-slate-100 shadow-sm flex flex-col justify-between">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className="text-[10px] font-bold text-slate-700 uppercase">{shift} Shift</span>
+                                                    {shift === 'Night' && (
+                                                        <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 text-[8px] font-semibold rounded uppercase tracking-wider">
+                                                            OT Multiplier
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2 text-center border-t border-slate-50 pt-2">
+                                                    <div>
+                                                        <p className="text-[8px] font-normal text-slate-400 uppercase">Rostered</p>
+                                                        <p className="text-xs font-semibold text-slate-600">{rostered}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[8px] font-normal text-slate-400 uppercase">Attended</p>
+                                                        <p className="text-xs font-semibold text-emerald-600">{attended}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <div className="text-[9px] text-slate-400 leading-relaxed bg-white/60 p-2.5 rounded border border-slate-100">
+                                    <strong>Night Shift Calculation:</strong> Night shifts require checking the roster schedules and matching them with actual clock-in attendance records. If the employee worked a Night Shift (as defined by roster/attendance) and worked overtime, the night overtime hours are calculated at a higher multiplier (e.g. {calculationDetails?.overtime_breakdown?.Night?.multiplier || '1.50'}x) compared to Day/Morning/Evening shifts (e.g. {calculationDetails?.overtime_breakdown?.Day?.multiplier || '1.25'}x).
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Section 2: Salary Calculation Details */}
+                        <div className="space-y-3">
+                            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                <FaMoneyBillWave className="text-emerald-500" /> Salary Formula
+                            </h4>
+                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-4">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                    <div>
+                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Basic Salary</span>
+                                        <p className="text-xs font-semibold text-slate-800">{formatCurrency(calculationDetails?.basic_salary)}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Calculation Method</span>
+                                        <p className="text-xs font-semibold text-indigo-600 uppercase">{calculationDetails?.salary_calculation_method || 'Fixed'}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Effective Days</span>
+                                        <p className="text-xs font-semibold text-slate-800">{calculationDetails?.effective_days_per_month || 30} Days</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Daily Rate</span>
+                                        <p className="text-xs font-semibold text-slate-800">{formatCurrency(calculationDetails?.daily_rate)} / Day</p>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-slate-200/60 pt-3">
+                                    <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Deduction Details</p>
+                                    <div className="flex justify-between items-center text-xs text-slate-600">
+                                        <span>Absent/Unpaid Days Deduction ({calculationDetails?.absent_days || 0} days × {formatCurrency(calculationDetails?.daily_rate)})</span>
+                                        <span className="font-semibold text-rose-600">-{formatCurrency(calculationDetails?.leave_deduction)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Section 3: Overtime Breakdown */}
+                        <div className="space-y-3">
+                            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                <FaChartLine className="text-indigo-500" /> Overtime Details
+                            </h4>
+                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-4">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                    <div>
+                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Total OT Hours</span>
+                                        <p className="text-xs font-semibold text-slate-800">{calculationDetails?.overtime_hours || 0} Hours</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Base OT Rate</span>
+                                        <p className="text-xs font-semibold text-slate-800">{formatCurrency(calculationDetails?.overtime_base_rate)} / Hour</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-[8px] font-medium text-slate-400 uppercase">OT Mode</span>
+                                        <p className="text-xs font-semibold text-slate-800 uppercase">{calculationDetails?.overtime_calculation_mode?.replace('_', ' ') || 'base_salary'}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-[8px] font-medium text-slate-400 uppercase">Total OT Amount</span>
+                                        <p className="text-xs font-bold text-emerald-600">{formatCurrency(calculationDetails?.overtime_amount)}</p>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-slate-200/60 pt-3 space-y-2">
+                                    <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Overtime Breakdown by Category</p>
+                                    {['Day', 'Night', 'Holiday'].map((category) => {
+                                        const otData = calculationDetails?.overtime_breakdown?.[category] || { hours: 0, multiplier: 0, amount: 0 };
+                                        if (otData.hours === 0) return null;
+                                        return (
+                                            <div key={category} className="flex justify-between items-center text-xs text-slate-600">
+                                                <span>
+                                                    {category === 'Day' ? 'Regular Day/Morning/Evening Shift' : category === 'Night' ? 'Night Shift' : 'Holiday'} Overtime ({otData.hours} hours × multiplier {otData.multiplier}x)
+                                                </span>
+                                                <span className="font-semibold text-slate-800">+{formatCurrency(otData.amount)}</span>
+                                            </div>
+                                        );
+                                    })}
+                                    {(!calculationDetails?.overtime_breakdown?.Day?.hours && !calculationDetails?.overtime_breakdown?.Night?.hours && !calculationDetails?.overtime_breakdown?.Holiday?.hours) && (
+                                        <p className="text-xs text-slate-400 italic">No overtime hours recorded for this period.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Section 4: Total Working Hours Summary */}
+                        <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-lg flex justify-between items-center">
+                            <div>
+                                <h4 className="text-xs font-bold text-indigo-800 uppercase">Total Work Hours Recorded</h4>
+                                <p className="text-[10px] text-indigo-500 uppercase tracking-wide">Sum of hours worked from daily attendance punches</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-2xl font-bold text-indigo-600">{calculationDetails?.total_hours_worked || 0} Hrs</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="flex justify-end pt-4 border-t border-slate-100">
+                        <button
+                            type="button"
+                            onClick={() => setShowDetailsModal(false)}
+                            className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                        >
+                            Close Details
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </AuthenticatedLayout>
     );
 }

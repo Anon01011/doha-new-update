@@ -61,6 +61,7 @@ export default function Index({ leaveTypes }) {
                                 <tr className="bg-slate-50/30">
                                     <th className="px-5 py-3 text-left text-xs font-normal text-slate-500 border-b border-slate-100">Leave Type</th>
                                     <th className="px-5 py-3 text-left text-xs font-normal text-slate-500 border-b border-slate-100">Code</th>
+                                    <th className="px-5 py-3 text-left text-xs font-normal text-slate-500 border-b border-slate-100">Branch</th>
                                     <th className="px-5 py-3 text-center text-xs font-normal text-slate-500 border-b border-slate-100">Days Per Year</th>
                                     <th className="px-5 py-3 text-center text-xs font-normal text-slate-500 border-b border-slate-100">Carry Forward</th>
                                     <th className="px-5 py-3 text-left text-xs font-normal text-slate-500 border-b border-slate-100">Status</th>
@@ -76,12 +77,26 @@ export default function Index({ leaveTypes }) {
                                                     <div className="w-9 h-9 bg-slate-900 text-white rounded-xl flex items-center justify-center text-xs font-normal shadow-lg">
                                                         {type.code?.substring(0, 2)}
                                                     </div>
-                                                    <span className="text-sm font-normal text-slate-900">{type.name}</span>
+                                                    <div>
+                                                        <span className="text-sm font-normal text-slate-900 block">{type.name}</span>
+                                                        <span className={`inline-flex items-center px-1.5 py-0.5 mt-1.5 text-[8px] font-normal uppercase tracking-normal rounded border ${
+                                                            type.is_paid 
+                                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                                                                : 'bg-slate-50 text-slate-400 border-slate-200'
+                                                        }`}>
+                                                            {type.is_paid ? 'Paid' : 'Unpaid'}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="px-5 py-3">
                                                 <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-xl text-xs font-normal border border-slate-200">
                                                     {type.code}
+                                                </span>
+                                            </td>
+                                            <td className="px-5 py-3">
+                                                <span className="text-sm font-normal text-slate-900">
+                                                    {type.company?.name || 'All Branches'}
                                                 </span>
                                             </td>
                                             <td className="px-5 py-3 text-center">
@@ -138,7 +153,7 @@ export default function Index({ leaveTypes }) {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan="6" className="px-6 py-20 text-center">
+                                        <td colSpan="7" className="px-6 py-20 text-center">
                                             <div className="flex flex-col items-center justify-center">
                                                 <div className="w-16 h-16 bg-slate-50 rounded-xl flex items-center justify-center text-slate-200 mb-6 border border-slate-100">
                                                     <FaClipboardList size={28} />

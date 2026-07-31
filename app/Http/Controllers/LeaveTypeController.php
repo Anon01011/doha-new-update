@@ -15,7 +15,7 @@ class LeaveTypeController extends Controller
             abort(403, 'Unauthorized. You do not have permission to view leave types.');
         }
 
-        $query = LeaveType::latest();
+        $query = LeaveType::with('company')->latest();
 
         // Multi-tenancy scoping
         $companyId = $user->company_id;

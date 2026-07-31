@@ -53,7 +53,7 @@ class LoanController extends Controller
             $query->where('status', $status);
         }
 
-        $loans = $query->latest()->paginate(10);
+        $loans = $query->latest()->paginate(10)->withQueryString();
         return Inertia::render('Loan/Index', [
             'loans' => $loans,
             'status' => $status,

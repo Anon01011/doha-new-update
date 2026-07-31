@@ -15,6 +15,7 @@ export default function ConfirmationModal({
     type = 'info', // 'info', 'success', 'warning', 'danger'
     processing = false,
     hideCancel = false,
+    zIndexClass = 'z-50',
 }) {
     const getIcon = () => {
         switch (type) {
@@ -54,7 +55,7 @@ export default function ConfirmationModal({
     };
 
     return (
-        <Modal show={show} onClose={onClose} maxWidth="md">
+        <Modal show={show} onClose={onClose} maxWidth="md" zIndexClass={zIndexClass}>
             <div className="p-6">
                 <div className="flex items-center gap-4">
                     <div className={`p-2 rounded-full ${type === 'success' ? 'bg-emerald-50' :

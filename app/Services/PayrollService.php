@@ -85,6 +85,18 @@ class PayrollService
         $totalOtHours = 0;
         $overtimeAmount = 0;
         $totalAbsentDays = 0;
+        $totalHoursWorked = 0.0;
+
+        $shiftCounts = [
+            'rostered' => ['Morning' => 0, 'Evening' => 0, 'Night' => 0, 'Day' => 0, 'Other' => 0],
+            'attended' => ['Morning' => 0, 'Evening' => 0, 'Night' => 0, 'Day' => 0, 'Other' => 0]
+        ];
+
+        $otBreakdown = [
+            'Day' => ['hours' => 0.0, 'multiplier' => 0.0, 'amount' => 0.0],
+            'Night' => ['hours' => 0.0, 'multiplier' => 0.0, 'amount' => 0.0],
+            'Holiday' => ['hours' => 0.0, 'multiplier' => 0.0, 'amount' => 0.0]
+        ];
 
         $summary = [
             'present'      => 0,
@@ -119,13 +131,41 @@ class PayrollService
                 $summary['weekly_off']++;
             }
 
+            // Resolve rostered shift type
+            $rosteredShiftType = null;
+            $roster = \App\Models\ShiftRoster::where('employee_id', $employeeId)
+                ->where('day', $current->format('l'))
+                ->where('week_start', '<=', $dateStr)
+                ->orderBy('week_start', 'desc')
+                ->first();
+            if ($roster) {
+                $rosteredShiftType = $roster->shift_type;
+            }
+
+            if ($rosteredShiftType) {
+                $key = in_array($rosteredShiftType, ['Morning', 'Evening', 'Night', 'Day']) ? $rosteredShiftType : 'Other';
+                $shiftCounts['rostered'][$key]++;
+            }
+
             $dailyOtHours = 0;
             if ($attendance) {
                 $dailyOtHours = $attendance->ot ?? 0;
                 $totalOtHours += $dailyOtHours;
+                $totalHoursWorked += (float) ($attendance->hours_worked ?? 0);
+
+                $status = $attendance->attendance ?? '';
+                if (in_array($status, ['Present', 'Late', 'Half Day'])) {
+                    $attendedShiftType = null;
+                    if ($attendance->shift) {
+                        $attendedShiftType = $attendance->shift->shift_type;
+                    } else {
+                        $attendedShiftType = $rosteredShiftType ?: 'Day';
+                    }
+                    $key = in_array($attendedShiftType, ['Morning', 'Evening', 'Night', 'Day']) ? $attendedShiftType : 'Other';
+                    $shiftCounts['attended'][$key]++;
+                }
 
                 if (!$isWeeklyOffDay) {
-                    $status = $attendance->attendance ?? '';
                     if ($status === 'Absent') {
                         $totalAbsentDays++;
                         $summary['absent']++;
@@ -178,11 +218,6 @@ class PayrollService
                     if ($attendance && $attendance->shift) {
                         $shiftType = $attendance->shift->shift_type;
                     } else {
-                        $roster = \App\Models\ShiftRoster::where('employee_id', $employeeId)
-                            ->where('day', $current->format('l'))
-                            ->where('week_start', '<=', $dateStr)
-                            ->orderBy('week_start', 'desc')
-                            ->first();
                         if ($roster) {
                             $shiftType = $roster->shift_type;
                         }
@@ -208,7 +243,22 @@ class PayrollService
                 // Apply "No Overtime" rules
                 $isNoOvertime = $employee->no_overtime || ($attendance && $attendance->no_overtime);
                 if (!$isNoOvertime) {
-                    $overtimeAmount += $dailyOtHours * ($baseOtRate * $multiplier);
+                    $dailyOtAmount = $dailyOtHours * ($baseOtRate * $multiplier);
+                    $overtimeAmount += $dailyOtAmount;
+
+                    if ($isHoliday) {
+                        $otBreakdown['Holiday']['hours'] += $dailyOtHours;
+                        $otBreakdown['Holiday']['multiplier'] = $multiplier;
+                        $otBreakdown['Holiday']['amount'] += $dailyOtAmount;
+                    } elseif ($shiftType === 'Night') {
+                        $otBreakdown['Night']['hours'] += $dailyOtHours;
+                        $otBreakdown['Night']['multiplier'] = $multiplier;
+                        $otBreakdown['Night']['amount'] += $dailyOtAmount;
+                    } else {
+                        $otBreakdown['Day']['hours'] += $dailyOtHours;
+                        $otBreakdown['Day']['multiplier'] = $multiplier;
+                        $otBreakdown['Day']['amount'] += $dailyOtAmount;
+                    }
                 }
             }
 
@@ -274,6 +324,16 @@ class PayrollService
             'holiday_days'           => $holidayCount,
             'working_days_in_month'  => $workingDays,
             'calendar_days'          => $calendarDays,
+            
+            // New detailed fields for modal breakdown
+            'total_hours_worked'     => round($totalHoursWorked, 2),
+            'shift_summary'          => $shiftCounts,
+            'overtime_breakdown'     => $otBreakdown,
+            'overtime_base_rate'     => isset($baseOtRate) ? round($baseOtRate, 2) : round($hourlyRate, 2),
+            'overtime_calculation_mode' => Setting::get('overtime_calculation_mode', 'base_salary', $companyId),
+            'salary_calculation_method' => $calcMethod,
+            'effective_days_per_month'  => $effectiveDaysPerMonth,
+            'daily_rate'             => round($dailyRate, 2),
         ];
     }
 

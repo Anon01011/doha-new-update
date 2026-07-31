@@ -376,11 +376,11 @@ export default function Index({ branches = [], employees, attendances = [], rost
 
     const handleImportSubmit = (e) => {
         e.preventDefault();
-        if (!importFile || !selectedBranch) {
+        if (!importFile) {
             setConfirmingAction({
                 show: true,
                 title: 'Missing File',
-                message: 'Please select a CSV file and branch to import.',
+                message: 'Please select a CSV file to import.',
                 type: 'warning',
                 hideCancel: true,
                 onConfirm: closeModal
@@ -390,17 +390,22 @@ export default function Index({ branches = [], employees, attendances = [], rost
         setImportProcessing(true);
         const formData = new FormData();
         formData.append('file', importFile);
-        formData.append('company_id', selectedBranch);
+        if (selectedBranch) {
+            formData.append('company_id', selectedBranch);
+        }
         router.post(route('employee-attendances.import'), formData, {
-            onSuccess: () => {
+            onSuccess: (page) => {
                 setIsImportModalOpen(false);
                 setImportFile(null);
                 setImportProcessing(false);
                 if (fileInputRef.current) fileInputRef.current.value = '';
+                
+                const successMsg = page?.props?.flash?.success || 'Attendance data has been imported successfully.';
+                
                 setConfirmingAction({
                     show: true,
-                    title: 'Import Successful',
-                    message: 'Attendance data has been imported successfully.',
+                    title: 'Import Result',
+                    message: successMsg,
                     type: 'success',
                     hideCancel: true,
                     onConfirm: closeModal
@@ -408,6 +413,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
             },
             onError: (errors) => {
                 setImportProcessing(false);
+                setIsImportModalOpen(false); // Close the import modal on error
                 console.error(errors);
 
                 let errorMsg = 'Failed to import attendance. Please check the file format.';
@@ -415,6 +421,8 @@ export default function Index({ branches = [], employees, attendances = [], rost
                     errorMsg = errors.import_errors;
                 } else if (errors.file) {
                     errorMsg = errors.file;
+                } else if (Object.keys(errors).length > 0) {
+                    errorMsg = Object.values(errors).join('\n');
                 }
 
                 setConfirmingAction({
@@ -445,7 +453,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                 <p className="text-[11px] text-primary leading-relaxed font-normal uppercase tracking-normal mb-3">
                                     Make sure your CSV file has <strong>Employee Name</strong> and <strong>Date</strong> columns.
                                 </p>
-                                <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
+                                <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-6">
                                     <a
                                         href={route('employee-attendances.template')}
                                         className="text-[11px] font-normal text-primary hover:underline underline-offset-4"
@@ -457,6 +465,12 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                         className="text-[11px] font-normal text-primary hover:underline underline-offset-4"
                                     >
                                         Download Employee Template (with staff)
+                                    </a>
+                                    <a
+                                        href={route('employee-attendances.template', { company_id: selectedBranch, week_start: weekStart, export_data: true })}
+                                        className="text-[11px] font-normal text-primary hover:underline underline-offset-4 font-semibold"
+                                    >
+                                        Export Current Week Attendance
                                     </a>
                                 </div>
                             </div>
@@ -766,6 +780,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                 onClose={closeModal}
                 type={confirmingAction.type}
                 hideCancel={confirmingAction.hideCancel}
+                zIndexClass="z-[80]"
             />
 
             {selectedBreakup && (

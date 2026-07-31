@@ -39,7 +39,7 @@ class TrainingController extends Controller
             $query->where('status', $status);
         }
 
-        $trainings = $query->latest()->paginate(10);
+        $trainings = $query->latest()->paginate(10)->withQueryString();
 
         // Get companies for admin filter
         $companies = [];

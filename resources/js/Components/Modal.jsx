@@ -11,6 +11,7 @@ export default function Modal({
     maxWidth = '2xl',
     closeable = true,
     onClose = () => {},
+    zIndexClass = 'z-50',
 }) {
     const close = () => {
         if (closeable) {
@@ -31,7 +32,7 @@ export default function Modal({
             <Dialog
                 as="div"
                 id="modal"
-                className="fixed inset-0 z-50 flex transform items-center overflow-y-auto px-4 py-6 transition-all sm:px-0"
+                className={`fixed inset-0 ${zIndexClass} flex transform items-center overflow-y-auto px-4 py-6 transition-all sm:px-0`}
                 onClose={close}
             >
                 <TransitionChild

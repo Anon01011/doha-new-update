@@ -42,7 +42,7 @@ class AdvanceController extends Controller
             $query->where('status', $status);
         }
 
-        $advances = $query->latest()->paginate(10);
+        $advances = $query->latest()->paginate(10)->withQueryString();
         return Inertia::render('Advance/Index', [
             'advances' => $advances,
             'status' => $status,

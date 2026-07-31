@@ -22,7 +22,7 @@ class EmployeeAttendanceController extends Controller
             abort(403, 'Unauthorized. You do not have permission to import attendance.');
         }
 
-        // Validate file upload
+        // Validate file upload (company_id is now optional for import)
         $request->validate([
             'file' => [
                 'required',
@@ -30,21 +30,20 @@ class EmployeeAttendanceController extends Controller
                 'mimes:csv,txt',
                 'max:10240', // 10MB max
             ],
-            'company_id' => 'required|exists:companies,id',
+            'company_id' => 'nullable|exists:companies,id',
         ], [
             'file.required' => 'Please select a CSV file to upload.',
             'file.mimes' => 'Only CSV files are supported. Please upload a .csv or .txt file.',
             'file.max' => 'File size must not exceed 10MB.',
-            'company_id.required' => 'Please select a company.',
             'company_id.exists' => 'Selected company does not exist.',
         ]);
 
         $file = $request->file('file');
         $companyId = $request->input('company_id');
 
-        // Multi-tenancy check (BelongsToCompany handles isolation for employees, but for import we check explicit access)
+        // Multi-tenancy check (For non-admins, ensure if they pass a company_id it matches their own)
         if (!$user->isAdmin() && !$user->isHR() && $user->employee_id) {
-            if ($companyId != $user->employee->company_id) {
+            if ($companyId && $companyId != $user->employee->company_id) {
                 abort(403, 'Unauthorized access to another branch.');
             }
         }
@@ -54,11 +53,24 @@ class EmployeeAttendanceController extends Controller
             return back()->withErrors(['file' => 'The uploaded file is invalid or corrupted. Please try again.']);
         }
 
-        // Read CSV file
         $path = $file->getRealPath();
 
+        // Detect CSV delimiter (comma or semicolon)
+        $firstLine = file_exists($path) ? file_get_contents($path, false, null, 0, 1024) : '';
+        $delimiter = ',';
+        if (strpos($firstLine, ';') !== false && substr_count($firstLine, ';') > substr_count($firstLine, ',')) {
+            $delimiter = ';';
+        }
+
         try {
-            $data = array_map('str_getcsv', file($path));
+            $lines = file($path);
+            $data = [];
+            foreach ($lines as $line) {
+                if (trim($line) === '') {
+                    continue;
+                }
+                $data[] = str_getcsv($line, $delimiter);
+            }
         } catch (\Exception $e) {
             return back()->withErrors(['file' => 'Failed to read CSV file. Please ensure the file is a valid CSV format.']);
         }
@@ -67,8 +79,7 @@ class EmployeeAttendanceController extends Controller
             return back()->withErrors(['file' => 'The CSV file is empty. Please upload a file with attendance data.']);
         }
 
-        // Biometric CSV files often have title rows before the actual header
-        // Find the actual header row by looking for common column names
+        // Find the actual header row
         $header = null;
         $headerIndex = -1;
 
@@ -77,11 +88,15 @@ class EmployeeAttendanceController extends Controller
                 continue;
             }
 
-            // Check if this row looks like a header (contains common column names)
-            $rowLower = array_map('strtolower', array_map('trim', $row));
+            $rowLower = array_map(function ($val) {
+                $val = preg_replace('/[\x00-\x1F\x7F-\x9F\xEF\xBB\xBF]/', '', $val);
+                return strtolower(trim($val));
+            }, $row);
+
             $hasIdColumn = in_array('id', $rowLower) ||
                 in_array('employee id', $rowLower) ||
-                in_array('emp id', $rowLower);
+                in_array('emp id', $rowLower) ||
+                in_array('employee_id', $rowLower);
             $hasDateColumn = in_array('date', $rowLower);
 
             if ($hasIdColumn || $hasDateColumn) {
@@ -102,74 +117,53 @@ class EmployeeAttendanceController extends Controller
 
         if (empty($header) || count($header) < 3) {
             return back()->withErrors([
-                'file' => 'Invalid CSV format. The file must have a header row with column names. 
-                
-Supported formats:
-1. Biometric CSV: ID, Name, Date, Clock-In, Clock-Out, Worked Hours, Overtime
-2. Simple CSV: ID, Date, Clock-In, Clock-Out
-
-Example:
-ID,Name,Date,Clock-In,Clock-Out,Worked Hours,Overtime
-101,John Doe,26/01/2026,08:00,17:00,09:00,00:00'
+                'file' => 'Invalid CSV format. The file must have a header row with column names.'
             ]);
         }
 
-        // Detect column indices for biometric CSV format
+        // Detect column indices for template and biometric formats
         $colMap = [
             'id' => -1,
+            'name' => -1,
             'date' => -1,
-            'clock_in_date' => -1,
             'clock_in_time' => -1,
-            'clock_out_date' => -1,
             'clock_out_time' => -1,
             'worked_hours' => -1,
+            'absent_duration' => -1,
             'overtime' => -1,
-            'absent_duration' => -1,  // Absent Hours: used to deduct from worked hours
-            'break_duration' => -1,   // Absent Duration: stored as total_break_minutes
+            'leave_type' => -1,
         ];
 
         foreach ($header as $index => $col) {
+            $col = preg_replace('/[\x00-\x1F\x7F-\x9F\xEF\xBB\xBF]/', '', $col);
             $col = strtolower(trim($col));
 
-            // Match ID column
-            if ($col === 'id' || str_contains($col, 'employee id') || str_contains($col, 'emp id') || str_contains($col, 'employee_id')) {
+            if ($col === 'id' || $col === 'employee id' || $col === 'emp id' || $col === 'employee_id') {
                 $colMap['id'] = $index;
             }
-            // Match Date column (main date)
-            if ($col === 'date' && $colMap['date'] === -1) {
+            if ($col === 'full name' || $col === 'name' || $col === 'employee name' || $col === 'employee_name') {
+                $colMap['name'] = $index;
+            }
+            if ($col === 'date') {
                 $colMap['date'] = $index;
             }
-            // Match Clock-In Date
-            if (str_contains($col, 'clock-in date') || str_contains($col, 'clock in date')) {
-                $colMap['clock_in_date'] = $index;
-            }
-            // Match Clock-In Time
-            if ($col === 'clock-in' || $col === 'clock in' || str_contains($col, 'clock-in time') || str_contains($col, 'clock in time')) {
+            if ($col === 'clock-in time' || $col === 'clock-in' || $col === 'clock in' || $col === 'clock_in_time' || $col === 'clock in time') {
                 $colMap['clock_in_time'] = $index;
             }
-            // Match Clock-Out Date
-            if (str_contains($col, 'clock-out date') || str_contains($col, 'clock out date')) {
-                $colMap['clock_out_date'] = $index;
-            }
-            // Match Clock-Out Time
-            if ($col === 'clock-out' || $col === 'clock out' || str_contains($col, 'clock-out time') || str_contains($col, 'clock out time')) {
+            if ($col === 'clock-out time' || $col === 'clock-out' || $col === 'clock out' || $col === 'clock_out_time' || $col === 'clock out time') {
                 $colMap['clock_out_time'] = $index;
             }
-            // Match Worked Hours
-            if (str_contains($col, 'worked hours') || str_contains($col, 'work hours') || str_contains($col, 'work time') || $col === 'worked_hours') {
+            if ($col === 'worked hours' || $col === 'work hours' || $col === 'worked_hours' || $col === 'actual hours' || $col === 'actual_hours') {
                 $colMap['worked_hours'] = $index;
             }
-            // Match Overtime
-            if (str_contains($col, 'overtime duration') || str_contains($col, 'overtime') || $col === 'ot') {
-                $colMap['overtime'] = $index;
-            }
-            // Match Absent Duration / Absent Hours (used to deduct from worked hours)
-            if (str_contains($col, 'absent hours') || str_contains($col, 'absent_hours')) {
+            if ($col === 'absent duration' || $col === 'absent_duration' || $col === 'absent hours' || $col === 'absent_hours') {
                 $colMap['absent_duration'] = $index;
             }
-            // Match Absent Duration (used as break time)
-            if (str_contains($col, 'absent duration') || str_contains($col, 'absent_duration') || str_contains($col, 'break duration') || str_contains($col, 'break time')) {
-                $colMap['break_duration'] = $index;
+            if ($col === 'overtime duration' || $col === 'overtime_duration' || $col === 'overtime' || $col === 'ot') {
+                $colMap['overtime'] = $index;
+            }
+            if ($col === 'leave type' || $col === 'leave_type') {
+                $colMap['leave_type'] = $index;
             }
         }
 
@@ -180,20 +174,7 @@ ID,Name,Date,Clock-In,Clock-Out,Worked Hours,Overtime
             }, $header));
 
             return back()->withErrors([
-                'file' => "Required columns not found in CSV file.
-
-Required columns:
-- ID (employee code/number)
-- Date (attendance date)
-
-Optional columns for biometric import:
-- Name (employee name)
-- Clock-In, Clock-Out  
-- Worked Hours, Overtime
-
-Your CSV has these columns: {$foundColumns}
-
-Please ensure your CSV file has at least 'ID' and 'Date' columns."
+                'file' => "Required columns 'ID' and 'Date' not found in CSV file. Your CSV has these columns: {$foundColumns}"
             ]);
         }
 
@@ -201,23 +182,32 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
         $skippedCount = 0;
         $errors = [];
 
+        $weeklyOffService = app(WeeklyOffService::class);
+
         foreach ($data as $rowIndex => $row) {
+            // Skip empty rows
+            if (empty($row) || (count($row) === 1 && trim($row[0]) === '')) {
+                continue;
+            }
+
             if (count($row) < 3) {
-                continue; // Skip empty or invalid rows
+                $errors[] = "Row " . ($rowIndex + 2) . ": Invalid column count. Expected at least 3 columns, found " . count($row);
+                $skippedCount++;
+                continue;
             }
 
             try {
                 // Get employee ID/code
                 $empCode = trim($row[$colMap['id']]);
                 if (empty($empCode)) {
+                    $errors[] = "Row " . ($rowIndex + 2) . ": Employee ID is empty";
                     $skippedCount++;
                     continue;
                 }
 
-                // Parse date (handle DD/MM/YYYY and DD-MM-YYYY formats, with 1 or 2 digits)
+                // Parse date
                 $dateStr = trim($row[$colMap['date']]);
                 try {
-                    // Try DD/MM/YYYY or DD-MM-YYYY format first (flexible for 1-2 digits)
                     if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2}|\d{4})$/', $dateStr, $matches)) {
                         $year = strlen($matches[3]) == 2 ? 2000 + (int) $matches[3] : $matches[3];
                         $date = Carbon::createFromDate($year, $matches[2], $matches[1])->toDateString();
@@ -231,26 +221,45 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                         continue;
                     }
                 } catch (\Exception $e) {
+                    $errors[] = "Row " . ($rowIndex + 2) . ": Invalid date format ($dateStr)";
                     $skippedCount++;
                     continue;
                 }
 
-                // Find Employee by employee_code or id (eager-load weekly off data to avoid N+1)
+                // Find Employee by employee_code or id with fallback to padded format (always global to allow multi-branch imports)
                 $employee = Employee::with(['weeklyOffs', 'company'])
-                    ->where('company_id', $companyId)
                     ->where(function ($query) use ($empCode) {
                         $query->where('employee_code', $empCode)
                             ->orWhere('id', $empCode);
+
+                        if (is_numeric($empCode)) {
+                            $empInt = (int)$empCode;
+                            $query->orWhere('id', $empInt)
+                                  ->orWhere('employee_code', $empInt)
+                                  ->orWhere('employee_code', sprintf('%03d', $empInt))
+                                  ->orWhere('employee_code', sprintf('%04d', $empInt))
+                                  ->orWhere('employee_code', sprintf('%05d', $empInt))
+                                  ->orWhere('employee_code', sprintf('%06d', $empInt));
+                        }
                     })
                     ->first();
 
                 if (!$employee) {
-                    $errors[] = "Employee with ID {$empCode} not found in company";
+                    $errors[] = "Row " . ($rowIndex + 2) . ": Employee with ID {$empCode} not found";
                     $skippedCount++;
                     continue;
                 }
 
-                // Determine expected/standard normal hours for the shift early
+                // Multi-tenancy verification for non-admins
+                if (!$user->isAdmin() && !$user->isHR() && $user->employee_id) {
+                    if ($employee->company_id != $user->employee->company_id) {
+                        $errors[] = "Row " . ($rowIndex + 2) . ": Employee with ID {$empCode} does not belong to your branch";
+                        $skippedCount++;
+                        continue;
+                    }
+                }
+
+                // Determine expected/standard normal hours for the shift
                 $parsedDate = Carbon::parse($date);
                 $dayName = $parsedDate->format('l');
                 $roster = ShiftRoster::where('employee_id', $employee->id)
@@ -258,7 +267,7 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                     ->where('week_start', '<=', $date)
                     ->orderBy('week_start', 'desc')
                     ->first();
-                $stdHours = Setting::get('standard_working_hours', 9, $companyId);
+                $stdHours = Setting::get('standard_working_hours', 9, $employee->company_id);
                 $expectedNormalHours = $roster ? ($roster->shift_duration ?? $stdHours) : $stdHours;
 
                 // Parse clock-in and clock-out times
@@ -289,42 +298,24 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                     $hoursWorked = $this->parseTimeToDecimal($workedStr);
                 }
 
-                // Parse absent duration (format: HH:MM) — used to deduct from worked hours
+                // Parse absent duration (format: HH:MM)
                 $absentHours = 0;
                 if ($colMap['absent_duration'] !== -1) {
                     $absentStr = trim($row[$colMap['absent_duration']]);
                     $absentHours = $this->parseTimeToDecimal($absentStr);
                 }
 
-                // Parse break duration (Absent Duration column) — stored as total_break_minutes
-                $breakMinutes = 0;
-                if ($colMap['break_duration'] !== -1 && isset($row[$colMap['break_duration']])) {
-                    $breakStr = trim($row[$colMap['break_duration']]);
-                    if ($breakStr && $breakStr !== '--' && $breakStr !== '00:00') {
-                        $breakDecimal = $this->parseTimeToDecimal($breakStr);
-                        $breakMinutes = (int) round($breakDecimal * 60);
-                    }
-                }
-
-                // If hours worked is 0/empty:
-                if ($hoursWorked == 0) {
-                    // 1. Try to calculate from expected shift hours and absent duration if available
-                    if ($colMap['absent_duration'] !== -1 && $absentHours > 0 && $clockInTime && $clockInTime !== '--') {
-                        $hoursWorked = max(0, $expectedNormalHours - $absentHours);
-                    }
-                    // 2. Otherwise, calculate from clock-in and clock-out times
-                    elseif ($clockInTime && $clockOutTime && $clockInTime !== '--' && $clockOutTime !== '--') {
-                        try {
-                            $timeIn = Carbon::parse($clockInTime);
-                            $timeOut = Carbon::parse($clockOutTime);
-                            if ($timeOut->lt($timeIn)) {
-                                // Overnight shift
-                                $timeOut->addDay();
-                            }
-                            $hoursWorked = round($timeOut->diffInMinutes($timeIn) / 60, 2);
-                        } catch (\Exception $e) {
-                            Log::error("Error calculating hours worked in import: " . $e->getMessage());
+                // If hours worked is 0 but we have times, calculate
+                if ($hoursWorked == 0 && $clockInTime && $clockOutTime && $clockInTime !== '--' && $clockOutTime !== '--') {
+                    try {
+                        $timeIn = Carbon::parse($clockInTime);
+                        $timeOut = Carbon::parse($clockOutTime);
+                        if ($timeOut->lt($timeIn)) {
+                            $timeOut->addDay();
                         }
+                        $hoursWorked = round($timeOut->diffInMinutes($timeIn) / 60, 2);
+                    } catch (\Exception $e) {
+                        Log::error("Error calculating hours worked in import: " . $e->getMessage());
                     }
                 }
 
@@ -335,38 +326,64 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
                     $overtimeHours = $this->parseTimeToDecimal($overtimeStr);
                 }
 
+                // Parse leave type
+                $leaveTypeStr = null;
+                if ($colMap['leave_type'] !== -1) {
+                    $leaveTypeStr = trim($row[$colMap['leave_type']]);
+                }
+
                 // Determine attendance status
                 $attendanceStatus = 'Present';
                 $isWorked = ($hoursWorked > 0 || ($clockInTime && $clockInTime !== '--') || ($clockOutTime && $clockOutTime !== '--'));
 
-                // Check weekly off FIRST (overrides all other status logic if they didn't work)
-                $weeklyOffService = app(WeeklyOffService::class);
-                if ($weeklyOffService->isWeeklyOff($employee, $parsedDate) && !$isWorked) {
+                // Approved leave check
+                $isLeave = \App\Models\LeaveRequest::where('employee_id', $employee->id)
+                    ->where('status', 'approved')
+                    ->where('start_date', '<=', $date)
+                    ->where('end_date', '>=', $date)
+                    ->exists();
+
+                if ($leaveTypeStr && $leaveTypeStr !== '--' && $leaveTypeStr !== '') {
+                    $attendanceStatus = str_contains(strtolower($leaveTypeStr), 'sick') ? 'Sick Leave' : 'Leave';
+                } elseif ($isLeave) {
+                    $attendanceStatus = 'Leave';
+                } elseif ($weeklyOffService->isWeeklyOff($employee, $parsedDate) && !$isWorked) {
                     $attendanceStatus = 'Weekly Off';
-                } elseif ($isAbsent || $hoursWorked == 0) {
+                } elseif (!$isWorked || $hoursWorked == 0) {
                     $attendanceStatus = 'Absent';
                 } elseif ($hoursWorked < 4) {
                     $attendanceStatus = 'Half Day';
                 }
 
-                // Save/Update Attendance
+                // Overtime amount
+                $otAmount = null;
+                if ($overtimeHours > 0) {
+                    $calculatedOtRate = app(\App\Services\PayrollService::class)->getOvertimeRate($employee);
+                    if ($calculatedOtRate > 0) {
+                        $otAmount = $overtimeHours * $calculatedOtRate;
+                    }
+                }
+
+                $isOffOrLeaveOrAbsent = in_array($attendanceStatus, ['Weekly Off', 'Leave', 'Sick Leave', 'Absent']);
+
+                // Save/Update Attendance (omitting punches to avoid overwriting existing detailed punches)
                 EmployeeAttendance::updateOrCreate(
                     [
                         'employee_id' => $employee->id,
                         'date' => $date,
-                        'company_id' => $companyId
+                        'company_id' => $employee->company_id
                     ],
                     [
                         'shift_id' => $roster ? $roster->id : null,
-                        'from_time' => $attendanceStatus === 'Weekly Off' ? null : $clockInTime,
-                        'to_time' => $attendanceStatus === 'Weekly Off' ? null : $clockOutTime,
-                        'hours_worked' => $attendanceStatus === 'Weekly Off' ? 0 : $hoursWorked,
-                        'normal_hours' => $attendanceStatus === 'Weekly Off' ? 0 : $expectedNormalHours,
-                        'ot' => $attendanceStatus === 'Weekly Off' ? 0 : $overtimeHours,
-                        'ot_amt' => null, // Will be calculated in payroll
+                        'from_time' => $isOffOrLeaveOrAbsent ? null : $clockInTime,
+                        'to_time' => $isOffOrLeaveOrAbsent ? null : $clockOutTime,
+                        'hours_worked' => $isOffOrLeaveOrAbsent ? 0 : $hoursWorked,
+                        'normal_hours' => in_array($attendanceStatus, ['Weekly Off', 'Leave', 'Sick Leave']) ? 0 : $expectedNormalHours,
+                        'ot' => $isOffOrLeaveOrAbsent ? 0 : $overtimeHours,
+                        'ot_amt' => $isOffOrLeaveOrAbsent ? 0 : $otAmount,
                         'attendance' => $attendanceStatus,
                         'is_paid' => false,
-                        'total_break_minutes' => $attendanceStatus === 'Weekly Off' ? 0 : $breakMinutes,
+                        'total_break_minutes' => 0,
                     ]
                 );
                 $importedCount++;
@@ -399,6 +416,9 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
     /**
      * Download the attendance import template
      */
+    /**
+     * Download the attendance import template or export attendance data
+     */
     public function downloadTemplate(Request $request)
     {
         $user = auth()->user();
@@ -407,22 +427,164 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
         }
 
         $headers = [
+            'Full Name',
             'ID',
-            'Name',
             'Date',
-            'Clock-In',
-            'Clock-Out',
+            'Clock-In Time',
+            'Clock-Out Time',
             'Worked Hours',
-            'Overtime',
-            'Absent Hours',
-            'Absent Duration'
+            'Absent Duration',
+            'Overtime Duration',
+            'Leave Type'
         ];
 
         $includeEmployees = $request->input('include_employees');
         $companyId = $request->input('company_id');
+        $exportData = $request->input('export_data');
+        $weekStart = $request->input('week_start', now()->startOfWeek()->toDateString());
 
-        if ($includeEmployees) {
-            $filename = "employee_attendance_template_" . now()->format('Y-m-d') . ".csv";
+        if ($exportData) {
+            $filename = "attendance_export_" . $weekStart . "_" . now()->format('YmdHis') . ".csv";
+
+            // Get employees
+            $employeesQuery = Employee::with(['weeklyOffs', 'company']);
+            if ($companyId) {
+                $employeesQuery->where('company_id', $companyId);
+            } else {
+                if (!$user->isAdmin() && !$user->isHR() && $user->employee_id) {
+                    $employeesQuery->where('company_id', $user->employee->company_id);
+                }
+            }
+            if ($request->has('search') && $request->search) {
+                $employeesQuery->where('name', 'like', '%' . $request->search . '%');
+            }
+            $employees = $employeesQuery->orderBy('name')->get();
+
+            // Construct 7 days of the week
+            $weekDays = [];
+            $start = Carbon::parse($weekStart);
+            for ($i = 0; $i < 7; $i++) {
+                $weekDays[] = $start->copy()->addDays($i)->toDateString();
+            }
+
+            $employeeIds = $employees->pluck('id')->toArray();
+
+            // Fetch actual attendances in bulk
+            $attendances = EmployeeAttendance::whereIn('employee_id', $employeeIds)
+                ->whereBetween('date', [$weekDays[0], $weekDays[6]])
+                ->get()
+                ->groupBy(function ($item) {
+                    return $item->employee_id . '_' . $item->date;
+                });
+
+            // Fetch shift rosters in bulk
+            $rosters = ShiftRoster::whereIn('employee_id', $employeeIds)
+                ->where('week_start', $weekStart)
+                ->get()
+                ->groupBy('employee_id');
+
+            // Fetch approved leave requests in bulk
+            $leaves = \App\Models\LeaveRequest::with('leaveType')
+                ->whereIn('employee_id', $employeeIds)
+                ->where('status', 'approved')
+                ->where(function ($query) use ($weekDays) {
+                    $query->whereBetween('start_date', [$weekDays[0], $weekDays[6]])
+                        ->orWhereBetween('end_date', [$weekDays[0], $weekDays[6]])
+                        ->orWhere(function ($q) use ($weekDays) {
+                            $q->where('start_date', '<=', $weekDays[0])
+                                ->where('end_date', '>=', $weekDays[6]);
+                        });
+                })
+                ->get()
+                ->groupBy('employee_id');
+
+            $weeklyOffService = app(WeeklyOffService::class);
+
+            $callback = function () use ($headers, $employees, $weekDays, $attendances, $rosters, $leaves, $weeklyOffService) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, $headers);
+
+                // Export grouped by date first (just like in the template)
+                foreach ($weekDays as $date) {
+                    foreach ($employees as $employee) {
+                        $attendanceKey = $employee->id . '_' . $date;
+                        $att = isset($attendances[$attendanceKey]) ? $attendances[$attendanceKey]->first() : null;
+
+                        // Roster expected normal hours
+                        $dayName = Carbon::parse($date)->format('l');
+                        $employeeRosters = $rosters->get($employee->id, collect());
+                        $roster = $employeeRosters
+                            ->filter(function ($r) use ($dayName, $date) {
+                                return $r->day === $dayName && $r->week_start <= $date;
+                            })
+                            ->sortByDesc('week_start')
+                            ->first();
+                        $stdHours = Setting::get('standard_working_hours', 9, $employee->company_id);
+                        $expectedNormalHours = $roster ? ($roster->shift_duration ?? $stdHours) : $stdHours;
+
+                        // Determine approved leave
+                        $employeeLeaves = $leaves->get($employee->id, collect());
+                        $activeLeave = $employeeLeaves->first(function ($leave) use ($date) {
+                            return Carbon::parse($date)->between($leave->start_date, $leave->end_date);
+                        });
+
+                        // Determine weekly off status
+                        $isWeeklyOff = $weeklyOffService->isWeeklyOff($employee, Carbon::parse($date));
+
+                        $clockInTime = '--';
+                        $clockOutTime = '--';
+                        $hoursWorkedVal = 0;
+                        $absentDurationVal = 0;
+                        $otDurationVal = 0;
+                        $leaveTypeStr = '--';
+
+                        if ($att) {
+                            if (in_array($att->attendance, ['Leave', 'Sick Leave'])) {
+                                $leaveTypeStr = $activeLeave ? ($activeLeave->leaveType->name ?? $att->attendance) : $att->attendance;
+                            } elseif ($att->attendance === 'Weekly Off') {
+                                // Keep weekly off
+                            } elseif ($att->attendance === 'Absent') {
+                                $absentDurationVal = $expectedNormalHours;
+                            } else {
+                                // Present, Late, Half Day
+                                $clockInTime = $att->from_time ?: '--';
+                                $clockOutTime = $att->to_time ?: '--';
+                                $hoursWorkedVal = $att->hours_worked ?: 0;
+                                $otDurationVal = $att->ot ?: 0;
+                                if ($hoursWorkedVal < $expectedNormalHours) {
+                                    $absentDurationVal = $expectedNormalHours - $hoursWorkedVal;
+                                }
+                            }
+                        } else {
+                            // No attendance record exists
+                            if ($activeLeave) {
+                                $leaveTypeStr = $activeLeave->leaveType->name ?? 'Leave';
+                            } elseif ($isWeeklyOff) {
+                                // No record and is weekly off
+                            } else {
+                                // Not weekly off and no leave: Absent
+                                $absentDurationVal = $expectedNormalHours;
+                            }
+                        }
+
+                        fputcsv($file, [
+                            $employee->name,
+                            $employee->employee_code ?: $employee->id,
+                            $date,
+                            $clockInTime,
+                            $clockOutTime,
+                            $this->decimalToTime($hoursWorkedVal),
+                            $this->decimalToTime($absentDurationVal),
+                            $this->decimalToTime($otDurationVal),
+                            $leaveTypeStr
+                        ]);
+                    }
+                }
+
+                fclose($file);
+            };
+        } elseif ($includeEmployees) {
+            $filename = "employee_attendance_template_" . $weekStart . ".csv";
 
             $query = \App\Models\Employee::query();
             if ($companyId) {
@@ -434,21 +596,21 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
             }
             $employees = $query->orderBy('name')->get();
 
-            $callback = function () use ($headers, $employees) {
+            $callback = function () use ($headers, $employees, $weekStart) {
                 $file = fopen('php://output', 'w');
                 fputcsv($file, $headers);
 
                 foreach ($employees as $employee) {
                     fputcsv($file, [
-                        $employee->employee_code ?: $employee->id,
                         $employee->name,
-                        date('d/m/Y'),
+                        $employee->employee_code ?: $employee->id,
+                        $weekStart,
                         '08:00',
                         '17:00',
                         '09:00',
                         '00:00',
                         '00:00',
-                        '00:00'
+                        '--'
                     ]);
                 }
 
@@ -463,15 +625,15 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
 
                 // Sample data row
                 fputcsv($file, [
-                    '101',
-                    'John Doe',
-                    date('d/m/Y'),
-                    '08:00',
-                    '17:00',
-                    '09:00',
+                    'Jane Marie Dela Cruz Abanto',
+                    '0029',
+                    date('Y-m-d'),
+                    '16:15',
+                    '01:58',
+                    '09:43',
                     '00:00',
-                    '00:00',
-                    '00:00'
+                    '00:43',
+                    '--'
                 ]);
 
                 fclose($file);
@@ -485,6 +647,23 @@ Please ensure your CSV file has at least 'ID' and 'Date' columns."
             "Cache-Control" => "must-revalidate, post-check=0, pre-check=0",
             "Expires" => "0"
         ]);
+    }
+
+    /**
+     * Helper function to convert decimal hours to HH:MM format
+     */
+    private function decimalToTime($decimalHours)
+    {
+        if (empty($decimalHours) || $decimalHours <= 0) {
+            return '00:00';
+        }
+        $hours = floor($decimalHours);
+        $minutes = round(($decimalHours - $hours) * 60);
+        if ($minutes == 60) {
+            $hours += 1;
+            $minutes = 0;
+        }
+        return sprintf('%02d:%02d', $hours, $minutes);
     }
 
     /**
