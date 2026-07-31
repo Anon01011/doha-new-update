@@ -96,29 +96,29 @@ export default function PayrollSettings({ settings, companies = [], departments 
             <form onSubmit={handleSubmit} className="space-y-5">
                 
                 {/* Scope Selection Card */}
-                <div className="glass-card premium-shadow rounded-lg p-5 border border-white/40 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <span className="p-1.5 rounded-md bg-emerald-500/20 text-emerald-400">
-                                    <FiLayers className="w-4 h-4" />
-                                </span>
-                                <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Payroll Setting Scope</h3>
+                <div className="glass-card premium-shadow rounded-lg p-5 border border-white/40 bg-white">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-emerald-600 text-white rounded-lg shadow-lg shadow-emerald-200">
+                                <FiLayers className="h-5 w-5" />
                             </div>
-                            <p className="text-xs text-slate-300 mt-1">
-                                Apply rules globally across all salons/branches or customize specifically for a Branch or Department.
-                            </p>
+                            <div>
+                                <h3 className="text-lg font-normal text-gray-900 tracking-normal">Payroll Setting Scope</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                    Apply rules globally across all salons/branches or customize specifically for a Branch or Department.
+                                </p>
+                            </div>
                         </div>
 
                         {/* Scope Pills */}
-                        <div className="inline-flex rounded-lg bg-slate-800/80 p-1 border border-white/10 text-xs">
+                        <div className="inline-flex rounded-lg bg-gray-100 p-1 border border-gray-200 text-xs">
                             <button
                                 type="button"
                                 onClick={() => handleScopeChange('global')}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
                                     scopeType === 'global'
-                                        ? 'bg-emerald-600 text-white shadow-md'
-                                        : 'text-slate-400 hover:text-white'
+                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
                                 }`}
                             >
                                 <FiGlobe size={13} /> Global System
@@ -130,8 +130,8 @@ export default function PayrollSettings({ settings, companies = [], departments 
                                     onClick={() => handleScopeChange('company')}
                                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
                                         scopeType === 'company'
-                                            ? 'bg-emerald-600 text-white shadow-md'
-                                            : 'text-slate-400 hover:text-white'
+                                            ? 'bg-emerald-600 text-white shadow-sm'
+                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
                                     }`}
                                 >
                                     <FiMapPin size={13} /> Branch Specific
@@ -144,8 +144,8 @@ export default function PayrollSettings({ settings, companies = [], departments 
                                     onClick={() => handleScopeChange('department')}
                                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
                                         scopeType === 'department'
-                                            ? 'bg-emerald-600 text-white shadow-md'
-                                            : 'text-slate-400 hover:text-white'
+                                            ? 'bg-emerald-600 text-white shadow-sm'
+                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
                                     }`}
                                 >
                                     <FiBriefcase size={13} /> Department Specific
@@ -156,14 +156,14 @@ export default function PayrollSettings({ settings, companies = [], departments 
 
                     {/* Filter Dropdowns for Branch & Department */}
                     {scopeType !== 'global' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/10">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100">
                             {(scopeType === 'company' || scopeType === 'department') && (
-                                <div>
-                                    <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider">Select Branch / Salon</label>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-normal text-gray-700 ml-1">Select Branch / Salon</label>
                                     <select
                                         value={selectedCompany}
                                         onChange={(e) => handleCompanySelect(e.target.value)}
-                                        className="mt-1 w-full rounded-lg border border-white/10 bg-slate-800 text-white px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/50"
+                                        className="w-full rounded-lg border-gray-200 bg-gray-50/50 px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-normal text-gray-900"
                                     >
                                         {companies.map(c => (
                                             <option key={c.id} value={c.id}>{c.name}</option>
@@ -173,12 +173,12 @@ export default function PayrollSettings({ settings, companies = [], departments 
                             )}
 
                             {scopeType === 'department' && (
-                                <div>
-                                    <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider">Select Department</label>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-normal text-gray-700 ml-1">Select Department</label>
                                     <select
                                         value={selectedDepartment}
                                         onChange={(e) => handleDepartmentSelect(e.target.value)}
-                                        className="mt-1 w-full rounded-lg border border-white/10 bg-slate-800 text-white px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/50"
+                                        className="w-full rounded-lg border-gray-200 bg-gray-50/50 px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-normal text-gray-900"
                                     >
                                         {departments.map(d => (
                                             <option key={d.id} value={d.id}>{d.name}</option>
