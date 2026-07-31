@@ -1,17 +1,29 @@
 import SettingsLayout from './SettingsLayout';
-import { useForm, usePage } from '@inertiajs/react';
-import { FiCreditCard } from 'react-icons/fi';
+import { useForm, usePage, router } from '@inertiajs/react';
+import { useState, useEffect } from 'react';
+import { FiCreditCard, FiLayers, FiSun, FiMoon, FiGlobe, FiMapPin, FiBriefcase } from 'react-icons/fi';
 
-export default function PayrollSettings({ settings }) {
+export default function PayrollSettings({ settings, companies = [], departments = [], selected_company_id = null, selected_department_id = null }) {
     const { appSettings } = usePage().props;
     const currency_symbol = appSettings?.currency_symbol || '$';
 
+    const [scopeType, setScopeType] = useState(
+        selected_department_id ? 'department' : (selected_company_id ? 'company' : 'global')
+    );
+    const [selectedCompany, setSelectedCompany] = useState(selected_company_id || (companies[0]?.id || ''));
+    const [selectedDepartment, setSelectedDepartment] = useState(selected_department_id || (departments[0]?.id || ''));
+
     const { data, setData, post, processing, errors } = useForm({
+        scope_type: scopeType,
+        company_id: selectedCompany,
+        department_id: selectedDepartment,
         pay_period: settings.pay_period || 'monthly',
         salary_calculation_method: settings.salary_calculation_method || 'attendance',
         overtime_calculation_mode: settings.overtime_calculation_mode || 'base_salary',
         overtime_rate_multiplier: settings.overtime_rate_multiplier || 1.5,
+        overtime_morning_multiplier: settings.overtime_morning_multiplier || settings.overtime_day_multiplier || 1.25,
         overtime_day_multiplier: settings.overtime_day_multiplier || 1.25,
+        overtime_evening_multiplier: settings.overtime_evening_multiplier || settings.overtime_day_multiplier || 1.25,
         overtime_night_multiplier: settings.overtime_night_multiplier || 1.50,
         overtime_holiday_multiplier: settings.overtime_holiday_multiplier || 2.25,
         default_working_hours_per_day: settings.default_working_hours_per_day || 8,
@@ -30,6 +42,46 @@ export default function PayrollSettings({ settings }) {
         default_payment_method: settings.default_payment_method || 'Bank Transfer',
     });
 
+    useEffect(() => {
+        setData(d => ({
+            ...d,
+            scope_type: scopeType,
+            company_id: scopeType !== 'global' ? selectedCompany : null,
+            department_id: scopeType === 'department' ? selectedDepartment : null,
+        }));
+    }, [scopeType, selectedCompany, selectedDepartment]);
+
+    const handleScopeChange = (newScope) => {
+        setScopeType(newScope);
+        let params = {};
+        if (newScope === 'company') {
+            params.company_id = selectedCompany;
+        } else if (newScope === 'department') {
+            params.company_id = selectedCompany;
+            params.department_id = selectedDepartment;
+        }
+        router.get(route('settings.payroll'), params, { preserveState: false });
+    };
+
+    const handleCompanySelect = (cId) => {
+        setSelectedCompany(cId);
+        let params = {};
+        if (scopeType === 'company') {
+            params.company_id = cId;
+        } else if (scopeType === 'department') {
+            params.company_id = cId;
+            params.department_id = selectedDepartment;
+        }
+        router.get(route('settings.payroll'), params, { preserveState: false });
+    };
+
+    const handleDepartmentSelect = (dId) => {
+        setSelectedDepartment(dId);
+        if (scopeType === 'department') {
+            router.get(route('settings.payroll'), { company_id: selectedCompany, department_id: dId }, { preserveState: false });
+        }
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
         post(route('settings.payroll.update'));
@@ -38,10 +90,106 @@ export default function PayrollSettings({ settings }) {
     return (
         <SettingsLayout
             activeTab="payroll"
-            title="Payroll Configuration"
-            description="Configure pay periods, deductions, and salary calculations."
+            title="Payroll & Overtime Configuration"
+            description="Configure pay periods, shift-based overtime multipliers, and branch/department level rules."
         >
             <form onSubmit={handleSubmit} className="space-y-5">
+                
+                {/* Scope Selection Card */}
+                <div className="glass-card premium-shadow rounded-lg p-5 border border-white/40 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="p-1.5 rounded-md bg-emerald-500/20 text-emerald-400">
+                                    <FiLayers className="w-4 h-4" />
+                                </span>
+                                <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Payroll Setting Scope</h3>
+                            </div>
+                            <p className="text-xs text-slate-300 mt-1">
+                                Apply rules globally across all salons/branches or customize specifically for a Branch or Department.
+                            </p>
+                        </div>
+
+                        {/* Scope Pills */}
+                        <div className="inline-flex rounded-lg bg-slate-800/80 p-1 border border-white/10 text-xs">
+                            <button
+                                type="button"
+                                onClick={() => handleScopeChange('global')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
+                                    scopeType === 'global'
+                                        ? 'bg-emerald-600 text-white shadow-md'
+                                        : 'text-slate-400 hover:text-white'
+                                }`}
+                            >
+                                <FiGlobe size={13} /> Global System
+                            </button>
+
+                            {companies.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleScopeChange('company')}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
+                                        scopeType === 'company'
+                                            ? 'bg-emerald-600 text-white shadow-md'
+                                            : 'text-slate-400 hover:text-white'
+                                    }`}
+                                >
+                                    <FiMapPin size={13} /> Branch Specific
+                                </button>
+                            )}
+
+                            {departments.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleScopeChange('department')}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
+                                        scopeType === 'department'
+                                            ? 'bg-emerald-600 text-white shadow-md'
+                                            : 'text-slate-400 hover:text-white'
+                                    }`}
+                                >
+                                    <FiBriefcase size={13} /> Department Specific
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Filter Dropdowns for Branch & Department */}
+                    {scopeType !== 'global' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/10">
+                            {(scopeType === 'company' || scopeType === 'department') && (
+                                <div>
+                                    <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider">Select Branch / Salon</label>
+                                    <select
+                                        value={selectedCompany}
+                                        onChange={(e) => handleCompanySelect(e.target.value)}
+                                        className="mt-1 w-full rounded-lg border border-white/10 bg-slate-800 text-white px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/50"
+                                    >
+                                        {companies.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {scopeType === 'department' && (
+                                <div>
+                                    <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider">Select Department</label>
+                                    <select
+                                        value={selectedDepartment}
+                                        onChange={(e) => handleDepartmentSelect(e.target.value)}
+                                        className="mt-1 w-full rounded-lg border border-white/10 bg-slate-800 text-white px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/50"
+                                    >
+                                        {departments.map(d => (
+                                            <option key={d.id} value={d.id}>{d.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
                     {/* Main Form */}
                     <div className="xl:col-span-2 space-y-5">
@@ -286,10 +434,14 @@ export default function PayrollSettings({ settings }) {
                         </div>
                     </div>
 
-                    {/* Sidebar */}
+                    {/* Sidebar: Shift-Based Overtime Multipliers */}
                     <div className="space-y-5">
                         <div className="glass-card premium-shadow rounded-lg p-5 border border-white/40">
-                            <h4 className="text-sm font-normal text-gray-900 tracking-normal mb-4">Overtime Settings</h4>
+                            <h4 className="text-sm font-semibold text-gray-900 tracking-normal mb-1">Shift-Based Overtime Settings</h4>
+                            <p className="text-[10px] text-gray-500 mb-4 leading-relaxed">
+                                Overtime multipliers apply automatically according to employee roster & attendance shift type.
+                            </p>
+
                             <div className="space-y-4">
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-normal text-gray-400 uppercase tracking-normal ml-1">Calculation Mode</label>
@@ -351,9 +503,34 @@ export default function PayrollSettings({ settings }) {
                                     </div>
                                 </div>
 
-                                <div className="space-y-4 pt-3 border-t border-gray-100">
+                                {/* Shift Multipliers Inputs */}
+                                <div className="space-y-3 pt-3 border-t border-gray-100">
                                     <div className="space-y-1">
-                                        <label className="text-[10px] font-normal text-gray-400 uppercase tracking-normal ml-1">Day Overtime Multiplier</label>
+                                        <label className="text-[10px] font-medium text-amber-700 uppercase tracking-normal ml-1 flex items-center gap-1">
+                                            <FiSun size={11} className="text-amber-500" /> Morning Shift Multiplier
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.05"
+                                                min="0"
+                                                disabled={data.overtime_calculation_mode === 'none' || data.overtime_calculation_mode === 'fixed'}
+                                                value={data.overtime_morning_multiplier}
+                                                onChange={(e) => setData('overtime_morning_multiplier', e.target.value)}
+                                                className={`w-full rounded-lg border-gray-200 px-3 py-2 transition-all font-normal text-sm ${
+                                                    data.overtime_calculation_mode === 'none' || data.overtime_calculation_mode === 'fixed'
+                                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200 opacity-60'
+                                                        : 'bg-gray-50/50 text-gray-900 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500'
+                                                }`}
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-normal text-xs">x</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-medium text-sky-700 uppercase tracking-normal ml-1 flex items-center gap-1">
+                                            <FiSun size={11} className="text-sky-500" /> Day Shift Multiplier
+                                        </label>
                                         <div className="relative">
                                             <input
                                                 type="number"
@@ -373,7 +550,31 @@ export default function PayrollSettings({ settings }) {
                                     </div>
 
                                     <div className="space-y-1">
-                                        <label className="text-[10px] font-normal text-gray-400 uppercase tracking-normal ml-1">Night Overtime Multiplier</label>
+                                        <label className="text-[10px] font-medium text-orange-700 uppercase tracking-normal ml-1 flex items-center gap-1">
+                                            <FiSun size={11} className="text-orange-500" /> Evening Shift Multiplier
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.05"
+                                                min="0"
+                                                disabled={data.overtime_calculation_mode === 'none' || data.overtime_calculation_mode === 'fixed'}
+                                                value={data.overtime_evening_multiplier}
+                                                onChange={(e) => setData('overtime_evening_multiplier', e.target.value)}
+                                                className={`w-full rounded-lg border-gray-200 px-3 py-2 transition-all font-normal text-sm ${
+                                                    data.overtime_calculation_mode === 'none' || data.overtime_calculation_mode === 'fixed'
+                                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200 opacity-60'
+                                                        : 'bg-gray-50/50 text-gray-900 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500'
+                                                }`}
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-normal text-xs">x</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-medium text-indigo-700 uppercase tracking-normal ml-1 flex items-center gap-1">
+                                            <FiMoon size={11} className="text-indigo-500" /> Night Shift Multiplier
+                                        </label>
                                         <div className="relative">
                                             <input
                                                 type="number"
@@ -393,7 +594,9 @@ export default function PayrollSettings({ settings }) {
                                     </div>
 
                                     <div className="space-y-1">
-                                        <label className="text-[10px] font-normal text-gray-400 uppercase tracking-normal ml-1">Holiday Overtime Multiplier</label>
+                                        <label className="text-[10px] font-medium text-rose-700 uppercase tracking-normal ml-1 flex items-center gap-1">
+                                            <FiCreditCard size={11} className="text-rose-500" /> Holiday Overtime Multiplier
+                                        </label>
                                         <div className="relative">
                                             <input
                                                 type="number"
@@ -449,7 +652,7 @@ export default function PayrollSettings({ settings }) {
                             <div className="absolute -right-8 -top-8 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
                             <h4 className="text-sm font-normal tracking-normal mb-2 relative z-10">Payroll Tip</h4>
                             <p className="text-xs text-emerald-50 leading-relaxed font-normal relative z-10">
-                                Attendance-based calculation ensures accuracy by only paying for hours actually worked.
+                                Attendance & roster based calculation ensures accuracy by applying exact shift multipliers (Morning, Day, Evening, Night, Holiday).
                             </p>
                         </div>
 
@@ -457,9 +660,9 @@ export default function PayrollSettings({ settings }) {
                             <button
                                 type="submit"
                                 disabled={processing}
-                                className="w-full px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-normal rounded-lg transition-all shadow-lg shadow-emerald-900/10 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                className="w-full px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-normal rounded-lg transition-all shadow-lg shadow-emerald-900/10 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 font-medium"
                             >
-                                {processing ? 'Saving...' : 'Save Configuration'}
+                                {processing ? 'Saving Settings...' : `Save ${scopeType.charAt(0).toUpperCase() + scopeType.slice(1)} Settings`}
                             </button>
                         </div>
                     </div>
@@ -468,3 +671,4 @@ export default function PayrollSettings({ settings }) {
         </SettingsLayout>
     );
 }
+

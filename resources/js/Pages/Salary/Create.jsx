@@ -777,7 +777,7 @@ export default function Create({ employees, salaryComponents = [], companies = [
 
                         {/* ── 3. Shift Roster vs Attendance ── */}
                         <div className="px-6 py-5">
-                            <SectionHeader icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>} iconBg="bg-violet-100" iconColor="text-violet-600" title="Shift Roster vs Attendance" subtitle="Compares rostered shifts against actual clock-in records" />
+                            <SectionHeader icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>} iconBg="bg-violet-100" iconColor="text-violet-600" title="Shift Roster vs Attendance" subtitle="Compares rostered shifts against actual clock-in records and shift multipliers" />
                             <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
                                 <div className="grid grid-cols-4 bg-slate-50 px-4 py-2.5 border-b border-slate-200">
                                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Shift</span>
@@ -786,14 +786,15 @@ export default function Create({ employees, salaryComponents = [], companies = [
                                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">OT Rate</span>
                                 </div>
                                 {[
-                                    { key: 'Morning', label: 'Morning', Icon: FaSun, iconColor: 'text-amber-500', otKey: 'Day', def: '1.25', badgeBg: 'bg-amber-50', badgeText: 'text-amber-700', badgeBorder: 'border-amber-200' },
+                                    { key: 'Morning', label: 'Morning', Icon: FaSun, iconColor: 'text-amber-500', otKey: 'Morning', def: '1.25', badgeBg: 'bg-amber-50', badgeText: 'text-amber-700', badgeBorder: 'border-amber-200' },
                                     { key: 'Day', label: 'Day', Icon: FaSun, iconColor: 'text-sky-500', otKey: 'Day', def: '1.25', badgeBg: 'bg-sky-50', badgeText: 'text-sky-700', badgeBorder: 'border-sky-200' },
-                                    { key: 'Evening', label: 'Evening', Icon: FaCloudSun, iconColor: 'text-orange-500', otKey: 'Day', def: '1.25', badgeBg: 'bg-orange-50', badgeText: 'text-orange-700', badgeBorder: 'border-orange-200' },
+                                    { key: 'Evening', label: 'Evening', Icon: FaCloudSun, iconColor: 'text-orange-500', otKey: 'Evening', def: '1.25', badgeBg: 'bg-orange-50', badgeText: 'text-orange-700', badgeBorder: 'border-orange-200' },
                                     { key: 'Night', label: 'Night', Icon: FaMoon, iconColor: 'text-indigo-500', otKey: 'Night', def: '1.50', badgeBg: 'bg-indigo-50', badgeText: 'text-indigo-700', badgeBorder: 'border-indigo-200' },
                                 ].map((shift, idx) => {
                                     const rostered = calculationDetails?.shift_summary?.rostered?.[shift.key] || 0;
                                     const attended = calculationDetails?.shift_summary?.attended?.[shift.key] || 0;
-                                    const rawMult = calculationDetails?.overtime_breakdown?.[shift.otKey]?.multiplier;
+                                    const effMult = calculationDetails?.effective_scope_info?.multipliers?.[shift.key];
+                                    const rawMult = effMult || calculationDetails?.overtime_breakdown?.[shift.otKey]?.multiplier;
                                     const mult = rawMult ? parseFloat(rawMult).toFixed(2) : shift.def;
                                     return (
                                         <div key={shift.key} className={`grid grid-cols-4 items-center px-4 py-3 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
@@ -817,7 +818,7 @@ export default function Create({ employees, salaryComponents = [], companies = [
                                 })}
                             </div>
                             <p className="text-[9px] text-slate-400 mt-2 px-1">
-                                Night shifts use a higher OT multiplier ({parseFloat(calculationDetails?.overtime_breakdown?.Night?.multiplier || 1.50).toFixed(2)}×) vs Day shifts ({parseFloat(calculationDetails?.overtime_breakdown?.Day?.multiplier || 1.25).toFixed(2)}×). Holiday OT uses {parseFloat(calculationDetails?.overtime_breakdown?.Holiday?.multiplier || 2.25).toFixed(2)}×.
+                                Applied Shift Multipliers: Morning ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Morning || 1.25).toFixed(2)}×), Day ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Day || 1.25).toFixed(2)}×), Evening ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Evening || 1.25).toFixed(2)}×), Night ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Night || 1.50).toFixed(2)}×), Holiday ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Holiday || 2.25).toFixed(2)}×).
                             </p>
                         </div>
 
@@ -904,7 +905,9 @@ export default function Create({ employees, salaryComponents = [], companies = [
                             {/* OT per shift type */}
                             <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
                                 {[
-                                    { key: 'Day', label: 'Day/Morning/Evening OT', Icon: FaSun, iconColor: 'text-amber-500', color: 'text-amber-600' },
+                                    { key: 'Morning', label: 'Morning Shift OT', Icon: FaSun, iconColor: 'text-amber-500', color: 'text-amber-600' },
+                                    { key: 'Day', label: 'Day Shift OT', Icon: FaSun, iconColor: 'text-sky-500', color: 'text-sky-600' },
+                                    { key: 'Evening', label: 'Evening Shift OT', Icon: FaCloudSun, iconColor: 'text-orange-500', color: 'text-orange-600' },
                                     { key: 'Night', label: 'Night Shift OT', Icon: FaMoon, iconColor: 'text-indigo-500', color: 'text-indigo-600' },
                                     { key: 'Holiday', label: 'Holiday OT', Icon: FaGift, iconColor: 'text-rose-500', color: 'text-rose-600' },
                                 ].map((row, idx) => {
@@ -929,7 +932,11 @@ export default function Create({ employees, salaryComponents = [], companies = [
                                         </div>
                                     );
                                 })}
-                                {!calculationDetails?.overtime_breakdown?.Day?.hours && !calculationDetails?.overtime_breakdown?.Night?.hours && !calculationDetails?.overtime_breakdown?.Holiday?.hours && (
+                                {!calculationDetails?.overtime_breakdown?.Morning?.hours &&
+                                 !calculationDetails?.overtime_breakdown?.Day?.hours &&
+                                 !calculationDetails?.overtime_breakdown?.Evening?.hours &&
+                                 !calculationDetails?.overtime_breakdown?.Night?.hours &&
+                                 !calculationDetails?.overtime_breakdown?.Holiday?.hours && (
                                     <div className="px-4 py-5 text-center text-[11px] text-slate-400 italic">No overtime recorded this period.</div>
                                 )}
                             </div>

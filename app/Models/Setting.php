@@ -13,6 +13,7 @@ class Setting extends Model
         'category',
         'type',
         'company_id',
+        'department_id',
         'description',
         'is_public',
     ];
@@ -30,11 +31,19 @@ class Setting extends Model
     }
 
     /**
+     * Get the department that owns the setting.
+     */
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
+    }
+
+    /**
      * Scope a query to only include global settings.
      */
     public function scopeGlobal($query)
     {
-        return $query->whereNull('company_id');
+        return $query->whereNull('company_id')->whereNull('department_id');
     }
 
     /**
@@ -81,17 +90,34 @@ class Setting extends Model
     }
 
     /**
-     * Helper method to get a setting value by key.
+     * Helper method to get a setting value by key with Department -> Company/Branch -> Global hierarchy.
      */
-    public static function get($key, $default = null, $companyId = null)
+    public static function get($key, $default = null, $companyId = null, $departmentId = null)
     {
-        $cacheKey = $companyId ? "settings_{$companyId}_{$key}" : "settings_global_{$key}";
+        $cKey = $companyId ?: '0';
+        $dKey = $departmentId ?: '0';
+        $cacheKey = "settings_{$cKey}_{$dKey}_{$key}";
 
-        return Cache::remember($cacheKey, now()->addHours(24), function () use ($key, $companyId, $default) {
-            // First, try to find company-specific setting
+        return Cache::remember($cacheKey, now()->addHours(24), function () use ($key, $companyId, $departmentId, $default) {
+            // 1. Department-specific setting
+            if ($departmentId !== null) {
+                $query = static::where('key', $key)->where('department_id', $departmentId);
+                if ($companyId !== null) {
+                    $query->where(function ($q) use ($companyId) {
+                        $q->where('company_id', $companyId)->orWhereNull('company_id');
+                    });
+                }
+                $setting = $query->first();
+                if ($setting) {
+                    return $setting->getValue();
+                }
+            }
+
+            // 2. Company / Branch-specific setting
             if ($companyId !== null) {
                 $setting = static::where('key', $key)
                     ->where('company_id', $companyId)
+                    ->whereNull('department_id')
                     ->first();
                 
                 if ($setting) {
@@ -99,9 +125,10 @@ class Setting extends Model
                 }
             }
 
-            // Fallback to global setting
+            // 3. Global fallback setting
             $globalSetting = static::where('key', $key)
                 ->whereNull('company_id')
+                ->whereNull('department_id')
                 ->first();
 
             return $globalSetting ? $globalSetting->getValue() : $default;
@@ -109,14 +136,15 @@ class Setting extends Model
     }
 
     /**
-     * Helper method to set a setting value by key.
+     * Helper method to set a setting value by key for specific Company/Branch or Department.
      */
-    public static function set($key, $value, $category = null, $type = 'string', $companyId = null)
+    public static function set($key, $value, $category = null, $type = 'string', $companyId = null, $departmentId = null)
     {
         $setting = static::updateOrCreate(
             [
                 'key' => $key,
                 'company_id' => $companyId,
+                'department_id' => $departmentId,
             ],
             [
                 'category' => $category,
@@ -127,19 +155,11 @@ class Setting extends Model
         $setting->setValue($value);
         $setting->save();
 
-        // Invalidate Cache
-        $cacheKey = $companyId ? "settings_{$companyId}_{$key}" : "settings_global_{$key}";
-        Cache::forget($cacheKey);
-
-        // If setting a global value, we need to invalidate the cache for all companies
-        // because they might have cached the global fallback.
-        if ($companyId === null) {
-            $companyIds = \App\Models\Company::pluck('id');
-            foreach ($companyIds as $cId) {
-                Cache::forget("settings_{$cId}_{$key}");
-            }
-        }
+        // Clear settings cache on save
+        Cache::forget("settings_" . ($companyId ?: '0') . "_" . ($departmentId ?: '0') . "_{$key}");
+        Cache::forget("settings_0_0_{$key}");
 
         return $setting;
     }
 }
+

@@ -432,26 +432,39 @@ class SettingsController extends Controller
 
     // ==================== Payroll Settings ====================
 
-    public function payrollSettings()
+    public function payrollSettings(Request $request)
     {
         $user = auth()->user();
-        $companyId = $user->employee_id ? $user->employee->company_id : null;
+        $companyId = $request->query('company_id', $user->employee_id ? $user->employee->company_id : null);
+        $departmentId = $request->query('department_id', null);
 
-        $settings = $this->getModuleSettings('payroll', $companyId);
+        $companies = \App\Models\Company::select('id', 'name')->get();
+        $departments = \App\Models\Department::select('id', 'name')->get();
+
+        $settings = $this->getModuleSettings('payroll', $companyId, $departmentId);
 
         return Inertia::render('Settings/PayrollSettings', [
             'settings' => $settings,
+            'companies' => $companies,
+            'departments' => $departments,
+            'selected_company_id' => $companyId ? (int) $companyId : null,
+            'selected_department_id' => $departmentId ? (int) $departmentId : null,
         ]);
     }
 
     public function updatePayrollSettings(Request $request)
     {
         $validated = $request->validate([
+            'scope_type' => 'nullable|in:global,company,department',
+            'company_id' => 'nullable|exists:companies,id',
+            'department_id' => 'nullable|exists:departments,id',
             'pay_period' => 'nullable|in:weekly,bi-weekly,monthly',
             'salary_calculation_method' => 'nullable|in:attendance,fixed',
             'overtime_calculation_mode' => 'nullable|string',
             'overtime_rate_multiplier' => 'nullable|numeric|min:0',
+            'overtime_morning_multiplier' => 'nullable|numeric|min:0',
             'overtime_day_multiplier' => 'nullable|numeric|min:0',
+            'overtime_evening_multiplier' => 'nullable|numeric|min:0',
             'overtime_night_multiplier' => 'nullable|numeric|min:0',
             'overtime_holiday_multiplier' => 'nullable|numeric|min:0',
             'payroll_overtime_rate' => 'nullable|numeric|min:0',
@@ -470,21 +483,24 @@ class SettingsController extends Controller
             'default_payment_method' => 'nullable|string',
         ]);
 
-        $user = auth()->user();
-        $companyId = $user->employee_id ? $user->employee->company_id : null;
+        $scopeType = $request->input('scope_type', 'global');
+        $companyId = ($scopeType === 'company' || $scopeType === 'department') ? ($request->input('company_id') ?: null) : null;
+        $departmentId = $scopeType === 'department' ? ($request->input('department_id') ?: null) : null;
 
         if ($request->hasFile('salary_slip_stamp')) {
-            $oldStamp = Setting::get('salary_slip_stamp', null, $companyId);
+            $oldStamp = Setting::get('salary_slip_stamp', null, $companyId, $departmentId);
             if ($oldStamp && \Illuminate\Support\Facades\Storage::disk('public')->exists($oldStamp)) {
                 \Illuminate\Support\Facades\Storage::disk('public')->delete($oldStamp);
             }
             $stampPath = $request->file('salary_slip_stamp')->store('branding', 'public');
-            Setting::set('salary_slip_stamp', $stampPath, 'payroll', 'string', $companyId);
+            Setting::set('salary_slip_stamp', $stampPath, 'payroll', 'string', $companyId, $departmentId);
             unset($validated['salary_slip_stamp']);
         }
 
+        unset($validated['scope_type'], $validated['company_id'], $validated['department_id']);
+
         foreach ($validated as $key => $value) {
-            Setting::set($key, $value, 'payroll', $this->getSettingType($value), $companyId);
+            Setting::set($key, $value, 'payroll', $this->getSettingType($value), $companyId, $departmentId);
         }
 
         return back()->with('success', 'Payroll settings updated successfully!');
@@ -832,14 +848,16 @@ class SettingsController extends Controller
     /**
      * Get all settings for a specific module/category.
      */
-    private function getModuleSettings($category, $companyId = null)
+    private function getModuleSettings($category, $companyId = null, $departmentId = null)
     {
         $query = Setting::byCategory($category);
 
-        if ($companyId !== null) {
-            $query->where('company_id', $companyId);
+        if ($departmentId !== null) {
+            $query->where('department_id', $departmentId);
+        } elseif ($companyId !== null) {
+            $query->where('company_id', $companyId)->whereNull('department_id');
         } else {
-            $query->whereNull('company_id');
+            $query->whereNull('company_id')->whereNull('department_id');
         }
 
         $settings = $query->get();

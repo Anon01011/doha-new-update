@@ -19,10 +19,11 @@ class PayrollService
 
     public function calculateMonthlyPayroll($employeeId, $month, $year): array
     {
-        $employee = Employee::with(['salaryStructures.component', 'weeklyOffs', 'company'])
+        $employee = Employee::with(['salaryStructures.component', 'weeklyOffs', 'company', 'department'])
             ->findOrFail($employeeId);
 
         $companyId = $employee->company_id;
+        $departmentId = $employee->department_id;
 
         $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
         $endDate = $startDate->copy()->endOfMonth();
@@ -93,8 +94,10 @@ class PayrollService
         ];
 
         $otBreakdown = [
-            'Day' => ['hours' => 0.0, 'multiplier' => 0.0, 'amount' => 0.0],
-            'Night' => ['hours' => 0.0, 'multiplier' => 0.0, 'amount' => 0.0],
+            'Morning' => ['hours' => 0.0, 'multiplier' => 0.0, 'amount' => 0.0],
+            'Day'     => ['hours' => 0.0, 'multiplier' => 0.0, 'amount' => 0.0],
+            'Evening' => ['hours' => 0.0, 'multiplier' => 0.0, 'amount' => 0.0],
+            'Night'   => ['hours' => 0.0, 'multiplier' => 0.0, 'amount' => 0.0],
             'Holiday' => ['hours' => 0.0, 'multiplier' => 0.0, 'amount' => 0.0]
         ];
 
@@ -148,53 +151,50 @@ class PayrollService
             }
 
             $dailyOtHours = 0;
+
             if ($attendance) {
-                $dailyOtHours = $attendance->ot ?? 0;
-                $totalOtHours += $dailyOtHours;
-                $totalHoursWorked += (float) ($attendance->hours_worked ?? 0);
+                $attStatus = $attendance->attendance ?? '';
 
-                $status = $attendance->attendance ?? '';
-                if (in_array($status, ['Present', 'Late', 'Half Day'])) {
-                    $attendedShiftType = null;
-                    if ($attendance->shift) {
-                        $attendedShiftType = $attendance->shift->shift_type;
-                    } else {
-                        $attendedShiftType = $rosteredShiftType ?: 'Day';
-                    }
-                    $key = in_array($attendedShiftType, ['Morning', 'Evening', 'Night', 'Day']) ? $attendedShiftType : 'Other';
-                    $shiftCounts['attended'][$key]++;
-                }
-
-                if (!$isWeeklyOffDay) {
-                    if ($status === 'Absent') {
-                        $totalAbsentDays++;
-                        $summary['absent']++;
-                    } elseif ($status === 'Half Day') {
-                        $totalAbsentDays += 0.5;
-                        $summary['absent'] += 0.5;
-                        $summary['present'] += 0.5;
-                        $summary['half_day']++;
-                    } elseif (in_array($status, ['Present', 'Late'])) {
-                        $summary['present']++;
-                    } elseif (in_array($status, ['Leave', 'Sick Leave', 'Annual Leave'])) {
+                if (in_array($attStatus, ['Leave', 'Sick Leave', 'Annual Leave'])) {
+                    $isPaid = filter_var($attendance->is_paid ?? true, FILTER_VALIDATE_BOOLEAN);
+                    if ($isPaid) {
+                        $summary['leave_paid']++;
                         $summary['leave']++;
-                        $isPaid = filter_var($attendance->is_paid ?? true, FILTER_VALIDATE_BOOLEAN);
-                        if ($isPaid) {
-                            $summary['leave_paid']++;
-                        } else {
-                            $summary['leave_unpaid']++;
-                            $totalAbsentDays++; // Unpaid leave is treated as absent and deducted
-                            $summary['absent']++;
-                        }
-                    } elseif ($status === 'Weekly Off') {
-                        $summary['weekly_off']++;
+                    } else {
+                        $summary['leave_unpaid']++;
+                        $summary['leave']++;
+                        $totalAbsentDays++;
+                    }
+                } elseif ($attStatus === 'Absent') {
+                    $summary['absent']++;
+                    $totalAbsentDays++;
+                } elseif ($attStatus === 'Half Day') {
+                    $summary['half_day']++;
+                    $totalAbsentDays += 0.5;
+                } elseif (in_array($attStatus, ['Present', 'Late', 'On Duty'])) {
+                    $summary['present']++;
+                }
+
+                // Track attended shift
+                $attendedShiftType = $attendance->shift ? $attendance->shift->shift_type : ($rosteredShiftType ?? 'Day');
+                $attKey = in_array($attendedShiftType, ['Morning', 'Evening', 'Night', 'Day']) ? $attendedShiftType : 'Other';
+                $shiftCounts['attended'][$attKey]++;
+
+                // Calculate working hours and daily OT
+                if ($attendance->check_in && $attendance->check_out) {
+                    $cIn  = Carbon::parse($attendance->check_in);
+                    $cOut = Carbon::parse($attendance->check_out);
+                    if ($cOut->gt($cIn)) {
+                        $hours = $cOut->diffInMinutes($cIn) / 60.0;
+                        $totalHoursWorked += $hours;
                     }
                 }
+
+                $dailyOtHours = (float) ($attendance->overtime_hours ?? 0);
             } else {
                 if (!$isWeeklyOffDay) {
                     if ($current->lte(now())) {
                         if ($isHoliday) {
-                            // Paid Holiday (no attendance record required)
                             $summary['present']++;
                         } else {
                             $totalAbsentDays++;
@@ -206,37 +206,38 @@ class PayrollService
 
             // Calculate overtime for this day if hours exist
             if ($dailyOtHours > 0) {
-                $otMode = Setting::get('overtime_calculation_mode', 'base_salary', $companyId);
+                $otMode = Setting::get('overtime_calculation_mode', 'base_salary', $companyId, $departmentId);
                 
                 if ($otMode === 'none' || $otMode === 'no_overtime') {
                     $multiplier = 0;
                     $baseOtRate = 0;
                 } else {
-                    
                     // Resolve shift type
                     $shiftType = 'Day';
-                    if ($attendance && $attendance->shift) {
+                    if ($attendance && $attendance->shift && $attendance->shift->shift_type) {
                         $shiftType = $attendance->shift->shift_type;
-                    } else {
-                        if ($roster) {
-                            $shiftType = $roster->shift_type;
-                        }
+                    } elseif ($roster && $roster->shift_type) {
+                        $shiftType = $roster->shift_type;
                     }
 
                     // Resolve base OT rate based on calculation mode
                     if ($otMode === 'fixed') {
-                        $baseOtRate = (float) Setting::get('payroll_overtime_rate', 0, $companyId);
+                        $baseOtRate = (float) Setting::get('payroll_overtime_rate', 0, $companyId, $departmentId);
                     } else {
                         $baseOtRate = $hourlyRate;
                     }
 
-                    // Determine multiplier from payroll settings
+                    // Determine shift multiplier from settings
                     if ($isHoliday) {
-                        $multiplier = (float) Setting::get('overtime_holiday_multiplier', 2.25, $companyId);
+                        $multiplier = (float) Setting::get('overtime_holiday_multiplier', 2.25, $companyId, $departmentId);
+                    } elseif ($shiftType === 'Morning') {
+                        $multiplier = (float) Setting::get('overtime_morning_multiplier', Setting::get('overtime_day_multiplier', 1.25, $companyId, $departmentId), $companyId, $departmentId);
+                    } elseif ($shiftType === 'Evening') {
+                        $multiplier = (float) Setting::get('overtime_evening_multiplier', Setting::get('overtime_day_multiplier', 1.25, $companyId, $departmentId), $companyId, $departmentId);
                     } elseif ($shiftType === 'Night') {
-                        $multiplier = (float) Setting::get('overtime_night_multiplier', 1.50, $companyId);
+                        $multiplier = (float) Setting::get('overtime_night_multiplier', 1.50, $companyId, $departmentId);
                     } else {
-                        $multiplier = (float) Setting::get('overtime_day_multiplier', 1.25, $companyId);
+                        $multiplier = (float) Setting::get('overtime_day_multiplier', 1.25, $companyId, $departmentId);
                     }
                 }
 
@@ -245,20 +246,13 @@ class PayrollService
                 if (!$isNoOvertime) {
                     $dailyOtAmount = $dailyOtHours * ($baseOtRate * $multiplier);
                     $overtimeAmount += $dailyOtAmount;
+                    
+                    $totalOtHours += $dailyOtHours;
 
-                    if ($isHoliday) {
-                        $otBreakdown['Holiday']['hours'] += $dailyOtHours;
-                        $otBreakdown['Holiday']['multiplier'] = $multiplier;
-                        $otBreakdown['Holiday']['amount'] += $dailyOtAmount;
-                    } elseif ($shiftType === 'Night') {
-                        $otBreakdown['Night']['hours'] += $dailyOtHours;
-                        $otBreakdown['Night']['multiplier'] = $multiplier;
-                        $otBreakdown['Night']['amount'] += $dailyOtAmount;
-                    } else {
-                        $otBreakdown['Day']['hours'] += $dailyOtHours;
-                        $otBreakdown['Day']['multiplier'] = $multiplier;
-                        $otBreakdown['Day']['amount'] += $dailyOtAmount;
-                    }
+                    $breakdownKey = $isHoliday ? 'Holiday' : (in_array($shiftType, ['Morning', 'Day', 'Evening', 'Night']) ? $shiftType : 'Day');
+                    $otBreakdown[$breakdownKey]['hours'] += $dailyOtHours;
+                    $otBreakdown[$breakdownKey]['multiplier'] = $multiplier;
+                    $otBreakdown[$breakdownKey]['amount'] += $dailyOtAmount;
                 }
             }
 
@@ -266,10 +260,9 @@ class PayrollService
         }
 
         // 6. Rates & Salary Calculation Method
-        $companyId = $employee->company_id;
-        $otRate = $this->getOvertimeRate($employee); // Kept for backward compatibility
-        $daysPerMonth = Setting::get('default_working_days_per_month', 30, $companyId);
-        $calcMethod = Setting::get('salary_calculation_method', 'fixed', $companyId);
+        $otRate = $this->getOvertimeRate($employee);
+        $daysPerMonth = Setting::get('default_working_days_per_month', 30, $companyId, $departmentId);
+        $calcMethod = Setting::get('salary_calculation_method', 'fixed', $companyId, $departmentId);
 
         // True working days = calendar days - weekly offs - holidays
         $calendarDays = $startDate->daysInMonth;
@@ -312,7 +305,7 @@ class PayrollService
             'basic_salary'           => round($basicSalary, 2),
             'allowances'             => $allowances,
             'deductions'             => $deductions,
-            'overtime_hours'         => $totalOtHours,
+            'overtime_hours'         => round($totalOtHours, 2),
             'hourly_rate'            => round($hourlyRate, 2),
             'overtime_rate'          => round($otRate, 2),
             'overtime_amount'        => round($overtimeAmount, 2),
@@ -331,10 +324,23 @@ class PayrollService
             'shift_summary'          => $shiftCounts,
             'overtime_breakdown'     => $otBreakdown,
             'overtime_base_rate'     => isset($baseOtRate) ? round($baseOtRate, 2) : round($hourlyRate, 2),
-            'overtime_calculation_mode' => Setting::get('overtime_calculation_mode', 'base_salary', $companyId),
+            'overtime_calculation_mode' => Setting::get('overtime_calculation_mode', 'base_salary', $companyId, $departmentId),
             'salary_calculation_method' => $calcMethod,
             'effective_days_per_month'  => $effectiveDaysPerMonth,
             'daily_rate'             => round($dailyRate, 2),
+
+            // Effective Scope & Applied Multipliers
+            'effective_scope_info'   => [
+                'branch_name'     => $employee->company->name ?? null,
+                'department_name' => $employee->department->name ?? null,
+                'multipliers'     => [
+                    'Morning' => (float) Setting::get('overtime_morning_multiplier', Setting::get('overtime_day_multiplier', 1.25, $companyId, $departmentId), $companyId, $departmentId),
+                    'Day'     => (float) Setting::get('overtime_day_multiplier', 1.25, $companyId, $departmentId),
+                    'Evening' => (float) Setting::get('overtime_evening_multiplier', Setting::get('overtime_day_multiplier', 1.25, $companyId, $departmentId), $companyId, $departmentId),
+                    'Night'   => (float) Setting::get('overtime_night_multiplier', 1.50, $companyId, $departmentId),
+                    'Holiday' => (float) Setting::get('overtime_holiday_multiplier', 2.25, $companyId, $departmentId),
+                ],
+            ],
 
             // Leave details — one entry per leave-status attendance record
             'leave_breakdown'        => $this->buildLeaveBreakdown($attendances),
@@ -404,11 +410,12 @@ class PayrollService
     public function getHourlyRate(Employee $employee): float
     {
         $companyId = $employee->company_id;
-        $daysPerMonth = (int) Setting::get('default_working_days_per_month', 30, $companyId);
+        $departmentId = $employee->department_id;
+        $daysPerMonth = (int) Setting::get('default_working_days_per_month', 30, $companyId, $departmentId);
         if ($daysPerMonth <= 0) {
             $daysPerMonth = 30;
         }
-        $workHoursPerDay = (int) Setting::get('default_working_hours_per_day', 8, $companyId);
+        $workHoursPerDay = (int) Setting::get('default_working_hours_per_day', 8, $companyId, $departmentId);
         if ($workHoursPerDay <= 0) {
             $workHoursPerDay = 8;
         }
@@ -424,19 +431,20 @@ class PayrollService
     public function getOvertimeRate(Employee $employee): float
     {
         $companyId = $employee->company_id;
-        $otMode = Setting::get('overtime_calculation_mode', 'base_salary', $companyId);
+        $departmentId = $employee->department_id;
+        $otMode = Setting::get('overtime_calculation_mode', 'base_salary', $companyId, $departmentId);
 
         if ($otMode === 'none' || $otMode === 'no_overtime') {
             return 0.0;
         }
 
         if ($otMode === 'fixed') {
-            $baseOtRate = (float) Setting::get('payroll_overtime_rate', 0, $companyId);
+            $baseOtRate = (float) Setting::get('payroll_overtime_rate', 0, $companyId, $departmentId);
         } else {
             $baseOtRate = $this->getHourlyRate($employee);
         }
 
-        $multiplier = (float) Setting::get('overtime_day_multiplier', 1.25, $companyId);
+        $multiplier = (float) Setting::get('overtime_day_multiplier', 1.25, $companyId, $departmentId);
         return $baseOtRate * $multiplier;
     }
 }
