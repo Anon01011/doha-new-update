@@ -62,7 +62,7 @@ class SalaryPostingController extends Controller
             $query->where('employee_id', $user->employee_id);
         }
 
-        $salaryPostings = $query->latest()->paginate(10);
+        $salaryPostings = $query->latest()->paginate(10)->withQueryString();
 
         $companies = [];
         if ($user->isAdmin()) {
@@ -202,11 +202,23 @@ class SalaryPostingController extends Controller
             ->whereBetween('repayment_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->get();
 
+        $payrollDetails = null;
+        try {
+            $payrollDetails = $this->payrollService->calculateMonthlyPayroll(
+                $salaryPosting->employee_id,
+                $salaryPosting->month,
+                $salaryPosting->year
+            );
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to load payroll details for Show page: " . $e->getMessage());
+        }
+
         return Inertia::render('Salary/Show', [
             'salaryPosting' => $salaryPosting,
             'loanInstallments' => $loanInstallments,
             'advances' => $advances,
             'userRole' => $user->role,
+            'payrollDetails' => $payrollDetails,
         ]);
     }
 
@@ -235,11 +247,23 @@ class SalaryPostingController extends Controller
 
         $salaryComponents = \App\Models\SalaryComponent::where('is_active', true)->get();
 
+        $payrollDetails = null;
+        try {
+            $payrollDetails = $this->payrollService->calculateMonthlyPayroll(
+                $salaryPosting->employee_id,
+                $salaryPosting->month,
+                $salaryPosting->year
+            );
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to load payroll details for Edit page: " . $e->getMessage());
+        }
+
         return Inertia::render('Salary/Edit', [
             'salaryPosting' => $salaryPosting,
             'employees' => $employees,
             'salaryComponents' => $salaryComponents,
             'companies' => $companies,
+            'payrollDetails' => $payrollDetails,
         ]);
     }
 
@@ -595,6 +619,8 @@ class SalaryPostingController extends Controller
             'company_ids.*' => 'exists:companies,id',
             'department_ids' => 'nullable|array',
             'department_ids.*' => 'exists:departments,id',
+            'employee_ids' => 'nullable|array',
+            'employee_ids.*' => 'exists:employees,id',
             // Keep single inputs for backward compatibility if any client triggers it
             'company_id' => 'nullable|exists:companies,id',
             'department_id' => 'nullable|exists:departments,id',
@@ -606,20 +632,25 @@ class SalaryPostingController extends Controller
         // Scoping is handled by BelongsToCompany on Employee::active()
         $query = Employee::active();
 
-        // Handle multiple/single company selections
-        if ($user->isAdmin()) {
-            if ($request->has('company_ids') && is_array($request->company_ids) && count($request->company_ids) > 0) {
-                $query->whereIn('company_id', $request->company_ids);
-            } elseif ($request->company_id) {
-                $query->where('company_id', $request->company_id);
+        // Filter by employee selection if provided
+        if ($request->has('employee_ids') && is_array($request->employee_ids) && count($request->employee_ids) > 0) {
+            $query->whereIn('id', $request->employee_ids);
+        } else {
+            // Handle multiple/single company selections
+            if ($user->isAdmin()) {
+                if ($request->has('company_ids') && is_array($request->company_ids) && count($request->company_ids) > 0) {
+                    $query->whereIn('company_id', $request->company_ids);
+                } elseif ($request->company_id) {
+                    $query->where('company_id', $request->company_id);
+                }
             }
-        }
 
-        // Handle multiple/single department selections
-        if ($request->has('department_ids') && is_array($request->department_ids) && count($request->department_ids) > 0) {
-            $query->whereIn('department_id', $request->department_ids);
-        } elseif ($request->department_id) {
-            $query->where('department_id', $request->department_id);
+            // Handle multiple/single department selections
+            if ($request->has('department_ids') && is_array($request->department_ids) && count($request->department_ids) > 0) {
+                $query->whereIn('department_id', $request->department_ids);
+            } elseif ($request->department_id) {
+                $query->where('department_id', $request->department_id);
+            }
         }
 
         $employees = $query->get();
@@ -672,6 +703,8 @@ class SalaryPostingController extends Controller
         $request->validate([
             'month' => 'required|integer|between:1,12',
             'year' => 'required|integer|min:2000|max:2100',
+            'company_ids' => 'nullable|array',
+            'company_ids.*' => 'exists:companies,id',
             'department_ids' => 'nullable|array',
             'department_ids.*' => 'exists:departments,id',
             'employee_ids' => 'nullable|array',
@@ -685,10 +718,8 @@ class SalaryPostingController extends Controller
 
         if ($request->filled('employee_ids')) {
             $query->whereIn('id', $request->employee_ids);
-        } elseif ($request->filled('department_ids')) {
-            $query->whereIn('department_id', $request->department_ids);
         } else {
-            return redirect()->back()->with('error', 'Please select at least a department or employee(s) to update.');
+            return redirect()->back()->with('error', 'Please select at least one employee to update.');
         }
 
         $employees = $query->get();

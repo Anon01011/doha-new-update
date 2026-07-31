@@ -36,22 +36,30 @@ export default function Index({
         month: month || new Date().getMonth() + 1,
         year: year || new Date().getFullYear(),
         company_ids: [],
-        department_ids: []
+        department_ids: [],
+        employee_ids: []
     });
     const [companyDropOpen, setCompanyDropOpen] = useState(false);
     const [deptDropOpen, setDeptDropOpen] = useState(false);
+    const [bulkEmpDropOpen, setBulkEmpDropOpen] = useState(false);
     const [companySearch, setCompanySearch] = useState('');
     const [deptSearch, setDeptSearch] = useState('');
+    const [bulkEmpSearch, setBulkEmpSearch] = useState('');
     const companyDropRef = useRef(null);
     const deptDropRef = useRef(null);
+    const bulkEmpDropRef = useRef(null);
 
     const [autoUpdateModal, setAutoUpdateModal] = useState(false);
     const [autoUpdateData, setAutoUpdateData] = useState({
+        company_ids: [],
         department_ids: [],
         employee_ids: [],
         month: month || new Date().getMonth() + 1,
         year: year || new Date().getFullYear(),
     });
+    const [autoCompanyDropOpen, setAutoCompanyDropOpen] = useState(false);
+    const [autoCompanySearch, setAutoCompanySearch] = useState('');
+    const autoCompanyDropRef = useRef(null);
     const [autoDeptDropOpen, setAutoDeptDropOpen] = useState(false);
     const [autoDeptSearch, setAutoDeptSearch] = useState('');
     const autoDeptDropRef = useRef(null);
@@ -69,6 +77,14 @@ export default function Index({
                 setDeptDropOpen(false);
                 setDeptSearch('');
             }
+            if (bulkEmpDropRef.current && !bulkEmpDropRef.current.contains(e.target)) {
+                setBulkEmpDropOpen(false);
+                setBulkEmpSearch('');
+            }
+            if (autoCompanyDropRef.current && !autoCompanyDropRef.current.contains(e.target)) {
+                setAutoCompanyDropOpen(false);
+                setAutoCompanySearch('');
+            }
             if (autoDeptDropRef.current && !autoDeptDropRef.current.contains(e.target)) {
                 setAutoDeptDropOpen(false);
                 setAutoDeptSearch('');
@@ -84,6 +100,18 @@ export default function Index({
 
     const handleBulkGenerate = (e) => {
         e.preventDefault();
+        
+        if (bulkData.employee_ids.length === 0) {
+            setModal({
+                show: true,
+                title: 'Selection Required',
+                message: 'Please select at least one employee to generate payroll.',
+                type: 'warning',
+                onConfirm: () => setModal(prev => ({ ...prev, show: false }))
+            });
+            return;
+        }
+
         router.post(route('salary-postings.bulk-generate'), bulkData, {
             onSuccess: () => setBulkModal(false)
         });
@@ -92,24 +120,19 @@ export default function Index({
     const handleAutoUpdateApply = (e) => {
         e.preventDefault();
 
-        if (autoUpdateData.department_ids.length === 0 && autoUpdateData.employee_ids.length === 0) {
+        if (autoUpdateData.employee_ids.length === 0) {
             setModal({
                 show: true,
                 title: 'Selection Required',
-                message: 'Please select at least one department or employee to update.',
+                message: 'Please select at least one employee to update payroll.',
                 type: 'warning',
-                onConfirm: closeModal,
+                onConfirm: () => setModal(prev => ({ ...prev, show: false })),
                 hideCancel: true
             });
             return;
         }
 
-        let targetMsg = '';
-        if (autoUpdateData.employee_ids.length > 0) {
-            targetMsg = `${autoUpdateData.employee_ids.length} selected employee(s)`;
-        } else {
-            targetMsg = `all employees in the ${autoUpdateData.department_ids.length} selected department(s)`;
-        }
+        const targetMsg = `${autoUpdateData.employee_ids.length} selected employee(s)`;
 
         setModal({
             show: true,
@@ -122,6 +145,7 @@ export default function Index({
                     onSuccess: () => {
                         setAutoUpdateModal(false);
                         setAutoUpdateData({
+                            company_ids: [],
                             department_ids: [],
                             employee_ids: [],
                             month: month || new Date().getMonth() + 1,
@@ -801,6 +825,114 @@ export default function Index({
                                 </div>{/* end relative */}
                             </div>{/* end dept space-y-1 */}
 
+                            {/* Employee Multi-Select Dropdown */}
+                            <div className="space-y-1" ref={bulkEmpDropRef}>
+                                <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Employees</label>
+                                <div className="relative">
+                                    {/* Trigger Button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => { setBulkEmpDropOpen(v => !v); setCompanyDropOpen(false); setDeptDropOpen(false); }}
+                                        className="w-full flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2 bg-white text-xs text-slate-700 hover:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+                                    >
+                                        <span className="truncate">
+                                            {(() => {
+                                                const visibleEmps = employees.filter(emp => {
+                                                    const matchesCompany = bulkData.company_ids.length === 0 || bulkData.company_ids.includes(emp.company_id);
+                                                    const matchesDept = bulkData.department_ids.length === 0 || bulkData.department_ids.includes(emp.department_id);
+                                                    return matchesCompany && matchesDept;
+                                                });
+                                                if (bulkData.employee_ids.length === 0) return 'Select Employees...';
+                                                if (bulkData.employee_ids.length === visibleEmps.length) return 'All Employees Selected';
+                                                return `${bulkData.employee_ids.length} selected`;
+                                            })()}
+                                        </span>
+                                        <FaChevronDown
+                                            size={9}
+                                            className={`ml-2 text-slate-400 transition-transform duration-200 ${bulkEmpDropOpen ? 'rotate-180' : ''}`}
+                                        />
+                                    </button>
+
+                                    {/* Dropdown Panel */}
+                                    {bulkEmpDropOpen && (() => {
+                                        const visibleEmps = employees
+                                            .filter(emp => {
+                                                const matchesCompany = bulkData.company_ids.length === 0 || bulkData.company_ids.includes(emp.company_id);
+                                                const matchesDept = bulkData.department_ids.length === 0 || bulkData.department_ids.includes(emp.department_id);
+                                                return matchesCompany && matchesDept;
+                                            })
+                                            .filter(emp => emp.name.toLowerCase().includes(bulkEmpSearch.toLowerCase()));
+                                        const allVisible = employees.filter(emp => {
+                                            const matchesCompany = bulkData.company_ids.length === 0 || bulkData.company_ids.includes(emp.company_id);
+                                            const matchesDept = bulkData.department_ids.length === 0 || bulkData.department_ids.includes(emp.department_id);
+                                            return matchesCompany && matchesDept;
+                                        });
+                                        return (
+                                            <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+                                                {/* Search Bar */}
+                                                <div className="px-3 py-2 border-b border-slate-100">
+                                                    <div className="relative">
+                                                        <FaSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300" size={10} />
+                                                        <input
+                                                            type="text"
+                                                            autoFocus
+                                                            placeholder="Search employees..."
+                                                            value={bulkEmpSearch}
+                                                            onChange={(e) => setBulkEmpSearch(e.target.value)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary/20 focus:border-primary/40"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                {/* Select All */}
+                                                <div
+                                                    className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100"
+                                                    onClick={() => {
+                                                        const allSelected = bulkData.employee_ids.length === allVisible.length;
+                                                        setBulkData({ ...bulkData, employee_ids: allSelected ? [] : allVisible.map(emp => emp.id) });
+                                                    }}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        readOnly
+                                                        className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                        checked={allVisible.length > 0 && bulkData.employee_ids.length === allVisible.length}
+                                                    />
+                                                    <span className="text-xs font-semibold text-slate-700">Select All</span>
+                                                </div>
+                                                {/* Individual items */}
+                                                <div className="max-h-[150px] overflow-y-auto">
+                                                    {visibleEmps.length === 0 ? (
+                                                        <p className="px-3 py-2 text-xs text-slate-400">
+                                                            {bulkEmpSearch ? 'No results found' : 'No employees available'}
+                                                        </p>
+                                                    ) : visibleEmps.map(emp => (
+                                                        <div
+                                                            key={emp.id}
+                                                            className="flex items-center gap-2 px-3 py-2 hover:bg-primary/5 cursor-pointer"
+                                                            onClick={() => {
+                                                                const newIds = bulkData.employee_ids.includes(emp.id)
+                                                                    ? bulkData.employee_ids.filter(id => id !== emp.id)
+                                                                    : [...bulkData.employee_ids, emp.id];
+                                                                setBulkData({ ...bulkData, employee_ids: newIds });
+                                                            }}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                readOnly
+                                                                className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                                checked={bulkData.employee_ids.includes(emp.id)}
+                                                            />
+                                                            <span className="text-xs text-slate-600">{emp.name} ({emp.employee_code})</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+
                             <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-6">
                                 <button
                                     type="button"
@@ -868,6 +1000,105 @@ export default function Index({
                                 </div>
                             </div>
 
+                            {/* Company Branch Multi-Select Dropdown (Admin Only) */}
+                            {companies.length > 0 && (
+                                <div className="space-y-1" ref={autoCompanyDropRef}>
+                                    <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Company (Branch)</label>
+                                    <div className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setAutoCompanyDropOpen(v => !v); setAutoDeptDropOpen(false); setEmpDropOpen(false); }}
+                                            className="w-full flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2 bg-white text-xs text-slate-700 hover:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+                                        >
+                                            <span className="truncate">
+                                                {autoUpdateData.company_ids.length === 0
+                                                    ? 'All Companies'
+                                                    : autoUpdateData.company_ids.length === companies.length
+                                                        ? 'All Companies Selected'
+                                                        : `${autoUpdateData.company_ids.length} selected`}
+                                            </span>
+                                            <FaChevronDown
+                                                size={9}
+                                                className={`ml-2 text-slate-400 transition-transform duration-200 ${autoCompanyDropOpen ? 'rotate-180' : ''}`}
+                                            />
+                                        </button>
+
+                                        {autoCompanyDropOpen && (() => {
+                                            const filteredCompanies = companies.filter(c =>
+                                                c.name.toLowerCase().includes(autoCompanySearch.toLowerCase())
+                                            );
+                                            return (
+                                                <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+                                                    <div className="px-3 py-2 border-b border-slate-100">
+                                                        <div className="relative">
+                                                            <FaSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300" size={10} />
+                                                            <input
+                                                                type="text"
+                                                                autoFocus
+                                                                placeholder="Search companies..."
+                                                                value={autoCompanySearch}
+                                                                onChange={(e) => setAutoCompanySearch(e.target.value)}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary/20 focus:border-primary/40"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100"
+                                                        onClick={() => {
+                                                            const allSelected = autoUpdateData.company_ids.length === companies.length;
+                                                            setAutoUpdateData({
+                                                                ...autoUpdateData,
+                                                                company_ids: allSelected ? [] : companies.map(c => c.id),
+                                                                department_ids: [],
+                                                                employee_ids: []
+                                                            });
+                                                        }}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            readOnly
+                                                            className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                            checked={companies.length > 0 && autoUpdateData.company_ids.length === companies.length}
+                                                        />
+                                                        <span className="text-xs font-semibold text-slate-700">Select All</span>
+                                                    </div>
+                                                    <div className="max-h-[150px] overflow-y-auto">
+                                                        {filteredCompanies.length === 0 ? (
+                                                            <p className="px-3 py-2 text-xs text-slate-400">No results found</p>
+                                                        ) : filteredCompanies.map(c => (
+                                                            <div
+                                                                key={c.id}
+                                                                className="flex items-center gap-2 px-3 py-2 hover:bg-primary/5 cursor-pointer"
+                                                                onClick={() => {
+                                                                    const newIds = autoUpdateData.company_ids.includes(c.id)
+                                                                        ? autoUpdateData.company_ids.filter(id => id !== c.id)
+                                                                        : [...autoUpdateData.company_ids, c.id];
+                                                                    setAutoUpdateData({
+                                                                        ...autoUpdateData,
+                                                                        company_ids: newIds,
+                                                                        department_ids: [],
+                                                                        employee_ids: []
+                                                                    });
+                                                                }}
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    readOnly
+                                                                    className="rounded text-primary focus:ring-primary/20 pointer-events-none"
+                                                                    checked={autoUpdateData.company_ids.includes(c.id)}
+                                                                />
+                                                                <span className="text-xs text-slate-600">{c.name}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Department Multi-Select Dropdown */}
                             <div className="space-y-1" ref={autoDeptDropRef}>
                                 <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Departments</label>
@@ -879,11 +1110,12 @@ export default function Index({
                                         className="w-full flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2 bg-white text-xs text-slate-700 hover:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
                                     >
                                         <span className="truncate">
-                                            {autoUpdateData.department_ids.length === 0
-                                                ? 'All Departments'
-                                                : autoUpdateData.department_ids.length === departments.length
-                                                    ? 'All Departments Selected'
-                                                    : `${autoUpdateData.department_ids.length} selected`}
+                                            {(() => {
+                                                const visibleDepts = departments.filter(d => autoUpdateData.company_ids.length === 0 || autoUpdateData.company_ids.includes(d.company_id));
+                                                if (autoUpdateData.department_ids.length === 0) return 'All Departments';
+                                                if (autoUpdateData.department_ids.length === visibleDepts.length) return 'All Departments Selected';
+                                                return `${autoUpdateData.department_ids.length} selected`;
+                                            })()}
                                         </span>
                                         <FaChevronDown
                                             size={9}
@@ -893,7 +1125,8 @@ export default function Index({
 
                                     {/* Dropdown Panel */}
                                     {autoDeptDropOpen && (() => {
-                                        const filteredDepts = departments.filter(d =>
+                                        const allVisibleDepts = departments.filter(d => autoUpdateData.company_ids.length === 0 || autoUpdateData.company_ids.includes(d.company_id));
+                                        const filteredDepts = allVisibleDepts.filter(d =>
                                             d.name.toLowerCase().includes(autoDeptSearch.toLowerCase())
                                         );
                                         return (
@@ -917,11 +1150,11 @@ export default function Index({
                                                 <div
                                                     className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100"
                                                     onClick={() => {
-                                                        const allSelected = autoUpdateData.department_ids.length === departments.length;
+                                                        const allSelected = autoUpdateData.department_ids.length === allVisibleDepts.length;
                                                         setAutoUpdateData({
                                                             ...autoUpdateData,
-                                                            department_ids: allSelected ? [] : departments.map(d => d.id),
-                                                            employee_ids: [] // reset employee selection on change
+                                                            department_ids: allSelected ? [] : allVisibleDepts.map(d => d.id),
+                                                            employee_ids: []
                                                         });
                                                     }}
                                                 >
@@ -929,14 +1162,14 @@ export default function Index({
                                                         type="checkbox"
                                                         readOnly
                                                         className="rounded text-primary focus:ring-primary/20 pointer-events-none"
-                                                        checked={departments.length > 0 && autoUpdateData.department_ids.length === departments.length}
+                                                        checked={allVisibleDepts.length > 0 && autoUpdateData.department_ids.length === allVisibleDepts.length}
                                                     />
                                                     <span className="text-xs font-semibold text-slate-700">Select All</span>
                                                 </div>
                                                 {/* Individual items */}
                                                 <div className="max-h-[150px] overflow-y-auto">
                                                     {filteredDepts.length === 0 ? (
-                                                        <p className="px-3 py-2 text-xs text-slate-400">No results found</p>
+                                                        <p className="px-3 py-2 text-xs text-slate-400">{autoDeptSearch ? 'No results found' : 'No departments available'}</p>
                                                     ) : filteredDepts.map(d => (
                                                         <div
                                                             key={d.id}
@@ -948,7 +1181,7 @@ export default function Index({
                                                                 setAutoUpdateData({
                                                                     ...autoUpdateData,
                                                                     department_ids: newIds,
-                                                                    employee_ids: [] // reset employee selection on change
+                                                                    employee_ids: []
                                                                 });
                                                             }}
                                                         >
@@ -980,8 +1213,12 @@ export default function Index({
                                     >
                                         <span className="truncate">
                                             {(() => {
-                                                const visibleEmps = employees.filter(emp => autoUpdateData.department_ids.length === 0 || autoUpdateData.department_ids.includes(emp.department_id));
-                                                if (autoUpdateData.employee_ids.length === 0) return 'All Employees';
+                                                const visibleEmps = employees.filter(emp => {
+                                                    const matchesCompany = autoUpdateData.company_ids.length === 0 || autoUpdateData.company_ids.includes(emp.company_id);
+                                                    const matchesDept = autoUpdateData.department_ids.length === 0 || autoUpdateData.department_ids.includes(emp.department_id);
+                                                    return matchesCompany && matchesDept;
+                                                });
+                                                if (autoUpdateData.employee_ids.length === 0) return 'Select Employees...';
                                                 if (autoUpdateData.employee_ids.length === visibleEmps.length) return 'All Employees Selected';
                                                 return `${autoUpdateData.employee_ids.length} selected`;
                                             })()}
@@ -994,10 +1231,13 @@ export default function Index({
 
                                     {/* Dropdown Panel */}
                                     {empDropOpen && (() => {
-                                        const visibleEmps = employees
-                                            .filter(emp => autoUpdateData.department_ids.length === 0 || autoUpdateData.department_ids.includes(emp.department_id))
+                                        const allVisible = employees.filter(emp => {
+                                            const matchesCompany = autoUpdateData.company_ids.length === 0 || autoUpdateData.company_ids.includes(emp.company_id);
+                                            const matchesDept = autoUpdateData.department_ids.length === 0 || autoUpdateData.department_ids.includes(emp.department_id);
+                                            return matchesCompany && matchesDept;
+                                        });
+                                        const visibleEmps = allVisible
                                             .filter(emp => emp.name.toLowerCase().includes(empSearch.toLowerCase()));
-                                        const allVisible = employees.filter(emp => autoUpdateData.department_ids.length === 0 || autoUpdateData.department_ids.includes(emp.department_id));
                                         return (
                                             <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
                                                 {/* Search Bar */}
