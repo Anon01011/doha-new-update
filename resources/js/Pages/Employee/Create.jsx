@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useForm, Head, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import EmployeeFieldIcons from '@/Components/EmployeeFieldIcons';
 import Lightbox from '@/Components/Lightbox';
@@ -114,6 +114,52 @@ export default function CreateEmployee(props) {
             setDepartmentEmployees([]);
         }
     }, [data.department_id]);
+
+    // Check if employee is HR or Manager
+    const isHrOrManager = useMemo(() => {
+        const role = (data.role || '').toLowerCase();
+        const desig = (data.designation || '').toLowerCase();
+        return role === 'hr' || role === 'manager' || role === 'branch-manager' || 
+               desig.includes('hr') || desig.includes('manager') || desig.includes('coo') || desig.includes('director') || desig.includes('head');
+    }, [data.role, data.designation]);
+
+    const executiveReportingList = useMemo(() => {
+        return constants.executive_reporting_options || [
+            'Chief Operating Officer',
+            'Owner / Founder',
+            'Founder / CEO'
+        ];
+    }, [constants.executive_reporting_options]);
+
+    const designationList = useMemo(() => {
+        return constants.designations || [
+            'Owner / Founder',
+            'Chief Operating Officer',
+            'Founder / CEO',
+            'General Manager',
+            'HR Manager',
+            'HR Executive',
+            'Branch Manager',
+            'Operations Manager',
+            'Senior Stylist',
+            'Hair Stylist',
+            'Beautician',
+            'Nail Artist',
+            'Makeup Artist',
+            'Massage Therapist',
+            'Receptionist / Front Desk',
+            'Accountant',
+            'Sales Executive',
+            'Helper / Cleaner',
+        ];
+    }, [constants.designations]);
+
+    // Auto-suggest Executive reporting for HR/Managers if reporting is not set
+    useEffect(() => {
+        if (isHrOrManager && !data.reported_to) {
+            setData('reported_to', 'Chief Operating Officer');
+        }
+    }, [isHrOrManager]);
 
     // Auto-update status based on exit status
     useEffect(() => {
@@ -418,14 +464,52 @@ export default function CreateEmployee(props) {
                                     </InputWrapper>
 
                                     <InputWrapper label="Designation" icon={EmployeeFieldIcons.designation} error={errors.designation}>
-                                        <input type="text" className={inputClasses} value={data.designation} onChange={e => setData('designation', e.target.value)} placeholder="e.g. Senior Manager" />
+                                        <input
+                                            type="text"
+                                            list="designation-options-create"
+                                            className={inputClasses}
+                                            value={data.designation}
+                                            onChange={e => setData('designation', e.target.value)}
+                                            placeholder="e.g. HR Manager, Senior Stylist, Beautician..."
+                                        />
+                                        <datalist id="designation-options-create">
+                                            {designationList.map(opt => (
+                                                <option key={opt} value={opt} />
+                                            ))}
+                                        </datalist>
                                     </InputWrapper>
 
                                     <InputWrapper label="Reported To" icon={EmployeeFieldIcons.reported_to} error={errors.reported_to}>
-                                        <select className={inputClasses} value={data.reported_to} onChange={e => setData('reported_to', e.target.value)} disabled={!data.department_id}>
-                                            <option value="">Select Manager</option>
-                                            {departmentEmployees.map(emp => <option key={emp.id} value={emp.name}>{emp.name}</option>)}
+                                        <select
+                                            className={inputClasses}
+                                            value={data.reported_to}
+                                            onChange={e => setData('reported_to', e.target.value)}
+                                            disabled={!isHrOrManager && !data.department_id && !data.company_id}
+                                        >
+                                            <option value="">Select Reporting Authority</option>
+                                            
+                                            {/* Executive Hierarchy (COO, Founder, CEO) */}
+                                            <optgroup label="Executive Leadership (COO / Founder / CEO)">
+                                                {executiveReportingList.map(exec => (
+                                                    <option key={exec} value={exec}>{exec}</option>
+                                                ))}
+                                            </optgroup>
+
+                                            {/* Department / Branch Team Members */}
+                                            {departmentEmployees.length > 0 && (
+                                                <optgroup label="Department / Branch Managers">
+                                                    {departmentEmployees.map(emp => (
+                                                        <option key={emp.id} value={emp.name}>{emp.name}</option>
+                                                    ))}
+                                                </optgroup>
+                                            )}
                                         </select>
+                                        {isHrOrManager && (
+                                            <p className="text-[10px] font-medium text-indigo-600 mt-1 ml-1 flex items-center gap-1">
+                                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                                                HR & Managers report directly to Executive Leadership (Chief Operating Officer / Founder).
+                                            </p>
+                                        )}
                                     </InputWrapper>
 
                                     <InputWrapper label="System Role" icon={EmployeeFieldIcons.employee_category} error={errors.role}>

@@ -27,6 +27,8 @@ class DropdownOptionController extends Controller
         // Standard predefined categories to always show in settings
         $standardCategories = [
             'Gender',
+            'Designation',
+            'Executive Reporting',
             'Shift',
             'Employee Category',
             'Contract Duration',
