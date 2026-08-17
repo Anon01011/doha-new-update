@@ -44,6 +44,7 @@ export default function CreateEmployee(props) {
     const [autoGenerate, setAutoGenerate] = useState(false);
     const [resumePreviewUrl, setResumePreviewUrl] = useState(null);
     const [departmentEmployees, setDepartmentEmployees] = useState([]);
+    const [branchManagers, setBranchManagers] = useState([]);
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
     const [imagePreview, setImagePreview] = useState(null);
 
@@ -106,14 +107,24 @@ export default function CreateEmployee(props) {
     }, [data.company_id]);
 
     useEffect(() => {
-        if (data.department_id) {
-            axios.get(route('api.employees.byDepartment', { department_id: data.department_id }))
-                .then(res => setDepartmentEmployees(res.data.employees))
-                .catch(() => setDepartmentEmployees([]));
+        if (data.department_id || data.company_id) {
+            axios.get(route('api.employees.byDepartment', { 
+                department_id: data.department_id,
+                company_id: data.company_id 
+            }))
+            .then(res => {
+                setDepartmentEmployees(res.data.employees || []);
+                setBranchManagers(res.data.branch_managers || []);
+            })
+            .catch(() => {
+                setDepartmentEmployees([]);
+                setBranchManagers([]);
+            });
         } else {
             setDepartmentEmployees([]);
+            setBranchManagers([]);
         }
-    }, [data.department_id]);
+    }, [data.department_id, data.company_id]);
 
     // Check if employee is HR or Manager
     const isHrOrManager = useMemo(() => {
@@ -144,15 +155,40 @@ export default function CreateEmployee(props) {
         ];
     }, [constants.designations]);
 
-    // Enforce Executive Leader reporting for HR & Managers
+    // Auto-assign default reporting person based on role and branch/department
     useEffect(() => {
-        if (isHrOrManager && executiveLeaders.length > 0) {
-            const isCurrentlyExecutive = executiveLeaders.some(e => e.name === data.reported_to);
-            if (!isCurrentlyExecutive) {
-                setData('reported_to', executiveLeaders[0].name);
+        if (isHrOrManager) {
+            if (executiveLeaders.length > 0) {
+                const isCurrentlyExecutive = executiveLeaders.some(e => e.name === data.reported_to);
+                if (!isCurrentlyExecutive) {
+                    setData('reported_to', executiveLeaders[0].name);
+                }
+            }
+        } else {
+            // For regular staff: default to the Manager from that department or branch
+            if (!data.reported_to) {
+                const deptManager = departmentEmployees.find(e => 
+                    (e.designation || '').toLowerCase().includes('manager') || 
+                    (e.designation || '').toLowerCase().includes('lead') || 
+                    (e.designation || '').toLowerCase().includes('supervisor')
+                );
+                if (deptManager) {
+                    setData('reported_to', deptManager.name);
+                } else if (branchManagers.length > 0) {
+                    const brManager = branchManagers.find(m => 
+                        (m.designation || '').toLowerCase().includes('manager') || 
+                        (m.designation || '').toLowerCase().includes('lead') || 
+                        (m.designation || '').toLowerCase().includes('supervisor')
+                    ) || branchManagers[0];
+                    if (brManager) {
+                        setData('reported_to', brManager.name);
+                    }
+                } else if (departmentEmployees.length > 0) {
+                    setData('reported_to', departmentEmployees[0].name);
+                }
             }
         }
-    }, [isHrOrManager, executiveLeaders]);
+    }, [isHrOrManager, executiveLeaders, departmentEmployees, branchManagers]);
 
     // Auto-update status based on exit status
     useEffect(() => {
@@ -477,9 +513,9 @@ export default function CreateEmployee(props) {
                                             className={inputClasses}
                                             value={data.reported_to}
                                             onChange={e => setData('reported_to', e.target.value)}
-                                            disabled={!isHrOrManager && !data.department_id}
+                                            disabled={!isHrOrManager && !data.company_id && !data.department_id}
                                         >
-                                            <option value="">{isHrOrManager ? 'Select Executive Authority (CEO / Founder)' : 'Select Manager'}</option>
+                                            <option value="">{isHrOrManager ? 'Select Executive Authority (CEO / Founder)' : 'Select Manager / Reporting Person'}</option>
 
                                             {/* For HR & Managers: ONLY allow reporting to Executive Leadership (CEO / Founder / COO) */}
                                             {isHrOrManager ? (
@@ -493,20 +529,45 @@ export default function CreateEmployee(props) {
                                                     </optgroup>
                                                 )
                                             ) : (
-                                                /* For regular branch/department staff: assign person from that branch/department as it was */
-                                                departmentEmployees.map(emp => (
-                                                    <option key={emp.id} value={emp.name}>
-                                                        {emp.name}
-                                                    </option>
-                                                ))
+                                                /* For regular staff: prioritize department staff, fallback to branch managers/staff, fallback to executives */
+                                                <>
+                                                    {departmentEmployees.length > 0 ? (
+                                                        departmentEmployees.map(emp => (
+                                                            <option key={emp.id} value={emp.name}>
+                                                                {emp.name}
+                                                            </option>
+                                                        ))
+                                                    ) : branchManagers.length > 0 ? (
+                                                        <optgroup label="Branch Managers & Team (Department is empty)">
+                                                            {branchManagers.map(mgr => (
+                                                                <option key={mgr.id} value={mgr.name}>
+                                                                    {mgr.name} ({mgr.designation || 'Branch Member'})
+                                                                </option>
+                                                            ))}
+                                                        </optgroup>
+                                                    ) : (
+                                                        <optgroup label="Executive Leadership (No branch staff available)">
+                                                            {executiveLeaders.map(exec => (
+                                                                <option key={exec.id} value={exec.name}>
+                                                                    {exec.name} ({exec.designation || 'Executive Leader'})
+                                                                </option>
+                                                            ))}
+                                                        </optgroup>
+                                                    )}
+                                                </>
                                             )}
                                         </select>
-                                        {isHrOrManager && (
+                                        {isHrOrManager ? (
                                             <p className="text-[10px] font-medium text-indigo-600 mt-1 ml-1 flex items-center gap-1">
                                                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
                                                 HR & Managers report directly to CEO / Founder / COO.
                                             </p>
-                                        )}
+                                        ) : departmentEmployees.length === 0 && branchManagers.length === 0 && data.company_id ? (
+                                            <p className="text-[10px] font-normal text-amber-600 mt-1 ml-1 flex items-center gap-1">
+                                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-600"></span>
+                                                No existing staff in this branch yet — defaulted to Executive Leadership.
+                                            </p>
+                                        ) : null}
                                     </InputWrapper>
 
                                     <InputWrapper label="System Role" icon={EmployeeFieldIcons.employee_category} error={errors.role}>

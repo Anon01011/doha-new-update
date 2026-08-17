@@ -587,19 +587,48 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Return employees for a given department_id as JSON (for AJAX)
+     * Return employees for a given department_id & company_id as JSON (for AJAX)
      */
     public function getByDepartment(Request $request)
     {
         $departmentId = $request->input('department_id');
-        if (!$departmentId) {
-            return response()->json(['employees' => []]);
+        $companyId = $request->input('company_id');
+
+        $departmentEmployees = collect();
+        if ($departmentId) {
+            $departmentEmployees = Employee::where('department_id', $departmentId)
+                ->active()
+                ->orderBy('name')
+                ->get(['id', 'name', 'designation']);
         }
-        $employees = Employee::where('department_id', $departmentId)
-            ->active()
-            ->orderBy('name')
-            ->get(['id', 'name', 'designation']);
-        return response()->json(['employees' => $employees]);
+
+        // Branch-level managers or active employees in the same branch
+        $branchManagers = collect();
+        if ($companyId) {
+            $branchManagers = Employee::where('company_id', $companyId)
+                ->where(function ($q) {
+                    $q->where('designation', 'LIKE', '%Manager%')
+                      ->orWhere('designation', 'LIKE', '%HR%')
+                      ->orWhere('designation', 'LIKE', '%Supervisor%')
+                      ->orWhere('designation', 'LIKE', '%Lead%');
+                })
+                ->active()
+                ->orderBy('name')
+                ->get(['id', 'name', 'designation']);
+
+            // If no designated managers in branch, get all active employees in branch
+            if ($branchManagers->isEmpty()) {
+                $branchManagers = Employee::where('company_id', $companyId)
+                    ->active()
+                    ->orderBy('name')
+                    ->get(['id', 'name', 'designation']);
+            }
+        }
+
+        return response()->json([
+            'employees' => $departmentEmployees,
+            'branch_managers' => $branchManagers,
+        ]);
     }
 
     /**
