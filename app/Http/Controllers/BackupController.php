@@ -173,25 +173,24 @@ class BackupController extends Controller
                     return back()->withErrors(['error' => 'Could not create ZIP backup archive.']);
                 }
 
-                // 1. Generate SQL Dump and add to ZIP
+                // 1. Generate SQL Dump to disk and add to ZIP
+                $tempSqlPath = storage_path('app/temp_dump_' . $timestamp . '.sql');
                 $sqlContent = $this->generateSqlDump();
-                $zip->addFromString('database_dump.sql', $sqlContent);
+                File::put($tempSqlPath, $sqlContent);
+                $zip->addFile($tempSqlPath, 'database_dump.sql');
 
-                // 2. Generate JSON data export and add to ZIP
-                $jsonData = $this->generateAllTablesJson();
-                $zip->addFromString('hrms_data.json', json_encode($jsonData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-
-                // 3. Add all public storage media files (employee photos, documents, IDs)
+                // 2. Add all public storage media files (employee photos, documents, IDs) with fast STORE method
                 $storagePublicPath = storage_path('app/public');
                 if (File::exists($storagePublicPath)) {
                     $mediaFiles = File::allFiles($storagePublicPath);
                     foreach ($mediaFiles as $mediaFile) {
                         $relativePath = 'storage/' . $mediaFile->getRelativePathname();
                         $zip->addFile($mediaFile->getRealPath(), $relativePath);
+                        $zip->setCompressionName($relativePath, ZipArchive::CM_STORE); // Fast uncompressed addition for already compressed images/PDFs
                     }
                 }
 
-                // 4. Add System Metadata Manifest
+                // 3. Add System Metadata Manifest
                 $manifest = [
                     'system_name' => config('app.name', 'HRMS System'),
                     'backup_date' => now()->toDateTimeString(),
@@ -204,7 +203,17 @@ class BackupController extends Controller
                 ];
                 $zip->addFromString('manifest.json', json_encode($manifest, JSON_PRETTY_PRINT));
 
-                $zip->close();
+                // Finalize and close ZIP
+                $closeSuccess = $zip->close();
+
+                // Clean up temporary SQL file
+                if (File::exists($tempSqlPath)) {
+                    File::delete($tempSqlPath);
+                }
+
+                if (!$closeSuccess || !File::exists($zipFullPath) || filesize($zipFullPath) === 0) {
+                    return back()->withErrors(['error' => 'Failed to finalize ZIP backup file properly.']);
+                }
 
                 return back()->with('success', "Full system backup created successfully: {$zipFilename}");
             } else {

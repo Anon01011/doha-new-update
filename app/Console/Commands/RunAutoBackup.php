@@ -65,17 +65,20 @@ class RunAutoBackup extends Command
                     return 1;
                 }
 
-                // Database Dump
+                // Database Dump to disk first
+                $tempSqlPath = storage_path('app/temp_auto_dump_' . $timestamp . '.sql');
                 $sqlContent = $this->generateSqlDump();
-                $zip->addFromString('database_dump.sql', $sqlContent);
+                File::put($tempSqlPath, $sqlContent);
+                $zip->addFile($tempSqlPath, 'database_dump.sql');
 
-                // Media Files
+                // Media Files with Fast STORE
                 $storagePublicPath = storage_path('app/public');
                 if (File::exists($storagePublicPath)) {
                     $mediaFiles = File::allFiles($storagePublicPath);
                     foreach ($mediaFiles as $mediaFile) {
                         $relativePath = 'storage/' . $mediaFile->getRelativePathname();
                         $zip->addFile($mediaFile->getRealPath(), $relativePath);
+                        $zip->setCompressionName($relativePath, ZipArchive::CM_STORE);
                     }
                 }
 
@@ -87,6 +90,10 @@ class RunAutoBackup extends Command
                 ];
                 $zip->addFromString('manifest.json', json_encode($manifest, JSON_PRETTY_PRINT));
                 $zip->close();
+
+                if (File::exists($tempSqlPath)) {
+                    File::delete($tempSqlPath);
+                }
 
                 $this->info("Automated full backup created successfully: {$zipFilename}");
                 Log::info("Automated full backup created: {$zipFilename}");
