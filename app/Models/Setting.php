@@ -39,14 +39,6 @@ class Setting extends Model
     }
 
     /**
-     * Scope a query to only include global settings.
-     */
-    public function scopeGlobal($query)
-    {
-        return $query->whereNull('company_id')->whereNull('department_id');
-    }
-
-    /**
      * Scope a query to only include settings for a specific company.
      */
     public function scopeForCompany($query, $companyId)
@@ -90,6 +82,30 @@ class Setting extends Model
     }
 
     /**
+     * Check if settings table has department_id column.
+     */
+    protected static function hasDepartmentColumn(): bool
+    {
+        static $hasDeptCol = null;
+        if ($hasDeptCol === null) {
+            $hasDeptCol = \Illuminate\Support\Facades\Schema::hasColumn('settings', 'department_id');
+        }
+        return $hasDeptCol;
+    }
+
+    /**
+     * Scope a query to only include global settings.
+     */
+    public function scopeGlobal($query)
+    {
+        $query->whereNull('company_id');
+        if (static::hasDepartmentColumn()) {
+            $query->whereNull('department_id');
+        }
+        return $query;
+    }
+
+    /**
      * Helper method to get a setting value by key with Department -> Company/Branch -> Global hierarchy.
      */
     public static function get($key, $default = null, $companyId = null, $departmentId = null)
@@ -99,8 +115,10 @@ class Setting extends Model
         $cacheKey = "settings_{$cKey}_{$dKey}_{$key}";
 
         return Cache::remember($cacheKey, now()->addHours(24), function () use ($key, $companyId, $departmentId, $default) {
+            $hasDept = static::hasDepartmentColumn();
+
             // 1. Department-specific setting
-            if ($departmentId !== null) {
+            if ($hasDept && $departmentId !== null) {
                 $query = static::where('key', $key)->where('department_id', $departmentId);
                 if ($companyId !== null) {
                     $query->where(function ($q) use ($companyId) {
@@ -115,10 +133,11 @@ class Setting extends Model
 
             // 2. Company / Branch-specific setting
             if ($companyId !== null) {
-                $setting = static::where('key', $key)
-                    ->where('company_id', $companyId)
-                    ->whereNull('department_id')
-                    ->first();
+                $query = static::where('key', $key)->where('company_id', $companyId);
+                if ($hasDept) {
+                    $query->whereNull('department_id');
+                }
+                $setting = $query->first();
                 
                 if ($setting) {
                     return $setting->getValue();
@@ -126,10 +145,11 @@ class Setting extends Model
             }
 
             // 3. Global fallback setting
-            $globalSetting = static::where('key', $key)
-                ->whereNull('company_id')
-                ->whereNull('department_id')
-                ->first();
+            $query = static::where('key', $key)->whereNull('company_id');
+            if ($hasDept) {
+                $query->whereNull('department_id');
+            }
+            $globalSetting = $query->first();
 
             return $globalSetting ? $globalSetting->getValue() : $default;
         });
@@ -140,12 +160,17 @@ class Setting extends Model
      */
     public static function set($key, $value, $category = null, $type = 'string', $companyId = null, $departmentId = null)
     {
+        $hasDept = static::hasDepartmentColumn();
+        $match = [
+            'key' => $key,
+            'company_id' => $companyId,
+        ];
+        if ($hasDept) {
+            $match['department_id'] = $departmentId;
+        }
+
         $setting = static::updateOrCreate(
-            [
-                'key' => $key,
-                'company_id' => $companyId,
-                'department_id' => $departmentId,
-            ],
+            $match,
             [
                 'category' => $category,
                 'type' => $type,

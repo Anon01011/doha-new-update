@@ -332,8 +332,12 @@ export default function EditEmployee(props) {
                                     <InputWrapper label="Gender" icon={EmployeeFieldIcons.gender} error={errors.gender} required>
                                         <select className={inputClasses} value={data.gender} onChange={e => setData('gender', e.target.value)} required>
                                             <option value="">Select Gender</option>
-                                            <option value="Male">Male</option>
-                                            <option value="Female">Female</option>
+                                            {(constants.genders || ['Male', 'Female']).map(opt => (
+                                                <option key={opt} value={opt}>{opt}</option>
+                                            ))}
+                                            {data.gender && !(constants.genders || ['Male', 'Female']).includes(data.gender) && (
+                                                <option value={data.gender}>{data.gender}</option>
+                                            )}
                                         </select>
                                     </InputWrapper>
 
@@ -527,6 +531,9 @@ export default function EditEmployee(props) {
                                         <select className={inputClasses} value={data.shift} onChange={e => setData('shift', e.target.value)}>
                                             <option value="">Select Shift</option>
                                             {(constants.shifts || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                            {data.shift && !(constants.shifts || []).includes(data.shift) && (
+                                                <option value={data.shift}>{data.shift}</option>
+                                            )}
                                         </select>
                                     </InputWrapper>
 
@@ -534,6 +541,9 @@ export default function EditEmployee(props) {
                                         <select className={inputClasses} value={data.employee_category} onChange={e => setData('employee_category', e.target.value)}>
                                             <option value="">Select Category</option>
                                             {(constants.employee_categories || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                            {data.employee_category && !(constants.employee_categories || []).includes(data.employee_category) && (
+                                                <option value={data.employee_category}>{data.employee_category}</option>
+                                            )}
                                         </select>
                                     </InputWrapper>
 
@@ -541,6 +551,9 @@ export default function EditEmployee(props) {
                                         <select className={inputClasses} value={data.contract_duration} onChange={e => setData('contract_duration', e.target.value)}>
                                             <option value="">Select Duration</option>
                                             {(constants.contract_durations || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                            {data.contract_duration && !(constants.contract_durations || []).includes(data.contract_duration) && (
+                                                <option value={data.contract_duration}>{data.contract_duration}</option>
+                                            )}
                                         </select>
                                     </InputWrapper>
 
@@ -565,6 +578,30 @@ export default function EditEmployee(props) {
                                             <option value="inactive">Inactive</option>
                                         </select>
                                         {!canUpdateBranch && <p className="text-[9px] font-normal text-slate-400 mt-1 uppercase tracking-normal">Only Admin/HR can update status</p>}
+                                    </InputWrapper>
+
+                                    <InputWrapper label="Leave Status" icon={EmployeeFieldIcons.leave_status} error={errors.leave_status}>
+                                        <select className={inputClasses} value={data.leave_status} onChange={e => setData('leave_status', e.target.value)}>
+                                            <option value="">Select Leave Status</option>
+                                            {(constants.leave_statuses || ['Available', 'On Leave', 'Unpaid Leave']).map(opt => (
+                                                <option key={opt} value={opt}>{opt}</option>
+                                            ))}
+                                            {data.leave_status && !(constants.leave_statuses || []).includes(data.leave_status) && (
+                                                <option value={data.leave_status}>{data.leave_status}</option>
+                                            )}
+                                        </select>
+                                    </InputWrapper>
+
+                                    <InputWrapper label="Exit Status" icon={EmployeeFieldIcons.exit_status} error={errors.exit_status}>
+                                        <select className={inputClasses} value={data.exit_status} onChange={e => setData('exit_status', e.target.value)}>
+                                            <option value="">Select Exit Status</option>
+                                            {(constants.exit_statuses || ['Resigned', 'Terminated', 'End of Contract', 'Absconded']).map(opt => (
+                                                <option key={opt} value={opt}>{opt}</option>
+                                            ))}
+                                            {data.exit_status && !(constants.exit_statuses || []).includes(data.exit_status) && (
+                                                <option value={data.exit_status}>{data.exit_status}</option>
+                                            )}
+                                        </select>
                                     </InputWrapper>
 
                                     {/* Staff-wise Weekly Offs Sub-section */}
@@ -662,6 +699,9 @@ export default function EditEmployee(props) {
                                         <select className={inputClasses} value={data.visa_type} onChange={e => setData('visa_type', e.target.value)}>
                                             <option value="">Select Visa Type</option>
                                             {(constants.visa_types || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                            {data.visa_type && !(constants.visa_types || []).includes(data.visa_type) && (
+                                                <option value={data.visa_type}>{data.visa_type}</option>
+                                            )}
                                         </select>
                                     </InputWrapper>
 
@@ -669,6 +709,9 @@ export default function EditEmployee(props) {
                                         <select className={inputClasses} value={data.visa_designation} onChange={e => setData('visa_designation', e.target.value)}>
                                             <option value="">Select Visa Designation</option>
                                             {(constants.visa_designations || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                            {data.visa_designation && !(constants.visa_designations || []).includes(data.visa_designation) && (
+                                                <option value={data.visa_designation}>{data.visa_designation}</option>
+                                            )}
                                         </select>
                                     </InputWrapper>
 
@@ -683,6 +726,9 @@ export default function EditEmployee(props) {
                                                 ? appSettings.payment_methods.split(',').map(m => m.trim()) 
                                                 : (constants.payment_types || [])
                                             ).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                            {data.payment_type && !(appSettings?.payment_methods ? appSettings.payment_methods.split(',').map(m => m.trim()) : (constants.payment_types || [])).includes(data.payment_type) && (
+                                                <option value={data.payment_type}>{data.payment_type}</option>
+                                            )}
                                         </select>
                                     </InputWrapper>
                                     <InputWrapper label={`Basic Salary (${currency})`} error={errors.basic_salary}>

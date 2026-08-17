@@ -19,6 +19,8 @@ class DropdownOptionSeeder extends Seeder
             'Payment Type' => ['Bank Transfer', 'Cash', 'Cheque'],
             'Leave Status' => ['Available', 'On Leave', 'Unpaid Leave'],
             'Shift' => ['Morning', 'Evening', 'Night', 'General'],
+            'Attendance Status' => ['Present', 'Absent', 'Half Day', 'Late', 'On Leave'],
+            'Loan Type' => ['Personal Loan', 'Emergency Loan', 'Salary Advance', 'Travel Loan'],
         ];
 
         foreach ($data as $category => $values) {

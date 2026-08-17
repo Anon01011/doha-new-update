@@ -128,6 +128,20 @@ export default function EmployeeSettings({ settings }) {
                             </p>
                         </div>
 
+                        {/* Dropdown Options Quick Nav */}
+                        <div className="bg-white rounded-lg p-5 border border-slate-200 shadow-sm space-y-3">
+                            <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider">Employee Dropdowns</h4>
+                            <p className="text-xs text-slate-500 leading-relaxed">
+                                Customize choices for Shifts, Categories, Visa Types, Contract Durations, and more.
+                            </p>
+                            <a
+                                href={route('settings.dropdown-options.index')}
+                                className="inline-flex items-center gap-2 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                            >
+                                Manage Dropdown Options &rarr;
+                            </a>
+                        </div>
+
                         <div className="pt-2">
                             <button
                                 type="submit"

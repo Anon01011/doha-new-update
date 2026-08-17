@@ -603,22 +603,23 @@ class EmployeeController extends Controller
         // Fetch dynamic options
         $options = \App\Models\DropdownOption::where('is_active', true)
             ->orderBy('sort_order')
+            ->orderBy('value')
             ->get()
             ->groupBy('category')
             ->map(function ($group) {
-                return $group->pluck('value');
+                return $group->pluck('value')->values()->toArray();
             });
 
         return [
-            'genders' => $options['Gender'] ?? [],
-            'visa_types' => $options['Visa Type'] ?? [],
-            'visa_designations' => $options['Visa Designation'] ?? [],
-            'employee_categories' => $options['Employee Category'] ?? [],
-            'contract_durations' => $options['Contract Duration'] ?? [],
-            'exit_statuses' => $options['Exit Status'] ?? [],
-            'payment_types' => $options['Payment Type'] ?? [],
-            'leave_statuses' => $options['Leave Status'] ?? [],
-            'shifts' => $options['Shift'] ?? [],
+            'genders' => !empty($options['Gender']) ? $options['Gender'] : ['Male', 'Female'],
+            'visa_types' => !empty($options['Visa Type']) ? $options['Visa Type'] : ['Work Visa', 'Visit Visa', 'Family Visa', 'Business Visa'],
+            'visa_designations' => !empty($options['Visa Designation']) ? $options['Visa Designation'] : ['Manager', 'Engineer', 'Technician', 'Laborer', 'Driver', 'Accountant', 'Sales'],
+            'employee_categories' => !empty($options['Employee Category']) ? $options['Employee Category'] : ['Permanent', 'Contract', 'Probation', 'Intern'],
+            'contract_durations' => !empty($options['Contract Duration']) ? $options['Contract Duration'] : ['1 Year', '2 Years', '3 Years', '5 Years', 'Unlimited'],
+            'exit_statuses' => !empty($options['Exit Status']) ? $options['Exit Status'] : ['Resigned', 'Terminated', 'End of Contract', 'Absconded'],
+            'payment_types' => !empty($options['Payment Type']) ? $options['Payment Type'] : ['Bank Transfer', 'Cash', 'Cheque'],
+            'leave_statuses' => !empty($options['Leave Status']) ? $options['Leave Status'] : ['Available', 'On Leave', 'Unpaid Leave'],
+            'shifts' => !empty($options['Shift']) ? $options['Shift'] : ['Morning', 'Evening', 'Night', 'General'],
         ];
     }
 

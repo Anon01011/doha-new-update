@@ -304,8 +304,9 @@ export default function CreateEmployee(props) {
                                     <InputWrapper label="Gender" icon={EmployeeFieldIcons.gender} error={errors.gender} required>
                                         <select className={inputClasses} value={data.gender} onChange={e => setData('gender', e.target.value)} required>
                                             <option value="">Select Gender</option>
-                                            <option value="Male">Male</option>
-                                            <option value="Female">Female</option>
+                                            {(constants.genders || ['Male', 'Female']).map(opt => (
+                                                <option key={opt} value={opt}>{opt}</option>
+                                            ))}
                                         </select>
                                     </InputWrapper>
 
@@ -490,6 +491,24 @@ export default function CreateEmployee(props) {
                                             <option value="active">Active</option>
                                             <option value="waiting">Pending Approval</option>
                                             <option value="inactive">Inactive</option>
+                                        </select>
+                                    </InputWrapper>
+
+                                    <InputWrapper label="Leave Status" icon={EmployeeFieldIcons.leave_status} error={errors.leave_status}>
+                                        <select className={inputClasses} value={data.leave_status} onChange={e => setData('leave_status', e.target.value)}>
+                                            <option value="">Select Leave Status</option>
+                                            {(constants.leave_statuses || ['Available', 'On Leave', 'Unpaid Leave']).map(opt => (
+                                                <option key={opt} value={opt}>{opt}</option>
+                                            ))}
+                                        </select>
+                                    </InputWrapper>
+
+                                    <InputWrapper label="Exit Status" icon={EmployeeFieldIcons.exit_status} error={errors.exit_status}>
+                                        <select className={inputClasses} value={data.exit_status} onChange={e => setData('exit_status', e.target.value)}>
+                                            <option value="">Select Exit Status</option>
+                                            {(constants.exit_statuses || ['Resigned', 'Terminated', 'End of Contract', 'Absconded']).map(opt => (
+                                                <option key={opt} value={opt}>{opt}</option>
+                                            ))}
                                         </select>
                                     </InputWrapper>
 
