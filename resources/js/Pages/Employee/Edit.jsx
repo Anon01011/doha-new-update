@@ -513,9 +513,9 @@ export default function EditEmployee(props) {
                                             className={inputClasses}
                                             value={data.reported_to}
                                             onChange={e => setData('reported_to', e.target.value)}
-                                            disabled={!isHrOrManager && !data.department_id && !data.company_id}
+                                            disabled={!isHrOrManager && !data.department_id}
                                         >
-                                            <option value="">Select Reporting Authority</option>
+                                            <option value="">{isHrOrManager ? 'Select Executive Authority (CEO / Founder)' : 'Select Manager'}</option>
 
                                             {/* For HR & Managers: ONLY allow reporting to Executive Leadership (CEO / Founder / COO) */}
                                             {isHrOrManager ? (
@@ -529,56 +529,25 @@ export default function EditEmployee(props) {
                                                     </optgroup>
                                                 )
                                             ) : (
-                                                <>
-                                                    {/* Managers & HR for regular employees */}
-                                                    {managerEmployees.filter(m => m.id != employee.id).length > 0 && (
-                                                        <optgroup label="Managers & HR Leadership">
-                                                            {managerEmployees.filter(m => m.id != employee.id).map(mgr => (
-                                                                <option key={mgr.id} value={mgr.name}>
-                                                                    {mgr.name} ({mgr.designation || 'Manager'})
-                                                                </option>
-                                                            ))}
-                                                        </optgroup>
-                                                    )}
-
-                                                    {/* Department Team Members */}
-                                                    {departmentEmployees.filter(emp => emp.id != employee.id).length > 0 && (
-                                                        <optgroup label="Department Team">
-                                                            {departmentEmployees.filter(emp => emp.id != employee.id).map(emp => (
-                                                                <option key={emp.id} value={emp.name}>
-                                                                    {emp.name} {emp.designation ? `(${emp.designation})` : ''}
-                                                                </option>
-                                                            ))}
-                                                        </optgroup>
-                                                    )}
-
-                                                    {/* Executive Leadership */}
-                                                    {executiveLeaders.length > 0 && (
-                                                        <optgroup label="Executive Leadership (CEO / Founder / COO)">
-                                                            {executiveLeaders.map(exec => (
-                                                                <option key={exec.id} value={exec.name}>
-                                                                    {exec.name} ({exec.designation || 'Executive Leader'})
-                                                                </option>
-                                                            ))}
-                                                        </optgroup>
-                                                    )}
-                                                </>
+                                                /* For regular branch/department staff: assign person from that branch/department as it was */
+                                                departmentEmployees.filter(emp => emp.id != employee.id).map(emp => (
+                                                    <option key={emp.id} value={emp.name}>
+                                                        {emp.name}
+                                                    </option>
+                                                ))
                                             )}
 
                                             {/* Value preservation for legacy reporting */}
                                             {data.reported_to &&
-                                                !executiveLeaders.some(e => e.name === data.reported_to) &&
-                                                !managerEmployees.some(e => e.name === data.reported_to) &&
+                                                !isHrOrManager &&
                                                 !departmentEmployees.some(e => e.name === data.reported_to) && (
-                                                    <optgroup label="Current Assigned Authority">
-                                                        <option value={data.reported_to}>{data.reported_to}</option>
-                                                    </optgroup>
+                                                    <option value={data.reported_to}>{data.reported_to}</option>
                                                 )}
                                         </select>
                                         {isHrOrManager && (
                                             <p className="text-[10px] font-medium text-indigo-600 mt-1 ml-1 flex items-center gap-1">
                                                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
-                                                HR & Managers report directly to Executive Leaders (CEO / Founder / COO).
+                                                HR & Managers report directly to CEO / Founder / COO.
                                             </p>
                                         )}
                                     </InputWrapper>
