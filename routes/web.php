@@ -61,6 +61,7 @@ Route::middleware('auth')->group(function () {
         Route::post('shift-rosters/duplicate-week', [\App\Http\Controllers\ShiftRosterController::class, 'duplicateWeek'])->name('shift-rosters.duplicateWeek');
         Route::post('shift-rosters/clear-week', [\App\Http\Controllers\ShiftRosterController::class, 'clearWeek'])->name('shift-rosters.clearWeek');
         Route::get('shift-rosters/export-week', [\App\Http\Controllers\ShiftRosterController::class, 'exportWeek'])->name('shift-rosters.exportWeek');
+        Route::get('shift-rosters/export', [\App\Http\Controllers\ShiftRosterController::class, 'exportWeek'])->name('shift-rosters.export-week');
         Route::get('shift-rosters/debug', [\App\Http\Controllers\ShiftRosterController::class, 'debug'])->name('shift-rosters.debug');
         Route::get('shift-rosters/test-database', [\App\Http\Controllers\ShiftRosterController::class, 'testDatabase'])->name('shift-rosters.testDatabase');
         Route::post('shift-rosters/batch-store', [\App\Http\Controllers\ShiftRosterController::class, 'batchStore'])->name('shift-rosters.batchStore');

@@ -361,8 +361,27 @@ export default function Index({
     };
 
     const handleExport = () => {
-        let url = route('shift-rosters.export-week') + `?week_start=${weekStart}&company_id=${selectedCompany}`;
-        if (selectedDepartment) url += `&department_id=${selectedDepartment}`;
+        if (!selectedCompany) {
+            alert('Please select a branch/salon first.');
+            return;
+        }
+        let baseUrl = '/shift-rosters/export-week';
+        try {
+            if (typeof route === 'function') {
+                if (route().has('shift-rosters.exportWeek')) {
+                    baseUrl = route('shift-rosters.exportWeek');
+                } else if (route().has('shift-rosters.export-week')) {
+                    baseUrl = route('shift-rosters.export-week');
+                }
+            }
+        } catch (e) {
+            baseUrl = '/shift-rosters/export-week';
+        }
+
+        let url = `${baseUrl}?week_start=${encodeURIComponent(weekStart)}&company_id=${encodeURIComponent(selectedCompany)}`;
+        if (selectedDepartment) {
+            url += `&department_id=${encodeURIComponent(selectedDepartment)}`;
+        }
         window.location.href = url;
     };
 
