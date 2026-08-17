@@ -128,6 +128,7 @@ class EmployeeController extends Controller
             'salaryComponents' => $salaryComponents,
             'availableRoles' => $availableRoles,
             'leadershipEmployees' => $this->getLeadershipEmployees(),
+            'managerEmployees' => $this->getManagerAndHrEmployees(),
             'constants' => $this->getConstants(),
         ]);
     }
@@ -361,6 +362,7 @@ class EmployeeController extends Controller
             'salaryComponents' => $salaryComponents,
             'availableRoles' => $availableRoles,
             'leadershipEmployees' => $this->getLeadershipEmployees(),
+            'managerEmployees' => $this->getManagerAndHrEmployees(),
             'employee_role' => $employee->user && $employee->user->roles->first() ? $employee->user->roles->first()->slug : null,
             'constants' => $this->getConstants(),
         ]);
@@ -638,6 +640,29 @@ class EmployeeController extends Controller
         }
 
         return $leadership;
+    }
+
+    /**
+     * Get real users/employees with Manager / HR / Supervisor designations
+     */
+    private function getManagerAndHrEmployees()
+    {
+        return Employee::where(function ($q) {
+            $q->where('designation', 'LIKE', '%Manager%')
+              ->orWhere('designation', 'LIKE', '%HR%')
+              ->orWhere('designation', 'LIKE', '%Human Resource%')
+              ->orWhere('designation', 'LIKE', '%Supervisor%')
+              ->orWhere('designation', 'LIKE', '%Lead%');
+        })
+        ->orWhereHas('user', function ($q) {
+            $q->whereIn('role', ['hr', 'manager'])
+              ->orWhereHas('roles', function ($rq) {
+                  $rq->whereIn('slug', ['hr', 'manager', 'branch-manager']);
+              });
+        })
+        ->active()
+        ->orderBy('name')
+        ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
     }
 
     private function getConstants()

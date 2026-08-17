@@ -39,7 +39,7 @@ export default function CreateEmployee(props) {
     const { appSettings } = usePage().props;
     const currency = appSettings?.currency || 'QAR';
 
-    const { companies = [], departments = [], constants = {}, salaryComponents = [], availableRoles = [], leadershipEmployees = [] } = props;
+    const { companies = [], departments = [], constants = {}, salaryComponents = [], availableRoles = [], leadershipEmployees = [], managerEmployees = [] } = props;
     const [filteredDepartments, setFilteredDepartments] = useState([]);
     const [autoGenerate, setAutoGenerate] = useState(false);
     const [resumePreviewUrl, setResumePreviewUrl] = useState(null);
@@ -144,10 +144,13 @@ export default function CreateEmployee(props) {
         ];
     }, [constants.designations]);
 
-    // Auto-suggest Executive reporting for HR/Managers if reporting is not set
+    // Enforce Executive Leader reporting for HR & Managers
     useEffect(() => {
-        if (isHrOrManager && !data.reported_to && executiveLeaders.length > 0) {
-            setData('reported_to', executiveLeaders[0].name);
+        if (isHrOrManager && executiveLeaders.length > 0) {
+            const isCurrentlyExecutive = executiveLeaders.some(e => e.name === data.reported_to);
+            if (!isCurrentlyExecutive) {
+                setData('reported_to', executiveLeaders[0].name);
+            }
         }
     }, [isHrOrManager, executiveLeaders]);
 
@@ -478,26 +481,52 @@ export default function CreateEmployee(props) {
                                         >
                                             <option value="">Select Reporting Authority</option>
 
-                                            {/* Executive Hierarchy (Users with CEO / Founder / COO / Director designations) */}
-                                            {executiveLeaders.length > 0 && (
-                                                <optgroup label="Executive Leadership (CEO / Founder / COO)">
-                                                    {executiveLeaders.map(exec => (
-                                                        <option key={exec.id} value={exec.name}>
-                                                            {exec.name} ({exec.designation || 'Executive Leader'})
-                                                        </option>
-                                                    ))}
-                                                </optgroup>
-                                            )}
+                                            {/* For HR & Managers: ONLY allow reporting to Executive Leadership (CEO / Founder / COO) */}
+                                            {isHrOrManager ? (
+                                                executiveLeaders.length > 0 && (
+                                                    <optgroup label="Executive Leadership (CEO / Founder / COO)">
+                                                        {executiveLeaders.map(exec => (
+                                                            <option key={exec.id} value={exec.name}>
+                                                                {exec.name} ({exec.designation || 'Executive Leader'})
+                                                            </option>
+                                                        ))}
+                                                    </optgroup>
+                                                )
+                                            ) : (
+                                                <>
+                                                    {/* Managers & HR for regular employees */}
+                                                    {managerEmployees.length > 0 && (
+                                                        <optgroup label="Managers & HR Leadership">
+                                                            {managerEmployees.map(mgr => (
+                                                                <option key={mgr.id} value={mgr.name}>
+                                                                    {mgr.name} ({mgr.designation || 'Manager'})
+                                                                </option>
+                                                            ))}
+                                                        </optgroup>
+                                                    )}
 
-                                            {/* Department / Branch Team Members */}
-                                            {departmentEmployees.length > 0 && (
-                                                <optgroup label="Department / Branch Team">
-                                                    {departmentEmployees.map(emp => (
-                                                        <option key={emp.id} value={emp.name}>
-                                                            {emp.name} {emp.designation ? `(${emp.designation})` : ''}
-                                                        </option>
-                                                    ))}
-                                                </optgroup>
+                                                    {/* Department Team Members */}
+                                                    {departmentEmployees.length > 0 && (
+                                                        <optgroup label="Department Team">
+                                                            {departmentEmployees.map(emp => (
+                                                                <option key={emp.id} value={emp.name}>
+                                                                    {emp.name} {emp.designation ? `(${emp.designation})` : ''}
+                                                                </option>
+                                                            ))}
+                                                        </optgroup>
+                                                    )}
+
+                                                    {/* Executive Leadership */}
+                                                    {executiveLeaders.length > 0 && (
+                                                        <optgroup label="Executive Leadership (CEO / Founder / COO)">
+                                                            {executiveLeaders.map(exec => (
+                                                                <option key={exec.id} value={exec.name}>
+                                                                    {exec.name} ({exec.designation || 'Executive Leader'})
+                                                                </option>
+                                                            ))}
+                                                        </optgroup>
+                                                    )}
+                                                </>
                                             )}
                                         </select>
                                         {isHrOrManager && (
