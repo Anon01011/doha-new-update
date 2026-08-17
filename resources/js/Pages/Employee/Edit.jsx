@@ -191,10 +191,13 @@ export default function EditEmployee(props) {
             'HR Executive',
             'Branch Manager',
             'Operations Manager',
+            'Department Head',
+            'Supervisor / Team Lead',
             'Receptionist / Front Desk',
             'Accountant',
+            'Administrative Assistant',
             'Sales Executive',
-            'Helper / Cleaner',
+            'Office Assistant / Helper',
         ];
     }, [constants.designations]);
 

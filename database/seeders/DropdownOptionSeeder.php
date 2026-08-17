@@ -9,6 +9,18 @@ class DropdownOptionSeeder extends Seeder
 {
     public function run()
     {
+        // Remove old salon/stylist-specific designations
+        DropdownOption::where('category', 'Designation')
+            ->whereIn('value', [
+                'Senior Stylist',
+                'Hair Stylist',
+                'Beautician',
+                'Nail Artist',
+                'Makeup Artist',
+                'Massage Therapist',
+            ])
+            ->delete();
+
         $data = [
             'Gender' => ['Male', 'Female'],
             'Designation' => [
@@ -20,16 +32,13 @@ class DropdownOptionSeeder extends Seeder
                 'HR Executive',
                 'Branch Manager',
                 'Operations Manager',
-                'Senior Stylist',
-                'Hair Stylist',
-                'Beautician',
-                'Nail Artist',
-                'Makeup Artist',
-                'Massage Therapist',
+                'Department Head',
+                'Supervisor / Team Lead',
                 'Receptionist / Front Desk',
                 'Accountant',
+                'Administrative Assistant',
                 'Sales Executive',
-                'Helper / Cleaner',
+                'Office Assistant / Helper',
             ],
             'Visa Type' => ['Work Visa', 'Visit Visa', 'Family Visa', 'Business Visa'],
             'Visa Designation' => ['Manager', 'Engineer', 'Technician', 'Laborer', 'Driver', 'Accountant', 'Sales'],
