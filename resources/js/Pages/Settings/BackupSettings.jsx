@@ -81,6 +81,26 @@ export default function BackupSettings({ backups = [], stats = {}, settings = {}
         });
     };
 
+    const triggerRestoreServerBackupModal = (filename) => {
+        setConfirmModal({
+            show: true,
+            title: 'Restore System From Backup',
+            message: `Are you sure you want to restore the system from backup "${filename}"? This will safely import database records and restore media files on the server.`,
+            confirmText: 'Yes, Restore Now',
+            cancelText: 'Cancel',
+            type: 'warning',
+            icon: 'restore',
+            onConfirm: () => {
+                setConfirmModal(prev => ({ ...prev, show: false }));
+                setIsRestoring(true);
+                router.post(route('settings.backup.restore'), { filename }, {
+                    preserveScroll: true,
+                    onFinish: () => setIsRestoring(false),
+                });
+            }
+        });
+    };
+
     const triggerDeleteBackupModal = (filename) => {
         setConfirmModal({
             show: true,
@@ -455,6 +475,14 @@ export default function BackupSettings({ backups = [], stats = {}, settings = {}
                                                 <td className="py-3 px-3 text-slate-500">{backup.created_at}</td>
                                                 <td className="py-3 px-3 text-right">
                                                     <div className="flex items-center justify-end gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => triggerRestoreServerBackupModal(backup.name)}
+                                                            className="p-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                                            title="Restore this backup to system"
+                                                        >
+                                                            <FiRefreshCw className="w-4 h-4" />
+                                                        </button>
                                                         <a
                                                             href={route('settings.backup.download', { filename: backup.name })}
                                                             className="p-1.5 text-slate-600 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors"

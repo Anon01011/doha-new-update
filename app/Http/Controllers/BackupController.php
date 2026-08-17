@@ -308,25 +308,35 @@ class BackupController extends Controller
     }
 
     /**
-     * Restore system from an uploaded backup file (.zip, .sql, .json)
+     * Restore system from an uploaded backup file (.zip, .sql, .json) or server-stored archive
      */
     public function restore(Request $request)
     {
-        @ini_set('max_execution_time', '600');
-        @ini_set('memory_limit', '512M');
-        @set_time_limit(600);
+        @ini_set('max_execution_time', '0');
+        @set_time_limit(0);
+        @ini_set('memory_limit', '1024M');
 
         if (!auth()->user()->isAdmin()) {
             abort(403, 'Unauthorized. Only Super Admin can restore backups.');
         }
 
-        $request->validate([
-            'backup_file' => 'required|file|max:204800', // 200MB max
-        ]);
+        $serverFilename = $request->input('filename');
+        if ($serverFilename) {
+            $safeName = basename($serverFilename);
+            $realPath = storage_path('app/' . $this->backupDir . '/' . $safeName);
+            if (!File::exists($realPath)) {
+                return back()->withErrors(['error' => 'Selected server backup file not found.']);
+            }
+            $ext = strtolower(pathinfo($realPath, PATHINFO_EXTENSION));
+        } else {
+            $request->validate([
+                'backup_file' => 'required|file|max:307200', // 300MB max
+            ]);
 
-        $file = $request->file('backup_file');
-        $ext = strtolower($file->getClientOriginalExtension());
-        $realPath = $file->getRealPath();
+            $file = $request->file('backup_file');
+            $ext = strtolower($file->getClientOriginalExtension());
+            $realPath = $file->getRealPath();
+        }
 
         // Remember active user email to ensure session re-authentication if necessary
         $currentAdminEmail = auth()->user()->email;
@@ -342,13 +352,12 @@ class BackupController extends Controller
                 $zip->extractTo($extractPath);
                 $zip->close();
 
-                // 1. Restore Database
+                // 1. Restore Database from file stream (zero RAM usage, line-by-line streaming)
                 $sqlPath = $extractPath . '/database_dump.sql';
                 $jsonPath = $extractPath . '/hrms_data.json';
 
                 if (File::exists($sqlPath)) {
-                    $sql = File::get($sqlPath);
-                    $this->executeSqlDump($sql);
+                    $this->executeSqlDumpFromFile($sqlPath);
                 } elseif (File::exists($jsonPath)) {
                     $jsonData = json_decode(File::get($jsonPath), true);
                     $this->restoreFromJson($jsonData);
@@ -388,8 +397,7 @@ class BackupController extends Controller
 
                 return back()->with('success', 'Full system backup restored successfully! All database records, salon branches, and media files have been restored.');
             } elseif ($ext === 'sql') {
-                $sql = File::get($realPath);
-                $this->executeSqlDump($sql);
+                $this->executeSqlDumpFromFile($realPath);
 
                 try {
                     \Illuminate\Support\Facades\Artisan::call('cache:clear');
@@ -713,30 +721,49 @@ class BackupController extends Controller
     }
 
     /**
-     * Execute a raw SQL dump against the database safely by splitting queries
+     * Execute a raw SQL dump against the database from a file stream without memory exhaustion
      */
-    private function executeSqlDump(string $sql)
+    private function executeSqlDumpFromFile(string $filePath)
     {
-        @ini_set('max_execution_time', '600');
-        @ini_set('memory_limit', '512M');
-        @set_time_limit(600);
+        @ini_set('max_execution_time', '0');
+        @set_time_limit(0);
+        @ini_set('memory_limit', '1024M');
 
         $pdo = DB::getPdo();
         $pdo->exec('SET FOREIGN_KEY_CHECKS=0;');
         $pdo->exec('SET UNIQUE_CHECKS=0;');
 
-        // Split queries by semicolon + newline or delimiter
-        $queries = preg_split('/;\s*(\r\n|\n)/', $sql);
-        foreach ($queries as $query) {
-            $trimmed = trim($query);
-            if (!empty($trimmed) && !str_starts_with($trimmed, '--') && !str_starts_with($trimmed, '/*')) {
+        $handle = fopen($filePath, 'r');
+        if (!$handle) {
+            throw new \Exception("Cannot open SQL dump file for execution.");
+        }
+
+        $currentQuery = '';
+        while (($line = fgets($handle)) !== false) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '--') || str_starts_with($trimmed, '/*')) {
+                continue;
+            }
+
+            $currentQuery .= $line;
+
+            if (str_ends_with($trimmed, ';')) {
                 try {
-                    $pdo->exec($trimmed);
+                    $pdo->exec($currentQuery);
                 } catch (\Exception $e) {
-                    Log::warning('SQL Restore statement notice: ' . $e->getMessage() . ' on query: ' . substr($trimmed, 0, 80));
+                    Log::warning('SQL Execute Notice: ' . $e->getMessage() . ' | Query: ' . substr($currentQuery, 0, 80));
                 }
+                $currentQuery = '';
             }
         }
+
+        if (!empty(trim($currentQuery))) {
+            try {
+                $pdo->exec($currentQuery);
+            } catch (\Exception $e) {}
+        }
+
+        fclose($handle);
 
         $pdo->exec('SET FOREIGN_KEY_CHECKS=1;');
         $pdo->exec('SET UNIQUE_CHECKS=1;');
