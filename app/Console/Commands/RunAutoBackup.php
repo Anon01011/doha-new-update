@@ -125,17 +125,19 @@ class RunAutoBackup extends Command
         $pdo = DB::getPdo();
         $dbName = DB::getDatabaseName();
 
+        $excluded = ['sessions', 'jobs', 'job_batches', 'failed_jobs', 'cache', 'cache_locks', 'password_reset_tokens'];
         $tables = [];
         try {
             $rawTables = DB::select('SHOW FULL TABLES WHERE Table_type = "BASE TABLE"');
             foreach ($rawTables as $tableObj) {
                 $arr = array_values((array)$tableObj);
-                if (!empty($arr[0])) {
+                if (!empty($arr[0]) && !in_array($arr[0], $excluded)) {
                     $tables[] = $arr[0];
                 }
             }
         } catch (\Exception $e) {
-            $tables = \Illuminate\Support\Facades\Schema::getTableListing();
+            $allTables = \Illuminate\Support\Facades\Schema::getTableListing();
+            $tables = array_diff($allTables, $excluded);
         }
 
         $sql = "-- ========================================================\n";

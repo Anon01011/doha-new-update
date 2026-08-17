@@ -262,6 +262,10 @@ class BackupController extends Controller
      */
     public function restore(Request $request)
     {
+        @ini_set('max_execution_time', '600');
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(600);
+
         if (!auth()->user()->isAdmin()) {
             abort(403, 'Unauthorized. Only Super Admin can restore backups.');
         }
@@ -273,6 +277,9 @@ class BackupController extends Controller
         $file = $request->file('backup_file');
         $ext = strtolower($file->getClientOriginalExtension());
         $realPath = $file->getRealPath();
+
+        // Remember active user email to ensure session re-authentication if necessary
+        $currentAdminEmail = auth()->user()->email;
 
         try {
             if ($ext === 'zip') {
@@ -313,16 +320,20 @@ class BackupController extends Controller
                 // Re-link public storage and clear cache for cross-domain portability
                 try {
                     \Illuminate\Support\Facades\Artisan::call('storage:link');
-                } catch (\Exception $e) {
-                    // Ignore if symlink already exists
-                }
+                } catch (\Exception $e) {}
 
                 try {
                     \Illuminate\Support\Facades\Artisan::call('cache:clear');
                     \Illuminate\Support\Facades\Artisan::call('config:clear');
                     \Illuminate\Support\Facades\Artisan::call('view:clear');
-                } catch (\Exception $e) {
-                    // Ignore
+                } catch (\Exception $e) {}
+
+                // Re-authenticate user if needed
+                if (!auth()->check()) {
+                    $admin = User::where('email', $currentAdminEmail)->first();
+                    if ($admin) {
+                        auth()->login($admin);
+                    }
                 }
 
                 return back()->with('success', 'Full system backup restored successfully! All database records, salon branches, and media files have been restored.');
@@ -361,6 +372,9 @@ class BackupController extends Controller
      */
     public function exportAllExcel()
     {
+        @ini_set('max_execution_time', '600');
+        @ini_set('memory_limit', '512M');
+
         if (!auth()->user()->isAdmin()) {
             abort(403, 'Unauthorized.');
         }
@@ -513,21 +527,26 @@ class BackupController extends Controller
      */
     private function generateSqlDump()
     {
+        @ini_set('max_execution_time', '600');
+        @ini_set('memory_limit', '512M');
+
         $pdo = DB::getPdo();
         $dbName = DB::getDatabaseName();
 
-        // Discover tables dynamically
+        // Discover tables dynamically and exclude ephemeral runtime tables
+        $excluded = ['sessions', 'jobs', 'job_batches', 'failed_jobs', 'cache', 'cache_locks', 'password_reset_tokens'];
         $tables = [];
         try {
             $rawTables = DB::select('SHOW FULL TABLES WHERE Table_type = "BASE TABLE"');
             foreach ($rawTables as $tableObj) {
                 $arr = array_values((array)$tableObj);
-                if (!empty($arr[0])) {
+                if (!empty($arr[0]) && !in_array($arr[0], $excluded)) {
                     $tables[] = $arr[0];
                 }
             }
         } catch (\Exception $e) {
-            $tables = \Illuminate\Support\Facades\Schema::getTableListing();
+            $allTables = \Illuminate\Support\Facades\Schema::getTableListing();
+            $tables = array_diff($allTables, $excluded);
         }
 
         $sql = "-- ========================================================\n";
@@ -612,17 +631,19 @@ class BackupController extends Controller
     {
         $dbName = DB::getDatabaseName();
 
+        $excluded = ['sessions', 'jobs', 'job_batches', 'failed_jobs', 'cache', 'cache_locks', 'password_reset_tokens'];
         $tables = [];
         try {
             $rawTables = DB::select('SHOW FULL TABLES WHERE Table_type = "BASE TABLE"');
             foreach ($rawTables as $tableObj) {
                 $arr = array_values((array)$tableObj);
-                if (!empty($arr[0])) {
+                if (!empty($arr[0]) && !in_array($arr[0], $excluded)) {
                     $tables[] = $arr[0];
                 }
             }
         } catch (\Exception $e) {
-            $tables = \Illuminate\Support\Facades\Schema::getTableListing();
+            $allTables = \Illuminate\Support\Facades\Schema::getTableListing();
+            $tables = array_diff($allTables, $excluded);
         }
 
         $data = [
@@ -642,13 +663,33 @@ class BackupController extends Controller
     }
 
     /**
-     * Execute a raw SQL dump against the database
+     * Execute a raw SQL dump against the database safely by splitting queries
      */
     private function executeSqlDump(string $sql)
     {
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-        DB::unprepared($sql);
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        @ini_set('max_execution_time', '600');
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(600);
+
+        $pdo = DB::getPdo();
+        $pdo->exec('SET FOREIGN_KEY_CHECKS=0;');
+        $pdo->exec('SET UNIQUE_CHECKS=0;');
+
+        // Split queries by semicolon + newline or delimiter
+        $queries = preg_split('/;\s*(\r\n|\n)/', $sql);
+        foreach ($queries as $query) {
+            $trimmed = trim($query);
+            if (!empty($trimmed) && !str_starts_with($trimmed, '--') && !str_starts_with($trimmed, '/*')) {
+                try {
+                    $pdo->exec($trimmed);
+                } catch (\Exception $e) {
+                    Log::warning('SQL Restore statement notice: ' . $e->getMessage() . ' on query: ' . substr($trimmed, 0, 80));
+                }
+            }
+        }
+
+        $pdo->exec('SET FOREIGN_KEY_CHECKS=1;');
+        $pdo->exec('SET UNIQUE_CHECKS=1;');
     }
 
     /**
