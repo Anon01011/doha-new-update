@@ -233,7 +233,7 @@ class BackupController extends Controller
     }
 
     /**
-     * Download an existing backup file using chunked binary stream without timeouts
+     * Download an existing backup file using direct binary stream without timeouts or proxy buffering
      */
     public function download($filename)
     {
@@ -251,33 +251,40 @@ class BackupController extends Controller
         $fileSize = filesize($filePath);
         $mimeType = str_ends_with($safeName, '.zip') ? 'application/zip' : 'application/octet-stream';
 
-        return response()->streamDownload(function () use ($filePath) {
-            @ini_set('max_execution_time', '0');
-            @set_time_limit(0);
-            @ini_set('memory_limit', '512M');
+        // Clear all output buffers completely
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
 
-            while (ob_get_level()) {
-                ob_end_clean();
-            }
+        // Disable compression and timeouts
+        @ini_set('max_execution_time', '0');
+        @set_time_limit(0);
+        @ini_set('memory_limit', '1024M');
+        @ini_set('zlib.output_compression', 'Off');
+        if (function_exists('apache_setenv')) {
+            @apache_setenv('no-gzip', '1');
+        }
 
-            $handle = fopen($filePath, 'rb');
-            if ($handle) {
-                while (!feof($handle)) {
-                    echo fread($handle, 1024 * 1024); // 1MB buffer
-                    flush();
-                }
-                fclose($handle);
+        header('Content-Description: File Transfer');
+        header('Content-Type: ' . $mimeType);
+        header('Content-Disposition: attachment; filename="' . $safeName . '"');
+        header('Content-Transfer-Encoding: binary');
+        header('Expires: 0');
+        header('Cache-Control: must-revalidate, post-check=0, pre-check=0, no-transform');
+        header('Pragma: public');
+        header('Content-Length: ' . (string) $fileSize);
+        header('Connection: close');
+
+        // Stream file directly in 2MB chunks
+        $handle = fopen($filePath, 'rb');
+        if ($handle) {
+            while (!feof($handle) && !connection_aborted()) {
+                echo fread($handle, 2 * 1024 * 1024);
+                flush();
             }
-        }, $safeName, [
-            'Content-Type' => $mimeType,
-            'Content-Length' => (string) $fileSize,
-            'Content-Disposition' => 'attachment; filename="' . $safeName . '"',
-            'Content-Transfer-Encoding' => 'binary',
-            'Accept-Ranges' => 'bytes',
-            'Cache-Control' => 'no-cache, no-store, must-revalidate',
-            'Pragma' => 'no-cache',
-            'Expires' => '0',
-        ]);
+            fclose($handle);
+        }
+        exit;
     }
 
     /**
