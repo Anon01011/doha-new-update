@@ -806,4 +806,507 @@ class EmployeeController extends Controller
             return back()->withErrors(['error' => 'Failed to transfer employees: ' . $e->getMessage()]);
         }
     }
+
+    /**
+     * Export employees to CSV based on current filters
+     */
+    public function export(Request $request)
+    {
+        $user = auth()->user();
+        if (!$user->isAdmin() && !$user->isHR() && !$user->hasPermission('view-employees')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $query = Employee::with(['company', 'department', 'user.roles']);
+
+        // Multi-tenancy scoping
+        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+            $query->where('company_id', $user->employee->company_id);
+        } elseif ($request->has('company_id') && $request->company_id) {
+            $query->where('company_id', $request->company_id);
+        }
+
+        if ($request->has('department_id') && $request->department_id) {
+            $query->where('department_id', $request->department_id);
+        }
+
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('employee_code', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('mobile', 'like', "%{$search}%")
+                    ->orWhere('designation', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->has('status') && $request->status) {
+            if ($request->status === 'active') {
+                $query->active();
+            } elseif ($request->status === 'inactive') {
+                $query->inactive();
+            } elseif ($request->status === 'waiting') {
+                $query->where('manual_status', 'waiting');
+            }
+        }
+
+        $employees = $query->orderBy('name')->get();
+
+        $filename = "employees_export_" . now()->format('Ymd_His') . ".csv";
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $columns = [
+            'Employee Code',
+            'Full Name',
+            'Branch / Salon',
+            'Department',
+            'Designation',
+            'System Role',
+            'Mobile',
+            'Email',
+            'Gender',
+            'DOB',
+            'Nationality',
+            'Sponsor',
+            'Basic Salary',
+            'Reported To',
+            'Joined Date',
+            'Rejoined Date',
+            'Shift',
+            'Visa Type',
+            'Visa Designation',
+            'Employee Category',
+            'Contract Duration',
+            'Exit Status',
+            'Payment Type',
+            'Leave Status',
+            'Status',
+            'Passport Number',
+            'Passport Expiry Date',
+            'QID Number',
+            'QID Expiry Date',
+            'Health Card Number',
+            'Health Card Expiry Date',
+            'Contract Issue Date',
+            'Contract Expiry Date',
+        ];
+
+        $callback = function () use ($employees, $columns) {
+            $file = fopen('php://output', 'w');
+            fputs($file, "\xEF\xBB\xBF"); // UTF-8 BOM
+            fputcsv($file, $columns);
+
+            foreach ($employees as $emp) {
+                $roleName = $emp->user && $emp->user->roles->first() ? $emp->user->roles->first()->name : ($emp->user ? $emp->user->role : '');
+                fputcsv($file, [
+                    $emp->employee_code,
+                    $emp->name,
+                    $emp->company ? $emp->company->name : '',
+                    $emp->department ? $emp->department->name : '',
+                    $emp->designation,
+                    $roleName,
+                    $emp->mobile,
+                    $emp->email,
+                    $emp->gender,
+                    $emp->dob ? $emp->dob->format('Y-m-d') : '',
+                    $emp->nationality,
+                    $emp->sponsor,
+                    $emp->basic_salary,
+                    $emp->reported_to,
+                    $emp->joined_date ? $emp->joined_date->format('Y-m-d') : '',
+                    $emp->rejoined_date ? $emp->rejoined_date->format('Y-m-d') : '',
+                    $emp->shift,
+                    $emp->visa_type,
+                    $emp->visa_designation,
+                    $emp->employee_category,
+                    $emp->contract_duration,
+                    $emp->exit_status,
+                    $emp->payment_type,
+                    $emp->leave_status,
+                    $emp->manual_status ?: ($emp->is_active ? 'active' : 'inactive'),
+                    $emp->passport_number,
+                    $emp->passport_expiry_date ? $emp->passport_expiry_date->format('Y-m-d') : '',
+                    $emp->qid_number,
+                    $emp->qid_expiry_date ? $emp->qid_expiry_date->format('Y-m-d') : '',
+                    $emp->health_card_number,
+                    $emp->health_card_expiry_date ? $emp->health_card_expiry_date->format('Y-m-d') : '',
+                    $emp->contract_issue_date ? $emp->contract_issue_date->format('Y-m-d') : '',
+                    $emp->contract_expiry_date ? $emp->contract_expiry_date->format('Y-m-d') : '',
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Download sample CSV template for employee import
+     */
+    public function downloadTemplate()
+    {
+        $filename = "employee_import_template.csv";
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $columns = [
+            'Employee Code',
+            'Full Name',
+            'Branch / Salon',
+            'Department',
+            'Designation',
+            'System Role',
+            'Mobile',
+            'Email',
+            'Gender',
+            'DOB',
+            'Nationality',
+            'Sponsor',
+            'Basic Salary',
+            'Reported To',
+            'Joined Date',
+            'Shift',
+            'Visa Type',
+            'Visa Designation',
+            'Employee Category',
+            'Contract Duration',
+            'Payment Type',
+            'Passport Number',
+            'QID Number',
+        ];
+
+        $samples = [
+            [
+                'EMP-001',
+                'Jane Doe',
+                'Main Salon Branch',
+                'Hair Care',
+                'Hair Stylist',
+                'employee',
+                '+97412345678',
+                'jane.doe@example.com',
+                'Female',
+                '1995-05-15',
+                'Qatari',
+                'Company Sponsor',
+                '4500',
+                'Salon Manager',
+                '2024-01-10',
+                'Morning',
+                'Work Visa',
+                'Technician',
+                'Permanent',
+                '2 Years',
+                'Bank Transfer',
+                'N12345678',
+                '29500000001',
+            ],
+            [
+                'EMP-002',
+                'Ahmed Ali',
+                'Main Salon Branch',
+                'Management',
+                'HR Manager',
+                'hr',
+                '+97487654321',
+                'ahmed.ali@example.com',
+                'Male',
+                '1990-08-20',
+                'Qatari',
+                'Company Sponsor',
+                '8000',
+                'Founder / CEO',
+                '2023-06-01',
+                'General',
+                'Work Visa',
+                'Manager',
+                'Permanent',
+                '3 Years',
+                'Bank Transfer',
+                'P87654321',
+                '29000000002',
+            ]
+        ];
+
+        $callback = function () use ($columns, $samples) {
+            $file = fopen('php://output', 'w');
+            fputs($file, "\xEF\xBB\xBF");
+            fputcsv($file, $columns);
+            foreach ($samples as $row) {
+                fputcsv($file, $row);
+            }
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Import employees from uploaded CSV file
+     */
+    public function import(Request $request)
+    {
+        $user = auth()->user();
+        if (!$user->isAdmin() && !$user->isHR() && !$user->hasPermission('create-employees')) {
+            abort(403, 'Unauthorized. You do not have permission to import employees.');
+        }
+
+        $request->validate([
+            'file' => 'required|file|mimes:csv,txt|max:10240',
+            'company_id' => 'nullable|exists:companies,id',
+        ]);
+
+        $defaultCompanyId = $request->input('company_id');
+        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+            $defaultCompanyId = $user->employee->company_id;
+        }
+
+        $file = $request->file('file');
+        $handle = fopen($file->getRealPath(), 'r');
+        if (!$handle) {
+            return back()->withErrors(['file' => 'Unable to read the uploaded CSV file.']);
+        }
+
+        // Read header row (stripping UTF-8 BOM if present)
+        $rawHeader = fgetcsv($handle);
+        if (!$rawHeader) {
+            fclose($handle);
+            return back()->withErrors(['file' => 'The uploaded CSV file is empty.']);
+        }
+
+        $cleanHeader = array_map(function ($h) {
+            return strtolower(trim(preg_replace('/[\x00-\x1F\x80-\xFF]/', '', $h)));
+        }, $rawHeader);
+
+        // Header mapping helper
+        $findCol = function (array $aliases) use ($cleanHeader) {
+            foreach ($aliases as $alias) {
+                $idx = array_search(strtolower(trim($alias)), $cleanHeader);
+                if ($idx !== false) return $idx;
+            }
+            return false;
+        };
+
+        $colMap = [
+            'code' => $findCol(['employee code', 'code', 'emp code', 'employee_code', 'id']),
+            'name' => $findCol(['full name', 'name', 'employee name', 'fullname']),
+            'branch' => $findCol(['branch / salon', 'branch', 'salon', 'company', 'company name']),
+            'department' => $findCol(['department', 'dept', 'department name']),
+            'designation' => $findCol(['designation', 'job title', 'title', 'position']),
+            'role' => $findCol(['system role', 'role', 'user role']),
+            'mobile' => $findCol(['mobile', 'phone', 'mobile number', 'contact']),
+            'email' => $findCol(['email', 'email address', 'e-mail']),
+            'gender' => $findCol(['gender', 'sex']),
+            'dob' => $findCol(['dob', 'date of birth', 'birth date']),
+            'nationality' => $findCol(['nationality', 'country']),
+            'sponsor' => $findCol(['sponsor', 'sponsorship']),
+            'basic_salary' => $findCol(['basic salary', 'salary', 'basic_salary', 'basic']),
+            'reported_to' => $findCol(['reported to', 'reporting manager', 'manager', 'reports to']),
+            'joined_date' => $findCol(['joined date', 'joining date', 'hire date', 'joined_date']),
+            'rejoined_date' => $findCol(['rejoined date', 'rejoining date']),
+            'shift' => $findCol(['shift', 'work shift']),
+            'visa_type' => $findCol(['visa type', 'visa_type']),
+            'visa_designation' => $findCol(['visa designation', 'visa_designation']),
+            'employee_category' => $findCol(['employee category', 'category', 'type']),
+            'contract_duration' => $findCol(['contract duration', 'contract_duration', 'duration']),
+            'exit_status' => $findCol(['exit status', 'exit_status']),
+            'payment_type' => $findCol(['payment type', 'payment_type', 'payment method']),
+            'leave_status' => $findCol(['leave status', 'leave_status']),
+            'status' => $findCol(['status', 'manual_status', 'active status']),
+            'passport_number' => $findCol(['passport number', 'passport_number', 'passport']),
+            'passport_expiry_date' => $findCol(['passport expiry date', 'passport expiry', 'passport_expiry_date']),
+            'qid_number' => $findCol(['qid number', 'qid', 'qid_number', 'qatar id', 'national id']),
+            'qid_expiry_date' => $findCol(['qid expiry date', 'qid expiry', 'qid_expiry_date']),
+            'health_card_number' => $findCol(['health card number', 'health card', 'health_card_number']),
+            'health_card_expiry_date' => $findCol(['health card expiry date', 'health_card_expiry_date']),
+            'contract_issue_date' => $findCol(['contract issue date', 'contract_issue_date']),
+            'contract_expiry_date' => $findCol(['contract expiry date', 'contract_expiry_date']),
+        ];
+
+        if ($colMap['name'] === false) {
+            fclose($handle);
+            return back()->withErrors(['file' => 'CSV file must include a "Full Name" or "Name" column.']);
+        }
+
+        $imported = 0;
+        $updated = 0;
+        $errors = [];
+        $rowNum = 1;
+
+        // Preload companies and departments for fast lookup
+        $companies = Company::all();
+        $roles = Role::where('is_active', true)->get();
+
+        DB::beginTransaction();
+        try {
+            while (($row = fgetcsv($handle)) !== false) {
+                $rowNum++;
+                if (empty(array_filter($row))) continue;
+
+                $getVal = function ($key) use ($colMap, $row) {
+                    if ($colMap[$key] !== false && isset($row[$colMap[$key]])) {
+                        return trim($row[$colMap[$key]]);
+                    }
+                    return null;
+                };
+
+                $name = $getVal('name');
+                if (!$name) continue;
+
+                // Resolve company/branch
+                $branchName = $getVal('branch');
+                $companyId = $defaultCompanyId;
+                if ($branchName) {
+                    $matchedCompany = $companies->first(function ($c) use ($branchName) {
+                        return strcasecmp($c->name, $branchName) === 0 || (string)$c->id === (string)$branchName;
+                    });
+                    if ($matchedCompany) {
+                        $companyId = $matchedCompany->id;
+                    }
+                }
+
+                if (!$companyId && $companies->isNotEmpty()) {
+                    $companyId = $companies->first()->id;
+                }
+
+                // Resolve department
+                $deptName = $getVal('department');
+                $departmentId = null;
+                if ($deptName && $companyId) {
+                    $dept = Department::where('name', $deptName)->first();
+                    if (!$dept) {
+                        $dept = Department::create([
+                            'name' => $deptName,
+                            'company_id' => $companyId,
+                            'status' => 'active',
+                        ]);
+                    }
+                    $departmentId = $dept->id;
+                }
+
+                // Resolve code
+                $code = $getVal('code');
+                if (empty($code)) {
+                    $code = Employee::generateCode($companyId);
+                }
+
+                // Parse dates helper
+                $parseDate = function ($val) {
+                    if (!$val) return null;
+                    try {
+                        return \Carbon\Carbon::parse($val)->format('Y-m-d');
+                    } catch (\Exception $e) {
+                        return null;
+                    }
+                };
+
+                $data = [
+                    'name' => $name,
+                    'company_id' => $companyId,
+                    'department_id' => $departmentId,
+                    'designation' => $getVal('designation'),
+                    'mobile' => $getVal('mobile'),
+                    'email' => $getVal('email'),
+                    'gender' => $getVal('gender'),
+                    'dob' => $parseDate($getVal('dob')),
+                    'nationality' => $getVal('nationality'),
+                    'sponsor' => $getVal('sponsor'),
+                    'basic_salary' => is_numeric($getVal('basic_salary')) ? $getVal('basic_salary') : 0,
+                    'reported_to' => $getVal('reported_to'),
+                    'joined_date' => $parseDate($getVal('joined_date')) ?: now()->format('Y-m-d'),
+                    'rejoined_date' => $parseDate($getVal('rejoined_date')),
+                    'shift' => $getVal('shift') ?: 'Morning',
+                    'visa_type' => $getVal('visa_type') ?: 'Work Visa',
+                    'visa_designation' => $getVal('visa_designation'),
+                    'employee_category' => $getVal('employee_category') ?: 'Permanent',
+                    'contract_duration' => $getVal('contract_duration') ?: '2 Years',
+                    'exit_status' => $getVal('exit_status'),
+                    'payment_type' => $getVal('payment_type') ?: 'Bank Transfer',
+                    'leave_status' => $getVal('leave_status') ?: 'Available',
+                    'manual_status' => $getVal('status') ?: 'active',
+                    'passport_number' => $getVal('passport_number'),
+                    'passport_expiry_date' => $parseDate($getVal('passport_expiry_date')),
+                    'qid_number' => $getVal('qid_number'),
+                    'qid_expiry_date' => $parseDate($getVal('qid_expiry_date')),
+                    'health_card_number' => $getVal('health_card_number'),
+                    'health_card_expiry_date' => $parseDate($getVal('health_card_expiry_date')),
+                    'contract_issue_date' => $parseDate($getVal('contract_issue_date')),
+                    'contract_expiry_date' => $parseDate($getVal('contract_expiry_date')),
+                ];
+
+                // Check existing by employee_code or email
+                $existingEmployee = Employee::where('employee_code', $code)->first();
+                if (!$existingEmployee && $data['email']) {
+                    $existingEmployee = Employee::where('email', $data['email'])->first();
+                }
+
+                if ($existingEmployee) {
+                    $existingEmployee->update($data);
+                    $employee = $existingEmployee;
+                    $updated++;
+                } else {
+                    $data['employee_code'] = $code;
+                    $employee = Employee::create($data);
+                    $imported++;
+                }
+
+                // Handle system role & user account creation if role and email specified
+                $roleSlug = strtolower(trim($getVal('role') ?: ''));
+                if ($employee->email && $roleSlug) {
+                    $matchedRole = $roles->first(function ($r) use ($roleSlug) {
+                        return strcasecmp($r->slug, $roleSlug) === 0 || strcasecmp($r->name, $roleSlug) === 0;
+                    });
+
+                    $userAccount = User::where('email', $employee->email)->first();
+                    if (!$userAccount) {
+                        $userAccount = User::create([
+                            'name' => $employee->name,
+                            'email' => $employee->email,
+                            'password' => bcrypt('password123'),
+                            'employee_id' => $employee->id,
+                            'company_id' => $companyId,
+                            'role' => $matchedRole ? $matchedRole->slug : 'employee',
+                        ]);
+                    } else {
+                        $userAccount->update([
+                            'name' => $employee->name,
+                            'employee_id' => $employee->id,
+                            'company_id' => $companyId,
+                            'role' => $matchedRole ? $matchedRole->slug : $userAccount->role,
+                        ]);
+                    }
+
+                    if ($matchedRole) {
+                        $userAccount->roles()->syncWithoutDetaching([$matchedRole->id]);
+                    }
+                }
+            }
+
+            DB::commit();
+            fclose($handle);
+
+            $msg = "Import completed successfully: {$imported} new employees created, {$updated} existing employees updated.";
+            return back()->with('success', $msg);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            fclose($handle);
+            \Log::error('Employee CSV Import error: ' . $e->getMessage());
+            return back()->withErrors(['file' => 'Import failed on row ' . $rowNum . ': ' . $e->getMessage()]);
+        }
+    }
 }

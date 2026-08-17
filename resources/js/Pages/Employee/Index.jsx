@@ -6,7 +6,7 @@ import Avatar from '@/Components/Avatar';
 import Modal from '@/Components/Modal';
 import axios from 'axios';
 import ConfirmationModal from '@/Components/ConfirmationModal';
-import { FiSearch, FiUsers, FiCheckCircle, FiClock, FiGrid, FiUserPlus, FiSend, FiList, FiPlus, FiEye, FiEdit2, FiAlertCircle } from 'react-icons/fi';
+import { FiSearch, FiUsers, FiCheckCircle, FiClock, FiGrid, FiUserPlus, FiSend, FiList, FiPlus, FiEye, FiEdit2, FiAlertCircle, FiDownload, FiUpload, FiFileText } from 'react-icons/fi';
 
 export default function Index({ employees, status, search: initialSearch = '', stats = {}, companies = [] }) {
     const { auth } = usePage().props;
@@ -21,6 +21,14 @@ export default function Index({ employees, status, search: initialSearch = '', s
     const [processingTransfer, setProcessingTransfer] = useState(false);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [showTransferModal, setShowTransferModal] = useState(false);
+
+    // Import State
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [importFile, setImportFile] = useState(null);
+    const [importCompanyId, setImportCompanyId] = useState('');
+    const [isImporting, setIsImporting] = useState(false);
+    const [importError, setImportError] = useState('');
+
     const [confirmingAction, setConfirmingAction] = useState({
         show: false,
         title: '',
@@ -160,6 +168,45 @@ export default function Index({ employees, status, search: initialSearch = '', s
     };
 
     const transferSummary = getTransferSummary();
+
+    const handleExport = () => {
+        const params = new URLSearchParams();
+        if (searchTerm) params.append('search', searchTerm);
+        if (status) params.append('status', status);
+        if (departmentId) params.append('department_id', departmentId);
+        window.location.href = `${route('employees.export')}?${params.toString()}`;
+    };
+
+    const handleImport = (e) => {
+        if (e) e.preventDefault();
+        if (!importFile) {
+            setImportError('Please select a CSV file to import.');
+            return;
+        }
+
+        setIsImporting(true);
+        setImportError('');
+
+        const formData = new FormData();
+        formData.append('file', importFile);
+        if (importCompanyId) {
+            formData.append('company_id', importCompanyId);
+        }
+
+        router.post(route('employees.import'), formData, {
+            forceFormData: true,
+            onSuccess: () => {
+                setShowImportModal(false);
+                setImportFile(null);
+                setImportCompanyId('');
+                setIsImporting(false);
+            },
+            onError: (err) => {
+                setIsImporting(false);
+                setImportError(err.file || err.error || 'Failed to import employees. Please verify file format.');
+            }
+        });
+    };
 
     // Determine if we should filter the company dropdown
     // If all selected employees are from the same company, exclude that company from the list
@@ -314,6 +361,35 @@ export default function Index({ employees, status, search: initialSearch = '', s
                                 )}
                             </>
                         )}
+
+                        {/* Export Button */}
+                        <button
+                            type="button"
+                            onClick={handleExport}
+                            className="bg-white border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg hover:bg-slate-50 text-sm font-normal transition-all shadow-sm flex items-center gap-2"
+                            title="Export filtered employee list as CSV"
+                        >
+                            <FiDownload className="w-4 h-4 text-slate-500" />
+                            <span>Export</span>
+                        </button>
+
+                        {/* Import Button */}
+                        {hasPermission(user, 'create-employees') && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setImportFile(null);
+                                    setImportError('');
+                                    setShowImportModal(true);
+                                }}
+                                className="bg-white border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg hover:bg-slate-50 text-sm font-normal transition-all shadow-sm flex items-center gap-2"
+                                title="Import employees from CSV"
+                            >
+                                <FiUpload className="w-4 h-4 text-slate-500" />
+                                <span>Import</span>
+                            </button>
+                        )}
+
                         {hasPermission(user, 'create-employees') && (
                             <Link
                                 href={route('employees.create')}
@@ -550,6 +626,134 @@ export default function Index({ employees, status, search: initialSearch = '', s
                     </div>
                 </div>
             </Modal>
+
+            {/* Employee CSV Import Modal */}
+            <Modal show={showImportModal} onClose={() => !isImporting && setShowImportModal(false)}>
+                <div className="p-6">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-primary/10 text-primary rounded-xl">
+                                <FiUpload className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-medium text-slate-900">Import Employees (CSV)</h3>
+                                <p className="text-xs text-slate-500">Upload a CSV file to create or bulk update employees</p>
+                            </div>
+                        </div>
+                        <a
+                            href={route('employees.download-template')}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-colors border border-primary/20"
+                            download
+                        >
+                            <FiDownload className="w-3.5 h-3.5" />
+                            Download Sample Template
+                        </a>
+                    </div>
+
+                    {importError && (
+                        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg flex items-start gap-2">
+                            <FiAlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-500" />
+                            <span>{importError}</span>
+                        </div>
+                    )}
+
+                    <form onSubmit={handleImport} className="space-y-4">
+                        {companies.length > 1 && (
+                            <div>
+                                <label className="block text-xs font-medium text-slate-700 mb-1.5">Default Branch / Salon (Optional)</label>
+                                <select
+                                    value={importCompanyId}
+                                    onChange={e => setImportCompanyId(e.target.value)}
+                                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50/50 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                                    disabled={isImporting}
+                                >
+                                    <option value="">Use branch specified in CSV (or default)</option>
+                                    {companies.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                                <p className="text-[11px] text-slate-400 mt-1">If the CSV row leaves branch empty, this selected branch will be used.</p>
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-xs font-medium text-slate-700 mb-1.5">CSV File *</label>
+                            <div className="relative border-2 border-dashed border-slate-200 hover:border-primary/50 transition-colors rounded-xl p-6 text-center bg-slate-50/50 group">
+                                <input
+                                    type="file"
+                                    accept=".csv, .txt, text/csv"
+                                    onChange={e => {
+                                        if (e.target.files && e.target.files[0]) {
+                                            setImportFile(e.target.files[0]);
+                                            setImportError('');
+                                        }
+                                    }}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    disabled={isImporting}
+                                />
+                                {importFile ? (
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2">
+                                            <FiFileText className="w-5 h-5" />
+                                        </div>
+                                        <p className="text-sm font-medium text-slate-800">{importFile.name}</p>
+                                        <p className="text-xs text-slate-400 mt-0.5">{(importFile.size / 1024).toFixed(1)} KB — Click or drag to replace</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                            <FiUpload className="w-5 h-5" />
+                                        </div>
+                                        <p className="text-sm font-medium text-slate-700">Click to choose or drag & drop CSV file</p>
+                                        <p className="text-xs text-slate-400 mt-0.5">Supports CSV files up to 10MB</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-3 text-xs text-slate-600 space-y-1">
+                            <p className="font-medium text-slate-700">Tips for seamless import:</p>
+                            <ul className="list-disc list-inside space-y-0.5 text-slate-500 pl-1">
+                                <li>Ensure column headers match the template (e.g. <b>Full Name</b>, <b>Employee Code</b>, <b>Branch</b>, <b>Designation</b>).</li>
+                                <li>If <b>Employee Code</b> or <b>Email</b> matches an existing employee, their record will be automatically updated.</li>
+                                <li>If left blank, employee codes will be auto-generated automatically.</li>
+                            </ul>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                            <button
+                                type="button"
+                                onClick={() => setShowImportModal(false)}
+                                className="px-4 py-2 text-sm font-normal text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                disabled={isImporting}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={!importFile || isImporting}
+                                className="px-5 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:brightness-110 shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+                            >
+                                {isImporting ? (
+                                    <>
+                                        <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        Importing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <FiUpload className="w-4 h-4" />
+                                        Upload & Import
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </Modal>
+
             <ConfirmationModal
                 show={confirmingAction.show}
                 title={confirmingAction.title}

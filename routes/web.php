@@ -34,6 +34,9 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:admin,hr,manager')->group(function () {
         Route::post('employees/bulk-transfer', [EmployeeController::class, 'bulkTransfer'])->name('employees.bulk-transfer');
         Route::post('employees/{employee}/approve', [EmployeeController::class, 'approve'])->name('employees.approve');
+        Route::get('employees/export', [EmployeeController::class, 'export'])->name('employees.export');
+        Route::get('employees/download-template', [EmployeeController::class, 'downloadTemplate'])->name('employees.download-template');
+        Route::post('employees/import', [EmployeeController::class, 'import'])->name('employees.import');
         Route::resource('employees', EmployeeController::class);
         // Staff-wise Weekly Off (nested under employee)
         Route::get('employees/{employee}/weekly-offs', [\App\Http\Controllers\EmployeeWeeklyOffController::class, 'index'])->name('employees.weekly-offs.index');
