@@ -30,6 +30,11 @@ class RunAutoBackup extends Command
      */
     public function handle()
     {
+        @ini_set('max_execution_time', '0');
+        @set_time_limit(0);
+        @ini_set('memory_limit', '1024M');
+        @ignore_user_abort(true);
+
         $force = $this->option('force');
         $enabled = Setting::get('auto_backup_enabled', '0') === '1';
 

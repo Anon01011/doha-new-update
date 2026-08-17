@@ -150,6 +150,11 @@ class BackupController extends Controller
             abort(403, 'Unauthorized.');
         }
 
+        @ini_set('max_execution_time', '0');
+        @set_time_limit(0);
+        @ini_set('memory_limit', '1024M');
+        @ignore_user_abort(true); // Guarantee ZIP creation finishes writing even if client disconnects
+
         $scope = $request->input('scope', 'full'); // 'full' or 'db_only'
         $backupPath = storage_path('app/' . $this->backupDir);
         if (!File::exists($backupPath)) {
@@ -219,7 +224,7 @@ class BackupController extends Controller
     }
 
     /**
-     * Download an existing backup file
+     * Download an existing backup file using chunked binary stream without timeouts
      */
     public function download($filename)
     {
@@ -234,7 +239,36 @@ class BackupController extends Controller
             abort(404, 'Backup file not found.');
         }
 
-        return response()->download($filePath, $safeName);
+        $fileSize = filesize($filePath);
+        $mimeType = str_ends_with($safeName, '.zip') ? 'application/zip' : 'application/octet-stream';
+
+        return response()->streamDownload(function () use ($filePath) {
+            @ini_set('max_execution_time', '0');
+            @set_time_limit(0);
+            @ini_set('memory_limit', '512M');
+
+            while (ob_get_level()) {
+                ob_end_clean();
+            }
+
+            $handle = fopen($filePath, 'rb');
+            if ($handle) {
+                while (!feof($handle)) {
+                    echo fread($handle, 1024 * 1024); // 1MB buffer
+                    flush();
+                }
+                fclose($handle);
+            }
+        }, $safeName, [
+            'Content-Type' => $mimeType,
+            'Content-Length' => (string) $fileSize,
+            'Content-Disposition' => 'attachment; filename="' . $safeName . '"',
+            'Content-Transfer-Encoding' => 'binary',
+            'Accept-Ranges' => 'bytes',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+        ]);
     }
 
     /**
