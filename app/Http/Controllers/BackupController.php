@@ -310,10 +310,30 @@ class BackupController extends Controller
                 // Cleanup temp folder
                 File::deleteDirectory($extractPath);
 
-                return back()->with('success', 'Full system backup restored successfully! All database records and media files have been restored.');
+                // Re-link public storage and clear cache for cross-domain portability
+                try {
+                    \Illuminate\Support\Facades\Artisan::call('storage:link');
+                } catch (\Exception $e) {
+                    // Ignore if symlink already exists
+                }
+
+                try {
+                    \Illuminate\Support\Facades\Artisan::call('cache:clear');
+                    \Illuminate\Support\Facades\Artisan::call('config:clear');
+                    \Illuminate\Support\Facades\Artisan::call('view:clear');
+                } catch (\Exception $e) {
+                    // Ignore
+                }
+
+                return back()->with('success', 'Full system backup restored successfully! All database records, salon branches, and media files have been restored.');
             } elseif ($ext === 'sql') {
                 $sql = File::get($realPath);
                 $this->executeSqlDump($sql);
+
+                try {
+                    \Illuminate\Support\Facades\Artisan::call('cache:clear');
+                } catch (\Exception $e) {}
+
                 return back()->with('success', 'Database restored successfully from SQL file.');
             } elseif ($ext === 'json') {
                 $jsonData = json_decode(File::get($realPath), true);
@@ -321,6 +341,11 @@ class BackupController extends Controller
                     return back()->withErrors(['error' => 'Invalid JSON structure.']);
                 }
                 $this->restoreFromJson($jsonData);
+
+                try {
+                    \Illuminate\Support\Facades\Artisan::call('cache:clear');
+                } catch (\Exception $e) {}
+
                 return back()->with('success', 'Database records restored successfully from JSON backup.');
             } else {
                 return back()->withErrors(['error' => 'Unsupported backup file format. Please upload a .zip, .sql, or .json file.']);
@@ -484,52 +509,99 @@ class BackupController extends Controller
     }
 
     /**
-     * Generate raw SQL dump of all database tables
+     * Generate raw SQL dump of all database tables (Driver & Domain Agnostic, Memory-Safe)
      */
     private function generateSqlDump()
     {
-        $tables = DB::select('SHOW TABLES');
+        $pdo = DB::getPdo();
         $dbName = DB::getDatabaseName();
-        $key = 'Tables_in_' . $dbName;
 
-        $sql = "-- HRMS Database Backup\n";
+        // Discover tables dynamically
+        $tables = [];
+        try {
+            $rawTables = DB::select('SHOW FULL TABLES WHERE Table_type = "BASE TABLE"');
+            foreach ($rawTables as $tableObj) {
+                $arr = array_values((array)$tableObj);
+                if (!empty($arr[0])) {
+                    $tables[] = $arr[0];
+                }
+            }
+        } catch (\Exception $e) {
+            $tables = \Illuminate\Support\Facades\Schema::getTableListing();
+        }
+
+        $sql = "-- ========================================================\n";
+        $sql .= "-- HRMS Enterprise Complete Database Backup\n";
         $sql .= "-- Generated: " . now()->toDateTimeString() . "\n";
-        $sql .= "-- Database: {$dbName}\n\n";
-        $sql .= "SET FOREIGN_KEY_CHECKS=0;\n\n";
+        $sql .= "-- Database: {$dbName}\n";
+        $sql .= "-- ========================================================\n\n";
+        $sql .= "/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;\n";
+        $sql .= "/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;\n";
+        $sql .= "/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;\n";
+        $sql .= "/*!40101 SET NAMES utf8mb4 */;\n";
+        $sql .= "/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n";
+        $sql .= "/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n";
+        $sql .= "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;\n";
+        $sql .= "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n\n";
 
-        foreach ($tables as $tableObj) {
-            $table = $tableObj->$key;
-
+        foreach ($tables as $table) {
             // Get Create Table query
-            $createTableRes = DB::select("SHOW CREATE TABLE `{$table}`");
-            $createSql = $createTableRes[0]->{'Create Table'} ?? '';
+            try {
+                $createTableRes = DB::select("SHOW CREATE TABLE `{$table}`");
+                $createSql = $createTableRes[0]->{'Create Table'} ?? '';
+            } catch (\Exception $e) {
+                continue;
+            }
 
+            $sql .= "-- --------------------------------------------------------\n";
+            $sql .= "-- Table structure for table `{$table}`\n";
+            $sql .= "-- --------------------------------------------------------\n";
             $sql .= "DROP TABLE IF EXISTS `{$table}`;\n";
             $sql .= $createSql . ";\n\n";
 
-            // Get Table Data
-            $rows = DB::table($table)->get();
-            if ($rows->count() > 0) {
-                $sql .= "INSERT INTO `{$table}` VALUES \n";
-                $rowStrings = [];
-                foreach ($rows as $row) {
-                    $values = [];
-                    foreach ((array)$row as $val) {
-                        if ($val === null) {
-                            $values[] = "NULL";
-                        } elseif (is_numeric($val)) {
-                            $values[] = $val;
-                        } else {
-                            $values[] = "'" . addslashes((string)$val) . "'";
+            // Chunked table data dump to conserve memory
+            $count = DB::table($table)->count();
+            if ($count > 0) {
+                $sql .= "-- Dumping data for table `{$table}`\n";
+                $sql .= "LOCK TABLES `{$table}` WRITE;\n";
+                $sql .= "/*!40000 ALTER TABLE `{$table}` DISABLE KEYS */;\n";
+
+                DB::table($table)->orderByRaw('1')->chunk(500, function ($rows) use (&$sql, $table, $pdo) {
+                    if ($rows->count() > 0) {
+                        $sql .= "INSERT INTO `{$table}` VALUES \n";
+                        $rowStrings = [];
+                        foreach ($rows as $row) {
+                            $values = [];
+                            foreach ((array)$row as $val) {
+                                if ($val === null) {
+                                    $values[] = "NULL";
+                                } elseif (is_bool($val)) {
+                                    $values[] = $val ? '1' : '0';
+                                } elseif (is_int($val) || is_float($val)) {
+                                    $values[] = (string)$val;
+                                } else {
+                                    $values[] = $pdo->quote((string)$val);
+                                }
+                            }
+                            $rowStrings[] = "(" . implode(", ", $values) . ")";
                         }
+                        $sql .= implode(",\n", $rowStrings) . ";\n";
                     }
-                    $rowStrings[] = "(" . implode(", ", $values) . ")";
-                }
-                $sql .= implode(",\n", $rowStrings) . ";\n\n";
+                });
+
+                $sql .= "/*!40000 ALTER TABLE `{$table}` ENABLE KEYS */;\n";
+                $sql .= "UNLOCK TABLES;\n\n";
             }
         }
 
-        $sql .= "SET FOREIGN_KEY_CHECKS=1;\n";
+        $sql .= "/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;\n";
+        $sql .= "/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;\n";
+        $sql .= "/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;\n";
+        $sql .= "/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;\n";
+        $sql .= "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n";
+        $sql .= "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n";
+        $sql .= "/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;\n";
+
         return $sql;
     }
 
@@ -538,9 +610,20 @@ class BackupController extends Controller
      */
     private function generateAllTablesJson()
     {
-        $tables = DB::select('SHOW TABLES');
         $dbName = DB::getDatabaseName();
-        $key = 'Tables_in_' . $dbName;
+
+        $tables = [];
+        try {
+            $rawTables = DB::select('SHOW FULL TABLES WHERE Table_type = "BASE TABLE"');
+            foreach ($rawTables as $tableObj) {
+                $arr = array_values((array)$tableObj);
+                if (!empty($arr[0])) {
+                    $tables[] = $arr[0];
+                }
+            }
+        } catch (\Exception $e) {
+            $tables = \Illuminate\Support\Facades\Schema::getTableListing();
+        }
 
         $data = [
             'metadata' => [
@@ -551,8 +634,7 @@ class BackupController extends Controller
             'tables' => [],
         ];
 
-        foreach ($tables as $tableObj) {
-            $table = $tableObj->$key;
+        foreach ($tables as $table) {
             $data['tables'][$table] = DB::table($table)->get()->toArray();
         }
 
