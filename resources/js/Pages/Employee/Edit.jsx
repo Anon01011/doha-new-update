@@ -578,23 +578,37 @@ export default function EditEmployee(props) {
                                                     </optgroup>
                                                 )
                                             ) : (
-                                                /* For regular staff: prioritize department staff, fallback to branch managers/staff, fallback to executives */
+                                                /* For regular staff: show department staff + all branch staff */
                                                 <>
-                                                    {departmentEmployees.filter(emp => emp.id != employee.id).length > 0 ? (
-                                                        departmentEmployees.filter(emp => emp.id != employee.id).map(emp => (
-                                                            <option key={emp.id} value={emp.name}>
-                                                                {emp.name}
-                                                            </option>
-                                                        ))
-                                                    ) : branchManagers.filter(emp => emp.id != employee.id).length > 0 ? (
-                                                        <optgroup label="Branch Managers & Team (Department is empty)">
-                                                            {branchManagers.filter(emp => emp.id != employee.id).map(mgr => (
-                                                                <option key={mgr.id} value={mgr.name}>
-                                                                    {mgr.name} ({mgr.designation || 'Branch Member'})
-                                                                </option>
-                                                            ))}
+                                                    {departmentEmployees.filter(emp => emp.id != employee.id).length > 0 && (
+                                                        <optgroup label="Department Team & Leads (Same Department)">
+                                                            {departmentEmployees
+                                                                .filter(emp => emp.id != employee.id)
+                                                                .map(emp => (
+                                                                    <option key={emp.id} value={emp.name}>
+                                                                        {emp.name} {emp.designation ? `(${emp.designation})` : ''}
+                                                                    </option>
+                                                                ))}
                                                         </optgroup>
-                                                    ) : (
+                                                    )}
+
+                                                    {branchManagers
+                                                        .filter(b => b.id != employee.id && !departmentEmployees.some(d => d.id === b.id))
+                                                        .length > 0 && (
+                                                        <optgroup label={departmentEmployees.filter(emp => emp.id != employee.id).length > 0 ? "Branch Staff & Managers (Same Branch)" : "Branch Members & Managers"}>
+                                                            {branchManagers
+                                                                .filter(b => b.id != employee.id && !departmentEmployees.some(d => d.id === b.id))
+                                                                .map(mgr => (
+                                                                    <option key={mgr.id} value={mgr.name}>
+                                                                        {mgr.name} ({mgr.designation || 'Branch Member'})
+                                                                    </option>
+                                                                ))}
+                                                        </optgroup>
+                                                    )}
+
+                                                    {departmentEmployees.filter(emp => emp.id != employee.id).length === 0 &&
+                                                     branchManagers.filter(b => b.id != employee.id).length === 0 &&
+                                                     executiveLeaders.length > 0 && (
                                                         <optgroup label="Executive Leadership (No branch staff available)">
                                                             {executiveLeaders.map(exec => (
                                                                 <option key={exec.id} value={exec.name}>

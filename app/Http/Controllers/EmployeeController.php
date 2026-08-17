@@ -599,35 +599,23 @@ class EmployeeController extends Controller
             $departmentEmployees = Employee::where('department_id', $departmentId)
                 ->active()
                 ->orderBy('name')
-                ->get(['id', 'name', 'designation']);
+                ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
         }
 
-        // Branch-level managers or active employees in the same branch
-        $branchManagers = collect();
+        // All active employees from the same branch/company
+        $branchEmployees = collect();
         if ($companyId) {
-            $branchManagers = Employee::where('company_id', $companyId)
-                ->where(function ($q) {
-                    $q->where('designation', 'LIKE', '%Manager%')
-                      ->orWhere('designation', 'LIKE', '%HR%')
-                      ->orWhere('designation', 'LIKE', '%Supervisor%')
-                      ->orWhere('designation', 'LIKE', '%Lead%');
-                })
+            $branchEmployees = Employee::where('company_id', $companyId)
                 ->active()
                 ->orderBy('name')
-                ->get(['id', 'name', 'designation']);
-
-            // If no designated managers in branch, get all active employees in branch
-            if ($branchManagers->isEmpty()) {
-                $branchManagers = Employee::where('company_id', $companyId)
-                    ->active()
-                    ->orderBy('name')
-                    ->get(['id', 'name', 'designation']);
-            }
+                ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
         }
 
         return response()->json([
             'employees' => $departmentEmployees,
-            'branch_managers' => $branchManagers,
+            'department_employees' => $departmentEmployees,
+            'branch_employees' => $branchEmployees,
+            'branch_managers' => $branchEmployees,
         ]);
     }
 
