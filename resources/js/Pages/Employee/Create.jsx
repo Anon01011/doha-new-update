@@ -39,7 +39,7 @@ export default function CreateEmployee(props) {
     const { appSettings } = usePage().props;
     const currency = appSettings?.currency || 'QAR';
 
-    const { companies = [], departments = [], constants = {}, salaryComponents = [], availableRoles = [] } = props;
+    const { companies = [], departments = [], constants = {}, salaryComponents = [], availableRoles = [], leadershipEmployees = [] } = props;
     const [filteredDepartments, setFilteredDepartments] = useState([]);
     const [autoGenerate, setAutoGenerate] = useState(false);
     const [resumePreviewUrl, setResumePreviewUrl] = useState(null);
@@ -123,13 +123,10 @@ export default function CreateEmployee(props) {
                desig.includes('hr') || desig.includes('manager') || desig.includes('coo') || desig.includes('director') || desig.includes('head');
     }, [data.role, data.designation]);
 
-    const executiveReportingList = useMemo(() => {
-        return constants.executive_reporting_options || [
-            'Chief Operating Officer',
-            'Owner / Founder',
-            'Founder / CEO'
-        ];
-    }, [constants.executive_reporting_options]);
+    // Real users/employees who hold CEO / Founder / COO / Director designations
+    const executiveLeaders = useMemo(() => {
+        return leadershipEmployees || [];
+    }, [leadershipEmployees]);
 
     const designationList = useMemo(() => {
         return constants.designations || [
@@ -156,10 +153,10 @@ export default function CreateEmployee(props) {
 
     // Auto-suggest Executive reporting for HR/Managers if reporting is not set
     useEffect(() => {
-        if (isHrOrManager && !data.reported_to) {
-            setData('reported_to', 'Chief Operating Officer');
+        if (isHrOrManager && !data.reported_to && executiveLeaders.length > 0) {
+            setData('reported_to', executiveLeaders[0].name);
         }
-    }, [isHrOrManager]);
+    }, [isHrOrManager, executiveLeaders]);
 
     // Auto-update status based on exit status
     useEffect(() => {
@@ -488,18 +485,24 @@ export default function CreateEmployee(props) {
                                         >
                                             <option value="">Select Reporting Authority</option>
                                             
-                                            {/* Executive Hierarchy (COO, Founder, CEO) */}
-                                            <optgroup label="Executive Leadership (COO / Founder / CEO)">
-                                                {executiveReportingList.map(exec => (
-                                                    <option key={exec} value={exec}>{exec}</option>
-                                                ))}
-                                            </optgroup>
+                                            {/* Executive Hierarchy (Users with CEO / Founder / COO / Director designations) */}
+                                            {executiveLeaders.length > 0 && (
+                                                <optgroup label="Executive Leadership (CEO / Founder / COO)">
+                                                    {executiveLeaders.map(exec => (
+                                                        <option key={exec.id} value={exec.name}>
+                                                            {exec.name} ({exec.designation || 'Executive Leader'})
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            )}
 
                                             {/* Department / Branch Team Members */}
                                             {departmentEmployees.length > 0 && (
-                                                <optgroup label="Department / Branch Managers">
+                                                <optgroup label="Department / Branch Team">
                                                     {departmentEmployees.map(emp => (
-                                                        <option key={emp.id} value={emp.name}>{emp.name}</option>
+                                                        <option key={emp.id} value={emp.name}>
+                                                            {emp.name} {emp.designation ? `(${emp.designation})` : ''}
+                                                        </option>
                                                     ))}
                                                 </optgroup>
                                             )}
@@ -507,7 +510,7 @@ export default function CreateEmployee(props) {
                                         {isHrOrManager && (
                                             <p className="text-[10px] font-medium text-indigo-600 mt-1 ml-1 flex items-center gap-1">
                                                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
-                                                HR & Managers report directly to Executive Leadership (Chief Operating Officer / Founder).
+                                                HR & Managers report directly to Executive Leaders (CEO / Founder / COO).
                                             </p>
                                         )}
                                     </InputWrapper>

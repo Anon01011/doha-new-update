@@ -31,11 +31,6 @@ class DropdownOptionSeeder extends Seeder
                 'Sales Executive',
                 'Helper / Cleaner',
             ],
-            'Executive Reporting' => [
-                'Chief Operating Officer',
-                'Owner / Founder',
-                'Founder / CEO',
-            ],
             'Visa Type' => ['Work Visa', 'Visit Visa', 'Family Visa', 'Business Visa'],
             'Visa Designation' => ['Manager', 'Engineer', 'Technician', 'Laborer', 'Driver', 'Accountant', 'Sales'],
             'Employee Category' => ['Permanent', 'Contract', 'Probation', 'Intern'],

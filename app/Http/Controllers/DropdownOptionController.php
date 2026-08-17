@@ -28,7 +28,6 @@ class DropdownOptionController extends Controller
         $standardCategories = [
             'Gender',
             'Designation',
-            'Executive Reporting',
             'Shift',
             'Employee Category',
             'Contract Duration',

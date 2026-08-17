@@ -53,7 +53,7 @@ export default function EditEmployee(props) {
     const { appSettings, auth } = usePage().props;
     const currency = appSettings?.currency || 'QAR';
 
-    const { employee, companies = [], departments = [], constants = {}, salaryComponents = [], availableRoles = [], employee_role = null } = props;
+    const { employee, companies = [], departments = [], constants = {}, salaryComponents = [], availableRoles = [], employee_role = null, leadershipEmployees = [] } = props;
     const [filteredDepartments, setFilteredDepartments] = useState([]);
     const [resumePreviewUrl, setResumePreviewUrl] = useState(null);
     const [departmentEmployees, setDepartmentEmployees] = useState([]);
@@ -164,13 +164,10 @@ export default function EditEmployee(props) {
                desig.includes('hr') || desig.includes('manager') || desig.includes('coo') || desig.includes('director') || desig.includes('head');
     }, [data.role, data.designation]);
 
-    const executiveReportingList = useMemo(() => {
-        return constants.executive_reporting_options || [
-            'Chief Operating Officer',
-            'Owner / Founder',
-            'Founder / CEO'
-        ];
-    }, [constants.executive_reporting_options]);
+    // Real users/employees who hold CEO / Founder / COO / Director designations
+    const executiveLeaders = useMemo(() => {
+        return (leadershipEmployees || []).filter(e => e.id != employee.id);
+    }, [leadershipEmployees, employee.id]);
 
     const designationList = useMemo(() => {
         return constants.designations || [
@@ -529,25 +526,31 @@ export default function EditEmployee(props) {
                                         >
                                             <option value="">Select Reporting Authority</option>
                                             
-                                            {/* Executive Hierarchy (COO, Founder, CEO) */}
-                                            <optgroup label="Executive Leadership (COO / Founder / CEO)">
-                                                {executiveReportingList.map(exec => (
-                                                    <option key={exec} value={exec}>{exec}</option>
-                                                ))}
-                                            </optgroup>
+                                            {/* Executive Hierarchy (Users with CEO / Founder / COO / Director designations) */}
+                                            {executiveLeaders.length > 0 && (
+                                                <optgroup label="Executive Leadership (CEO / Founder / COO)">
+                                                    {executiveLeaders.map(exec => (
+                                                        <option key={exec.id} value={exec.name}>
+                                                            {exec.name} ({exec.designation || 'Executive Leader'})
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            )}
 
                                             {/* Department / Branch Team Members */}
-                                            {departmentEmployees.length > 0 && (
-                                                <optgroup label="Department / Branch Managers">
-                                                    {departmentEmployees.map(emp => (
-                                                        <option key={emp.id} value={emp.name}>{emp.name}</option>
+                                            {departmentEmployees.filter(emp => emp.id != employee.id).length > 0 && (
+                                                <optgroup label="Department / Branch Team">
+                                                    {departmentEmployees.filter(emp => emp.id != employee.id).map(emp => (
+                                                        <option key={emp.id} value={emp.name}>
+                                                            {emp.name} {emp.designation ? `(${emp.designation})` : ''}
+                                                        </option>
                                                     ))}
                                                 </optgroup>
                                             )}
 
                                             {/* Value preservation for legacy reporting */}
                                             {data.reported_to && 
-                                                !executiveReportingList.includes(data.reported_to) && 
+                                                !executiveLeaders.some(e => e.name === data.reported_to) && 
                                                 !departmentEmployees.some(e => e.name === data.reported_to) && (
                                                 <optgroup label="Current Assigned Authority">
                                                     <option value={data.reported_to}>{data.reported_to}</option>
@@ -557,7 +560,7 @@ export default function EditEmployee(props) {
                                         {isHrOrManager && (
                                             <p className="text-[10px] font-medium text-indigo-600 mt-1 ml-1 flex items-center gap-1">
                                                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
-                                                HR & Managers report directly to Executive Leadership (Chief Operating Officer / Founder).
+                                                HR & Managers report directly to Executive Leaders (CEO / Founder / COO).
                                             </p>
                                         )}
                                     </InputWrapper>

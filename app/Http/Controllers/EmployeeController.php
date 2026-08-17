@@ -127,6 +127,7 @@ class EmployeeController extends Controller
             'departments' => $departments,
             'salaryComponents' => $salaryComponents,
             'availableRoles' => $availableRoles,
+            'leadershipEmployees' => $this->getLeadershipEmployees(),
             'constants' => $this->getConstants(),
         ]);
     }
@@ -359,6 +360,7 @@ class EmployeeController extends Controller
             'departments' => $departments,
             'salaryComponents' => $salaryComponents,
             'availableRoles' => $availableRoles,
+            'leadershipEmployees' => $this->getLeadershipEmployees(),
             'employee_role' => $employee->user && $employee->user->roles->first() ? $employee->user->roles->first()->slug : null,
             'constants' => $this->getConstants(),
         ]);
@@ -594,8 +596,48 @@ class EmployeeController extends Controller
         $employees = Employee::where('department_id', $departmentId)
             ->active()
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'designation']);
         return response()->json(['employees' => $employees]);
+    }
+
+    /**
+     * Get real users/employees with Executive / Leadership designations (CEO, Founder, Owner, COO, Director, etc.)
+     */
+    private function getLeadershipEmployees()
+    {
+        $leadership = Employee::where(function ($q) {
+            $q->where('designation', 'LIKE', '%CEO%')
+              ->orWhere('designation', 'LIKE', '%Founder%')
+              ->orWhere('designation', 'LIKE', '%Owner%')
+              ->orWhere('designation', 'LIKE', '%COO%')
+              ->orWhere('designation', 'LIKE', '%Chief Operating Officer%')
+              ->orWhere('designation', 'LIKE', '%Director%')
+              ->orWhere('designation', 'LIKE', '%General Manager%');
+        })
+        ->active()
+        ->orderBy('name')
+        ->get(['id', 'name', 'designation', 'company_id']);
+
+        // Fallback: If no employee with CEO/Founder designation exists yet, include admin users
+        if ($leadership->isEmpty()) {
+            $adminUsers = \App\Models\User::where(function ($q) {
+                $q->where('role', 'admin')
+                  ->orWhereHas('roles', function ($rq) {
+                      $rq->whereIn('slug', ['admin', 'owner', 'founder', 'ceo', 'coo']);
+                  });
+            })->get();
+
+            foreach ($adminUsers as $admin) {
+                $leadership->push((object)[
+                    'id' => $admin->employee_id ?: ('user_' . $admin->id),
+                    'name' => $admin->name,
+                    'designation' => 'Founder / CEO',
+                    'company_id' => null,
+                ]);
+            }
+        }
+
+        return $leadership;
     }
 
     private function getConstants()
@@ -631,11 +673,6 @@ class EmployeeController extends Controller
                 'Accountant',
                 'Sales Executive',
                 'Helper / Cleaner',
-            ],
-            'executive_reporting_options' => !empty($options['Executive Reporting']) ? $options['Executive Reporting'] : [
-                'Chief Operating Officer',
-                'Owner / Founder',
-                'Founder / CEO',
             ],
             'visa_types' => !empty($options['Visa Type']) ? $options['Visa Type'] : ['Work Visa', 'Visit Visa', 'Family Visa', 'Business Visa'],
             'visa_designations' => !empty($options['Visa Designation']) ? $options['Visa Designation'] : ['Manager', 'Engineer', 'Technician', 'Laborer', 'Driver', 'Accountant', 'Sales'],
