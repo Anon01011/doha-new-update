@@ -165,7 +165,7 @@ export default function CreateEmployee(props) {
                 }
             }
         } else {
-            // For regular staff: default to the Manager from that department or branch
+            // For regular staff: default to the Manager from that department or branch if reported_to is empty
             if (!data.reported_to) {
                 const deptManager = departmentEmployees.find(e => 
                     (e.designation || '').toLowerCase().includes('manager') || 
@@ -185,6 +185,8 @@ export default function CreateEmployee(props) {
                     }
                 } else if (departmentEmployees.length > 0) {
                     setData('reported_to', departmentEmployees[0].name);
+                } else if (executiveLeaders.length > 0) {
+                    setData('reported_to', executiveLeaders[0].name);
                 }
             }
         }
@@ -515,9 +517,9 @@ export default function CreateEmployee(props) {
                                             onChange={e => setData('reported_to', e.target.value)}
                                             disabled={!isHrOrManager && !data.company_id && !data.department_id}
                                         >
-                                            <option value="">{isHrOrManager ? 'Select Executive Authority (CEO / Founder)' : 'Select Manager / Reporting Person'}</option>
+                                            <option value="">{isHrOrManager ? 'Select Executive Authority (CEO / Founder)' : 'Select Reporting Person'}</option>
 
-                                            {/* For HR & Managers: ONLY allow reporting to Executive Leadership (CEO / Founder / COO) */}
+                                            {/* When user role/designation is HR or Manager: ONLY show CEO / Founder / COO */}
                                             {isHrOrManager ? (
                                                 executiveLeaders.length > 0 && (
                                                     <optgroup label="Executive Leadership (CEO / Founder / COO)">
@@ -529,10 +531,10 @@ export default function CreateEmployee(props) {
                                                     </optgroup>
                                                 )
                                             ) : (
-                                                /* For regular staff: show department staff + all branch staff */
+                                                /* For regular staff: show all users from department & branch */
                                                 <>
                                                     {departmentEmployees.length > 0 && (
-                                                        <optgroup label="Department Team & Leads (Same Department)">
+                                                        <optgroup label="Department Staff (Same Department)">
                                                             {departmentEmployees.map(emp => (
                                                                 <option key={emp.id} value={emp.name}>
                                                                     {emp.name} {emp.designation ? `(${emp.designation})` : ''}
@@ -542,12 +544,12 @@ export default function CreateEmployee(props) {
                                                     )}
 
                                                     {branchManagers.filter(b => !departmentEmployees.some(d => d.id === b.id)).length > 0 && (
-                                                        <optgroup label={departmentEmployees.length > 0 ? "Branch Staff & Managers (Same Branch)" : "Branch Members & Managers"}>
+                                                        <optgroup label={departmentEmployees.length > 0 ? "Branch Staff (Same Branch)" : "Branch Members & Staff"}>
                                                             {branchManagers
                                                                 .filter(b => !departmentEmployees.some(d => d.id === b.id))
                                                                 .map(mgr => (
                                                                     <option key={mgr.id} value={mgr.name}>
-                                                                        {mgr.name} ({mgr.designation || 'Branch Member'})
+                                                                        {mgr.name} {mgr.designation ? `(${mgr.designation})` : ''}
                                                                     </option>
                                                                 ))}
                                                         </optgroup>
@@ -564,6 +566,15 @@ export default function CreateEmployee(props) {
                                                     )}
                                                 </>
                                             )}
+
+                                            {/* Custom / Existing Value Preservation */}
+                                            {data.reported_to &&
+                                                !isHrOrManager &&
+                                                !departmentEmployees.some(e => e.name === data.reported_to) &&
+                                                !branchManagers.some(e => e.name === data.reported_to) &&
+                                                !executiveLeaders.some(e => e.name === data.reported_to) && (
+                                                    <option value={data.reported_to}>{data.reported_to}</option>
+                                                )}
                                         </select>
                                         {isHrOrManager ? (
                                             <p className="text-[10px] font-medium text-indigo-600 mt-1 ml-1 flex items-center gap-1">

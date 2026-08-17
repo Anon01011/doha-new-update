@@ -198,18 +198,12 @@ export default function EditEmployee(props) {
         ];
     }, [constants.designations]);
 
-    // Auto-assign default reporting person based on role and branch/department
+    // Auto-assign default reporting person based on role and branch/department if empty
     useEffect(() => {
-        if (isHrOrManager) {
-            if (executiveLeaders.length > 0) {
-                const isCurrentlyExecutive = executiveLeaders.some(e => e.name === data.reported_to);
-                if (!isCurrentlyExecutive) {
-                    setData('reported_to', executiveLeaders[0].name);
-                }
-            }
-        } else {
-            // For regular staff: default to the Manager from that department or branch if reported_to is empty
-            if (!data.reported_to) {
+        if (!data.reported_to) {
+            if (isHrOrManager && executiveLeaders.length > 0) {
+                setData('reported_to', executiveLeaders[0].name);
+            } else {
                 const deptManager = departmentEmployees
                     .filter(e => e.id != employee.id)
                     .find(e => 
@@ -230,6 +224,10 @@ export default function EditEmployee(props) {
                     if (brManager) {
                         setData('reported_to', brManager.name);
                     }
+                } else if (departmentEmployees.filter(e => e.id != employee.id).length > 0) {
+                    setData('reported_to', departmentEmployees.filter(e => e.id != employee.id)[0].name);
+                } else if (executiveLeaders.length > 0) {
+                    setData('reported_to', executiveLeaders[0].name);
                 }
             }
         }
@@ -564,9 +562,9 @@ export default function EditEmployee(props) {
                                             onChange={e => setData('reported_to', e.target.value)}
                                             disabled={!isHrOrManager && !data.company_id && !data.department_id}
                                         >
-                                            <option value="">{isHrOrManager ? 'Select Executive Authority (CEO / Founder)' : 'Select Manager / Reporting Person'}</option>
+                                            <option value="">{isHrOrManager ? 'Select Executive Authority (CEO / Founder)' : 'Select Reporting Person'}</option>
 
-                                            {/* For HR & Managers: ONLY allow reporting to Executive Leadership (CEO / Founder / COO) */}
+                                            {/* When user role/designation is HR or Manager: ONLY show CEO / Founder / COO */}
                                             {isHrOrManager ? (
                                                 executiveLeaders.length > 0 && (
                                                     <optgroup label="Executive Leadership (CEO / Founder / COO)">
@@ -578,10 +576,10 @@ export default function EditEmployee(props) {
                                                     </optgroup>
                                                 )
                                             ) : (
-                                                /* For regular staff: show department staff + all branch staff */
+                                                /* For regular staff: show all users from department & branch */
                                                 <>
                                                     {departmentEmployees.filter(emp => emp.id != employee.id).length > 0 && (
-                                                        <optgroup label="Department Team & Leads (Same Department)">
+                                                        <optgroup label="Department Staff (Same Department)">
                                                             {departmentEmployees
                                                                 .filter(emp => emp.id != employee.id)
                                                                 .map(emp => (
@@ -595,12 +593,12 @@ export default function EditEmployee(props) {
                                                     {branchManagers
                                                         .filter(b => b.id != employee.id && !departmentEmployees.some(d => d.id === b.id))
                                                         .length > 0 && (
-                                                        <optgroup label={departmentEmployees.filter(emp => emp.id != employee.id).length > 0 ? "Branch Staff & Managers (Same Branch)" : "Branch Members & Managers"}>
+                                                        <optgroup label={departmentEmployees.filter(emp => emp.id != employee.id).length > 0 ? "Branch Staff (Same Branch)" : "Branch Members & Staff"}>
                                                             {branchManagers
                                                                 .filter(b => b.id != employee.id && !departmentEmployees.some(d => d.id === b.id))
                                                                 .map(mgr => (
                                                                     <option key={mgr.id} value={mgr.name}>
-                                                                        {mgr.name} ({mgr.designation || 'Branch Member'})
+                                                                        {mgr.name} {mgr.designation ? `(${mgr.designation})` : ''}
                                                                     </option>
                                                                 ))}
                                                         </optgroup>
@@ -620,11 +618,12 @@ export default function EditEmployee(props) {
                                                 </>
                                             )}
 
-                                            {/* Value preservation for legacy reporting */}
+                                            {/* Value preservation for current or legacy reporting */}
                                             {data.reported_to &&
                                                 !isHrOrManager &&
                                                 !departmentEmployees.some(e => e.name === data.reported_to) &&
-                                                !branchManagers.some(e => e.name === data.reported_to) && (
+                                                !branchManagers.some(e => e.name === data.reported_to) &&
+                                                !executiveLeaders.some(e => e.name === data.reported_to) && (
                                                     <option value={data.reported_to}>{data.reported_to}</option>
                                                 )}
                                         </select>
