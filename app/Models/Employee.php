@@ -64,6 +64,7 @@ class Employee extends Model
     ];
 
     protected $casts = [
+        'dob' => 'date',
         'joining_date' => 'date',
         'joined_date' => 'date',
         'rejoined_date' => 'date',

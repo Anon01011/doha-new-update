@@ -15,6 +15,13 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class EmployeeController extends Controller
 {
@@ -805,7 +812,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Export employees to CSV based on current filters
+     * Export employees to styled Excel (.xlsx) based on current filters
      */
     public function export(Request $request)
     {
@@ -850,16 +857,11 @@ class EmployeeController extends Controller
 
         $employees = $query->orderBy('name')->get();
 
-        $filename = "employees_export_" . now()->format('Ymd_His') . ".csv";
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Employees Directory');
 
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-            'Pragma' => 'no-cache',
-            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
-            'Expires' => '0',
-        ];
-
+        // Column definitions
         $columns = [
             'Employee Code',
             'Full Name',
@@ -896,70 +898,166 @@ class EmployeeController extends Controller
             'Contract Expiry Date',
         ];
 
-        $callback = function () use ($employees, $columns) {
-            $file = fopen('php://output', 'w');
-            fputs($file, "\xEF\xBB\xBF"); // UTF-8 BOM
-            fputcsv($file, $columns);
+        // Format Header Row
+        $sheet->getRowDimension(1)->setRowHeight(32);
+        foreach ($columns as $idx => $colName) {
+            $colLetter = Coordinate::stringFromColumnIndex($idx + 1);
+            $sheet->setCellValue($colLetter . '1', $colName);
+        }
 
-            foreach ($employees as $emp) {
-                $roleName = $emp->user && $emp->user->roles->first() ? $emp->user->roles->first()->name : ($emp->user ? $emp->user->role : '');
-                fputcsv($file, [
-                    $emp->employee_code,
-                    $emp->name,
-                    $emp->company ? $emp->company->name : '',
-                    $emp->department ? $emp->department->name : '',
-                    $emp->designation,
-                    $roleName,
-                    $emp->mobile,
-                    $emp->email,
-                    $emp->gender,
-                    $emp->dob ? $emp->dob->format('Y-m-d') : '',
-                    $emp->nationality,
-                    $emp->sponsor,
-                    $emp->basic_salary,
-                    $emp->reported_to,
-                    $emp->joined_date ? $emp->joined_date->format('Y-m-d') : '',
-                    $emp->rejoined_date ? $emp->rejoined_date->format('Y-m-d') : '',
-                    $emp->shift,
-                    $emp->visa_type,
-                    $emp->visa_designation,
-                    $emp->employee_category,
-                    $emp->contract_duration,
-                    $emp->exit_status,
-                    $emp->payment_type,
-                    $emp->leave_status,
-                    $emp->manual_status ?: ($emp->is_active ? 'active' : 'inactive'),
-                    $emp->passport_number,
-                    $emp->passport_expiry_date ? $emp->passport_expiry_date->format('Y-m-d') : '',
-                    $emp->qid_number,
-                    $emp->qid_expiry_date ? $emp->qid_expiry_date->format('Y-m-d') : '',
-                    $emp->health_card_number,
-                    $emp->health_card_expiry_date ? $emp->health_card_expiry_date->format('Y-m-d') : '',
-                    $emp->contract_issue_date ? $emp->contract_issue_date->format('Y-m-d') : '',
-                    $emp->contract_expiry_date ? $emp->contract_expiry_date->format('Y-m-d') : '',
-                ]);
+        $lastColLetter = Coordinate::stringFromColumnIndex(count($columns));
+
+        // Style Header Row (Deep Slate/Indigo, Bold White, Centered)
+        $sheet->getStyle("A1:{$lastColLetter}1")->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'color' => ['rgb' => 'FFFFFF'],
+                'size' => 11,
+                'name' => 'Segoe UI',
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => '1E293B'],
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical' => Alignment::VERTICAL_CENTER,
+                'wrapText' => false,
+            ],
+            'borders' => [
+                'bottom' => [
+                    'borderStyle' => Border::BORDER_MEDIUM,
+                    'color' => ['rgb' => '0F172A'],
+                ],
+            ],
+        ]);
+
+        $fmtDate = function ($val) {
+            if (!$val) return '';
+            if ($val instanceof \Carbon\Carbon || $val instanceof \DateTimeInterface) {
+                return $val->format('Y-m-d');
             }
-
-            fclose($file);
+            try {
+                return \Carbon\Carbon::parse($val)->format('Y-m-d');
+            } catch (\Exception $e) {
+                return (string)$val;
+            }
         };
 
-        return response()->stream($callback, 200, $headers);
+        $rowNum = 2;
+        foreach ($employees as $emp) {
+            $roleName = $emp->user && $emp->user->roles && $emp->user->roles->first() 
+                ? $emp->user->roles->first()->name 
+                : ($emp->user ? ($emp->user->role ?? '') : '');
+
+            $rowData = [
+                $emp->employee_code,
+                $emp->name,
+                $emp->company ? $emp->company->name : '',
+                $emp->department ? $emp->department->name : '',
+                $emp->designation,
+                $roleName,
+                $emp->mobile,
+                $emp->email,
+                $emp->gender,
+                $fmtDate($emp->dob),
+                $emp->nationality,
+                $emp->sponsor,
+                $emp->basic_salary ? (float)$emp->basic_salary : 0,
+                $emp->reported_to,
+                $fmtDate($emp->joined_date),
+                $fmtDate($emp->rejoined_date),
+                $emp->shift,
+                $emp->visa_type,
+                $emp->visa_designation,
+                $emp->employee_category,
+                $emp->contract_duration,
+                $emp->exit_status,
+                $emp->payment_type,
+                $emp->leave_status,
+                $emp->manual_status ?: ($emp->is_active ? 'active' : 'inactive'),
+                $emp->passport_number,
+                $fmtDate($emp->passport_expiry_date),
+                $emp->qid_number,
+                $fmtDate($emp->qid_expiry_date),
+                $emp->health_card_number,
+                $fmtDate($emp->health_card_expiry_date),
+                $fmtDate($emp->contract_issue_date),
+                $fmtDate($emp->contract_expiry_date),
+            ];
+
+            $sheet->getRowDimension($rowNum)->setRowHeight(22);
+            foreach ($rowData as $cIdx => $val) {
+                $cLetter = Coordinate::stringFromColumnIndex($cIdx + 1);
+                $sheet->setCellValue($cLetter . $rowNum, $val);
+            }
+
+            // Alternating zebra row colors
+            $bgColor = ($rowNum % 2 === 0) ? 'FFFFFF' : 'F8FAFC';
+            $sheet->getStyle("A{$rowNum}:{$lastColLetter}{$rowNum}")->applyFromArray([
+                'font' => [
+                    'size' => 10,
+                    'name' => 'Segoe UI',
+                    'color' => ['rgb' => '334155'],
+                ],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => $bgColor],
+                ],
+                'alignment' => [
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['rgb' => 'E2E8F0'],
+                    ],
+                ],
+            ]);
+
+            // Specific alignments
+            $sheet->getStyle("A{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("I{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("J{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("M{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle("M{$rowNum}")->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle("O{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("P{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("Q{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("Y{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+            $rowNum++;
+        }
+
+        // Auto-fit column widths
+        foreach (range(1, count($columns)) as $colIdx) {
+            $colLetter = Coordinate::stringFromColumnIndex($colIdx);
+            $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+        }
+
+        // Freeze top header row
+        $sheet->freezePane('A2');
+
+        $filename = "employees_export_" . now()->format('Ymd_His') . ".xlsx";
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'max-age=0',
+            'Pragma' => 'public',
+        ]);
     }
 
     /**
-     * Download sample CSV template for employee import
+     * Download styled sample Excel template for employee import
      */
     public function downloadTemplate()
     {
-        $filename = "employee_import_template.csv";
-
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-            'Pragma' => 'no-cache',
-            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
-            'Expires' => '0',
-        ];
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Template');
 
         $columns = [
             'Employee Code',
@@ -987,13 +1085,46 @@ class EmployeeController extends Controller
             'QID Number',
         ];
 
+        // Format Header Row
+        $sheet->getRowDimension(1)->setRowHeight(32);
+        foreach ($columns as $idx => $colName) {
+            $colLetter = Coordinate::stringFromColumnIndex($idx + 1);
+            $sheet->setCellValue($colLetter . '1', $colName);
+        }
+
+        $lastColLetter = Coordinate::stringFromColumnIndex(count($columns));
+
+        // Style Header Row (Deep Blue/Slate, Bold White)
+        $sheet->getStyle("A1:{$lastColLetter}1")->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'color' => ['rgb' => 'FFFFFF'],
+                'size' => 11,
+                'name' => 'Segoe UI',
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => '1E293B'],
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical' => Alignment::VERTICAL_CENTER,
+            ],
+            'borders' => [
+                'bottom' => [
+                    'borderStyle' => Border::BORDER_MEDIUM,
+                    'color' => ['rgb' => '0F172A'],
+                ],
+            ],
+        ]);
+
         $samples = [
             [
                 'EMP-001',
                 'Jane Doe',
                 'Main Salon Branch',
-                'Hair Care',
-                'Hair Stylist',
+                'Human Resources',
+                'HR Executive',
                 'employee',
                 '+97412345678',
                 'jane.doe@example.com',
@@ -1001,8 +1132,8 @@ class EmployeeController extends Controller
                 '1995-05-15',
                 'Qatari',
                 'Company Sponsor',
-                '4500',
-                'Salon Manager',
+                4500,
+                'HR Manager',
                 '2024-01-10',
                 'Morning',
                 'Work Visa',
@@ -1026,7 +1157,7 @@ class EmployeeController extends Controller
                 '1990-08-20',
                 'Qatari',
                 'Company Sponsor',
-                '8000',
+                8000,
                 'Founder / CEO',
                 '2023-06-01',
                 'General',
@@ -1040,21 +1171,68 @@ class EmployeeController extends Controller
             ]
         ];
 
-        $callback = function () use ($columns, $samples) {
-            $file = fopen('php://output', 'w');
-            fputs($file, "\xEF\xBB\xBF");
-            fputcsv($file, $columns);
-            foreach ($samples as $row) {
-                fputcsv($file, $row);
+        $rowNum = 2;
+        foreach ($samples as $row) {
+            $sheet->getRowDimension($rowNum)->setRowHeight(22);
+            foreach ($row as $cIdx => $val) {
+                $cLetter = Coordinate::stringFromColumnIndex($cIdx + 1);
+                $sheet->setCellValue($cLetter . $rowNum, $val);
             }
-            fclose($file);
-        };
 
-        return response()->stream($callback, 200, $headers);
+            $bgColor = ($rowNum % 2 === 0) ? 'FFFFFF' : 'F8FAFC';
+            $sheet->getStyle("A{$rowNum}:{$lastColLetter}{$rowNum}")->applyFromArray([
+                'font' => [
+                    'size' => 10,
+                    'name' => 'Segoe UI',
+                    'color' => ['rgb' => '334155'],
+                ],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => $bgColor],
+                ],
+                'alignment' => [
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['rgb' => 'E2E8F0'],
+                    ],
+                ],
+            ]);
+
+            $sheet->getStyle("A{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("I{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("J{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("M{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle("M{$rowNum}")->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle("O{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+            $rowNum++;
+        }
+
+        // Auto-fit column widths
+        foreach (range(1, count($columns)) as $colIdx) {
+            $colLetter = Coordinate::stringFromColumnIndex($colIdx);
+            $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+        }
+
+        $sheet->freezePane('A2');
+
+        $filename = "employee_import_template.xlsx";
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'max-age=0',
+            'Pragma' => 'public',
+        ]);
     }
 
     /**
-     * Import employees from uploaded CSV file
+     * Import employees from uploaded Excel (.xlsx, .xls) or CSV file
      */
     public function import(Request $request)
     {
@@ -1064,7 +1242,7 @@ class EmployeeController extends Controller
         }
 
         $request->validate([
-            'file' => 'required|file|mimes:csv,txt|max:10240',
+            'file' => 'required|file|max:15360',
             'company_id' => 'nullable|exists:companies,id',
         ]);
 
@@ -1074,23 +1252,27 @@ class EmployeeController extends Controller
         }
 
         $file = $request->file('file');
-        $handle = fopen($file->getRealPath(), 'r');
-        if (!$handle) {
-            return back()->withErrors(['file' => 'Unable to read the uploaded CSV file.']);
+        $realPath = $file->getRealPath();
+
+        try {
+            $spreadsheet = IOFactory::load($realPath);
+            $sheet = $spreadsheet->getActiveSheet();
+            $allRows = $sheet->toArray(null, true, true, false);
+        } catch (\Exception $e) {
+            \Log::error('Spreadsheet Load Error: ' . $e->getMessage());
+            return back()->withErrors(['file' => 'Unable to read the uploaded file. Please ensure it is a valid Excel or CSV file.']);
         }
 
-        // Read header row (stripping UTF-8 BOM if present)
-        $rawHeader = fgetcsv($handle);
-        if (!$rawHeader) {
-            fclose($handle);
-            return back()->withErrors(['file' => 'The uploaded CSV file is empty.']);
+        if (empty($allRows) || count($allRows) < 2) {
+            return back()->withErrors(['file' => 'The uploaded file contains no data rows.']);
         }
 
+        // Header mapping
+        $rawHeader = array_shift($allRows);
         $cleanHeader = array_map(function ($h) {
-            return strtolower(trim(preg_replace('/[\x00-\x1F\x80-\xFF]/', '', $h)));
+            return strtolower(trim(preg_replace('/[\x00-\x1F\x80-\xFF]/', '', (string)$h)));
         }, $rawHeader);
 
-        // Header mapping helper
         $findCol = function (array $aliases) use ($cleanHeader) {
             foreach ($aliases as $alias) {
                 $idx = array_search(strtolower(trim($alias)), $cleanHeader);
@@ -1136,28 +1318,26 @@ class EmployeeController extends Controller
         ];
 
         if ($colMap['name'] === false) {
-            fclose($handle);
-            return back()->withErrors(['file' => 'CSV file must include a "Full Name" or "Name" column.']);
+            return back()->withErrors(['file' => 'File must include a "Full Name" or "Name" column header.']);
         }
 
         $imported = 0;
         $updated = 0;
-        $errors = [];
         $rowNum = 1;
 
-        // Preload companies and departments for fast lookup
         $companies = Company::all();
         $roles = Role::where('is_active', true)->get();
 
         DB::beginTransaction();
         try {
-            while (($row = fgetcsv($handle)) !== false) {
+            foreach ($allRows as $row) {
                 $rowNum++;
-                if (empty(array_filter($row))) continue;
+                if (empty(array_filter($row, function($v) { return $v !== null && $v !== ''; }))) continue;
 
                 $getVal = function ($key) use ($colMap, $row) {
                     if ($colMap[$key] !== false && isset($row[$colMap[$key]])) {
-                        return trim($row[$colMap[$key]]);
+                        $val = $row[$colMap[$key]];
+                        return is_string($val) ? trim($val) : $val;
                     }
                     return null;
                 };
@@ -1166,11 +1346,11 @@ class EmployeeController extends Controller
                 if (!$name) continue;
 
                 // Resolve company/branch
-                $branchName = $getVal('branch');
+                $branchName = (string)$getVal('branch');
                 $companyId = $defaultCompanyId;
                 if ($branchName) {
                     $matchedCompany = $companies->first(function ($c) use ($branchName) {
-                        return strcasecmp($c->name, $branchName) === 0 || (string)$c->id === (string)$branchName;
+                        return strcasecmp($c->name, $branchName) === 0 || (string)$c->id === $branchName;
                     });
                     if ($matchedCompany) {
                         $companyId = $matchedCompany->id;
@@ -1182,7 +1362,7 @@ class EmployeeController extends Controller
                 }
 
                 // Resolve department
-                $deptName = $getVal('department');
+                $deptName = (string)$getVal('department');
                 $departmentId = null;
                 if ($deptName && $companyId) {
                     $dept = Department::where('name', $deptName)->first();
@@ -1263,7 +1443,7 @@ class EmployeeController extends Controller
                 }
 
                 // Handle system role & user account creation if role and email specified
-                $roleSlug = strtolower(trim($getVal('role') ?: ''));
+                $roleSlug = strtolower(trim((string)$getVal('role')));
                 if ($employee->email && $roleSlug) {
                     $matchedRole = $roles->first(function ($r) use ($roleSlug) {
                         return strcasecmp($r->slug, $roleSlug) === 0 || strcasecmp($r->name, $roleSlug) === 0;
@@ -1295,14 +1475,12 @@ class EmployeeController extends Controller
             }
 
             DB::commit();
-            fclose($handle);
 
             $msg = "Import completed successfully: {$imported} new employees created, {$updated} existing employees updated.";
             return back()->with('success', $msg);
         } catch (\Exception $e) {
             DB::rollBack();
-            fclose($handle);
-            \Log::error('Employee CSV Import error: ' . $e->getMessage());
+            \Log::error('Employee Import error: ' . $e->getMessage());
             return back()->withErrors(['file' => 'Import failed on row ' . $rowNum . ': ' . $e->getMessage()]);
         }
     }

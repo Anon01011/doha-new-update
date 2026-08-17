@@ -174,7 +174,8 @@ export default function Index({ employees, status, search: initialSearch = '', s
         if (searchTerm) params.append('search', searchTerm);
         if (status) params.append('status', status);
         if (departmentId) params.append('department_id', departmentId);
-        window.location.href = `${route('employees.export')}?${params.toString()}`;
+        const queryStr = params.toString();
+        window.location.href = queryStr ? `${route('employees.export')}?${queryStr}` : route('employees.export');
     };
 
     const handleImport = (e) => {
@@ -677,11 +678,11 @@ export default function Index({ employees, status, search: initialSearch = '', s
                         )}
 
                         <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1.5">CSV File *</label>
+                            <label className="block text-xs font-medium text-slate-700 mb-1.5">Spreadsheet File (Excel or CSV) *</label>
                             <div className="relative border-2 border-dashed border-slate-200 hover:border-primary/50 transition-colors rounded-xl p-6 text-center bg-slate-50/50 group">
                                 <input
                                     type="file"
-                                    accept=".csv, .txt, text/csv"
+                                    accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                                     onChange={e => {
                                         if (e.target.files && e.target.files[0]) {
                                             setImportFile(e.target.files[0]);
@@ -704,8 +705,8 @@ export default function Index({ employees, status, search: initialSearch = '', s
                                         <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
                                             <FiUpload className="w-5 h-5" />
                                         </div>
-                                        <p className="text-sm font-medium text-slate-700">Click to choose or drag & drop CSV file</p>
-                                        <p className="text-xs text-slate-400 mt-0.5">Supports CSV files up to 10MB</p>
+                                        <p className="text-sm font-medium text-slate-700">Click to choose or drag & drop Excel / CSV file</p>
+                                        <p className="text-xs text-slate-400 mt-0.5">Supports .xlsx, .xls, .csv files up to 15MB</p>
                                     </div>
                                 )}
                             </div>
