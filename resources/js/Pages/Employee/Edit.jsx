@@ -160,8 +160,8 @@ export default function EditEmployee(props) {
     const isHrOrManager = useMemo(() => {
         const role = (data.role || '').toLowerCase();
         const desig = (data.designation || '').toLowerCase();
-        return role === 'hr' || role === 'manager' || role === 'branch-manager' || 
-               desig.includes('hr') || desig.includes('manager') || desig.includes('coo') || desig.includes('director') || desig.includes('head');
+        return role === 'hr' || role === 'manager' || role === 'branch-manager' ||
+            desig.includes('hr') || desig.includes('manager') || desig.includes('coo') || desig.includes('director') || desig.includes('head');
     }, [data.role, data.designation]);
 
     // Real users/employees who hold CEO / Founder / COO / Director designations
@@ -179,12 +179,6 @@ export default function EditEmployee(props) {
             'HR Executive',
             'Branch Manager',
             'Operations Manager',
-            'Senior Stylist',
-            'Hair Stylist',
-            'Beautician',
-            'Nail Artist',
-            'Makeup Artist',
-            'Massage Therapist',
             'Receptionist / Front Desk',
             'Accountant',
             'Sales Executive',
@@ -296,18 +290,18 @@ export default function EditEmployee(props) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        
+
         // Auto-add pending weekly off if the user selected one but forgot to click "Add Entry"
         if (newWeeklyOff.weekly_off_day && newWeeklyOff.effective_date) {
             const exists = data.weekly_offs.some(
-                off => off.weekly_off_day === newWeeklyOff.weekly_off_day && 
-                       off.effective_date === newWeeklyOff.effective_date
+                off => off.weekly_off_day === newWeeklyOff.weekly_off_day &&
+                    off.effective_date === newWeeklyOff.effective_date
             );
             if (!exists) {
                 data.weekly_offs.push({ ...newWeeklyOff });
             }
         }
-        
+
         post(route('employees.update', employee.id));
     };
 
@@ -499,22 +493,19 @@ export default function EditEmployee(props) {
                                     </InputWrapper>
 
                                     <InputWrapper label="Designation" icon={EmployeeFieldIcons.designation} error={errors.designation}>
-                                        <input
-                                            type="text"
-                                            list="designation-options-edit"
+                                        <select
                                             className={inputClasses}
                                             value={data.designation}
                                             onChange={e => setData('designation', e.target.value)}
-                                            placeholder="e.g. HR Manager, Senior Stylist, Beautician..."
-                                        />
-                                        <datalist id="designation-options-edit">
+                                        >
+                                            <option value="">Select Designation</option>
                                             {designationList.map(opt => (
-                                                <option key={opt} value={opt} />
+                                                <option key={opt} value={opt}>{opt}</option>
                                             ))}
                                             {data.designation && !designationList.includes(data.designation) && (
-                                                <option value={data.designation} />
+                                                <option value={data.designation}>{data.designation}</option>
                                             )}
-                                        </datalist>
+                                        </select>
                                     </InputWrapper>
 
                                     <InputWrapper label="Reported To" icon={EmployeeFieldIcons.reported_to} error={errors.reported_to}>
@@ -525,7 +516,7 @@ export default function EditEmployee(props) {
                                             disabled={!isHrOrManager && !data.department_id && !data.company_id}
                                         >
                                             <option value="">Select Reporting Authority</option>
-                                            
+
                                             {/* Executive Hierarchy (Users with CEO / Founder / COO / Director designations) */}
                                             {executiveLeaders.length > 0 && (
                                                 <optgroup label="Executive Leadership (CEO / Founder / COO)">
@@ -549,13 +540,13 @@ export default function EditEmployee(props) {
                                             )}
 
                                             {/* Value preservation for legacy reporting */}
-                                            {data.reported_to && 
-                                                !executiveLeaders.some(e => e.name === data.reported_to) && 
+                                            {data.reported_to &&
+                                                !executiveLeaders.some(e => e.name === data.reported_to) &&
                                                 !departmentEmployees.some(e => e.name === data.reported_to) && (
-                                                <optgroup label="Current Assigned Authority">
-                                                    <option value={data.reported_to}>{data.reported_to}</option>
-                                                </optgroup>
-                                            )}
+                                                    <optgroup label="Current Assigned Authority">
+                                                        <option value={data.reported_to}>{data.reported_to}</option>
+                                                    </optgroup>
+                                                )}
                                         </select>
                                         {isHrOrManager && (
                                             <p className="text-[10px] font-medium text-indigo-600 mt-1 ml-1 flex items-center gap-1">
@@ -814,8 +805,8 @@ export default function EditEmployee(props) {
                                     <InputWrapper label="Payment Type" icon={EmployeeFieldIcons.payment_type} error={errors.payment_type}>
                                         <select className={inputClasses} value={data.payment_type} onChange={e => setData('payment_type', e.target.value)}>
                                             <option value="">Select Payment Type</option>
-                                            {(appSettings?.payment_methods 
-                                                ? appSettings.payment_methods.split(',').map(m => m.trim()) 
+                                            {(appSettings?.payment_methods
+                                                ? appSettings.payment_methods.split(',').map(m => m.trim())
                                                 : (constants.payment_types || [])
                                             ).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                             {data.payment_type && !(appSettings?.payment_methods ? appSettings.payment_methods.split(',').map(m => m.trim()) : (constants.payment_types || [])).includes(data.payment_type) && (
