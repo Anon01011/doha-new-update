@@ -170,6 +170,18 @@ export default function Index({ mailSettings, systemSettings }) {
             ),
             href: route('settings.loans'),
             color: 'emerald'
+        },
+        {
+            id: 'backup',
+            name: 'System Backup & Restore',
+            description: 'Complete HRMS exports, media archives, and auto-backup schedules',
+            icon: (
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                </svg>
+            ),
+            href: route('settings.backup'),
+            color: 'blue'
         }
     ];
 

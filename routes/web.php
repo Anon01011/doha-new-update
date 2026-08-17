@@ -111,6 +111,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/employee', [\App\Http\Controllers\SettingsController::class, 'updateEmployeeSettings'])->name('settings.employee.update');
         Route::get('/settings/integrations', [\App\Http\Controllers\SettingsController::class, 'integrationSettings'])->name('settings.integrations');
         Route::post('/settings/integrations', [\App\Http\Controllers\SettingsController::class, 'updateIntegrationSettings'])->name('settings.integrations.update');
+        Route::get('/settings/backup', [\App\Http\Controllers\BackupController::class, 'index'])->name('settings.backup');
+        Route::post('/settings/backup/settings', [\App\Http\Controllers\BackupController::class, 'updateSettings'])->name('settings.backup.settings');
+        Route::post('/settings/backup/create', [\App\Http\Controllers\BackupController::class, 'create'])->name('settings.backup.create');
+        Route::get('/settings/backup/download/{filename}', [\App\Http\Controllers\BackupController::class, 'download'])->name('settings.backup.download');
+        Route::delete('/settings/backup/{filename}', [\App\Http\Controllers\BackupController::class, 'destroy'])->name('settings.backup.destroy');
+        Route::post('/settings/backup/restore', [\App\Http\Controllers\BackupController::class, 'restore'])->name('settings.backup.restore');
+        Route::get('/settings/backup/export-excel', [\App\Http\Controllers\BackupController::class, 'exportAllExcel'])->name('settings.backup.export-excel');
 
         // Approval routes
         Route::post('leave-requests/{leaveRequest}/approve', [\App\Http\Controllers\LeaveRequestController::class, 'approve'])->name('leave-requests.approve');
