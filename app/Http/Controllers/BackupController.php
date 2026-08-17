@@ -575,8 +575,8 @@ class BackupController extends Controller
             $sql .= "-- --------------------------------------------------------\n";
             $sql .= "-- Table structure for table `{$table}`\n";
             $sql .= "-- --------------------------------------------------------\n";
-            $sql .= "DROP TABLE IF EXISTS `{$table}`;\n";
-            $sql .= $createSql . ";\n\n";
+            $safeCreateSql = preg_replace('/^CREATE TABLE\s+/i', 'CREATE TABLE IF NOT EXISTS ', $createSql);
+            $sql .= $safeCreateSql . ";\n\n";
 
             // Chunked table data dump to conserve memory
             $count = DB::table($table)->count();
@@ -587,7 +587,7 @@ class BackupController extends Controller
 
                 DB::table($table)->orderByRaw('1')->chunk(500, function ($rows) use (&$sql, $table, $pdo) {
                     if ($rows->count() > 0) {
-                        $sql .= "INSERT INTO `{$table}` VALUES \n";
+                        $sql .= "REPLACE INTO `{$table}` VALUES \n";
                         $rowStrings = [];
                         foreach ($rows as $row) {
                             $values = [];

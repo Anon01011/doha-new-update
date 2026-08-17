@@ -96,19 +96,20 @@ class RunAutoBackup extends Command
                 Log::info("Automated database backup created: {$sqlFilename}");
             }
 
-            // Cleanup old backups exceeding retention days
+            // Cleanup only automated backups exceeding retention days (never delete manual backups)
             if ($retentionDays > 0) {
                 $cutoff = now()->subDays($retentionDays)->timestamp;
                 $files = File::files($backupPath);
                 $deletedCount = 0;
                 foreach ($files as $file) {
-                    if ($file->getMTime() < $cutoff) {
+                    $filename = $file->getFilename();
+                    if (str_starts_with($filename, 'hrms_auto_') && $file->getMTime() < $cutoff) {
                         File::delete($file->getRealPath());
                         $deletedCount++;
                     }
                 }
                 if ($deletedCount > 0) {
-                    $this->info("Purged {$deletedCount} old backup files older than {$retentionDays} days.");
+                    $this->info("Purged {$deletedCount} old auto-backup files older than {$retentionDays} days.");
                 }
             }
 
@@ -165,8 +166,8 @@ class RunAutoBackup extends Command
             $sql .= "-- --------------------------------------------------------\n";
             $sql .= "-- Table structure for table `{$table}`\n";
             $sql .= "-- --------------------------------------------------------\n";
-            $sql .= "DROP TABLE IF EXISTS `{$table}`;\n";
-            $sql .= $createSql . ";\n\n";
+            $safeCreateSql = preg_replace('/^CREATE TABLE\s+/i', 'CREATE TABLE IF NOT EXISTS ', $createSql);
+            $sql .= $safeCreateSql . ";\n\n";
 
             $count = DB::table($table)->count();
             if ($count > 0) {
@@ -176,7 +177,7 @@ class RunAutoBackup extends Command
 
                 DB::table($table)->orderByRaw('1')->chunk(500, function ($rows) use (&$sql, $table, $pdo) {
                     if ($rows->count() > 0) {
-                        $sql .= "INSERT INTO `{$table}` VALUES \n";
+                        $sql .= "REPLACE INTO `{$table}` VALUES \n";
                         $rowStrings = [];
                         foreach ($rows as $row) {
                             $values = [];
