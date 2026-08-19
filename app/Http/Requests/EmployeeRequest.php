@@ -56,7 +56,7 @@ class EmployeeRequest extends FormRequest
             'payment_type' => 'nullable|string|max:255',
             'leave_status' => 'nullable|string|max:255',
             'reported_to' => 'nullable|string|max:255',
-            'employee_image' => 'nullable|file|image|max:2048',
+            'employee_image' => 'nullable|file|image|mimes:jpg,jpeg,png,webp,gif|max:10240',
             'manual_status' => 'nullable|in:active,inactive,waiting',
             'role' => 'nullable|string|exists:roles,slug',
             'password' => 'nullable|string|min:8|confirmed',

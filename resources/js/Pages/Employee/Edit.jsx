@@ -56,6 +56,7 @@ export default function EditEmployee(props) {
     const { employee, companies = [], departments = [], constants = {}, salaryComponents = [], availableRoles = [], employee_role = null, leadershipEmployees = [], managerEmployees = [] } = props;
     const [filteredDepartments, setFilteredDepartments] = useState([]);
     const [resumePreviewUrl, setResumePreviewUrl] = useState(null);
+    const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
     const [departmentEmployees, setDepartmentEmployees] = useState([]);
     const [branchManagers, setBranchManagers] = useState([]);
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -294,6 +295,28 @@ export default function EditEmployee(props) {
         setData(field, file);
     };
 
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file && file.size > 10 * 1024 * 1024) {
+            setConfirmingAction({
+                show: true,
+                title: 'File Too Large',
+                message: 'File size exceeds 10MB limit. Please upload a smaller file.',
+                type: 'warning',
+                hideCancel: true,
+                onConfirm: closeModal
+            });
+            e.target.value = '';
+            return;
+        }
+        setData('employee_image', file);
+        if (file) {
+            setImagePreviewUrl(URL.createObjectURL(file));
+        } else {
+            setImagePreviewUrl(null);
+        }
+    };
+
     const handleResumeChange = (e) => {
         const file = e.target.files[0];
         setData('resume_doc', file);
@@ -430,15 +453,17 @@ export default function EditEmployee(props) {
                                     </InputWrapper>
 
                                     <InputWrapper label="Profile Image" icon={EmployeeFieldIcons.employee_image} error={errors.employee_image}>
-                                        <input type="file" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => setData('employee_image', e.target.files[0])} />
-                                        {employee.employee_image && (
+                                        <input type="file" accept="image/*" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={handleImageChange} />
+                                        {(imagePreviewUrl || employee.employee_image) && (
                                             <div className="mt-3 flex items-center gap-3 p-2 bg-white rounded-lg border border-slate-100 shadow-sm w-fit">
                                                 <Avatar
-                                                    src={employee.employee_image}
+                                                    src={imagePreviewUrl || employee.employee_image}
                                                     name={employee.name}
                                                     size="sm"
                                                 />
-                                                <span className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Current Identity</span>
+                                                <span className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">
+                                                    {imagePreviewUrl ? 'Selected New Image' : 'Current Identity'}
+                                                </span>
                                             </div>
                                         )}
                                     </InputWrapper>
@@ -458,8 +483,8 @@ export default function EditEmployee(props) {
                                     </InputWrapper>
 
                                     <InputWrapper label="Passport Copy" error={errors.passport_file} className="md:col-span-2">
-                                        {employee.passport_file_path && <div className="text-xs text-green-600 mb-1">Current: Uploaded</div>}
                                         <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('passport_file', e)} />
+                                        <FilePreviewLink label="Passport Document" file={employee.passport_file_path} />
                                     </InputWrapper>
 
                                     <InputWrapper label="QID Number" icon={EmployeeFieldIcons.card} error={errors.qid_number}>
@@ -471,8 +496,8 @@ export default function EditEmployee(props) {
                                     </InputWrapper>
 
                                     <InputWrapper label="QID Copy" error={errors.qid_file} className="md:col-span-2">
-                                        {employee.qid_file_path && <div className="text-xs text-green-600 mb-1">Current: Uploaded</div>}
                                         <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('qid_file', e)} />
+                                        <FilePreviewLink label="QID Document" file={employee.qid_file_path} />
                                     </InputWrapper>
 
                                     {/* New Documents */}
@@ -489,8 +514,8 @@ export default function EditEmployee(props) {
                                     </InputWrapper>
 
                                     <InputWrapper label="Food Handler Copy" error={errors.food_handler_file}>
-                                        {employee.food_handler_file_path && <div className="text-xs text-green-600 mb-1">Current: Uploaded</div>}
                                         <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('food_handler_file', e)} />
+                                        <FilePreviewLink label="Food Handler Document" file={employee.food_handler_file_path} />
                                     </InputWrapper>
                                 </div>
                             </section>

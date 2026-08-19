@@ -460,6 +460,21 @@ export default function ShowEmployee({ employee }) {
                                                 </button>
                                             )}
 
+                                            {employee.resume_doc && (
+                                                <button
+                                                    onClick={() => openLightbox(employee.resume_doc, 'Resume Document')}
+                                                    className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
+                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                        </div>
+                                                        <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Resume</span>
+                                                    </div>
+                                                    <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                </button>
+                                            )}
+
                                             {employee.other_docs && (
                                                 <button
                                                     onClick={() => openLightbox(employee.other_docs, 'Other Documents')}

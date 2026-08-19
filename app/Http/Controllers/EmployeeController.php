@@ -399,36 +399,57 @@ class EmployeeController extends Controller
 
         // Handle file upload if present
         if ($request->hasFile('employee_image')) {
+            if ($employee->employee_image) {
+                Storage::disk('public')->delete($employee->employee_image);
+            }
             $path = $request->file('employee_image')->store('employee-images', 'public');
             $validated['employee_image'] = $path;
         }
 
         if ($request->hasFile('agreement_doc')) {
+            if ($employee->agreement_doc) {
+                Storage::disk('public')->delete($employee->agreement_doc);
+            }
             $path = $request->file('agreement_doc')->store('employee-docs', 'public');
             $validated['agreement_doc'] = $path;
         }
 
         if ($request->hasFile('resume_doc')) {
+            if ($employee->resume_doc) {
+                Storage::disk('public')->delete($employee->resume_doc);
+            }
             $path = $request->file('resume_doc')->store('employee-docs', 'public');
             $validated['resume_doc'] = $path;
         }
 
         if ($request->hasFile('other_docs')) {
+            if ($employee->other_docs) {
+                Storage::disk('public')->delete($employee->other_docs);
+            }
             $path = $request->file('other_docs')->store('employee-docs', 'public');
             $validated['other_docs'] = $path;
         }
 
         if ($request->hasFile('passport_file')) {
+            if ($employee->passport_file_path) {
+                Storage::disk('public')->delete($employee->passport_file_path);
+            }
             $path = $request->file('passport_file')->store('employee-docs', 'public');
             $validated['passport_file_path'] = $path;
         }
 
         if ($request->hasFile('qid_file')) {
+            if ($employee->qid_file_path) {
+                Storage::disk('public')->delete($employee->qid_file_path);
+            }
             $path = $request->file('qid_file')->store('employee-docs', 'public');
             $validated['qid_file_path'] = $path;
         }
 
         if ($request->hasFile('food_handler_file')) {
+            if ($employee->food_handler_file_path) {
+                Storage::disk('public')->delete($employee->food_handler_file_path);
+            }
             $path = $request->file('food_handler_file')->store('employee-docs', 'public');
             $validated['food_handler_file_path'] = $path;
         }
@@ -735,19 +756,25 @@ class EmployeeController extends Controller
 
     private function createIdentityDocument($employee, $type, $path, $expiryDate)
     {
-        $docType = DocumentType::where('name', $type)->first();
-        if ($docType) {
-            EmployeeDocument::create([
+        $docType = DocumentType::firstOrCreate(
+            ['name' => $type],
+            ['category' => 'Identity', 'is_active' => true]
+        );
+
+        EmployeeDocument::updateOrCreate(
+            [
                 'employee_id' => $employee->id,
                 'document_type_id' => $docType->id,
+            ],
+            [
                 'document_name' => $type . ' - ' . ($employee->name),
                 'file_path' => $path,
                 'file_type' => pathinfo($path, PATHINFO_EXTENSION),
-                'file_size' => Storage::disk('public')->size($path),
+                'file_size' => Storage::disk('public')->exists($path) ? Storage::disk('public')->size($path) : 0,
                 'expiry_date' => $expiryDate,
                 'uploaded_by' => auth()->id(),
-            ]);
-        }
+            ]
+        );
     }
 
     public function bulkTransfer(Request $request)

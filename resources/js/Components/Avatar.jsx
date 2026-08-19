@@ -25,11 +25,27 @@ export default function Avatar({ src, name = 'User', size = 'md', className = ''
 
     const selectedSize = sizeClasses[size] || sizeClasses.md;
 
+    const getImageUrl = (path) => {
+        if (!path) return null;
+        if (typeof path !== 'string') return null;
+        if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:') || path.startsWith('data:')) {
+            return path;
+        }
+        if (path.startsWith('/storage/')) {
+            return path;
+        }
+        if (path.startsWith('storage/')) {
+            return `/${path}`;
+        }
+        return `/storage/${path}`;
+    };
+
     if (src) {
+        const imageSrc = getImageUrl(src);
         return (
             <div className={`relative flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 ring-2 ring-white shadow-sm ${selectedSize} ${className}`}>
                 <img
-                    src={(src.startsWith('http') || src.startsWith('blob:')) ? src : `/storage/${src}`}
+                    src={imageSrc}
                     alt={name}
                     className="h-full w-full object-cover"
                     onError={(e) => {
