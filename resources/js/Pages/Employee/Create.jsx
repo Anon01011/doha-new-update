@@ -313,7 +313,7 @@ export default function CreateEmployee(props) {
             data.employee_code = '';
         }
 
-        post(route('employees.store'));
+        post(route('employees.store'), { forceFormData: true });
     };
 
     const isPreviewable = previewType?.includes('pdf') || previewType?.includes('image') || ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].some(ext => resumePreviewUrl?.toLowerCase().endsWith(ext));

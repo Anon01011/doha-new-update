@@ -375,7 +375,7 @@ export default function EditEmployee(props) {
             }
         }
 
-        post(route('employees.update', employee.id));
+        post(route('employees.update', employee.id), { forceFormData: true });
     };
 
     const isPreviewable = previewType?.includes('pdf') || previewType?.includes('image') || ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].some(ext => resumePreviewUrl?.toLowerCase().endsWith(ext));
