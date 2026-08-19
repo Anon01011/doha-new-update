@@ -38,8 +38,12 @@ php artisan migrate --force
 echo -e "\033[33mOptimizing application...\033[0m"
 php artisan optimize
 php artisan view:cache
-php artisan event:cache
 php artisan storage:link || true
+
+# Fix ownership and permissions for Nginx/Apache web user
+chown -R www:www storage bootstrap/cache 2>/dev/null || chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
+chmod -R 775 storage bootstrap/cache 2>/dev/null || true
+
 php artisan queue:restart
 
 # 8. Bring application back up
