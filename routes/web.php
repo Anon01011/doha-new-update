@@ -305,19 +305,37 @@ Route::middleware('auth')->group(function () {
     Route::post('notifications/mark-all-as-read', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead'])->name('notifications.markAllAsRead');
 });
 
-Route::get('/certificates/verify/{code}', [\App\Http\Controllers\TrainingCertificateController::class, 'verify'])->name('certificates.verify');
+Route::get('/storage/{path}', function ($path) {
+    $filePath = storage_path('app/public/' . $path);
+    if (!file_exists($filePath)) {
+        abort(404);
+    }
 
-Route::get('/logtest', function () {
-    Log::info('Log test route hit!');
-    return 'Logged!';
-});
+    $mimeType = mime_content_type($filePath) ?: 'application/octet-stream';
+    return response()->file($filePath, [
+        'Content-Type' => $mimeType,
+        'Cache-Control' => 'public, max-age=31536000',
+    ]);
+})->where('path', '.*')->name('storage.fallback');
 
-Route::get('/fix-whatsapp-token', function() {
-    \App\Models\Setting::whereIn('key', ['whatsapp_api_token', 'meta_phone_number_id', 'whatsapp_template_name'])
-        ->whereNotNull('company_id')
-        ->delete();
-    \Illuminate\Support\Facades\Cache::flush();
-    return 'Fixed WhatsApp Token Issue!';
-});
+Route::get('/fix-storage-link', function () {
+    try {
+        $target = storage_path('app/public');
+        $shortcut = public_path('storage');
+
+        if (file_exists($shortcut)) {
+            if (is_link($shortcut)) {
+                @unlink($shortcut);
+            } elseif (is_dir($shortcut)) {
+                @rmdir($shortcut);
+            }
+        }
+
+        \Illuminate\Support\Facades\Artisan::call('storage:link');
+        return 'Storage link created successfully! Output: ' . \Illuminate\Support\Facades\Artisan::output();
+    } catch (\Exception $e) {
+        return 'Storage link result: ' . $e->getMessage();
+    }
+})->middleware(['auth']);
 
 require __DIR__ . '/auth.php';
