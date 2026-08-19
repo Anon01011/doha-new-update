@@ -1,8 +1,7 @@
-<IfModule mod_rewrite.c>
-    <IfModule mod_negotiation.c>
-        Options -MultiViews -Indexes
-    </IfModule>
+# Enable Symlinks for cPanel / Apache shared hosting
+Options +FollowSymLinks -MultiViews -Indexes
 
+<IfModule mod_rewrite.c>
     RewriteEngine On
 
     # Handle Authorization Header
@@ -23,6 +22,17 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Grant permissions for static uploads (fixes 403 Forbidden on cPanel/Apache)
+<FilesMatch "\.(png|jpe?g|gif|svg|webp|pdf|doc|docx)$">
+    <IfModule mod_authz_core.c>
+        Require all granted
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Allow from all
+    </IfModule>
+</FilesMatch>
 
 # Increase upload limits
 php_value upload_max_filesize 10M
