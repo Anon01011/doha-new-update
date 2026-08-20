@@ -320,14 +320,13 @@ Route::get('/storage/{path}', function ($path) {
 
 Route::get('/fix-storage-link', function () {
     try {
-        $target = storage_path('app/public');
         $shortcut = public_path('storage');
 
-        if (file_exists($shortcut)) {
+        if (\Illuminate\Support\Facades\File::exists($shortcut)) {
             if (is_link($shortcut)) {
-                @unlink($shortcut);
-            } elseif (is_dir($shortcut)) {
-                @rmdir($shortcut);
+                \Illuminate\Support\Facades\File::delete($shortcut);
+            } else {
+                \Illuminate\Support\Facades\File::deleteDirectory($shortcut);
             }
         }
 

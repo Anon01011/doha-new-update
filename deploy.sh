@@ -40,6 +40,7 @@ php artisan view:clear
 php artisan optimize:clear
 php artisan optimize
 php artisan view:cache
+rm -rf public/storage
 php artisan storage:link || true
 
 # Fix ownership and permissions for Nginx/Apache web user (www for aaPanel/BT, www-data for Ubuntu/Nginx)
