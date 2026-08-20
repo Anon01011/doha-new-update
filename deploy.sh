@@ -36,11 +36,13 @@ php artisan migrate --force
 
 # 7. Clear and Cache Config/Routes/Views
 echo -e "\033[33mOptimizing application...\033[0m"
+php artisan view:clear
+php artisan optimize:clear
 php artisan optimize
 php artisan view:cache
 php artisan storage:link || true
 
-# Fix ownership and permissions for Nginx/Apache web user
+# Fix ownership and permissions for Nginx/Apache web user (www for aaPanel/BT, www-data for Ubuntu/Nginx)
 chown -R www:www storage bootstrap/cache 2>/dev/null || chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
 chmod -R 775 storage bootstrap/cache 2>/dev/null || true
 
