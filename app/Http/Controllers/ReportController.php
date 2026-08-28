@@ -44,11 +44,11 @@ class ReportController extends Controller
             ->whereBetween('date', [$startDate, $endDate]);
 
         $companyIds = [];
-        if ($user->role !== 'admin' && $user->employee_id) {
+        if (!$user->isAdmin() && $user->employee_id) {
             $companyId = $user->employee->company_id;
             $companyIds = [$companyId];
             $query->where('company_id', $companyId);
-        } elseif (!empty($companyId) && $user->role === 'admin') {
+        } elseif (!empty($companyId) && $user->isAdmin()) {
             $companyIds = is_array($companyId) ? $companyId : explode(',', $companyId);
             $companyIds = array_filter($companyIds);
             if (!empty($companyIds)) {
@@ -86,10 +86,10 @@ class ReportController extends Controller
             'endDate'     => $endDate,
             'companyId'   => $companyId,
             'employeeId'  => $employeeId,
-            'companies'   => $user->role === 'admin' ? Company::orderBy('name')->get(['id', 'name']) : [],
+            'companies'   => $user->isAdmin() ? Company::orderBy('name')->get(['id', 'name']) : [],
             'employees'   => !empty($companyIds) 
                 ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id']) 
-                : ($user->role === 'admin' 
+                : ($user->isAdmin() 
                     ? [] 
                     : Employee::where('company_id', $user->employee->company_id)->orderBy('name')->get(['id', 'name', 'company_id'])
                 ),
