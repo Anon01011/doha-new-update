@@ -65,8 +65,9 @@ Route::middleware('auth')->group(function () {
         Route::post('shift-rosters/clear-week', [\App\Http\Controllers\ShiftRosterController::class, 'clearWeek'])->name('shift-rosters.clearWeek');
         Route::get('shift-rosters/export-week', [\App\Http\Controllers\ShiftRosterController::class, 'exportWeek'])->name('shift-rosters.exportWeek');
         Route::get('shift-rosters/export', [\App\Http\Controllers\ShiftRosterController::class, 'exportWeek'])->name('shift-rosters.export-week');
-        Route::get('shift-rosters/debug', [\App\Http\Controllers\ShiftRosterController::class, 'debug'])->name('shift-rosters.debug');
-        Route::get('shift-rosters/test-database', [\App\Http\Controllers\ShiftRosterController::class, 'testDatabase'])->name('shift-rosters.testDatabase');
+        // SECURITY: Debug and test-database routes removed — they expose internal DB structure.
+        // Route::get('shift-rosters/debug', ...) -- REMOVED
+        // Route::get('shift-rosters/test-database', ...) -- REMOVED
         Route::post('shift-rosters/batch-store', [\App\Http\Controllers\ShiftRosterController::class, 'batchStore'])->name('shift-rosters.batchStore');
         Route::post('shift-rosters/send-emails', [\App\Http\Controllers\ShiftRosterController::class, 'sendRosterEmails'])->name('shift-rosters.sendEmails');
         Route::post('shift-rosters/send-emails-selected', [\App\Http\Controllers\ShiftRosterController::class, 'sendRosterEmailsToSelected'])->name('shift-rosters.sendEmailsSelected');
@@ -305,20 +306,48 @@ Route::middleware('auth')->group(function () {
     Route::post('notifications/mark-all-as-read', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead'])->name('notifications.markAllAsRead');
 });
 
+// SECURITY FIX #9: Auth required + file extension allowlist to prevent:
+// 1. Unauthenticated access to employee documents (passports, QIDs, salary slips)
+// 2. Path traversal via crafted URLs serving .env / .php files
 Route::get('/storage/{path}', function ($path) {
+    // SECURITY: Only authenticated users can access uploaded files
+    if (!auth()->check()) {
+        abort(403, 'Authentication required to access this resource.');
+    }
+
+    // SECURITY: Allowlist of safe file extensions that can be served
+    $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ico', 'svg'];
+    $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    if (!in_array($extension, $allowedExtensions)) {
+        abort(403, 'File type not allowed.');
+    }
+
+    // SECURITY: Prevent path traversal by resolving real path inside storage
+    $realBase = realpath(storage_path('app/public'));
     $filePath = storage_path('app/public/' . $path);
-    if (!file_exists($filePath)) {
+    $realFile = realpath($filePath);
+
+    if (!$realFile || !str_starts_with($realFile, $realBase)) {
         abort(404);
     }
 
-    $mimeType = mime_content_type($filePath) ?: 'application/octet-stream';
-    return response()->file($filePath, [
+    if (!file_exists($realFile)) {
+        abort(404);
+    }
+
+    $mimeType = mime_content_type($realFile) ?: 'application/octet-stream';
+    return response()->file($realFile, [
         'Content-Type' => $mimeType,
-        'Cache-Control' => 'public, max-age=31536000',
+        'Cache-Control' => 'private, max-age=3600',
     ]);
 })->where('path', '.*')->name('storage.fallback');
 
+// SECURITY FIX #4: Restricted to admin only — prevents employees from running artisan commands.
 Route::get('/fix-storage-link', function () {
+    if (!auth()->user()->isAdmin()) {
+        abort(403, 'Unauthorized. Only Super Admin can run this utility.');
+    }
+
     try {
         $shortcut = public_path('storage');
 
@@ -333,7 +362,7 @@ Route::get('/fix-storage-link', function () {
         \Illuminate\Support\Facades\Artisan::call('storage:link');
         return 'Storage link created successfully! Output: ' . \Illuminate\Support\Facades\Artisan::output();
     } catch (\Exception $e) {
-        return 'Storage link result: ' . $e->getMessage();
+        return 'Storage link result: Failed to create storage link.';
     }
 })->middleware(['auth']);
 

@@ -19,7 +19,7 @@ class PasswordResetLinkController extends Controller
     {
         return Inertia::render('Auth/ForgotPassword', [
             'status' => session('status'),
-            'allowDirectReset' => config('app.env') !== 'production',
+            'allowDirectReset' => config('app.env') === 'local' || config('app.env') === 'testing',
         ]);
     }
 
@@ -30,7 +30,8 @@ class PasswordResetLinkController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        if (config('app.env') !== 'production' && ($request->has('password') || $request->has('password_confirmation'))) {
+        // SECURITY: Direct password reset bypass without email token is strictly limited to local and testing envs.
+        if ((config('app.env') === 'local' || config('app.env') === 'testing') && ($request->has('password') || $request->has('password_confirmation'))) {
             $request->validate([
                 'email' => 'required|email|exists:users,email',
                 'password' => 'required|string|min:8|confirmed',

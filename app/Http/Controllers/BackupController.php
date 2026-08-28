@@ -228,7 +228,7 @@ class BackupController extends Controller
             }
         } catch (\Exception $e) {
             Log::error('Backup creation failed: ' . $e->getMessage());
-            return back()->withErrors(['error' => 'Backup creation failed: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'Backup creation failed. Please check server logs for details.']);
         }
     }
 
@@ -322,8 +322,17 @@ class BackupController extends Controller
 
         $serverFilename = $request->input('filename');
         if ($serverFilename) {
+            // SECURITY: Only allow files already stored in our secure backup directory
             $safeName = basename($serverFilename);
             $realPath = storage_path('app/' . $this->backupDir . '/' . $safeName);
+
+            // Verify file is within our backup directory (prevent path traversal)
+            $realBase = realpath(storage_path('app/' . $this->backupDir));
+            $resolvedPath = realpath($realPath);
+            if (!$resolvedPath || !str_starts_with($resolvedPath, $realBase)) {
+                return back()->withErrors(['error' => 'Invalid backup file specified.']);
+            }
+
             if (!File::exists($realPath)) {
                 return back()->withErrors(['error' => 'Selected server backup file not found.']);
             }
@@ -334,7 +343,27 @@ class BackupController extends Controller
             ]);
 
             $file = $request->file('backup_file');
-            $ext = strtolower($file->getClientOriginalExtension());
+            $ext  = strtolower($file->getClientOriginalExtension());
+
+            // SECURITY FIX #7: Validate file extension against strict allowlist.
+            // Client-provided extension alone is not sufficient — also check MIME type.
+            $allowedExtensions = ['zip', 'sql', 'json'];
+            $allowedMimes      = [
+                'zip'  => ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'],
+                'sql'  => ['text/plain', 'application/octet-stream', 'application/sql'],
+                'json' => ['application/json', 'text/plain'],
+            ];
+
+            if (!in_array($ext, $allowedExtensions)) {
+                return back()->withErrors(['error' => 'Unsupported backup file format. Please upload a .zip, .sql, or .json file.']);
+            }
+
+            // Validate MIME type matches the claimed extension
+            $mimeType = $file->getMimeType();
+            if (isset($allowedMimes[$ext]) && !in_array($mimeType, $allowedMimes[$ext])) {
+                return back()->withErrors(['error' => 'File content does not match the declared file type. Upload rejected.']);
+            }
+
             $realPath = $file->getRealPath();
         }
 
@@ -421,7 +450,7 @@ class BackupController extends Controller
             }
         } catch (\Exception $e) {
             Log::error('Restore failed: ' . $e->getMessage());
-            return back()->withErrors(['error' => 'System restore failed: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'System restore failed. Please check server logs for details.']);
         }
     }
 

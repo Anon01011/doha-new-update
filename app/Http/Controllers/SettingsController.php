@@ -46,20 +46,27 @@ class SettingsController extends Controller
         ]);
 
         try {
-            $this->updateEnvironmentFile([
-                'MAIL_MAILER' => $request->mail_mailer,
-                'MAIL_HOST' => $request->mail_host,
-                'MAIL_PORT' => $request->mail_port,
-                'MAIL_USERNAME' => $request->mail_username,
-                'MAIL_PASSWORD' => $request->mail_password,
-                'MAIL_ENCRYPTION' => $request->mail_encryption,
+            $envData = [
+                'MAIL_MAILER'       => $request->mail_mailer,
+                'MAIL_HOST'         => $request->mail_host,
+                'MAIL_PORT'         => $request->mail_port,
+                'MAIL_USERNAME'     => $request->mail_username,
+                'MAIL_ENCRYPTION'   => $request->mail_encryption,
                 'MAIL_FROM_ADDRESS' => $request->mail_from_address,
-                'MAIL_FROM_NAME' => $request->mail_from_name,
-            ]);
+                'MAIL_FROM_NAME'    => $request->mail_from_name,
+            ];
+
+            // SECURITY FIX #6: Only write password to .env if user actually changed it
+            // (not the masked '***' placeholder returned by getMailSettings).
+            if ($request->mail_password && $request->mail_password !== '***') {
+                $envData['MAIL_PASSWORD'] = $request->mail_password;
+            }
+
+            $this->updateEnvironmentFile($envData);
 
             return back()->with('success', 'Mail settings updated successfully!');
         } catch (\Exception $e) {
-            return back()->with('error', 'Failed to update mail settings: ' . $e->getMessage());
+            return back()->with('error', 'Failed to update mail settings.');
         }
     }
 
@@ -171,22 +178,29 @@ class SettingsController extends Controller
                 Setting::set('company_stamp', $stampPath, 'branding', 'string', $companyId);
             }
 
+            // SECURITY: Sanitize user input against Stored XSS before saving to settings/env
+            $appName = strip_tags($request->app_name);
+            $appUrl = filter_var($request->app_url, FILTER_SANITIZE_URL);
+            $currency = strip_tags($request->currency);
+            $currencySymbol = strip_tags($request->currency_symbol);
+            $appFont = preg_replace('/[^a-zA-Z0-9_\-]/', '', $request->app_font ?: 'Inter');
+
             // Store branding settings in Setting model
-            Setting::set('app_name', $request->app_name, 'branding', 'string', $companyId);
-            Setting::set('app_url', $request->app_url, 'branding', 'string', $companyId);
+            Setting::set('app_name', $appName, 'branding', 'string', $companyId);
+            Setting::set('app_url', $appUrl, 'branding', 'string', $companyId);
             Setting::set('app_timezone', $request->app_timezone, 'branding', 'string', $companyId);
             Setting::set('app_locale', $request->app_locale, 'branding', 'string', $companyId);
-            Setting::set('currency', $request->currency, 'branding', 'string', $companyId);
-            Setting::set('currency_symbol', $request->currency_symbol, 'branding', 'string', $companyId);
+            Setting::set('currency', $currency, 'branding', 'string', $companyId);
+            Setting::set('currency_symbol', $currencySymbol, 'branding', 'string', $companyId);
             Setting::set('theme_color', $request->theme_color ?: '#090b4e', 'branding', 'string', $companyId);
             Setting::set('secondary_color', $request->secondary_color ?: '#103c7f', 'branding', 'string', $companyId);
             Setting::set('accent_color', $request->accent_color ?: '#818cf8', 'branding', 'string', $companyId);
-            Setting::set('app_font', $request->app_font ?: 'Inter', 'branding', 'string', $companyId);
+            Setting::set('app_font', $appFont, 'branding', 'string', $companyId);
 
             if ($saveToEnv === true || $saveToEnv === 'true' || $saveToEnv === '1' || $saveToEnv === 1) {
                 $this->updateEnvironmentFile([
-                    'APP_NAME' => $request->app_name,
-                    'APP_URL' => $request->app_url,
+                    'APP_NAME' => $appName,
+                    'APP_URL' => $appUrl,
                     'APP_TIMEZONE' => $request->app_timezone,
                     'APP_LOCALE' => $request->app_locale,
                 ]);
@@ -246,24 +260,27 @@ class SettingsController extends Controller
     private function getMailSettings()
     {
         return [
-            'mail_mailer' => env('MAIL_MAILER', 'log'),
-            'mail_host' => env('MAIL_HOST', '127.0.0.1'),
-            'mail_port' => env('MAIL_PORT', 2525),
-            'mail_username' => env('MAIL_USERNAME', ''),
-            'mail_password' => env('MAIL_PASSWORD', ''),
-            'mail_encryption' => env('MAIL_ENCRYPTION', 'tls'),
+            'mail_mailer'       => env('MAIL_MAILER', 'log'),
+            'mail_host'         => env('MAIL_HOST', '127.0.0.1'),
+            'mail_port'         => env('MAIL_PORT', 2525),
+            'mail_username'     => env('MAIL_USERNAME', ''),
+            // SECURITY FIX #6: Never expose raw SMTP password to the frontend.
+            // The actual password is masked; saving an unchanged '***' value is
+            // handled by the update method which ignores masked values.
+            'mail_password'     => env('MAIL_PASSWORD') ? '***' : '',
+            'mail_encryption'   => env('MAIL_ENCRYPTION', 'tls'),
             'mail_from_address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-            'mail_from_name' => env('MAIL_FROM_NAME', 'Example'),
+            'mail_from_name'    => env('MAIL_FROM_NAME', 'Example'),
             'has_session_settings' => false,
             'available_mailers' => [
-                'smtp' => 'SMTP',
-                'mailgun' => 'Mailgun',
-                'ses' => 'Amazon SES',
+                'smtp'     => 'SMTP',
+                'mailgun'  => 'Mailgun',
+                'ses'      => 'Amazon SES',
                 'postmark' => 'Postmark',
-                'resend' => 'Resend',
+                'resend'   => 'Resend',
                 'sendmail' => 'Sendmail',
-                'log' => 'Log (for testing)',
-                'array' => 'Array (for testing)',
+                'log'      => 'Log (for testing)',
+                'array'    => 'Array (for testing)',
             ],
         ];
     }
@@ -337,16 +354,25 @@ class SettingsController extends Controller
         $content = File::get($path);
 
         foreach ($data as $key => $value) {
-            // Escape special characters in the value
-            $value = str_replace('"', '\\"', $value);
+            // SECURITY FIX #7: Sanitize both key and value before using in regex.
+            // preg_quote prevents regex injection via crafted key names.
+            // Only allow alphanumeric + underscore keys (standard .env format).
+            if (!preg_match('/^[A-Z0-9_]+$/', $key)) {
+                \Illuminate\Support\Facades\Log::warning('updateEnvironmentFile: Skipping invalid env key: ' . $key);
+                continue;
+            }
 
-            // Check if the key exists in the .env file
-            if (preg_match("/^{$key}=/m", $content)) {
+            // SECURITY FIX: Strip newlines (\r, \n) and escape double quotes to prevent .env injection breakout
+            $cleanValue = str_replace(["\r", "\n"], '', (string) $value);
+            $safeValue = str_replace('"', '\\"', $cleanValue);
+            $quotedKey = preg_quote($key, '/');
+
+            if (preg_match("/^{$quotedKey}=/m", $content)) {
                 // Update existing key
-                $content = preg_replace("/^{$key}=.*/m", "{$key}=\"{$value}\"", $content);
+                $content = preg_replace("/^{$quotedKey}=.*/m", "{$key}=\"{$safeValue}\"", $content);
             } else {
                 // Add new key at the end
-                $content .= "\n{$key}=\"{$value}\"";
+                $content .= "\n{$key}=\"{$safeValue}\"";
             }
         }
 
@@ -369,21 +395,26 @@ class SettingsController extends Controller
 
     public function updateAttendanceSettings(Request $request)
     {
+        // SECURITY FIX #14: Only admin or HR can modify company-wide attendance settings.
+        $user = auth()->user();
+        if (!$user->isAdmin() && !$user->isHR()) {
+            abort(403, 'Unauthorized. Only Admin or HR can modify attendance settings.');
+        }
+
         $validated = $request->validate([
-            'clock_in_grace_period' => 'nullable|integer|min:0',
-            'late_arrival_threshold' => 'nullable|integer|min:0',
-            'early_departure_threshold' => 'nullable|integer|min:0',
-            'auto_clock_out_time' => 'nullable|date_format:H:i',
-            'max_break_duration' => 'nullable|integer|min:0',
-            'overtime_calculation_method' => 'nullable|in:hourly,daily,weekly',
-            'overtime_approval_required' => 'nullable|boolean',
-            'weekend_days' => 'nullable|array',
-            'company_opening_time' => 'nullable|string',
-            'company_closing_time' => 'nullable|string',
-            'standard_working_hours' => 'nullable|numeric|min:1|max:24',
+            'clock_in_grace_period'        => 'nullable|integer|min:0',
+            'late_arrival_threshold'        => 'nullable|integer|min:0',
+            'early_departure_threshold'     => 'nullable|integer|min:0',
+            'auto_clock_out_time'           => 'nullable|date_format:H:i',
+            'max_break_duration'            => 'nullable|integer|min:0',
+            'overtime_calculation_method'   => 'nullable|in:hourly,daily,weekly',
+            'overtime_approval_required'    => 'nullable|boolean',
+            'weekend_days'                  => 'nullable|array',
+            'company_opening_time'          => 'nullable|string',
+            'company_closing_time'          => 'nullable|string',
+            'standard_working_hours'        => 'nullable|numeric|min:1|max:24',
         ]);
 
-        $user = auth()->user();
         $companyId = $user->employee_id ? $user->employee->company_id : null;
 
         foreach ($validated as $key => $value) {

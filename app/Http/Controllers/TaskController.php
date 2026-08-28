@@ -575,7 +575,7 @@ class TaskController extends Controller
     {
         $request->validate([
             'comment' => 'required|string',
-            'file' => 'nullable|file|max:10240', // 10MB max
+            'file' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf,doc,docx,txt,zip|max:10240', // 10MB max
         ]);
 
         $filePath = null;

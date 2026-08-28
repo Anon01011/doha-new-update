@@ -122,7 +122,7 @@ class GrievanceController extends Controller
             'is_confidential' => 'boolean',
             'is_anonymous' => 'boolean',
             'attachments' => ($requireEvidence ? 'required|' : 'nullable|') . 'array',
-            'attachments.*' => 'file|max:10240', // 10MB max per file
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,pdf,doc,docx,txt,zip|max:10240', // 10MB max per file
         ]);
 
         $validated['company_id'] = $employee->company_id;

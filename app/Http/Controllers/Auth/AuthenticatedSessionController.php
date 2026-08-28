@@ -19,8 +19,10 @@ class AuthenticatedSessionController extends Controller
     public function create(): Response
     {
         $quickLoginOptions = [];
-        if (config('app.env') !== 'production' || request()->has('show_demo')) {
-            // Get a few of each role to ensure variety
+
+        // SECURITY: Quick login is ONLY available in local/testing environments.
+        // The show_demo bypass has been removed to prevent user enumeration in production.
+        if (config('app.env') === 'local' || config('app.env') === 'testing') {
             $hrs = \App\Models\User::with(['employee.company'])->where('role', 'hr')->take(4)->get();
             $managers = \App\Models\User::with(['employee.company'])->where('role', 'manager')->take(4)->get();
             $employees = \App\Models\User::with(['employee.company'])->where('role', 'employee')->take(8)->get();
@@ -29,23 +31,21 @@ class AuthenticatedSessionController extends Controller
                 ->merge($hrs)
                 ->merge($managers)
                 ->merge($employees)
-                ->map(function($user) {
+                ->map(function ($user) {
                     return [
-                        'name' => $user->name,
-                        'email' => $user->email,
-                        'role' => strtoupper($user->role),
+                        'name'   => $user->name,
+                        'email'  => $user->email,
+                        'role'   => strtoupper($user->role),
                         'branch' => $user->employee && $user->employee->company ? $user->employee->company->name : 'Main Branch',
                     ];
                 })
-                ->shuffle() // Mix them up
+                ->shuffle()
                 ->values();
-                
-            \Illuminate\Support\Facades\Log::info('Quick Login Options Generated:', ['count' => count($quickLoginOptions)]);
         }
 
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
-            'status' => session('status'),
+            'status'           => session('status'),
             'quickLoginOptions' => $quickLoginOptions,
         ]);
     }
@@ -80,7 +80,7 @@ class AuthenticatedSessionController extends Controller
                 $hoursWorked = round($workMinutes / 60, 2);
                 $normalHours = $attendance->normal_hours ?: 0;
                 $ot = $hoursWorked > $normalHours ? $hoursWorked - $normalHours : 0;
-                $overtimeRate = env('PAYROLL_OVERTIME_RATE', 0);
+                $overtimeRate = config('payroll.overtime_rate', env('PAYROLL_OVERTIME_RATE', 0));
                 $otAmount = ($ot > 0 && $overtimeRate > 0) ? $ot * $overtimeRate : 0;
 
                 $attendance->update([

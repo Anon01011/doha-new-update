@@ -29,7 +29,7 @@ trait BelongsToCompany
                 // Applying the company scope to admin users caused 404 errors when:
                 // - Admin tries to create a new branch (Company model scoped to only their company)
                 // - Admin assigns roles to users in other companies (User model scope hides them)
-                if ($user->role === 'admin') {
+                if ($user->isAdmin()) {
                     return;
                 }
 
@@ -77,7 +77,7 @@ trait BelongsToCompany
                 $user = Auth::user();
 
                 // Admins can create records without auto-assigning their company_id
-                if ($user->role === 'admin') {
+                if ($user->isAdmin()) {
                     return;
                 }
 

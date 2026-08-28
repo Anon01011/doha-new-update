@@ -34,10 +34,13 @@ class RegisteredUserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:' . User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'role' => 'nullable|string|in:admin,employee,hr,manager',
+            // SECURITY: Role is NEVER accepted from public registration.
+            // All public registrations are forced to 'employee'. Roles are only
+            // assigned by admins through the employee management system.
         ]);
 
-        $role = $request->role ?? 'employee'; // Default to employee if not provided
+        // Always employee for self-registration — never trust user-submitted role.
+        $role = 'employee';
 
         $user = User::create([
             'name' => $request->name,

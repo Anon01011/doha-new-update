@@ -151,8 +151,6 @@ class EmployeeController extends Controller
         }
 
         $validated = $request->validated();
-        \Log::info('Employee store request payload:', $request->all());
-        \Log::info('Employee store validated payload:', $validated);
 
         // Multi-tenancy check: Force company_id for non-admins
         if (!$user->isAdmin() && $user->employee_id && $user->employee) {
@@ -296,7 +294,7 @@ class EmployeeController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('Error creating employee:', ['error' => $e->getMessage()]);
-            return back()->withErrors(['error' => 'Failed to create employee: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'Failed to create employee. Please check system logs for details.']);
         }
     }
 
@@ -386,8 +384,6 @@ class EmployeeController extends Controller
         }
 
         $validated = $request->validated();
-        \Log::info('Employee update request payload:', $request->all());
-        \Log::info('Employee update validated payload:', $validated);
 
         // Role-based field protection: Only Admin and HR can change company, department, or status
         if (!$user->isAdmin() && !$user->isHR()) {

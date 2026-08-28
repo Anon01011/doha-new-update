@@ -111,7 +111,12 @@ class EmployeeDocumentController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
-        return response()->download(storage_path('app/public/' . $document->file_path), $document->document_name . '.' . $document->file_type);
+        // SECURITY FIX #11: Check file existence on public disk and prevent path traversal
+        if (!Storage::disk('public')->exists($document->file_path)) {
+            abort(404, 'Document file not found.');
+        }
+
+        return Storage::disk('public')->download($document->file_path, $document->document_name . '.' . $document->file_type);
     }
 
     public function destroy(EmployeeDocument $document)

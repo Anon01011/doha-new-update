@@ -215,6 +215,10 @@ class EmployeeDashboardController extends Controller
         $employee = Employee::find($user->employee_id);
 
         if ($request->hasFile('image')) {
+            $request->validate([
+                'image' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
+            ]);
+
             // Delete old image if exists
             if ($employee->employee_image) {
                 \Illuminate\Support\Facades\Storage::disk('public')->delete($employee->employee_image);

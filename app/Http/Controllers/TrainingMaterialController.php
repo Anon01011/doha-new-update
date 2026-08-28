@@ -13,13 +13,18 @@ class TrainingMaterialController extends Controller
     public function store(Request $request, Training $training)
     {
         $user = auth()->user();
+        if (!$user->isAdmin() && !$user->hasPermission('manage-trainings')) {
+            abort(403, 'Unauthorized access.');
+        }
+
         if (!$user->isAdmin() && $user->employee_id && $training->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
         $request->validate([
             'title' => 'required|string|max:255',
-            'file' => 'required|file|max:10240', // 10MB max
+            // SECURITY FIX #12: Restrict upload extensions to document, media and archive types
+            'file'  => 'required|file|max:10240|mimes:pdf,doc,docx,ppt,pptx,xls,xlsx,txt,jpg,jpeg,png,mp4,zip',
             'is_mandatory' => 'boolean',
         ]);
 
