@@ -81,20 +81,28 @@ class EmployeeDocumentController extends Controller
         $fileName = time() . '_' . $file->getClientOriginalName();
         $filePath = $file->storeAs('employee_documents/' . $employee->id, $fileName, 'public');
 
-        EmployeeDocument::create([
-            'employee_id' => $employee->id,
-            'document_type_id' => $validated['document_type_id'] ?? null,
-            'document_name' => $validated['document_name'],
-            'file_path' => $filePath,
-            'file_type' => $file->getClientOriginalExtension(),
-            'file_size' => $file->getSize(),
-            'issue_date' => $validated['issue_date'] ?? null,
-            'expiry_date' => $validated['expiry_date'] ?? null,
-            'notes' => $validated['notes'] ?? null,
-            'uploaded_by' => auth()->id(),
-        ]);
+        try {
+            EmployeeDocument::create([
+                'employee_id' => $employee->id,
+                'document_type_id' => $validated['document_type_id'] ?? null,
+                'document_name' => $validated['document_name'],
+                'file_path' => $filePath,
+                'file_type' => $file->getClientOriginalExtension(),
+                'file_size' => $file->getSize(),
+                'issue_date' => $validated['issue_date'] ?? null,
+                'expiry_date' => $validated['expiry_date'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+                'uploaded_by' => auth()->id(),
+            ]);
 
-        return redirect()->back()->with('success', 'Document uploaded successfully!');
+            return redirect()->back()->with('success', 'Document uploaded successfully!');
+        } catch (\Throwable $e) {
+            if ($filePath && Storage::disk('public')->exists($filePath)) {
+                Storage::disk('public')->delete($filePath);
+            }
+            \Log::error('Error storing employee document:', ['error' => $e->getMessage()]);
+            return redirect()->back()->withErrors(['error' => 'Failed to save document record: ' . $e->getMessage()]);
+        }
     }
 
     public function download(EmployeeDocument $document)
@@ -144,12 +152,20 @@ class EmployeeDocumentController extends Controller
             }
         }
 
-        // Delete file from storage
-        Storage::disk('public')->delete($document->file_path);
+        try {
+            $filePath = $document->file_path;
+            $document->delete();
 
-        $document->delete();
+            // Delete file from storage
+            if ($filePath && Storage::disk('public')->exists($filePath)) {
+                Storage::disk('public')->delete($filePath);
+            }
 
-        return redirect()->back()->with('success', 'Document deleted successfully!');
+            return redirect()->back()->with('success', 'Document deleted successfully!');
+        } catch (\Throwable $e) {
+            \Log::error('Error deleting employee document:', ['id' => $document->id, 'error' => $e->getMessage()]);
+            return redirect()->back()->withErrors(['error' => 'Failed to delete document: ' . $e->getMessage()]);
+        }
     }
 
     public function expiring(Request $request)

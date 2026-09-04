@@ -20,9 +20,10 @@ const SectionHeader = ({ title, icon, color = "indigo" }) => (
 
 const InputWrapper = ({ label, icon, error, children, required = false }) => (
     <div className="space-y-1.5 group">
-        <label className="flex items-center gap-2 text-[11px] font-normal text-slate-500 uppercase tracking-normal ml-1 group-focus-within:text-indigo-600 transition-colors">
+        <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 uppercase tracking-normal ml-1 group-focus-within:text-indigo-600 transition-colors">
             {icon && <span className="opacity-70">{icon}</span>}
-            {label} {required && <span className="text-rose-500">*</span>}
+            <span>{label}</span>
+            {required && <span className="text-rose-500 font-bold ml-0.5" title="Required field">*</span>}
         </label>
         <div className="relative">
             {children}
@@ -53,7 +54,7 @@ export default function EditEmployee(props) {
     const { appSettings, auth } = usePage().props;
     const currency = appSettings?.currency || 'QAR';
 
-    const { employee, companies = [], departments = [], constants = {}, salaryComponents = [], availableRoles = [], employee_role = null, leadershipEmployees = [], managerEmployees = [] } = props;
+    const { employee, canEditCode = false, companies = [], departments = [], constants = {}, salaryComponents = [], availableRoles = [], employee_role = null, leadershipEmployees = [], managerEmployees = [] } = props;
     const [filteredDepartments, setFilteredDepartments] = useState([]);
     const [resumePreviewUrl, setResumePreviewUrl] = useState(null);
     const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
@@ -423,13 +424,37 @@ export default function EditEmployee(props) {
                                     </InputWrapper>
 
                                     <InputWrapper label="Employee Code" icon={EmployeeFieldIcons.employee_code} error={errors.employee_code}>
-                                        <input
-                                            type="text"
-                                            className={`${inputClasses} bg-slate-100 text-slate-400 cursor-not-allowed`}
-                                            value={data.employee_code}
-                                            readOnly
-                                        />
-                                        <p className="text-[10px] font-normal text-slate-400 mt-1 uppercase tracking-normal">Code cannot be modified</p>
+                                        {canEditCode ? (
+                                            <div className="space-y-1">
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        className={`${inputClasses} border-amber-300 bg-amber-50/20 focus:border-amber-500 focus:bg-white focus:ring-amber-500/10`}
+                                                        value={data.employee_code}
+                                                        onChange={e => setData('employee_code', e.target.value)}
+                                                        placeholder="e.g. EMP2026-001"
+                                                    />
+                                                    <span className="absolute right-2.5 top-2.5 px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-[9px] font-semibold tracking-wide uppercase border border-amber-200">
+                                                        Admin Edit Once
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] font-normal text-amber-600 ml-1">
+                                                    ⚠️ As Admin, you can customize this Employee ID once. Once saved, it will be permanently locked.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <input
+                                                    type="text"
+                                                    className={`${inputClasses} bg-slate-100 text-slate-400 cursor-not-allowed`}
+                                                    value={data.employee_code}
+                                                    readOnly
+                                                />
+                                                <p className="text-[10px] font-normal text-slate-400 mt-1 uppercase tracking-normal">
+                                                    {employee.is_code_edited ? 'Employee ID has been customized and permanently locked' : 'Employee ID can only be modified by Super Admin'}
+                                                </p>
+                                            </div>
+                                        )}
                                     </InputWrapper>
 
                                     <InputWrapper label="Gender" icon={EmployeeFieldIcons.gender} error={errors.gender} required>
@@ -527,8 +552,8 @@ export default function EditEmployee(props) {
                                     <InputWrapper label="Mobile Number" icon={EmployeeFieldIcons.mobile} error={errors.mobile}>
                                         <input type="text" className={inputClasses} value={data.mobile} onChange={e => setData('mobile', e.target.value)} placeholder="+974 XXXX XXXX" />
                                     </InputWrapper>
-                                    <InputWrapper label="Email Address" icon={EmployeeFieldIcons.email} error={errors.email}>
-                                        <input type="email" className={inputClasses} value={data.email} onChange={e => setData('email', e.target.value)} placeholder="john@example.com" />
+                                    <InputWrapper label="Email Address" icon={EmployeeFieldIcons.email} error={errors.email} required={!!data.role}>
+                                        <input type="email" className={inputClasses} value={data.email} onChange={e => setData('email', e.target.value)} placeholder="john@example.com" required={!!data.role} />
                                     </InputWrapper>
                                     <InputWrapper label="Current Location" icon={EmployeeFieldIcons.location} error={errors.location} className="md:col-span-2">
                                         <input type="text" className={inputClasses} value={data.location} onChange={e => setData('location', e.target.value)} placeholder="e.g. Doha, Qatar" />
@@ -695,7 +720,7 @@ export default function EditEmployee(props) {
                                                 />
                                             </InputWrapper>
 
-                                            <InputWrapper label="Confirm Password" icon={EmployeeFieldIcons.password} error={errors.password_confirmation}>
+                                            <InputWrapper label="Confirm Password" icon={EmployeeFieldIcons.password} error={errors.password_confirmation} required={!!data.password}>
                                                 <input
                                                     type="password"
                                                     className={inputClasses}
@@ -703,6 +728,7 @@ export default function EditEmployee(props) {
                                                     onChange={e => setData('password_confirmation', e.target.value)}
                                                     placeholder="Confirm new password"
                                                     autoComplete="new-password"
+                                                    required={!!data.password}
                                                 />
                                             </InputWrapper>
                                         </>
@@ -808,7 +834,7 @@ export default function EditEmployee(props) {
 
                                         {/* Table of current configurations */}
                                         {data.weekly_offs.length > 0 ? (
-                                            <div className="overflow-hidden border border-slate-150 rounded-xl bg-slate-50/20">
+                                             <div className="overflow-hidden border border-slate-150 rounded-xl bg-slate-50/20">
                                                 <table className="min-w-full divide-y divide-slate-100 text-left text-xs font-normal">
                                                     <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                                                         <tr>
@@ -845,7 +871,9 @@ export default function EditEmployee(props) {
                                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Add Weekly Off Entry</p>
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                                                 <div className="space-y-1">
-                                                    <label className="block text-[9px] font-normal text-slate-400 uppercase tracking-normal">Weekly Off Day</label>
+                                                    <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-normal">
+                                                        Weekly Off Day <span className="text-rose-500 font-bold ml-0.5">*</span>
+                                                    </label>
                                                     <select
                                                         value={newWeeklyOff.weekly_off_day}
                                                         onChange={e => setNewWeeklyOff({ ...newWeeklyOff, weekly_off_day: e.target.value })}
@@ -862,7 +890,9 @@ export default function EditEmployee(props) {
                                                     </select>
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <label className="block text-[9px] font-normal text-slate-400 uppercase tracking-normal">Effective Date</label>
+                                                    <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-normal">
+                                                        Effective Date <span className="text-rose-500 font-bold ml-0.5">*</span>
+                                                    </label>
                                                     <input
                                                         type="date"
                                                         value={newWeeklyOff.effective_date}

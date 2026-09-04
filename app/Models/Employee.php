@@ -18,6 +18,7 @@ class Employee extends Model
     protected $fillable = [
         'name',
         'employee_code',
+        'is_code_edited',
         'no_overtime',
         'gender',
         'dob',
@@ -64,6 +65,7 @@ class Employee extends Model
     ];
 
     protected $casts = [
+        'is_code_edited' => 'boolean',
         'dob' => 'date',
         'joining_date' => 'date',
         'joined_date' => 'date',
@@ -169,6 +171,21 @@ class Employee extends Model
     public function grievances()
     {
         return $this->hasMany(Grievance::class);
+    }
+
+    public function documents()
+    {
+        return $this->hasMany(EmployeeDocument::class);
+    }
+
+    public function warningLetters()
+    {
+        return $this->hasMany(WarningLetter::class);
+    }
+
+    public function projectMembers()
+    {
+        return $this->hasMany(ProjectMember::class);
     }
 
     public function manager()

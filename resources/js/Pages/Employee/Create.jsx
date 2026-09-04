@@ -22,9 +22,10 @@ const SectionHeader = ({ title, icon, color = "indigo" }) => (
 
 const InputWrapper = ({ label, icon, error, children, required = false }) => (
     <div className="space-y-1.5 group">
-        <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 uppercase tracking-normal ml-1 group-focus-within:text-indigo-600 transition-colors">
+        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 uppercase tracking-normal ml-1 group-focus-within:text-indigo-600 transition-colors">
             {icon && <span className="opacity-70">{icon}</span>}
-            {label} {required && <span className="text-rose-500">*</span>}
+            <span>{label}</span>
+            {required && <span className="text-rose-500 font-bold ml-0.5" title="Required field">*</span>}
         </label>
         <div className="relative">
             {children}
@@ -471,8 +472,8 @@ export default function CreateEmployee(props) {
                                     <InputWrapper label="Mobile Number" icon={EmployeeFieldIcons.mobile} error={errors.mobile}>
                                         <input type="text" className={inputClasses} value={data.mobile} onChange={e => setData('mobile', e.target.value)} placeholder="+974 XXXX XXXX" />
                                     </InputWrapper>
-                                    <InputWrapper label="Email Address" icon={EmployeeFieldIcons.email} error={errors.email}>
-                                        <input type="email" className={inputClasses} value={data.email} onChange={e => setData('email', e.target.value)} placeholder="john@example.com" />
+                                    <InputWrapper label="Email Address" icon={EmployeeFieldIcons.email} error={errors.email} required={!!data.role}>
+                                        <input type="email" className={inputClasses} value={data.email} onChange={e => setData('email', e.target.value)} placeholder="john@example.com" required={!!data.role} />
                                     </InputWrapper>
                                     <InputWrapper label="Current Location" icon={EmployeeFieldIcons.location} error={errors.location} className="md:col-span-2">
                                         <input type="text" className={inputClasses} value={data.location} onChange={e => setData('location', e.target.value)} placeholder="e.g. Doha, Qatar" />
@@ -721,7 +722,9 @@ export default function CreateEmployee(props) {
                                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Add Weekly Off Entry</p>
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                                                 <div className="space-y-1">
-                                                    <label className="block text-[9px] font-normal text-slate-400 uppercase tracking-normal">Weekly Off Day</label>
+                                                    <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-normal">
+                                                        Weekly Off Day <span className="text-rose-500 font-bold ml-0.5">*</span>
+                                                    </label>
                                                     <select
                                                         value={newWeeklyOff.weekly_off_day}
                                                         onChange={e => setNewWeeklyOff({ ...newWeeklyOff, weekly_off_day: e.target.value })}
@@ -738,7 +741,9 @@ export default function CreateEmployee(props) {
                                                     </select>
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <label className="block text-[9px] font-normal text-slate-400 uppercase tracking-normal">Effective Date</label>
+                                                    <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-normal">
+                                                        Effective Date <span className="text-rose-500 font-bold ml-0.5">*</span>
+                                                    </label>
                                                     <input
                                                         type="date"
                                                         value={newWeeklyOff.effective_date}

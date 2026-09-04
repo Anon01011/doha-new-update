@@ -6,7 +6,7 @@ import Avatar from '@/Components/Avatar';
 import Modal from '@/Components/Modal';
 import axios from 'axios';
 import ConfirmationModal from '@/Components/ConfirmationModal';
-import { FiSearch, FiUsers, FiCheckCircle, FiClock, FiGrid, FiUserPlus, FiSend, FiList, FiPlus, FiEye, FiEdit2, FiAlertCircle, FiDownload, FiUpload, FiFileText } from 'react-icons/fi';
+import { FiSearch, FiUsers, FiCheckCircle, FiClock, FiGrid, FiUserPlus, FiSend, FiList, FiPlus, FiEye, FiEdit2, FiTrash2, FiAlertCircle, FiDownload, FiUpload, FiFileText } from 'react-icons/fi';
 
 export default function Index({ employees, status, search: initialSearch = '', stats = {}, companies = [] }) {
     const { auth } = usePage().props;
@@ -39,6 +39,22 @@ export default function Index({ employees, status, search: initialSearch = '', s
     });
 
     const closeModal = () => setConfirmingAction(prev => ({ ...prev, show: false }));
+
+    const handleDeleteEmployee = (employee, e) => {
+        if (e) e.stopPropagation();
+        setConfirmingAction({
+            show: true,
+            title: `Delete ${employee.name}?`,
+            message: `Are you sure you want to permanently delete employee "${employee.name}" (${employee.employee_code})? This will only succeed if the employee has no associated records (attendance, payroll, loans, leaves, etc.).`,
+            type: 'danger',
+            confirmText: 'Yes, Delete Employee',
+            onConfirm: () => {
+                router.delete(route('employees.destroy', employee.id), {
+                    onFinish: () => closeModal(),
+                });
+            },
+        });
+    };
 
     const handleSearch = (e) => {
         if (e) e.preventDefault();
@@ -456,6 +472,16 @@ export default function Index({ employees, status, search: initialSearch = '', s
                                                         >
                                                             <FiEdit2 className="w-4 h-4" />
                                                         </Link>
+                                                    )}
+                                                    {(user.role === 'admin' || hasPermission(user, 'delete-employees')) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => handleDeleteEmployee(employee, e)}
+                                                            className="text-slate-400 hover:text-rose-600 p-1.5 transition-colors"
+                                                            title="Delete Employee"
+                                                        >
+                                                            <FiTrash2 className="w-4 h-4" />
+                                                        </button>
                                                     )}
                                                 </div>
                                             )}

@@ -157,51 +157,63 @@ class EmployeeController extends Controller
             $validated['company_id'] = $user->employee->company_id;
         }
 
+        // Convert empty string unique fields to null
+        foreach (['mobile', 'email', 'qid_number', 'passport_number', 'health_card_number'] as $field) {
+            if (array_key_exists($field, $validated) && ($validated[$field] === '' || $validated[$field] === null)) {
+                $validated[$field] = null;
+            }
+        }
+
         // Auto-generate employee code if not provided
         if (empty($validated['employee_code'])) {
             $companyId = $validated['company_id'] ?? null;
             $validated['employee_code'] = Employee::generateCode($companyId);
         }
 
+        $newUploadedFiles = [];
+
         // Handle file upload if present
         if ($request->hasFile('employee_image')) {
             $path = $request->file('employee_image')->store('employee-images', 'public');
             $validated['employee_image'] = $path;
+            $newUploadedFiles[] = $path;
         }
 
         if ($request->hasFile('agreement_doc')) {
             $path = $request->file('agreement_doc')->store('employee-docs', 'public');
             $validated['agreement_doc'] = $path;
+            $newUploadedFiles[] = $path;
         }
 
         if ($request->hasFile('resume_doc')) {
             $path = $request->file('resume_doc')->store('employee-docs', 'public');
             $validated['resume_doc'] = $path;
+            $newUploadedFiles[] = $path;
         }
 
         if ($request->hasFile('other_docs')) {
             $path = $request->file('other_docs')->store('employee-docs', 'public');
             $validated['other_docs'] = $path;
+            $newUploadedFiles[] = $path;
         }
 
         if ($request->hasFile('passport_file')) {
             $path = $request->file('passport_file')->store('employee-docs', 'public');
             $validated['passport_file_path'] = $path;
+            $newUploadedFiles[] = $path;
         }
 
         if ($request->hasFile('qid_file')) {
             $path = $request->file('qid_file')->store('employee-docs', 'public');
             $validated['qid_file_path'] = $path;
+            $newUploadedFiles[] = $path;
         }
 
         if ($request->hasFile('food_handler_file')) {
             $path = $request->file('food_handler_file')->store('employee-docs', 'public');
             $validated['food_handler_file_path'] = $path;
+            $newUploadedFiles[] = $path;
         }
-
-
-
-
 
         DB::beginTransaction();
         try {
@@ -291,10 +303,18 @@ class EmployeeController extends Controller
             \Log::info('Employee created successfully:', ['id' => $employee->id, 'name' => $employee->name]);
 
             return redirect()->route('employees.index')->with('success', 'Employee created successfully!');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             DB::rollBack();
-            \Log::error('Error creating employee:', ['error' => $e->getMessage()]);
-            return back()->withErrors(['error' => 'Failed to create employee. Please check system logs for details.']);
+
+            // Clean up newly uploaded files on failure
+            foreach ($newUploadedFiles as $fPath) {
+                if ($fPath && Storage::disk('public')->exists($fPath)) {
+                    Storage::disk('public')->delete($fPath);
+                }
+            }
+
+            \Log::error('Error creating employee:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return back()->withInput()->withErrors(['error' => 'Failed to create employee: ' . $e->getMessage()]);
         }
     }
 
@@ -362,6 +382,7 @@ class EmployeeController extends Controller
 
         return Inertia::render('Employee/Edit', [
             'employee' => $employee,
+            'canEditCode' => $user->isAdmin() && !$employee->is_code_edited,
             'companies' => $companies,
             'departments' => $departments,
             'salaryComponents' => $salaryComponents,
@@ -385,6 +406,34 @@ class EmployeeController extends Controller
 
         $validated = $request->validated();
 
+        // Convert empty string unique fields to null
+        foreach (['mobile', 'email', 'qid_number', 'passport_number', 'health_card_number'] as $field) {
+            if (array_key_exists($field, $validated) && ($validated[$field] === '' || $validated[$field] === null)) {
+                $validated[$field] = null;
+            }
+        }
+
+        // Employee ID edit-once restriction for super admin / admin
+        if ($user->isAdmin()) {
+            if ($employee->is_code_edited) {
+                // Already edited once by admin - cannot be modified again
+                if (isset($validated['employee_code']) && $validated['employee_code'] !== $employee->employee_code) {
+                    return back()->withErrors(['employee_code' => 'Employee ID has already been edited once and cannot be changed again.']);
+                }
+                unset($validated['employee_code']);
+            } else {
+                // Not edited yet - if changed, mark is_code_edited = true
+                if (isset($validated['employee_code']) && $validated['employee_code'] !== $employee->employee_code) {
+                    $validated['is_code_edited'] = true;
+                } else {
+                    unset($validated['employee_code']);
+                }
+            }
+        } else {
+            // Non-admin users cannot edit employee_code
+            unset($validated['employee_code'], $validated['is_code_edited']);
+        }
+
         // Role-based field protection: Only Admin and HR can change company, department, or status
         if (!$user->isAdmin() && !$user->isHR()) {
             unset($validated['company_id'], $validated['department_id'], $validated['manual_status']);
@@ -394,162 +443,192 @@ class EmployeeController extends Controller
         unset($validated['employee_image'], $validated['agreement_doc'], $validated['resume_doc'], $validated['other_docs'], $validated['passport_file'], $validated['qid_file'], $validated['food_handler_file']);
 
         // Handle file upload if present
+        $newUploadedFiles = [];
+        $oldFilesToDelete = [];
+
         if ($request->hasFile('employee_image')) {
             if ($employee->employee_image) {
-                Storage::disk('public')->delete($employee->employee_image);
+                $oldFilesToDelete[] = $employee->employee_image;
             }
             $path = $request->file('employee_image')->store('employee-images', 'public');
             $validated['employee_image'] = $path;
+            $newUploadedFiles[] = $path;
         }
 
         if ($request->hasFile('agreement_doc')) {
             if ($employee->agreement_doc) {
-                Storage::disk('public')->delete($employee->agreement_doc);
+                $oldFilesToDelete[] = $employee->agreement_doc;
             }
             $path = $request->file('agreement_doc')->store('employee-docs', 'public');
             $validated['agreement_doc'] = $path;
+            $newUploadedFiles[] = $path;
         }
 
         if ($request->hasFile('resume_doc')) {
             if ($employee->resume_doc) {
-                Storage::disk('public')->delete($employee->resume_doc);
+                $oldFilesToDelete[] = $employee->resume_doc;
             }
             $path = $request->file('resume_doc')->store('employee-docs', 'public');
             $validated['resume_doc'] = $path;
+            $newUploadedFiles[] = $path;
         }
 
         if ($request->hasFile('other_docs')) {
             if ($employee->other_docs) {
-                Storage::disk('public')->delete($employee->other_docs);
+                $oldFilesToDelete[] = $employee->other_docs;
             }
             $path = $request->file('other_docs')->store('employee-docs', 'public');
             $validated['other_docs'] = $path;
+            $newUploadedFiles[] = $path;
         }
 
         if ($request->hasFile('passport_file')) {
             if ($employee->passport_file_path) {
-                Storage::disk('public')->delete($employee->passport_file_path);
+                $oldFilesToDelete[] = $employee->passport_file_path;
             }
             $path = $request->file('passport_file')->store('employee-docs', 'public');
             $validated['passport_file_path'] = $path;
+            $newUploadedFiles[] = $path;
         }
 
         if ($request->hasFile('qid_file')) {
             if ($employee->qid_file_path) {
-                Storage::disk('public')->delete($employee->qid_file_path);
+                $oldFilesToDelete[] = $employee->qid_file_path;
             }
             $path = $request->file('qid_file')->store('employee-docs', 'public');
             $validated['qid_file_path'] = $path;
+            $newUploadedFiles[] = $path;
         }
 
         if ($request->hasFile('food_handler_file')) {
             if ($employee->food_handler_file_path) {
-                Storage::disk('public')->delete($employee->food_handler_file_path);
+                $oldFilesToDelete[] = $employee->food_handler_file_path;
             }
             $path = $request->file('food_handler_file')->store('employee-docs', 'public');
             $validated['food_handler_file_path'] = $path;
+            $newUploadedFiles[] = $path;
         }
 
+        DB::beginTransaction();
+        try {
+            // Auto-update status based on exit status
+            if (in_array($validated['exit_status'] ?? '', ['Abscond', 'Terminated', 'Resigned', 'End of Contract'])) {
+                $validated['manual_status'] = 'inactive';
+            }
 
+            $employee->update($validated);
 
-        // Auto-update status based on exit status
-        if (in_array($validated['exit_status'] ?? '', ['Abscond', 'Terminated', 'Resigned', 'End of Contract'])) {
-            $validated['manual_status'] = 'inactive';
-        }
-
-        $employee->update($validated);
-
-        // Sync Salary Structures
-        if (isset($validated['salary_structures'])) {
-            $employee->salaryStructures()->delete();
-            foreach ($validated['salary_structures'] as $struct) {
-                if (!empty($struct['component_id'])) {
-                    $employee->salaryStructures()->create([
-                        'component_id' => $struct['component_id'],
-                        'amount' => $struct['amount'] ?? 0,
-                        'value_type' => $struct['value_type'] ?? 'flat',
-                        'effective_from' => now(),
-                    ]);
+            // Sync Salary Structures
+            if (isset($validated['salary_structures'])) {
+                $employee->salaryStructures()->delete();
+                foreach ($validated['salary_structures'] as $struct) {
+                    if (!empty($struct['component_id'])) {
+                        $employee->salaryStructures()->create([
+                            'component_id' => $struct['component_id'],
+                            'amount' => $struct['amount'] ?? 0,
+                            'value_type' => $struct['value_type'] ?? 'flat',
+                            'effective_from' => now(),
+                        ]);
+                    }
                 }
             }
-        }
 
-        // Sync Weekly Offs
-        if (isset($validated['weekly_offs'])) {
-            $employee->weeklyOffs()->delete();
-            foreach ($validated['weekly_offs'] as $off) {
-                if (!empty($off['weekly_off_day']) && !empty($off['effective_date'])) {
-                    $employee->weeklyOffs()->create([
-                        'weekly_off_day' => $off['weekly_off_day'],
-                        'effective_date' => $off['effective_date'],
-                    ]);
+            // Sync Weekly Offs
+            if (isset($validated['weekly_offs'])) {
+                $employee->weeklyOffs()->delete();
+                foreach ($validated['weekly_offs'] as $off) {
+                    if (!empty($off['weekly_off_day']) && !empty($off['effective_date'])) {
+                        $employee->weeklyOffs()->create([
+                            'weekly_off_day' => $off['weekly_off_day'],
+                            'effective_date' => $off['effective_date'],
+                        ]);
+                    }
                 }
             }
-        }
 
-        // Handle Passport Document Creation (only if new file uploaded)
-        if (isset($validated['passport_file_path'])) {
-            $this->createIdentityDocument($employee, 'Passport', $validated['passport_file_path'], $validated['passport_expiry_date'] ?? null);
-        }
-
-        // Handle QID Document Creation (only if new file uploaded)
-        if (isset($validated['qid_file_path'])) {
-            $this->createIdentityDocument($employee, 'QID', $validated['qid_file_path'], $validated['qid_expiry_date'] ?? null);
-        }
-
-        // Handle Food Handler Document Creation (only if new file uploaded)
-        if (isset($validated['food_handler_file_path'])) {
-            $this->createIdentityDocument($employee, 'Food Handler', $validated['food_handler_file_path'], $validated['food_handler_expiry_date'] ?? null);
-        }
-
-        // Create or Sync User and Role if role is provided
-        if (!empty($validated['role'])) {
-            if (empty($employee->email)) {
-                return back()->withErrors(['role' => 'Email is required when assigning a system role.']);
+            // Handle Passport Document Creation (only if new file uploaded)
+            if (isset($validated['passport_file_path'])) {
+                $this->createIdentityDocument($employee, 'Passport', $validated['passport_file_path'], $validated['passport_expiry_date'] ?? null);
             }
 
-            $employeeUser = $employee->user ?: User::where('email', $employee->email)->first();
-
-            if (!$employeeUser) {
-                $employeeUser = User::create([
-                    'name' => $employee->name,
-                    'email' => $employee->email,
-                    'password' => \Illuminate\Support\Facades\Hash::make('password123'),
-                    'role' => $validated['role'],
-                    'employee_id' => $employee->id,
-                    'company_id' => $employee->company_id,
-                ]);
-            } else {
-                $employeeUser->update([
-                    'employee_id' => $employee->id,
-                    'role' => $validated['role'],
-                    'email' => $employee->email, // Ensure email stays in sync if changed
-                    'company_id' => $employee->company_id,
-                ]);
+            // Handle QID Document Creation (only if new file uploaded)
+            if (isset($validated['qid_file_path'])) {
+                $this->createIdentityDocument($employee, 'QID', $validated['qid_file_path'], $validated['qid_expiry_date'] ?? null);
             }
 
-            if (!empty($validated['password'])) {
-                $employeeUser->update([
-                    'password' => \Illuminate\Support\Facades\Hash::make($validated['password']),
-                ]);
+            // Handle Food Handler Document Creation (only if new file uploaded)
+            if (isset($validated['food_handler_file_path'])) {
+                $this->createIdentityDocument($employee, 'Food Handler', $validated['food_handler_file_path'], $validated['food_handler_expiry_date'] ?? null);
             }
 
-            $role = Role::where('slug', $validated['role'])->first();
-            if ($role) {
-                $employeeUser->roles()->sync([$role->id]);
+            // Create or Sync User and Role if role is provided
+            if (!empty($validated['role'])) {
+                if (empty($employee->email)) {
+                    throw new \Exception('Email is required when assigning a system role.');
+                }
+
+                $employeeUser = $employee->user ?: User::where('email', $employee->email)->first();
+
+                if (!$employeeUser) {
+                    $employeeUser = User::create([
+                        'name' => $employee->name,
+                        'email' => $employee->email,
+                        'password' => \Illuminate\Support\Facades\Hash::make('password123'),
+                        'role' => $validated['role'],
+                        'employee_id' => $employee->id,
+                        'company_id' => $employee->company_id,
+                    ]);
+                } else {
+                    $employeeUser->update([
+                        'employee_id' => $employee->id,
+                        'role' => $validated['role'],
+                        'email' => $employee->email, // Ensure email stays in sync if changed
+                        'company_id' => $employee->company_id,
+                    ]);
+                }
+
+                if (!empty($validated['password'])) {
+                    $employeeUser->update([
+                        'password' => \Illuminate\Support\Facades\Hash::make($validated['password']),
+                    ]);
+                }
+
+                $role = Role::where('slug', $validated['role'])->first();
+                if ($role) {
+                    $employeeUser->roles()->sync([$role->id]);
+                }
+            } elseif ($employee->user) {
+                $employee->user->roles()->detach();
+                $employee->user->update(['role' => null]);
             }
-        } elseif ($employee->user) {
-            // If role is set to empty, should we remove it? 
-            // Usually, "No System Role" means the user account might still exist but have no roles.
-            $employee->user->roles()->detach();
-            $employee->user->update(['role' => null]);
+
+            if ($employee->employee_image && $employee->user) {
+                $employee->user->update(['image' => $employee->employee_image]);
+            }
+
+            DB::commit();
+
+            // Clean up old replaced files now that transaction succeeded
+            foreach ($oldFilesToDelete as $oldFile) {
+                if ($oldFile && Storage::disk('public')->exists($oldFile)) {
+                    Storage::disk('public')->delete($oldFile);
+                }
+            }
+
+            return redirect()->route('employees.show', $employee)->with('success', 'Employee updated successfully!');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            // Revert newly uploaded files
+            foreach ($newUploadedFiles as $newFile) {
+                if ($newFile && Storage::disk('public')->exists($newFile)) {
+                    Storage::disk('public')->delete($newFile);
+                }
+            }
+
+            \Log::error('Error updating employee:', ['id' => $employee->id, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return back()->withInput()->withErrors(['error' => 'Failed to update employee: ' . $e->getMessage()]);
         }
-
-        if ($employee->employee_image && $employee->user) {
-            $employee->user->update(['image' => $employee->employee_image]);
-        }
-
-        return redirect()->route('employees.show', $employee)->with('success', 'Employee updated successfully!');
     }
 
     /**
@@ -566,9 +645,9 @@ class EmployeeController extends Controller
             $employee->update(['manual_status' => 'active']);
             \Log::info('Employee approved:', ['id' => $employee->id, 'name' => $employee->name, 'approved_by' => $user->id]);
             return back()->with('success', 'Employee approved successfully!');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             \Log::error('Error approving employee:', ['error' => $e->getMessage()]);
-            return back()->with('error', 'Failed to approve employee: ' . $e->getMessage());
+            return back()->withErrors(['error' => 'Failed to approve employee: ' . $e->getMessage()]);
         }
     }
 
@@ -582,10 +661,69 @@ class EmployeeController extends Controller
             abort(403, 'Unauthorized. You do not have permission to delete employees.');
         }
 
+        // Check if employee has any related transactional records
+        $relatedCounts = [
+            'Attendance Records' => $employee->attendances()->count(),
+            'Salary Postings' => $employee->salaryPostings()->count(),
+            'Loans' => $employee->loans()->count(),
+            'Advances' => $employee->advances()->count(),
+            'Leave Requests' => $employee->leaveRequests()->count(),
+            'Grievances' => $employee->grievances()->count(),
+            'Warning Letters' => $employee->warningLetters()->count(),
+            'Task Assignments' => $employee->taskAssignments()->count(),
+            'Training Assignments' => $employee->trainingAssignments()->count(),
+            'Evaluations' => $employee->evaluations()->count(),
+            'Shift Rosters' => $employee->shiftRosters()->count(),
+            'Uploaded Documents' => $employee->documents()->count(),
+            'Project Memberships' => $employee->projectMembers()->count(),
+            'Direct Reports (Subordinates)' => $employee->subordinates()->count(),
+        ];
+
+        $blockingRelations = array_filter($relatedCounts, fn($count) => $count > 0);
+
+        if (!empty($blockingRelations)) {
+            $details = collect($blockingRelations)->map(fn($count, $name) => "{$name} ({$count})")->join(', ');
+            return back()->withErrors([
+                'error' => "Cannot delete employee '{$employee->name}' because related records exist: {$details}. Please mark the employee as Inactive instead."
+            ]);
+        }
+
+        DB::beginTransaction();
         try {
+            // Delete associated stored files
+            $filesToDelete = [
+                $employee->employee_image,
+                $employee->agreement_doc,
+                $employee->resume_doc,
+                $employee->other_docs,
+                $employee->passport_file_path,
+                $employee->qid_file_path,
+                $employee->food_handler_file_path,
+            ];
+            foreach ($filesToDelete as $filePath) {
+                if ($filePath && Storage::disk('public')->exists($filePath)) {
+                    Storage::disk('public')->delete($filePath);
+                }
+            }
+
+            // Remove setup data
+            $employee->salaryStructures()->delete();
+            $employee->weeklyOffs()->delete();
+            $employee->leaveBalances()->delete();
+
+            // Delete associated user account if one exists
+            if ($employee->user) {
+                $employee->user->roles()->detach();
+                $employee->user->delete();
+            }
+
             $employee->delete();
-            return redirect()->route('employees.index')->with('success', 'Employee deleted successfully!');
-        } catch (\Exception $e) {
+            DB::commit();
+
+            return redirect()->route('employees.index')->with('success', 'Employee deleted successfully.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            \Log::error('Error deleting employee:', ['id' => $employee->id, 'error' => $e->getMessage()]);
             return back()->withErrors(['error' => 'Failed to delete employee: ' . $e->getMessage()]);
         }
     }
@@ -595,19 +733,24 @@ class EmployeeController extends Controller
      */
     public function getByCompany(Request $request)
     {
-        $companyId = $request->input('company_id');
-        $user = auth()->user();
+        try {
+            $companyId = $request->input('company_id');
+            $user = auth()->user();
 
-        // Multi-tenancy scoping: If user is scoped to a branch (and not admin), they can only fetch from their branch
-        if (!$user->isAdmin() && $user && $user->employee_id) {
-            $companyId = $user->employee->company_id;
-        }
+            // Multi-tenancy scoping: If user is scoped to a branch (and not admin), they can only fetch from their branch
+            if (!$user->isAdmin() && $user && $user->employee_id) {
+                $companyId = $user->employee->company_id;
+            }
 
-        if (!$companyId) {
-            return response()->json(['employees' => []]);
+            if (!$companyId) {
+                return response()->json(['employees' => []]);
+            }
+            $employees = Employee::where('company_id', $companyId)->orderBy('name')->get();
+            return response()->json(['employees' => $employees]);
+        } catch (\Throwable $e) {
+            \Log::error('Error in getByCompany:', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Failed to load employees.', 'employees' => []], 500);
         }
-        $employees = Employee::where('company_id', $companyId)->orderBy('name')->get();
-        return response()->json(['employees' => $employees]);
     }
 
     /**
@@ -615,32 +758,43 @@ class EmployeeController extends Controller
      */
     public function getByDepartment(Request $request)
     {
-        $departmentId = $request->input('department_id');
-        $companyId = $request->input('company_id');
+        try {
+            $departmentId = $request->input('department_id');
+            $companyId = $request->input('company_id');
 
-        $departmentEmployees = collect();
-        if ($departmentId) {
-            $departmentEmployees = Employee::where('department_id', $departmentId)
-                ->active()
-                ->orderBy('name')
-                ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
+            $departmentEmployees = collect();
+            if ($departmentId) {
+                $departmentEmployees = Employee::where('department_id', $departmentId)
+                    ->active()
+                    ->orderBy('name')
+                    ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
+            }
+
+            // All active employees from the same branch/company
+            $branchEmployees = collect();
+            if ($companyId) {
+                $branchEmployees = Employee::where('company_id', $companyId)
+                    ->active()
+                    ->orderBy('name')
+                    ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
+            }
+
+            return response()->json([
+                'employees' => $departmentEmployees,
+                'department_employees' => $departmentEmployees,
+                'branch_employees' => $branchEmployees,
+                'branch_managers' => $branchEmployees,
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('Error in getByDepartment:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'error' => 'Failed to load branch department employees.',
+                'employees' => [],
+                'department_employees' => [],
+                'branch_employees' => [],
+                'branch_managers' => []
+            ], 500);
         }
-
-        // All active employees from the same branch/company
-        $branchEmployees = collect();
-        if ($companyId) {
-            $branchEmployees = Employee::where('company_id', $companyId)
-                ->active()
-                ->orderBy('name')
-                ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
-        }
-
-        return response()->json([
-            'employees' => $departmentEmployees,
-            'department_employees' => $departmentEmployees,
-            'branch_employees' => $branchEmployees,
-            'branch_managers' => $branchEmployees,
-        ]);
     }
 
     /**
@@ -787,6 +941,7 @@ class EmployeeController extends Controller
             'department_id' => 'required|exists:departments,id',
         ]);
 
+        DB::beginTransaction();
         try {
             // Multi-tenancy check for target company
             if (!$user->isAdmin() && $user->employee_id && $validated['company_id'] != $user->employee->company_id) {
@@ -814,6 +969,7 @@ class EmployeeController extends Controller
                 ->first();
 
             if (!$department) {
+                DB::rollBack();
                 return back()->withErrors(['department_id' => 'The selected department does not belong to the selected branch.']);
             }
 
@@ -827,8 +983,11 @@ class EmployeeController extends Controller
                 ->where('week_start', '>=', now()->startOfWeek()->toDateString())
                 ->update(['company_id' => $validated['company_id']]);
 
+            DB::commit();
+
             return back()->with('success', count($validated['employee_ids']) . ' employees transferred successfully.');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            DB::rollBack();
             \Log::error('Error generating bulk transfer:', ['error' => $e->getMessage()]);
             return back()->withErrors(['error' => 'Failed to transfer employees: ' . $e->getMessage()]);
         }
@@ -844,233 +1003,238 @@ class EmployeeController extends Controller
             abort(403, 'Unauthorized.');
         }
 
-        $query = Employee::with(['company', 'department', 'user.roles']);
+        try {
+            $query = Employee::with(['company', 'department', 'user.roles']);
 
-        // Multi-tenancy scoping
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-            $query->where('company_id', $user->employee->company_id);
-        } elseif ($request->has('company_id') && $request->company_id) {
-            $query->where('company_id', $request->company_id);
-        }
-
-        if ($request->has('department_id') && $request->department_id) {
-            $query->where('department_id', $request->department_id);
-        }
-
-        if ($request->has('search') && $request->search) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('employee_code', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('mobile', 'like', "%{$search}%")
-                    ->orWhere('designation', 'like', "%{$search}%");
-            });
-        }
-
-        if ($request->has('status') && $request->status) {
-            if ($request->status === 'active') {
-                $query->active();
-            } elseif ($request->status === 'inactive') {
-                $query->inactive();
-            } elseif ($request->status === 'waiting') {
-                $query->where('manual_status', 'waiting');
+            // Multi-tenancy scoping
+            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+                $query->where('company_id', $user->employee->company_id);
+            } elseif ($request->has('company_id') && $request->company_id) {
+                $query->where('company_id', $request->company_id);
             }
-        }
 
-        $employees = $query->orderBy('name')->get();
-
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Employees Directory');
-
-        // Column definitions
-        $columns = [
-            'Employee Code',
-            'Full Name',
-            'Branch / Salon',
-            'Department',
-            'Designation',
-            'System Role',
-            'Mobile',
-            'Email',
-            'Gender',
-            'DOB',
-            'Nationality',
-            'Sponsor',
-            'Basic Salary',
-            'Reported To',
-            'Joined Date',
-            'Rejoined Date',
-            'Shift',
-            'Visa Type',
-            'Visa Designation',
-            'Employee Category',
-            'Contract Duration',
-            'Exit Status',
-            'Payment Type',
-            'Leave Status',
-            'Status',
-            'Passport Number',
-            'Passport Expiry Date',
-            'QID Number',
-            'QID Expiry Date',
-            'Health Card Number',
-            'Health Card Expiry Date',
-            'Contract Issue Date',
-            'Contract Expiry Date',
-        ];
-
-        // Format Header Row
-        $sheet->getRowDimension(1)->setRowHeight(32);
-        foreach ($columns as $idx => $colName) {
-            $colLetter = Coordinate::stringFromColumnIndex($idx + 1);
-            $sheet->setCellValue($colLetter . '1', $colName);
-        }
-
-        $lastColLetter = Coordinate::stringFromColumnIndex(count($columns));
-
-        // Style Header Row (Deep Slate/Indigo, Bold White, Centered)
-        $sheet->getStyle("A1:{$lastColLetter}1")->applyFromArray([
-            'font' => [
-                'bold' => true,
-                'color' => ['rgb' => 'FFFFFF'],
-                'size' => 11,
-                'name' => 'Segoe UI',
-            ],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '1E293B'],
-            ],
-            'alignment' => [
-                'horizontal' => Alignment::HORIZONTAL_CENTER,
-                'vertical' => Alignment::VERTICAL_CENTER,
-                'wrapText' => false,
-            ],
-            'borders' => [
-                'bottom' => [
-                    'borderStyle' => Border::BORDER_MEDIUM,
-                    'color' => ['rgb' => '0F172A'],
-                ],
-            ],
-        ]);
-
-        $fmtDate = function ($val) {
-            if (!$val) return '';
-            if ($val instanceof \Carbon\Carbon || $val instanceof \DateTimeInterface) {
-                return $val->format('Y-m-d');
+            if ($request->has('department_id') && $request->department_id) {
+                $query->where('department_id', $request->department_id);
             }
-            try {
-                return \Carbon\Carbon::parse($val)->format('Y-m-d');
-            } catch (\Exception $e) {
-                return (string)$val;
+
+            if ($request->has('search') && $request->search) {
+                $search = $request->search;
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('employee_code', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('mobile', 'like', "%{$search}%")
+                        ->orWhere('designation', 'like', "%{$search}%");
+                });
             }
-        };
 
-        $rowNum = 2;
-        foreach ($employees as $emp) {
-            $roleName = $emp->user && $emp->user->roles && $emp->user->roles->first() 
-                ? $emp->user->roles->first()->name 
-                : ($emp->user ? ($emp->user->role ?? '') : '');
+            if ($request->has('status') && $request->status) {
+                if ($request->status === 'active') {
+                    $query->active();
+                } elseif ($request->status === 'inactive') {
+                    $query->inactive();
+                } elseif ($request->status === 'waiting') {
+                    $query->where('manual_status', 'waiting');
+                }
+            }
 
-            $rowData = [
-                $emp->employee_code,
-                $emp->name,
-                $emp->company ? $emp->company->name : '',
-                $emp->department ? $emp->department->name : '',
-                $emp->designation,
-                $roleName,
-                $emp->mobile,
-                $emp->email,
-                $emp->gender,
-                $fmtDate($emp->dob),
-                $emp->nationality,
-                $emp->sponsor,
-                $emp->basic_salary ? (float)$emp->basic_salary : 0,
-                $emp->reported_to,
-                $fmtDate($emp->joined_date),
-                $fmtDate($emp->rejoined_date),
-                $emp->shift,
-                $emp->visa_type,
-                $emp->visa_designation,
-                $emp->employee_category,
-                $emp->contract_duration,
-                $emp->exit_status,
-                $emp->payment_type,
-                $emp->leave_status,
-                $emp->manual_status ?: ($emp->is_active ? 'active' : 'inactive'),
-                $emp->passport_number,
-                $fmtDate($emp->passport_expiry_date),
-                $emp->qid_number,
-                $fmtDate($emp->qid_expiry_date),
-                $emp->health_card_number,
-                $fmtDate($emp->health_card_expiry_date),
-                $fmtDate($emp->contract_issue_date),
-                $fmtDate($emp->contract_expiry_date),
+            $employees = $query->orderBy('name')->get();
+
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('Employees Directory');
+
+            // Column definitions
+            $columns = [
+                'Employee Code',
+                'Full Name',
+                'Branch / Salon',
+                'Department',
+                'Designation',
+                'System Role',
+                'Mobile',
+                'Email',
+                'Gender',
+                'DOB',
+                'Nationality',
+                'Sponsor',
+                'Basic Salary',
+                'Reported To',
+                'Joined Date',
+                'Rejoined Date',
+                'Shift',
+                'Visa Type',
+                'Visa Designation',
+                'Employee Category',
+                'Contract Duration',
+                'Exit Status',
+                'Payment Type',
+                'Leave Status',
+                'Status',
+                'Passport Number',
+                'Passport Expiry Date',
+                'QID Number',
+                'QID Expiry Date',
+                'Health Card Number',
+                'Health Card Expiry Date',
+                'Contract Issue Date',
+                'Contract Expiry Date',
             ];
 
-            $sheet->getRowDimension($rowNum)->setRowHeight(22);
-            foreach ($rowData as $cIdx => $val) {
-                $cLetter = Coordinate::stringFromColumnIndex($cIdx + 1);
-                $sheet->setCellValue($cLetter . $rowNum, $val);
+            // Format Header Row
+            $sheet->getRowDimension(1)->setRowHeight(32);
+            foreach ($columns as $idx => $colName) {
+                $colLetter = Coordinate::stringFromColumnIndex($idx + 1);
+                $sheet->setCellValue($colLetter . '1', $colName);
             }
 
-            // Alternating zebra row colors
-            $bgColor = ($rowNum % 2 === 0) ? 'FFFFFF' : 'F8FAFC';
-            $sheet->getStyle("A{$rowNum}:{$lastColLetter}{$rowNum}")->applyFromArray([
+            $lastColLetter = Coordinate::stringFromColumnIndex(count($columns));
+
+            // Style Header Row (Deep Slate/Indigo, Bold White, Centered)
+            $sheet->getStyle("A1:{$lastColLetter}1")->applyFromArray([
                 'font' => [
-                    'size' => 10,
+                    'bold' => true,
+                    'color' => ['rgb' => 'FFFFFF'],
+                    'size' => 11,
                     'name' => 'Segoe UI',
-                    'color' => ['rgb' => '334155'],
                 ],
                 'fill' => [
                     'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => $bgColor],
+                    'startColor' => ['rgb' => '1E293B'],
                 ],
                 'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
                     'vertical' => Alignment::VERTICAL_CENTER,
+                    'wrapText' => false,
                 ],
                 'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => Border::BORDER_THIN,
-                        'color' => ['rgb' => 'E2E8F0'],
+                    'bottom' => [
+                        'borderStyle' => Border::BORDER_MEDIUM,
+                        'color' => ['rgb' => '0F172A'],
                     ],
                 ],
             ]);
 
-            // Specific alignments
-            $sheet->getStyle("A{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("I{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("J{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("M{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-            $sheet->getStyle("M{$rowNum}")->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle("O{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("P{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("Q{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("Y{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $fmtDate = function ($val) {
+                if (!$val) return '';
+                if ($val instanceof \Carbon\Carbon || $val instanceof \DateTimeInterface) {
+                    return $val->format('Y-m-d');
+                }
+                try {
+                    return \Carbon\Carbon::parse($val)->format('Y-m-d');
+                } catch (\Throwable $e) {
+                    return (string)$val;
+                }
+            };
 
-            $rowNum++;
+            $rowNum = 2;
+            foreach ($employees as $emp) {
+                $roleName = $emp->user && $emp->user->roles && $emp->user->roles->first() 
+                    ? $emp->user->roles->first()->name 
+                    : ($emp->user ? ($emp->user->role ?? '') : '');
+
+                $rowData = [
+                    $emp->employee_code,
+                    $emp->name,
+                    $emp->company ? $emp->company->name : '',
+                    $emp->department ? $emp->department->name : '',
+                    $emp->designation,
+                    $roleName,
+                    $emp->mobile,
+                    $emp->email,
+                    $emp->gender,
+                    $fmtDate($emp->dob),
+                    $emp->nationality,
+                    $emp->sponsor,
+                    $emp->basic_salary ? (float)$emp->basic_salary : 0,
+                    $emp->reported_to,
+                    $fmtDate($emp->joined_date),
+                    $fmtDate($emp->rejoined_date),
+                    $emp->shift,
+                    $emp->visa_type,
+                    $emp->visa_designation,
+                    $emp->employee_category,
+                    $emp->contract_duration,
+                    $emp->exit_status,
+                    $emp->payment_type,
+                    $emp->leave_status,
+                    $emp->manual_status ?: ($emp->is_active ? 'active' : 'inactive'),
+                    $emp->passport_number,
+                    $fmtDate($emp->passport_expiry_date),
+                    $emp->qid_number,
+                    $fmtDate($emp->qid_expiry_date),
+                    $emp->health_card_number,
+                    $fmtDate($emp->health_card_expiry_date),
+                    $fmtDate($emp->contract_issue_date),
+                    $fmtDate($emp->contract_expiry_date),
+                ];
+
+                $sheet->getRowDimension($rowNum)->setRowHeight(22);
+                foreach ($rowData as $cIdx => $val) {
+                    $cLetter = Coordinate::stringFromColumnIndex($cIdx + 1);
+                    $sheet->setCellValue($cLetter . $rowNum, $val);
+                }
+
+                // Alternating zebra row colors
+                $bgColor = ($rowNum % 2 === 0) ? 'FFFFFF' : 'F8FAFC';
+                $sheet->getStyle("A{$rowNum}:{$lastColLetter}{$rowNum}")->applyFromArray([
+                    'font' => [
+                        'size' => 10,
+                        'name' => 'Segoe UI',
+                        'color' => ['rgb' => '334155'],
+                    ],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => $bgColor],
+                    ],
+                    'alignment' => [
+                        'vertical' => Alignment::VERTICAL_CENTER,
+                    ],
+                    'borders' => [
+                        'allBorders' => [
+                            'borderStyle' => Border::BORDER_THIN,
+                            'color' => ['rgb' => 'E2E8F0'],
+                        ],
+                    ],
+                ]);
+
+                // Specific alignments
+                $sheet->getStyle("A{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("I{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("J{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("M{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                $sheet->getStyle("M{$rowNum}")->getNumberFormat()->setFormatCode('#,##0.00');
+                $sheet->getStyle("O{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("P{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("Q{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("Y{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+                $rowNum++;
+            }
+
+            // Auto-fit column widths
+            foreach (range(1, count($columns)) as $colIdx) {
+                $colLetter = Coordinate::stringFromColumnIndex($colIdx);
+                $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+            }
+
+            // Freeze top header row
+            $sheet->freezePane('A2');
+
+            $filename = "employees_export_" . now()->format('Ymd_His') . ".xlsx";
+
+            return response()->streamDownload(function () use ($spreadsheet) {
+                $writer = new Xlsx($spreadsheet);
+                $writer->save('php://output');
+            }, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'max-age=0',
+                'Pragma' => 'public',
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('Error exporting employees:', ['error' => $e->getMessage()]);
+            return back()->withErrors(['error' => 'Failed to export employees: ' . $e->getMessage()]);
         }
-
-        // Auto-fit column widths
-        foreach (range(1, count($columns)) as $colIdx) {
-            $colLetter = Coordinate::stringFromColumnIndex($colIdx);
-            $sheet->getColumnDimension($colLetter)->setAutoSize(true);
-        }
-
-        // Freeze top header row
-        $sheet->freezePane('A2');
-
-        $filename = "employees_export_" . now()->format('Ymd_His') . ".xlsx";
-
-        return response()->streamDownload(function () use ($spreadsheet) {
-            $writer = new Xlsx($spreadsheet);
-            $writer->save('php://output');
-        }, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Cache-Control' => 'max-age=0',
-            'Pragma' => 'public',
-        ]);
     }
 
     /**
@@ -1078,180 +1242,185 @@ class EmployeeController extends Controller
      */
     public function downloadTemplate()
     {
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Template');
+        try {
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('Template');
 
-        $columns = [
-            'Employee Code',
-            'Full Name',
-            'Branch / Salon',
-            'Department',
-            'Designation',
-            'System Role',
-            'Mobile',
-            'Email',
-            'Gender',
-            'DOB',
-            'Nationality',
-            'Sponsor',
-            'Basic Salary',
-            'Reported To',
-            'Joined Date',
-            'Shift',
-            'Visa Type',
-            'Visa Designation',
-            'Employee Category',
-            'Contract Duration',
-            'Payment Type',
-            'Passport Number',
-            'QID Number',
-        ];
+            $columns = [
+                'Employee Code',
+                'Full Name',
+                'Branch / Salon',
+                'Department',
+                'Designation',
+                'System Role',
+                'Mobile',
+                'Email',
+                'Gender',
+                'DOB',
+                'Nationality',
+                'Sponsor',
+                'Basic Salary',
+                'Reported To',
+                'Joined Date',
+                'Shift',
+                'Visa Type',
+                'Visa Designation',
+                'Employee Category',
+                'Contract Duration',
+                'Payment Type',
+                'Passport Number',
+                'QID Number',
+            ];
 
-        // Format Header Row
-        $sheet->getRowDimension(1)->setRowHeight(32);
-        foreach ($columns as $idx => $colName) {
-            $colLetter = Coordinate::stringFromColumnIndex($idx + 1);
-            $sheet->setCellValue($colLetter . '1', $colName);
-        }
-
-        $lastColLetter = Coordinate::stringFromColumnIndex(count($columns));
-
-        // Style Header Row (Deep Blue/Slate, Bold White)
-        $sheet->getStyle("A1:{$lastColLetter}1")->applyFromArray([
-            'font' => [
-                'bold' => true,
-                'color' => ['rgb' => 'FFFFFF'],
-                'size' => 11,
-                'name' => 'Segoe UI',
-            ],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '1E293B'],
-            ],
-            'alignment' => [
-                'horizontal' => Alignment::HORIZONTAL_CENTER,
-                'vertical' => Alignment::VERTICAL_CENTER,
-            ],
-            'borders' => [
-                'bottom' => [
-                    'borderStyle' => Border::BORDER_MEDIUM,
-                    'color' => ['rgb' => '0F172A'],
-                ],
-            ],
-        ]);
-
-        $samples = [
-            [
-                'EMP-001',
-                'Jane Doe',
-                'Main Salon Branch',
-                'Human Resources',
-                'HR Executive',
-                'employee',
-                '+97412345678',
-                'jane.doe@example.com',
-                'Female',
-                '1995-05-15',
-                'Qatari',
-                'Company Sponsor',
-                4500,
-                'HR Manager',
-                '2024-01-10',
-                'Morning',
-                'Work Visa',
-                'Technician',
-                'Permanent',
-                '2 Years',
-                'Bank Transfer',
-                'N12345678',
-                '29500000001',
-            ],
-            [
-                'EMP-002',
-                'Ahmed Ali',
-                'Main Salon Branch',
-                'Management',
-                'HR Manager',
-                'hr',
-                '+97487654321',
-                'ahmed.ali@example.com',
-                'Male',
-                '1990-08-20',
-                'Qatari',
-                'Company Sponsor',
-                8000,
-                'Founder / CEO',
-                '2023-06-01',
-                'General',
-                'Work Visa',
-                'Manager',
-                'Permanent',
-                '3 Years',
-                'Bank Transfer',
-                'P87654321',
-                '29000000002',
-            ]
-        ];
-
-        $rowNum = 2;
-        foreach ($samples as $row) {
-            $sheet->getRowDimension($rowNum)->setRowHeight(22);
-            foreach ($row as $cIdx => $val) {
-                $cLetter = Coordinate::stringFromColumnIndex($cIdx + 1);
-                $sheet->setCellValue($cLetter . $rowNum, $val);
+            // Format Header Row
+            $sheet->getRowDimension(1)->setRowHeight(32);
+            foreach ($columns as $idx => $colName) {
+                $colLetter = Coordinate::stringFromColumnIndex($idx + 1);
+                $sheet->setCellValue($colLetter . '1', $colName);
             }
 
-            $bgColor = ($rowNum % 2 === 0) ? 'FFFFFF' : 'F8FAFC';
-            $sheet->getStyle("A{$rowNum}:{$lastColLetter}{$rowNum}")->applyFromArray([
+            $lastColLetter = Coordinate::stringFromColumnIndex(count($columns));
+
+            // Style Header Row (Deep Blue/Slate, Bold White)
+            $sheet->getStyle("A1:{$lastColLetter}1")->applyFromArray([
                 'font' => [
-                    'size' => 10,
+                    'bold' => true,
+                    'color' => ['rgb' => 'FFFFFF'],
+                    'size' => 11,
                     'name' => 'Segoe UI',
-                    'color' => ['rgb' => '334155'],
                 ],
                 'fill' => [
                     'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => $bgColor],
+                    'startColor' => ['rgb' => '1E293B'],
                 ],
                 'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
                     'vertical' => Alignment::VERTICAL_CENTER,
                 ],
                 'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => Border::BORDER_THIN,
-                        'color' => ['rgb' => 'E2E8F0'],
+                    'bottom' => [
+                        'borderStyle' => Border::BORDER_MEDIUM,
+                        'color' => ['rgb' => '0F172A'],
                     ],
                 ],
             ]);
 
-            $sheet->getStyle("A{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("I{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("J{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("M{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-            $sheet->getStyle("M{$rowNum}")->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle("O{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $samples = [
+                [
+                    'EMP-001',
+                    'Jane Doe',
+                    'Main Salon Branch',
+                    'Human Resources',
+                    'HR Executive',
+                    'employee',
+                    '+97412345678',
+                    'jane.doe@example.com',
+                    'Female',
+                    '1995-05-15',
+                    'Qatari',
+                    'Company Sponsor',
+                    4500,
+                    'HR Manager',
+                    '2024-01-10',
+                    'Morning',
+                    'Work Visa',
+                    'Technician',
+                    'Permanent',
+                    '2 Years',
+                    'Bank Transfer',
+                    'N12345678',
+                    '29500000001',
+                ],
+                [
+                    'EMP-002',
+                    'Ahmed Ali',
+                    'Main Salon Branch',
+                    'Management',
+                    'HR Manager',
+                    'hr',
+                    '+97487654321',
+                    'ahmed.ali@example.com',
+                    'Male',
+                    '1990-08-20',
+                    'Qatari',
+                    'Company Sponsor',
+                    8000,
+                    'Founder / CEO',
+                    '2023-06-01',
+                    'General',
+                    'Work Visa',
+                    'Manager',
+                    'Permanent',
+                    '3 Years',
+                    'Bank Transfer',
+                    'P87654321',
+                    '29000000002',
+                ]
+            ];
 
-            $rowNum++;
+            $rowNum = 2;
+            foreach ($samples as $row) {
+                $sheet->getRowDimension($rowNum)->setRowHeight(22);
+                foreach ($row as $cIdx => $val) {
+                    $cLetter = Coordinate::stringFromColumnIndex($cIdx + 1);
+                    $sheet->setCellValue($cLetter . $rowNum, $val);
+                }
+
+                $bgColor = ($rowNum % 2 === 0) ? 'FFFFFF' : 'F8FAFC';
+                $sheet->getStyle("A{$rowNum}:{$lastColLetter}{$rowNum}")->applyFromArray([
+                    'font' => [
+                        'size' => 10,
+                        'name' => 'Segoe UI',
+                        'color' => ['rgb' => '334155'],
+                    ],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => $bgColor],
+                    ],
+                    'alignment' => [
+                        'vertical' => Alignment::VERTICAL_CENTER,
+                    ],
+                    'borders' => [
+                        'allBorders' => [
+                            'borderStyle' => Border::BORDER_THIN,
+                            'color' => ['rgb' => 'E2E8F0'],
+                        ],
+                    ],
+                ]);
+
+                $sheet->getStyle("A{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("I{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("J{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("M{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                $sheet->getStyle("M{$rowNum}")->getNumberFormat()->setFormatCode('#,##0.00');
+                $sheet->getStyle("O{$rowNum}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+                $rowNum++;
+            }
+
+            // Auto-fit column widths
+            foreach (range(1, count($columns)) as $colIdx) {
+                $colLetter = Coordinate::stringFromColumnIndex($colIdx);
+                $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+            }
+
+            $sheet->freezePane('A2');
+
+            $filename = "employee_import_template.xlsx";
+
+            return response()->streamDownload(function () use ($spreadsheet) {
+                $writer = new Xlsx($spreadsheet);
+                $writer->save('php://output');
+            }, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'max-age=0',
+                'Pragma' => 'public',
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('Error generating template:', ['error' => $e->getMessage()]);
+            return back()->withErrors(['error' => 'Failed to download template: ' . $e->getMessage()]);
         }
-
-        // Auto-fit column widths
-        foreach (range(1, count($columns)) as $colIdx) {
-            $colLetter = Coordinate::stringFromColumnIndex($colIdx);
-            $sheet->getColumnDimension($colLetter)->setAutoSize(true);
-        }
-
-        $sheet->freezePane('A2');
-
-        $filename = "employee_import_template.xlsx";
-
-        return response()->streamDownload(function () use ($spreadsheet) {
-            $writer = new Xlsx($spreadsheet);
-            $writer->save('php://output');
-        }, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Cache-Control' => 'max-age=0',
-            'Pragma' => 'public',
-        ]);
     }
 
     /**
@@ -1281,7 +1450,7 @@ class EmployeeController extends Controller
             $spreadsheet = IOFactory::load($realPath);
             $sheet = $spreadsheet->getActiveSheet();
             $allRows = $sheet->toArray(null, true, true, false);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             \Log::error('Spreadsheet Load Error: ' . $e->getMessage());
             return back()->withErrors(['file' => 'Unable to read the uploaded file. Please ensure it is a valid Excel or CSV file.']);
         }
@@ -1410,7 +1579,7 @@ class EmployeeController extends Controller
                     if (!$val) return null;
                     try {
                         return \Carbon\Carbon::parse($val)->format('Y-m-d');
-                    } catch (\Exception $e) {
+                    } catch (\Throwable $e) {
                         return null;
                     }
                 };
@@ -1420,8 +1589,8 @@ class EmployeeController extends Controller
                     'company_id' => $companyId,
                     'department_id' => $departmentId,
                     'designation' => $getVal('designation'),
-                    'mobile' => $getVal('mobile'),
-                    'email' => $getVal('email'),
+                    'mobile' => $getVal('mobile') ?: null,
+                    'email' => $getVal('email') ?: null,
                     'gender' => $getVal('gender'),
                     'dob' => $parseDate($getVal('dob')),
                     'nationality' => $getVal('nationality'),
@@ -1439,11 +1608,11 @@ class EmployeeController extends Controller
                     'payment_type' => $getVal('payment_type') ?: 'Bank Transfer',
                     'leave_status' => $getVal('leave_status') ?: 'Available',
                     'manual_status' => $getVal('status') ?: 'active',
-                    'passport_number' => $getVal('passport_number'),
+                    'passport_number' => $getVal('passport_number') ?: null,
                     'passport_expiry_date' => $parseDate($getVal('passport_expiry_date')),
-                    'qid_number' => $getVal('qid_number'),
+                    'qid_number' => $getVal('qid_number') ?: null,
                     'qid_expiry_date' => $parseDate($getVal('qid_expiry_date')),
-                    'health_card_number' => $getVal('health_card_number'),
+                    'health_card_number' => $getVal('health_card_number') ?: null,
                     'health_card_expiry_date' => $parseDate($getVal('health_card_expiry_date')),
                     'contract_issue_date' => $parseDate($getVal('contract_issue_date')),
                     'contract_expiry_date' => $parseDate($getVal('contract_expiry_date')),
@@ -1451,7 +1620,7 @@ class EmployeeController extends Controller
 
                 // Check existing by employee_code or email
                 $existingEmployee = Employee::where('employee_code', $code)->first();
-                if (!$existingEmployee && $data['email']) {
+                if (!$existingEmployee && !empty($data['email'])) {
                     $existingEmployee = Employee::where('email', $data['email'])->first();
                 }
 
@@ -1501,7 +1670,7 @@ class EmployeeController extends Controller
 
             $msg = "Import completed successfully: {$imported} new employees created, {$updated} existing employees updated.";
             return back()->with('success', $msg);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             DB::rollBack();
             \Log::error('Employee Import error: ' . $e->getMessage());
             return back()->withErrors(['file' => 'Import failed on row ' . $rowNum . ': ' . $e->getMessage()]);

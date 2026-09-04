@@ -33,12 +33,22 @@ class EmployeeRequest extends FormRequest
                 'nullable', // Can be null if auto-generated
                 'string',
                 'max:255',
-                Rule::unique('employees')->ignore($employeeId),
+                Rule::unique('employees', 'employee_code')->ignore($employeeId),
             ],
             'gender' => 'required|in:Male,Female',
             'dob' => 'nullable|date',
-            'mobile' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255',
+            'mobile' => [
+                'nullable',
+                'string',
+                'max:20',
+                Rule::unique('employees', 'mobile')->ignore($employeeId)->whereNotNull('mobile'),
+            ],
+            'email' => [
+                'nullable',
+                'email',
+                'max:255',
+                Rule::unique('employees', 'email')->ignore($employeeId)->whereNotNull('email'),
+            ],
             'designation' => 'nullable|string|max:255',
             'nationality' => 'nullable|string|max:255',
             'sponsor' => 'nullable|string|max:255',
@@ -64,10 +74,20 @@ class EmployeeRequest extends FormRequest
             'agreement_doc' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
             'resume_doc' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
             'other_docs' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
-            'passport_number' => 'nullable|string|max:255',
+            'passport_number' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('employees', 'passport_number')->ignore($employeeId)->whereNotNull('passport_number'),
+            ],
             'passport_expiry_date' => 'nullable|date',
             'passport_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
-            'qid_number' => 'nullable|string|max:255',
+            'qid_number' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('employees', 'qid_number')->ignore($employeeId)->whereNotNull('qid_number'),
+            ],
             'qid_expiry_date' => 'nullable|date',
             'qid_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
             'salary_structures' => 'nullable|array',
@@ -82,6 +102,20 @@ class EmployeeRequest extends FormRequest
             'weekly_offs' => 'nullable|array',
             'weekly_offs.*.weekly_off_day' => 'required|string|in:Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
             'weekly_offs.*.effective_date' => 'required|date',
+        ];
+    }
+
+    /**
+     * Get custom validation messages.
+     */
+    public function messages(): array
+    {
+        return [
+            'employee_code.unique' => 'This employee code is already in use by another employee.',
+            'mobile.unique' => 'This mobile / phone number is already registered for another employee.',
+            'email.unique' => 'This email address is already in use by another employee.',
+            'qid_number.unique' => 'This QID / Document ID is already registered for another employee.',
+            'passport_number.unique' => 'This passport number is already registered for another employee.',
         ];
     }
 }
