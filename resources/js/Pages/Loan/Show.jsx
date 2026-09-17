@@ -130,7 +130,7 @@ export default function Show({ loan, userRole = 'employee' }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Loan Details</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Loan Details - ${loan.employee?.name}`} />
 
             <div className="py-4 px-4 sm:px-6 lg:px-8 space-y-6">

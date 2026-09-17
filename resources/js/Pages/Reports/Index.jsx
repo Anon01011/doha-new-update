@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
-import { FiClock, FiCalendar, FiDollarSign, FiCreditCard, FiBookOpen, FiCheckSquare, FiAlertCircle, FiChevronRight, FiTrendingUp, FiUsers, FiBarChart2, FiActivity } from 'react-icons/fi';
+import { FiClock, FiCalendar, FiDollarSign, FiCreditCard, FiBookOpen, FiCheckSquare, FiAlertCircle, FiChevronRight, FiTrendingUp, FiUsers, FiBarChart2, FiActivity, FiFileText, FiUserMinus } from 'react-icons/fi';
 
 export default function Index() {
     const reportCards = [
@@ -39,6 +39,18 @@ export default function Index() {
             border: 'border-purple-100',
             badge: 'Payroll',
             badgeColor: 'bg-purple-50 text-purple-600 border-purple-200',
+        },
+        {
+            title: 'Expenses & Reimbursements',
+            description: 'Track business expenses, policy claims, vendor spends, and approvals.',
+            href: route('reports.expense'),
+            icon: <FiFileText className="w-6 h-6" />,
+            gradient: 'from-emerald-500 to-teal-600',
+            bg: 'bg-emerald-50',
+            text: 'text-emerald-600',
+            border: 'border-emerald-100',
+            badge: 'Expenses ₹',
+            badgeColor: 'bg-emerald-50 text-emerald-600 border-emerald-200',
         },
         {
             title: 'Loan Analytics',
@@ -111,11 +123,23 @@ export default function Index() {
             border: 'border-teal-100',
             badge: 'Evaluation',
             badgeColor: 'bg-teal-50 text-teal-600 border-teal-200',
+        },
+        {
+            title: 'Offboarding & Turnover',
+            description: 'Analyze employee separations, clearances, reasons, and exit feedback.',
+            href: route('reports.offboarding'),
+            icon: <FiUserMinus className="w-6 h-6" />,
+            gradient: 'from-rose-500 to-indigo-600',
+            bg: 'bg-rose-50',
+            text: 'text-rose-600',
+            border: 'border-rose-100',
+            badge: 'Offboarding',
+            badgeColor: 'bg-rose-50 text-rose-600 border-rose-200',
         }
     ];
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-white tracking-normal">Reports & Analytics</h2>}>
+        <AuthenticatedLayout>
             <Head title="Reports Dashboard" />
 
             <div className="w-full mx-auto p-6 space-y-8 bg-slate-50 min-h-screen">

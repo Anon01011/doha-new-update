@@ -41,14 +41,7 @@ export default function Create() {
     };
 
     return (
-        <AuthenticatedLayout
-            header={
-                <div>
-                    <h2 className="text-xl font-normal text-slate-900 tracking-normal leading-none">Add New Branch</h2>
-                    <p className="text-[10px] text-slate-400 font-normal uppercase tracking-normal mt-1.5">Set up your new company branch</p>
-                </div>
-            }
-        >
+        <AuthenticatedLayout>
             <Head title="Add Branch" />
 
             <div className="max-w-[1600px] mx-auto py-4 px-4 sm:px-6 lg:px-5 space-y-4">

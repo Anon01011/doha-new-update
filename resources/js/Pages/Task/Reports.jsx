@@ -54,7 +54,7 @@ export default function Reports({ statusDistribution, projects, timePerEmployee,
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Task Reports</h2>}>
+        <AuthenticatedLayout>
             <Head title="Task Reports" />
 
             <div className="p-4 space-y-6 bg-slate-50 min-h-screen">

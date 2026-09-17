@@ -382,30 +382,7 @@ export default function EditEmployee(props) {
     const isPreviewable = previewType?.includes('pdf') || previewType?.includes('image') || ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].some(ext => resumePreviewUrl?.toLowerCase().endsWith(ext));
 
     return (
-        <AuthenticatedLayout header={
-            <div className="flex justify-between items-center">
-                <div className="flex items-center gap-4">
-                    <Avatar
-                        src={employee.employee_image}
-                        name={employee.name}
-                        size="md"
-                        className="shadow-lg shadow-indigo-100 ring-2 ring-white"
-                    />
-                    <div>
-                        <h2 className="text-2xl font-normal text-slate-800 tracking-normal">Refine Profile</h2>
-                        <p className="text-xs font-normal text-slate-400 uppercase tracking-normal">Editing: {employee.name} ({employee.employee_code})</p>
-                    </div>
-                </div>
-                <div className="flex gap-3">
-                    <Link
-                        href={route('employees.index')}
-                        className="px-4 py-2 text-sm font-normal text-slate-600 hover:text-slate-800 transition-colors"
-                    >
-                        Back to List
-                    </Link>
-                </div>
-            </div>
-        }>
+        <AuthenticatedLayout>
             <Head title={`Edit - ${employee.name}`} />
 
             <div className="min-h-[calc(100vh-120px)] bg-slate-50/50">

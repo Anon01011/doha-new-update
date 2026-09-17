@@ -60,7 +60,7 @@ export default function Show({ project, userRole = 'employee', projectMemberRole
     ];
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-sm font-normal text-slate-900 uppercase">Project Details</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Project - ${project.name}`} />
 
             <div className="p-4 space-y-4 bg-slate-50 min-h-screen">

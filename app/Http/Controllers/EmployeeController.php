@@ -336,7 +336,7 @@ class EmployeeController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
-        $employee->load(['company', 'department', 'salaryStructures.component', 'user.roles', 'evaluations.evaluator', 'weeklyOffs']);
+        $employee->load(['company', 'department', 'salaryStructures.component', 'user.roles', 'evaluations.evaluator', 'weeklyOffs', 'expenseClaims.category']);
 
         // Handle department - it can be either a string or a relationship
         $departmentName = null;
@@ -1048,7 +1048,7 @@ class EmployeeController extends Controller
             $columns = [
                 'Employee Code',
                 'Full Name',
-                'Branch / Salon',
+                'Branch / Company',
                 'Department',
                 'Designation',
                 'System Role',
@@ -1250,7 +1250,7 @@ class EmployeeController extends Controller
             $columns = [
                 'Employee Code',
                 'Full Name',
-                'Branch / Salon',
+                'Branch / Company',
                 'Department',
                 'Designation',
                 'System Role',
@@ -1310,7 +1310,7 @@ class EmployeeController extends Controller
                 [
                     'EMP-001',
                     'Jane Doe',
-                    'Main Salon Branch',
+                    'Main Company Branch',
                     'Human Resources',
                     'HR Executive',
                     'employee',
@@ -1335,7 +1335,7 @@ class EmployeeController extends Controller
                 [
                     'EMP-002',
                     'Ahmed Ali',
-                    'Main Salon Branch',
+                    'Main Company Branch',
                     'Management',
                     'HR Manager',
                     'hr',
@@ -1434,8 +1434,19 @@ class EmployeeController extends Controller
         }
 
         $request->validate([
-            'file' => 'required|file|max:15360',
+            // SECURITY: Restrict to legitimate spreadsheet/CSV MIME types only.
+            // Without `mimes`, any file (e.g. PHP script) could be uploaded
+            // and potentially executed if moved to a public location.
+            'file' => [
+                'required',
+                'file',
+                'max:15360', // 15 MB
+                'mimes:xlsx,xls,csv,txt',
+            ],
             'company_id' => 'nullable|exists:companies,id',
+        ], [
+            'file.mimes' => 'Only Excel (.xlsx, .xls) or CSV (.csv) files are allowed for import.',
+            'file.max'   => 'Import file must not exceed 15 MB.',
         ]);
 
         $defaultCompanyId = $request->input('company_id');
@@ -1476,7 +1487,7 @@ class EmployeeController extends Controller
         $colMap = [
             'code' => $findCol(['employee code', 'code', 'emp code', 'employee_code', 'id']),
             'name' => $findCol(['full name', 'name', 'employee name', 'fullname']),
-            'branch' => $findCol(['branch / salon', 'branch', 'salon', 'company', 'company name']),
+            'branch' => $findCol(['branch / Company', 'branch', 'Company', 'company', 'company name']),
             'department' => $findCol(['department', 'dept', 'department name']),
             'designation' => $findCol(['designation', 'job title', 'title', 'position']),
             'role' => $findCol(['system role', 'role', 'user role']),
@@ -1675,5 +1686,27 @@ class EmployeeController extends Controller
             \Log::error('Employee Import error: ' . $e->getMessage());
             return back()->withErrors(['file' => 'Import failed on row ' . $rowNum . ': ' . $e->getMessage()]);
         }
+    }
+
+    /**
+     * Unlock and reactivate a separated/inactive employee profile (Admin & HR only).
+     */
+    public function unlockProfile(Request $request, Employee $employee)
+    {
+        $user = auth()->user();
+        if (!$user->isAdmin() && !in_array($user->role, ['admin', 'hr'])) {
+            abort(403, 'Unauthorized. Only HR or Administrator can unlock an employee profile.');
+        }
+
+        DB::transaction(function () use ($employee) {
+            $employee->update([
+                'manual_status' => 'active',
+                'exit_status'   => null,
+                'exit_date'     => null,
+                'exit_reason'   => null,
+            ]);
+        });
+
+        return back()->with('success', "Employee {$employee->name}'s profile has been unlocked and reactivated.");
     }
 }

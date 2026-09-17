@@ -7,7 +7,8 @@ import Avatar from '@/Components/Avatar';
 import {
     FiGrid, FiUsers, FiBriefcase, FiFolder, FiClock, FiCalendar, FiDollarSign, FiCreditCard,
     FiAward, FiCheckSquare, FiAlertCircle, FiFileText, FiPieChart, FiShield, FiFile, FiSettings,
-    FiBell, FiCheck, FiTrash2, FiExternalLink, FiX, FiLogOut, FiBookOpen, FiDatabase, FiSearch
+    FiBell, FiCheck, FiTrash2, FiExternalLink, FiX, FiLogOut, FiBookOpen, FiDatabase, FiSearch,
+    FiUserMinus
 } from 'react-icons/fi';
 import {
     BellIcon,
@@ -47,6 +48,11 @@ export default function AuthenticatedLayout({ header, children }) {
             case 'advance_requested':
             case 'advance_status_updated':
                 return { icon: <FiDollarSign className="w-5 h-5" />, classes: 'bg-sky-50 text-sky-600 border-sky-100' };
+            case 'expense_submitted':
+            case 'expense_approved':
+            case 'expense_rejected':
+            case 'expense_paid':
+                return { icon: <FiDollarSign className="w-5 h-5" />, classes: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
             default:
                 return { icon: <InformationCircleIcon className="w-5 h-5" />, classes: 'bg-slate-50 text-slate-600 border-slate-100' };
         }
@@ -93,25 +99,32 @@ export default function AuthenticatedLayout({ header, children }) {
 
     // Helper function to check if user can access a route
     const canAccess = (roles, permissions) => {
-        // If it's a super admin, they can access everything
-        if (user.role === 'admin' && !user.employee_id) return true;
+        // Super admin has unrestricted access to everything
+        if (user.role === 'admin' || hasRole(user, 'admin')) return true;
 
-        // If permissions are specified, they take precedence
-        if (permissions && permissions.length > 0) {
-            return userHasAnyPermission(permissions);
+        const hasSpecificRoles = Array.isArray(roles) && roles.length > 0;
+        const hasSpecificPermissions = Array.isArray(permissions) && permissions.length > 0;
+
+        // If neither roles nor permissions are specified, by default visible (e.g. Dashboard)
+        if (!hasSpecificRoles && !hasSpecificPermissions) return true;
+
+        let roleAllowed = true;
+        if (hasSpecificRoles) {
+            roleAllowed = hasRole(user, roles);
         }
 
-        // Fallback to role-based access if no permissions specified
-        if (!roles || roles.length === 0) return true;
-
-        // Check if user's role field matches any required role
-        if (userRole && roles.includes(userRole)) return true;
-
-        // Also check roles relationship (for new permission system)
-        if (user && user.roles && Array.isArray(user.roles)) {
-            const userRoleSlugs = user.roles.map(r => r.slug || r);
-            if (roles.some(role => userRoleSlugs.includes(role))) return true;
+        let permissionAllowed = true;
+        if (hasSpecificPermissions) {
+            permissionAllowed = userHasAnyPermission(permissions);
         }
+
+        // If both are specified, user must satisfy both the role and permission requirement
+        if (hasSpecificRoles && hasSpecificPermissions) {
+            return roleAllowed && permissionAllowed;
+        }
+
+        if (hasSpecificRoles) return roleAllowed;
+        if (hasSpecificPermissions) return permissionAllowed;
 
         return false;
     };
@@ -125,7 +138,6 @@ export default function AuthenticatedLayout({ header, children }) {
     const userHasAnyPermission = (permissions) => {
         return hasAnyPermission(user, permissions);
     };
-
 
     // Re-organized navigation categories
     const navigationGroups = [
@@ -143,7 +155,8 @@ export default function AuthenticatedLayout({ header, children }) {
                     href: route('reports.index'),
                     icon: <FiPieChart className="h-4 w-4" />,
                     current: route().current('reports.*'),
-                    permissions: ['view-reports']
+                    permissions: ['view-reports'],
+                    roles: ['admin', 'hr', 'manager']
                 }
             ]
         },
@@ -156,9 +169,10 @@ export default function AuthenticatedLayout({ header, children }) {
                     icon: <FiUsers className="h-4 w-4" />,
                     current: route().current('employees.*') || route().current('settings.dropdown-options.*'),
                     permissions: ['view-employees'],
+                    roles: ['admin', 'hr', 'manager'],
                     subMenu: [
                         { name: 'Directory', href: route('employees.index'), current: route().current('employees.*'), permissions: ['view-employees'], roles: ['admin', 'hr', 'manager'] },
-                        { name: 'Configurations', href: route('settings.dropdown-options.index'), current: route().current('settings.dropdown-options.*'), permissions: ['manage-dropdowns'] }
+                        { name: 'Configurations', href: route('settings.dropdown-options.index'), current: route().current('settings.dropdown-options.*'), permissions: ['manage-dropdowns'], roles: ['admin', 'hr'] }
                     ]
                 },
                 {
@@ -166,21 +180,24 @@ export default function AuthenticatedLayout({ header, children }) {
                     href: route('evaluations.index'),
                     icon: <FiAward className="h-4 w-4" />,
                     current: route().current('evaluations.*'),
-                    permissions: ['view-evaluations']
+                    permissions: ['view-evaluations'],
+                    roles: ['admin', 'hr', 'manager']
                 },
                 {
                     name: 'Attendance',
                     href: route('employee-attendances.index'),
                     icon: <FiClock className="h-4 w-4" />,
                     current: route().current('employee-attendances.*'),
-                    permissions: ['view-attendance']
+                    permissions: ['view-attendance'],
+                    roles: ['admin', 'hr', 'manager']
                 },
                 {
                     name: 'Shift Roster',
                     href: route('shift-rosters.index'),
                     icon: <FiCalendar className="h-4 w-4" />,
                     current: route().current('shift-rosters.*'),
-                    permissions: ['view-shift-rosters']
+                    permissions: ['view-shift-rosters'],
+                    roles: ['admin', 'hr', 'manager']
                 },
                 {
                     name: 'Leave & Holidays',
@@ -190,7 +207,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     permissions: ['view-leave-requests'],
                     subMenu: [
                         { name: 'Requests', href: route('leave-requests.index'), current: route().current('leave-requests.*'), permissions: ['view-leave-requests'] },
-                        { name: 'Types', href: route('leave-types.index'), current: route().current('leave-types.*'), permissions: ['manage-leave-types'] },
+                        { name: 'Types', href: route('leave-types.index'), current: route().current('leave-types.*'), permissions: ['manage-leave-types'], roles: ['admin', 'hr'] },
                         { name: 'Holidays', href: route('holidays.index'), current: route().current('holidays.*'), permissions: ['view-holidays'] }
                     ]
                 },
@@ -203,7 +220,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     subMenu: [
                         { name: 'Courses', href: route('trainings.index'), current: route().current('trainings.*'), permissions: ['view-trainings'] },
                         { name: 'Assignments', href: route('training-assignments.index'), current: route().current('training-assignments.*'), permissions: ['view-training-assignments'] },
-                        { name: 'Categories', href: route('training-categories.index'), current: route().current('training-categories.*'), permissions: ['create-trainings'] }
+                        { name: 'Categories', href: route('training-categories.index'), current: route().current('training-categories.*'), permissions: ['create-trainings'], roles: ['admin', 'hr'] }
                     ]
                 },
                 {
@@ -219,6 +236,14 @@ export default function AuthenticatedLayout({ header, children }) {
                     icon: <FiFileText className="h-4 w-4" />,
                     current: route().current('warning-letters.*'),
                     permissions: ['view-warning-letters']
+                },
+                {
+                    name: 'Offboarding',
+                    href: route('offboarding.index'),
+                    icon: <FiUserMinus className="h-4 w-4" />,
+                    current: route().current('offboarding.*'),
+                    permissions: ['view-employees'],
+                    roles: ['admin', 'hr', 'manager']
                 }
             ]
         },
@@ -233,7 +258,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     permissions: ['view-salary-postings'],
                     subMenu: [
                         { name: userRole === 'employee' ? 'My Payslips' : 'Salary Postings', href: route('salary-postings.index'), current: route().current('salary-postings.*'), permissions: ['view-salary-postings'] },
-                        { name: 'Components', href: route('salary-components.index'), current: route().current('salary-components.*'), permissions: ['manage-salary-components'] }
+                        { name: 'Components', href: route('salary-components.index'), current: route().current('salary-components.*'), permissions: ['manage-salary-components'], roles: ['admin', 'hr'] }
                     ]
                 },
                 {
@@ -245,6 +270,17 @@ export default function AuthenticatedLayout({ header, children }) {
                     subMenu: [
                         { name: 'Loans', href: route('loans.index'), current: route().current('loans.*'), permissions: ['view-loans'] },
                         { name: 'Advances', href: route('advances.index'), current: route().current('advances.*'), permissions: ['view-advances'] }
+                    ]
+                },
+                {
+                    name: 'Expenses',
+                    href: route('expenses.index'),
+                    icon: <FiFileText className="h-4 w-4" />,
+                    current: route().current('expenses.*') || route().current('expense-categories.*'),
+                    permissions: ['view-expenses'],
+                    subMenu: [
+                        { name: 'Claims', href: route('expenses.index'), current: route().current('expenses.*'), permissions: ['view-expenses'] },
+                        { name: 'Categories & Policy', href: route('expense-categories.index'), current: route().current('expense-categories.*'), permissions: ['manage-expense-categories'], roles: ['admin', 'hr', 'finance'] }
                     ]
                 },
                 {
@@ -269,9 +305,10 @@ export default function AuthenticatedLayout({ header, children }) {
                     icon: <FiBriefcase className="h-4 w-4" />,
                     current: route().current('companies.*') || route().current('departments.*'),
                     permissions: ['view-branches', 'view-departments'],
+                    roles: ['admin', 'hr'],
                     subMenu: [
-                        { name: 'Branches', href: route('companies.index'), current: route().current('companies.*'), permissions: ['view-branches'] },
-                        { name: 'Departments', href: route('departments.index'), current: route().current('departments.*'), permissions: ['view-departments'] }
+                        { name: 'Branches', href: route('companies.index'), current: route().current('companies.*'), permissions: ['view-branches'], roles: ['admin', 'hr'] },
+                        { name: 'Departments', href: route('departments.index'), current: route().current('departments.*'), permissions: ['view-departments'], roles: ['admin', 'hr'] }
                     ]
                 },
                 {
@@ -280,9 +317,10 @@ export default function AuthenticatedLayout({ header, children }) {
                     icon: <FiShield className="h-4 w-4" />,
                     current: route().current('roles.*') || route().current('permissions.*'),
                     permissions: ['manage-roles', 'manage-permissions'],
+                    roles: ['admin'],
                     subMenu: [
-                        { name: 'Roles', href: route('roles.index'), current: route().current('roles.*'), permissions: ['manage-roles'] },
-                        { name: 'Permissions', href: route('permissions.index'), current: route().current('permissions.*'), permissions: ['manage-permissions'] }
+                        { name: 'Roles', href: route('roles.index'), current: route().current('roles.*'), permissions: ['manage-roles'], roles: ['admin'] },
+                        { name: 'Permissions', href: route('permissions.index'), current: route().current('permissions.*'), permissions: ['manage-permissions'], roles: ['admin'] }
                     ]
                 },
                 {
@@ -290,9 +328,10 @@ export default function AuthenticatedLayout({ header, children }) {
                     icon: <FiFile className="h-4 w-4" />,
                     current: route().current('document-types.*') || route().current('documents.expiring'),
                     permissions: ['view-documents'],
+                    roles: ['admin', 'hr'],
                     subMenu: [
-                        { name: 'Types', href: route('document-types.index'), current: route().current('document-types.*'), permissions: ['manage-document-types'] },
-                        { name: 'Expiring', href: route('documents.expiring'), current: route().current('documents.expiring'), permissions: ['view-expiring-documents'] }
+                        { name: 'Types', href: route('document-types.index'), current: route().current('document-types.*'), permissions: ['manage-document-types'], roles: ['admin', 'hr'] },
+                        { name: 'Expiring', href: route('documents.expiring'), current: route().current('documents.expiring'), permissions: ['view-expiring-documents'], roles: ['admin', 'hr'] }
                     ]
                 },
                 {
@@ -300,14 +339,16 @@ export default function AuthenticatedLayout({ header, children }) {
                     href: route('audit-logs.index'),
                     icon: <FiDatabase className="h-4 w-4" />,
                     current: route().current('audit-logs.*'),
-                    permissions: ['view-audit-logs']
+                    permissions: ['view-audit-logs'],
+                    roles: ['admin']
                 },
                 {
                     name: 'Settings',
                     href: route('settings.index'),
                     icon: <FiSettings className="h-4 w-4" />,
                     current: route().current('settings.*'),
-                    permissions: ['manage-settings']
+                    permissions: ['manage-settings'],
+                    roles: ['admin']
                 }
             ]
         }
@@ -998,7 +1039,7 @@ export default function AuthenticatedLayout({ header, children }) {
 
                             {/* Attendance Quick Actions */}
                             {user.employee_id && (
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 sm:gap-2">
                                     {!user.todayAttendance?.from_time ? (
                                         <button
                                             onClick={() => {
@@ -1008,14 +1049,14 @@ export default function AuthenticatedLayout({ header, children }) {
                                                 });
                                             }}
                                             disabled={isProcessing}
-                                            className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-emerald-100 disabled:opacity-50 active:scale-95"
+                                            className="bg-emerald-500 hover:bg-emerald-600 text-white px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest transition-all flex items-center gap-1.5 sm:gap-2 shadow-lg shadow-emerald-100 disabled:opacity-50 active:scale-95 whitespace-nowrap"
                                             title="Clock In"
                                         >
                                             <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
-                                            Clock In
+                                            <span>Clock In</span>
                                         </button>
                                     ) : !user.todayAttendance?.to_time ? (
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-1 sm:gap-2">
                                             {user.todayAttendance?.current_break_start ? (
                                                 <button
                                                     onClick={() => {
@@ -1025,13 +1066,13 @@ export default function AuthenticatedLayout({ header, children }) {
                                                         });
                                                     }}
                                                     disabled={isProcessing}
-                                                    className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-amber-100 disabled:opacity-50 active:scale-95"
+                                                    className="bg-amber-500 hover:bg-amber-600 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest transition-all flex items-center gap-1 sm:gap-2 shadow-lg shadow-amber-100 disabled:opacity-50 active:scale-95 whitespace-nowrap"
                                                     title="End Break"
                                                 >
                                                     <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                     </svg>
-                                                    Resume
+                                                    <span className="hidden xs:inline sm:inline">Resume</span>
                                                 </button>
                                             ) : (
                                                 <button
@@ -1042,13 +1083,13 @@ export default function AuthenticatedLayout({ header, children }) {
                                                         });
                                                     }}
                                                     disabled={isProcessing}
-                                                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-blue-100 disabled:opacity-50 active:scale-95"
+                                                    className="bg-blue-500 hover:bg-blue-600 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest transition-all flex items-center gap-1 sm:gap-2 shadow-lg shadow-blue-100 disabled:opacity-50 active:scale-95 whitespace-nowrap"
                                                     title="Start Break"
                                                 >
                                                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                     </svg>
-                                                    Break
+                                                    <span className="hidden xs:inline sm:inline">Break</span>
                                                 </button>
                                             )}
                                             <button
@@ -1059,17 +1100,17 @@ export default function AuthenticatedLayout({ header, children }) {
                                                     });
                                                 }}
                                                 disabled={isProcessing || user.todayAttendance?.current_break_start}
-                                                className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-rose-100 disabled:opacity-50 active:scale-95"
+                                                className="bg-rose-500 hover:bg-rose-600 text-white px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest transition-all flex items-center gap-1.5 sm:gap-2 shadow-lg shadow-rose-100 disabled:opacity-50 active:scale-95 whitespace-nowrap"
                                                 title="Clock Out"
                                             >
                                                 <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                                                Clock Out
+                                                <span>Clock Out</span>
                                             </button>
                                         </div>
                                     ) : (
-                                        <div className="bg-slate-100 text-slate-500 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-200 flex items-center gap-2">
+                                        <div className="bg-slate-100 text-slate-500 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest border border-slate-200 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap">
                                             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-                                            Shift Done
+                                            <span>Done</span>
                                         </div>
                                     )}
                                 </div>

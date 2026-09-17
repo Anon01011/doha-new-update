@@ -32,7 +32,7 @@ export default function Advance({ advances, summary, startDate, endDate, status 
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800 tracking-normal">Advance Analytics</h2>}>
+        <AuthenticatedLayout>
             <Head title="Advance Report" />
 
             <div className="w-full mx-auto p-6 space-y-6 bg-slate-50 min-h-screen">

@@ -77,7 +77,7 @@ export default function SessionAttendance({ session, attendance, assignedEmploye
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Attendance Verification</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Attendance - ${session.training.title}`} />
 
             <div className="py-4 px-4 sm:px-6 lg:px-8 space-y-6">

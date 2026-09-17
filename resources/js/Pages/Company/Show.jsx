@@ -20,14 +20,7 @@ export default function Show() {
     const { company, departments = [] } = usePage().props;
 
     return (
-        <AuthenticatedLayout
-            header={
-                <div>
-                    <h2 className="text-xl font-normal text-slate-900 tracking-normal leading-none">Branch Details</h2>
-                    <p className="text-[10px] text-slate-400 font-normal uppercase tracking-normal mt-1.5">View detailed information about this branch</p>
-                </div>
-            }
-        >
+        <AuthenticatedLayout>
             <Head title={`Branch - ${company.name}`} />
 
             <div className="max-w-[1600px] mx-auto py-4 px-4 sm:px-6 lg:px-5 space-y-4">

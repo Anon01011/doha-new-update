@@ -25,7 +25,7 @@ export default function Index({ roles }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-sm font-normal text-slate-900 uppercase">Roles & Permissions</h2>}>
+        <AuthenticatedLayout>
             <Head title="Roles & Permissions" />
 
             <div className="min-h-screen bg-slate-50/50 py-4">

@@ -14,7 +14,7 @@ export default function Edit({ department, companies = [] }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800 tracking-normal text-center sm:text-left">Modify Taxonomy Unit</h2>}>
+        <AuthenticatedLayout>
             <Head title="Modify Department" />
             
             <div className="py-4 px-3 sm:px-4 lg:px-6 space-y-4">

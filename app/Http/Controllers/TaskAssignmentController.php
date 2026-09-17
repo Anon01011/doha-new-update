@@ -70,7 +70,7 @@ class TaskAssignmentController extends Controller
             'task_id' => 'required|exists:tasks,id',
             'employee_ids' => 'required|array|min:1',
             'employee_ids.*' => 'exists:employees,id',
-            'remarks' => 'nullable|string',
+            'remarks' => 'nullable|string|max:2000',
         ]);
 
         $user = auth()->user();
@@ -152,7 +152,7 @@ class TaskAssignmentController extends Controller
         $validated = $request->validate([
             'status' => 'required|in:pending,in_progress,completed,cancelled',
             'progress_percentage' => 'nullable|integer|min:0|max:100',
-            'remarks' => 'nullable|string',
+            'remarks' => 'nullable|string|max:2000',
         ]);
 
         $user = auth()->user();

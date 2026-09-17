@@ -201,7 +201,8 @@ class ShiftRosterController extends Controller
             if (!$user->isAdmin() && !$user->hasPermission('manage-rosters')) {
                 abort(403, 'Unauthorized.');
             }
-            Log::info('ShiftRoster store request:', $request->all());
+            // SECURITY: Do NOT log $request->all() — it may contain sensitive shift/employee data.
+            Log::info('ShiftRoster store initiated', ['user_id' => auth()->id()]);
 
             // Multi-tenancy check
             if (!$user->isAdmin() && $user->employee_id && $user->employee) {
@@ -211,10 +212,7 @@ class ShiftRosterController extends Controller
             }
 
             $data = $this->validateRosterData($request);
-            Log::info('Validated data:', $data);
-
             $result = $this->processRosterEntries($data);
-            Log::info('Process result:', $result);
 
             // Send WhatsApp notifications after successful save
             $this->sendBulkAutomaticNotifications($data);

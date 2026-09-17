@@ -42,14 +42,7 @@ export default function Edit() {
     };
 
     return (
-        <AuthenticatedLayout
-            header={
-                <div>
-                    <h2 className="text-xl font-normal text-slate-900 tracking-normal leading-none">Edit Branch</h2>
-                    <p className="text-[10px] text-slate-400 font-normal uppercase tracking-normal mt-1.5">Update branch details and settings</p>
-                </div>
-            }
-        >
+        <AuthenticatedLayout>
             <Head title="Edit Branch" />
 
             <div className="max-w-[1600px] mx-auto py-4 px-4 sm:px-6 lg:px-5 space-y-4">

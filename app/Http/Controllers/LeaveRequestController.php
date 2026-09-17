@@ -113,7 +113,7 @@ class LeaveRequestController extends Controller
             'leave_type_id' => 'required|exists:leave_types,id',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
-            'reason' => 'required|string',
+            'reason' => 'required|string|max:2000',
         ]);
 
         $employeeIds = [];
@@ -364,7 +364,7 @@ class LeaveRequestController extends Controller
             'leave_type_id' => 'required|exists:leave_types,id',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
-            'reason' => 'required|string',
+            'reason' => 'required|string|max:2000',
         ]);
 
         $startDate = Carbon::parse($validated['start_date']);

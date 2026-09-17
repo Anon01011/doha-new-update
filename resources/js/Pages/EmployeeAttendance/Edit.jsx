@@ -150,7 +150,7 @@ export default function Edit({ companies = [], employees = [], initialCompanyId 
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-white">Edit Attendance (Week View)</h2>}>
+        <AuthenticatedLayout>
             <Head title="Edit Attendance (Week View)" />
             <div className="bg-white rounded-lg shadow p-6 full-w mx-auto mt-8">
                 <form onSubmit={handleSubmit} className="space-y-4">

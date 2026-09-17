@@ -180,7 +180,7 @@ export default function Show({ training, userRole = 'employee', userProgress, se
     );
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-sm font-normal text-slate-900 uppercase">Training Details</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Training - ${training.title}`} />
 
             <div className="p-4 space-y-4 bg-slate-50 min-h-screen">
@@ -733,20 +733,17 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                                                 ].map((metric, idx) => (
                                                     <div key={idx} className="space-y-2">
                                                         <label className="text-[9px] font-normal text-slate-500 uppercase ml-1">{metric.label}</label>
-                                                        <div className="relative group">
-                                                            <select
-                                                                value={evaluationForm.data[metric.field]}
-                                                                onChange={e => evaluationForm.setData(metric.field, e.target.value)}
-                                                                className="w-full px-3 py-2 bg-slate-50/50 border border-slate-200 rounded-[3px] focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none appearance-none cursor-pointer text-[10px] font-normal uppercase"
-                                                            >
-                                                                <option value="5">5 — EXCELLENT</option>
-                                                                <option value="4">4 — GOOD</option>
-                                                                <option value="3">3 — FAIR</option>
-                                                                <option value="2">2 — POOR</option>
-                                                                <option value="1">1 — VERY POOR</option>
-                                                            </select>
-                                                            <FaChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={8} />
-                                                        </div>
+                                                        <select
+                                                            value={evaluationForm.data[metric.field]}
+                                                            onChange={e => evaluationForm.setData(metric.field, e.target.value)}
+                                                            className="w-full px-3 py-2 bg-slate-50/50 border border-slate-200 rounded-[3px] focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none cursor-pointer text-[10px] font-normal uppercase"
+                                                        >
+                                                            <option value="5">5 — EXCELLENT</option>
+                                                            <option value="4">4 — GOOD</option>
+                                                            <option value="3">3 — FAIR</option>
+                                                            <option value="2">2 — POOR</option>
+                                                            <option value="1">1 — VERY POOR</option>
+                                                        </select>
                                                     </div>
                                                 ))}
                                             </div>
@@ -883,13 +880,10 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                                                     </div>
                                                     <div className="space-y-1">
                                                         <label className="text-[9px] font-normal text-slate-500 uppercase ml-1">Type</label>
-                                                        <div className="relative">
-                                                            <select value={q.question_type} onChange={e => updateQuestion(idx, 'question_type', e.target.value)} className="w-full px-3 py-2.5 bg-slate-50/50 border border-slate-200 rounded-[3px] text-[10px] font-normal uppercase focus:bg-white focus:border-primary transition-all outline-none appearance-none cursor-pointer">
-                                                                <option value="multiple_choice">MULTIPLE CHOICE</option>
-                                                                <option value="true_false">TRUE / FALSE</option>
-                                                            </select>
-                                                            <FaChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={8} />
-                                                        </div>
+                                                        <select value={q.question_type} onChange={e => updateQuestion(idx, 'question_type', e.target.value)} className="w-full px-3 py-2.5 bg-slate-50/50 border border-slate-200 rounded-[3px] text-[10px] font-normal uppercase focus:bg-white focus:border-primary transition-all outline-none cursor-pointer">
+                                                            <option value="multiple_choice">MULTIPLE CHOICE</option>
+                                                            <option value="true_false">TRUE / FALSE</option>
+                                                        </select>
                                                     </div>
                                                 </div>
 

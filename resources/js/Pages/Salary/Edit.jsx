@@ -178,7 +178,7 @@ export default function Edit({ salaryPosting, employees, salaryComponents = [], 
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Edit Salary Record</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Edit Salary - ${salaryPosting.employee?.name}`} />
 
             <div className="py-4 px-4 sm:px-6 lg:px-8 space-y-6">

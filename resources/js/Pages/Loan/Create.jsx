@@ -83,7 +83,7 @@ export default function Create({ employees = [], loanTypes = [], userRole = 'emp
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">New Loan Request</h2>}>
+        <AuthenticatedLayout>
             <Head title="Create Loan Request" />
 
             <div className="p-4 sm:p-6 space-y-4">
@@ -172,16 +172,13 @@ export default function Create({ employees = [], loanTypes = [], userRole = 'emp
                                     <div className="flex gap-3">
                                         {!showNewTypeInput ? (
                                             <>
-                                                <div className="relative flex-1 group">
-                                                    <select
-                                                        className="w-full px-3 py-2 bg-slate-50/50 border border-slate-200 rounded-[3px] focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none appearance-none cursor-pointer text-[11px] font-normal uppercase"
-                                                        value={data.loan_type} onChange={(e) => setData('loan_type', e.target.value)} required
-                                                    >
-                                                        <option value="">SELECT LOAN TYPE...</option>
-                                                        {loanTypes.map((type) => <option key={type} value={type}>{type.toUpperCase()}</option>)}
-                                                    </select>
-                                                    <FaChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={10} />
-                                                </div>
+                                                <select
+                                                    className="w-full px-3 py-2 bg-slate-50/50 border border-slate-200 rounded-[3px] focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none cursor-pointer text-[11px] font-normal uppercase"
+                                                    value={data.loan_type} onChange={(e) => setData('loan_type', e.target.value)} required
+                                                >
+                                                    <option value="">SELECT LOAN TYPE...</option>
+                                                    {loanTypes.map((type) => <option key={type} value={type}>{type.toUpperCase()}</option>)}
+                                                </select>
                                                 {!isEmployee && (
                                                     <button type="button" onClick={() => setShowNewTypeInput(true)} className="w-14 h-14 flex items-center justify-center bg-slate-50 text-primary rounded-lg border border-slate-100 hover:bg-primary hover:text-white transition-all shadow-sm">
                                                         <FaPlus size={12} />

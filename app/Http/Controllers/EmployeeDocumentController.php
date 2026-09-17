@@ -73,7 +73,7 @@ class EmployeeDocumentController extends Controller
             'file' => "required|file|max:{$maxSizeKb}|mimes:{$allowedTypes}",
             'issue_date' => 'nullable|date',
             'expiry_date' => 'nullable|date|after:issue_date',
-            'notes' => 'nullable|string',
+            'notes' => 'nullable|string|max:5000',
         ]);
 
         // Store file

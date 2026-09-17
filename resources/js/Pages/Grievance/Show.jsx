@@ -34,7 +34,7 @@ export default function Show({ grievance, userRole = 'employee', warningTypes })
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-sm font-normal text-slate-900 uppercase">Grievance Details</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Case - ${grievance.subject}`} />
 
             <div className="p-4 space-y-4 bg-slate-50 min-h-screen">

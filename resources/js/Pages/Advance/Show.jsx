@@ -71,7 +71,7 @@ export default function Show({ advance, userRole = 'employee' }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Advance Details</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Details - ${advance.employee?.name}`} />
 
             <div className="p-4 sm:p-6 space-y-4">

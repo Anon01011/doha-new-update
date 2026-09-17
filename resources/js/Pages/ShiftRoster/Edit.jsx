@@ -45,7 +45,7 @@ export default function Edit({ roster }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-gray-800">Edit Shift Roster</h2>}>
+        <AuthenticatedLayout>
             <Head title="Edit Shift Roster" />
             <div className="max-w mx-auto p-8">
                 <form onSubmit={handleSubmit} className="space-y-4">

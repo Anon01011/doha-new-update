@@ -17,7 +17,7 @@ export default function Create({ modules }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-sm font-normal text-slate-900 uppercase">Capability Architect</h2>}>
+        <AuthenticatedLayout>
             <Head title="Create New Permission" />
 
             <div className="min-h-screen bg-slate-50/50 py-4">

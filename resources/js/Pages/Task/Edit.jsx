@@ -54,7 +54,7 @@ export default function Edit({ task, projects, parentTasks, branches, employees 
         }`;
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Edit Task</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Edit Task - ${task.title}`} />
 
             <div className="p-4 space-y-4 bg-slate-50 min-h-screen">

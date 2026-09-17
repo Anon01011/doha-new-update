@@ -424,7 +424,7 @@ class BackupController extends Controller
                     }
                 }
 
-                return back()->with('success', 'Full system backup restored successfully! All database records, salon branches, and media files have been restored.');
+                return back()->with('success', 'Full system backup restored successfully! All database records, Company branches, and media files have been restored.');
             } elseif ($ext === 'sql') {
                 $this->executeSqlDumpFromFile($realPath);
 
@@ -487,7 +487,7 @@ class BackupController extends Controller
         $empSheet = $spreadsheet->createSheet();
         $empSheet->setTitle('Employees');
         $empCols = [
-            'Employee Code', 'Full Name', 'Branch / Salon', 'Department', 'Designation', 'System Role',
+            'Employee Code', 'Full Name', 'Branch / Company', 'Department', 'Designation', 'System Role',
             'Mobile', 'Email', 'Gender', 'DOB', 'Nationality', 'Sponsor', 'Basic Salary', 'Reported To',
             'Joined Date', 'Shift', 'Visa Type', 'Visa Designation', 'Status', 'Passport Number', 'QID Number'
         ];
@@ -503,10 +503,10 @@ class BackupController extends Controller
             ];
         })->toArray(), $headerStyle, $cellStyle);
 
-        // 2. Salons / Branches Sheet
+        // 2. Companys / Branches Sheet
         $compSheet = $spreadsheet->createSheet();
-        $compSheet->setTitle('Salons & Branches');
-        $compCols = ['ID', 'Salon / Branch Name', 'Email', 'Phone', 'Address', 'Status', 'Created At'];
+        $compSheet->setTitle('Companys & Branches');
+        $compCols = ['ID', 'Company / Branch Name', 'Email', 'Phone', 'Address', 'Status', 'Created At'];
         $this->fillStyledSheet($compSheet, $compCols, Company::orderBy('name')->get()->map(function ($c) {
             return [$c->id, $c->name, $c->email, $c->phone, $c->address, $c->status ?? 'active', $c->created_at ? $c->created_at->format('Y-m-d') : ''];
         })->toArray(), $headerStyle, $cellStyle);
@@ -514,7 +514,7 @@ class BackupController extends Controller
         // 3. Departments Sheet
         $deptSheet = $spreadsheet->createSheet();
         $deptSheet->setTitle('Departments');
-        $deptCols = ['ID', 'Department Name', 'Branch / Salon', 'Status', 'Created At'];
+        $deptCols = ['ID', 'Department Name', 'Branch / Company', 'Status', 'Created At'];
         $this->fillStyledSheet($deptSheet, $deptCols, Department::with('company')->orderBy('name')->get()->map(function ($d) {
             return [$d->id, $d->name, $d->company ? $d->company->name : '', $d->status ?? 'active', $d->created_at ? $d->created_at->format('Y-m-d') : ''];
         })->toArray(), $headerStyle, $cellStyle);
@@ -522,7 +522,7 @@ class BackupController extends Controller
         // 4. Users Sheet
         $userSheet = $spreadsheet->createSheet();
         $userSheet->setTitle('System Users');
-        $userCols = ['ID', 'Full Name', 'Email', 'Role', 'Branch / Salon', 'Created At'];
+        $userCols = ['ID', 'Full Name', 'Email', 'Role', 'Branch / Company', 'Created At'];
         $this->fillStyledSheet($userSheet, $userCols, User::with(['company', 'roles'])->orderBy('name')->get()->map(function ($u) {
             return [$u->id, $u->name, $u->email, $u->roles->first() ? $u->roles->first()->name : $u->role, $u->company ? $u->company->name : '', $u->created_at ? $u->created_at->format('Y-m-d') : ''];
         })->toArray(), $headerStyle, $cellStyle);

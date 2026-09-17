@@ -31,7 +31,7 @@ export default function Create({ employees, userRole = 'employee' }) {
     const currentEmployee = employees.find(emp => emp.id === parseInt(data.employee_id));
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Request Advance</h2>}>
+        <AuthenticatedLayout>
             <Head title="Request Salary Advance" />
 
             <div className="p-4 sm:p-6 space-y-4">

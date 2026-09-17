@@ -31,7 +31,7 @@ export default function Training({ trainings, summary, status, category }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800 tracking-normal">Growth & Development</h2>}>
+        <AuthenticatedLayout>
             <Head title="Training Report" />
 
             <div className="w-full mx-auto p-6 space-y-6 bg-slate-50 min-h-screen">

@@ -557,7 +557,7 @@ class TaskController extends Controller
     {
         $request->validate([
             'extension_request_date' => 'required|date|after:today',
-            'extension_reason' => 'required|string'
+            'extension_reason' => 'required|string|max:2000',
         ]);
 
         $user = Auth::user();
@@ -574,7 +574,7 @@ class TaskController extends Controller
     public function addComment(Request $request, Task $task)
     {
         $request->validate([
-            'comment' => 'required|string',
+            'comment' => 'required|string|max:2000',
             'file' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf,doc,docx,txt,zip|max:10240', // 10MB max
         ]);
 

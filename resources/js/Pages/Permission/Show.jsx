@@ -4,7 +4,7 @@ import { FaShieldAlt, FaArrowLeft, FaEdit, FaCheck, FaInfoCircle, FaUserShield, 
 
 export default function Show({ permission }) {
     return (
-        <AuthenticatedLayout header={<h2 className="text-sm font-normal text-slate-900 uppercase">Capability Analysis Profile</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Permission Profile - ${permission.name}`} />
 
             <div className="min-h-screen bg-slate-50/50 py-4">

@@ -1,10 +1,12 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { FiArrowLeft, FiFilter, FiDownload, FiFileText, FiTable, FiDollarSign, FiUsers, FiPlusCircle, FiMinusCircle } from 'react-icons/fi';
 import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
 
 export default function Salary({ salaryPostings, summary, month, year, companyId, companies, departments = [], departmentId, employees, employeeId }) {
+    const { appSettings } = usePage().props;
+    const currency = appSettings?.currency || 'INR';
     const [filters, setFilters] = useState({
         month: month 
             ? (Array.isArray(month) ? month.map(String) : [String(month)]) 
@@ -91,7 +93,7 @@ export default function Salary({ salaryPostings, summary, month, year, companyId
     };
 
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'QAR' }).format(amount || 0);
+        return new Intl.NumberFormat('en-IN', { style: 'currency', currency: currency }).format(amount || 0);
     };
 
     const months = [
@@ -104,7 +106,7 @@ export default function Salary({ salaryPostings, summary, month, year, companyId
     const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800 tracking-normal">Payroll Analysis</h2>}>
+        <AuthenticatedLayout>
             <Head title="Salary Report" />
 
             <div className="w-full mx-auto p-6 space-y-6 bg-slate-50 min-h-screen">
@@ -241,6 +243,39 @@ export default function Salary({ salaryPostings, summary, month, year, companyId
                                 <div className="text-xs font-normal text-slate-400 uppercase tracking-normal">Total Net</div>
                                 <div className="text-xl font-normal text-blue-600">{formatCurrency(summary.total_net_salary)}</div>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Department-wise Cost Summary */}
+                {salaryPostings && salaryPostings.length > 0 && (
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                        <h3 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                            <FiDollarSign className="text-primary" /> Department-wise Salary Cost Distribution
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {Object.entries(
+                                salaryPostings.reduce((acc, p) => {
+                                    const deptName = p.employee?.department?.name || 'General';
+                                    if (!acc[deptName]) {
+                                        acc[deptName] = { count: 0, basic: 0, net: 0, ot: 0 };
+                                    }
+                                    acc[deptName].count += 1;
+                                    acc[deptName].basic += parseFloat(p.basic_salary || 0);
+                                    acc[deptName].net += parseFloat(p.net_salary || 0);
+                                    acc[deptName].ot += parseFloat(p.overtime_amount || 0);
+                                    return acc;
+                                }, {})
+                            ).map(([dept, data]) => (
+                                <div key={dept} className="p-4 rounded-xl bg-slate-50/80 border border-slate-100">
+                                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{dept}</div>
+                                    <div className="text-lg font-bold text-slate-800 mt-1">{formatCurrency(data.net)}</div>
+                                    <div className="text-xs text-slate-400 mt-1 flex justify-between">
+                                        <span>{data.count} staff</span>
+                                        {data.ot > 0 && <span className="text-amber-600 font-medium">OT: {formatCurrency(data.ot)}</span>}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}

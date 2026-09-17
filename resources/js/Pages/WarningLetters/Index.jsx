@@ -26,23 +26,12 @@ export default function Index({ warningLetters, filters, userRole }) {
     };
 
     return (
-        <AuthenticatedLayout
-            header={
-                <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-rose-50 rounded-lg">
-                        <FiAlertTriangle className="h-5 w-5 text-rose-600" />
-                    </div>
-                    <h2 className="text-lg font-normal text-slate-800 tracking-normal">
-                        {userRole === 'employee' ? 'My Warning Letters' : 'Warning Letters'}
-                    </h2>
-                </div>
-            }
-        >
+        <AuthenticatedLayout>
             <Head title="Warning Letters" />
 
-            <div className="max-w mx-auto space-y-4">
+            <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
                 {/* Search & Actions */}
-                <div className="bg-white rounded-lg shadow-sm border border-slate-100 p-3 flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 sm:p-4 flex flex-col md:flex-row gap-3 sm:gap-4 items-stretch md:items-center justify-between">
                     <form onSubmit={handleSearch} className="flex md:w-96 gap-2 w-full">
                         <div className="flex-1 relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -53,30 +42,30 @@ export default function Index({ warningLetters, filters, userRole }) {
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 placeholder="Search records..."
-                                className="w-full pl-9 pr-4 py-2 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-primary transition-all font-normal text-sm text-slate-700 placeholder:text-slate-400"
+                                className="w-full pl-9 pr-4 py-2 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-primary transition-all font-normal text-xs sm:text-sm text-slate-700 placeholder:text-slate-400"
                             />
                         </div>
                         <button
                             type="submit"
-                            className="bg-slate-100 text-slate-600 px-5 py-2 rounded-lg hover:bg-slate-200 font-normal text-xs transition-all active:scale-95"
+                            className="bg-slate-100 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-200 font-normal text-xs transition-all active:scale-95"
                         >
                             Filter
                         </button>
                     </form>
 
-                    <div className="flex items-center gap-2 px-3 py-1.5 border-l border-slate-100 hidden md:flex">
-                        <div className="text-right">
-                            <div className="text-[10px] font-normal text-slate-400 uppercase tracking-normal leading-none">Total Notifications</div>
-                            <div className="text-lg font-normal text-slate-800 leading-none mt-1">{warningLetters.total}</div>
+                    <div className="flex items-center gap-2 px-3 py-1.5 md:border-l border-slate-100 justify-between md:justify-end">
+                        <div className="text-left md:text-right">
+                            <div className="text-[9px] font-normal text-slate-400 uppercase tracking-normal leading-none">Total Notifications</div>
+                            <div className="text-base sm:text-lg font-normal text-slate-800 leading-none mt-1">{warningLetters.total}</div>
                         </div>
                     </div>
                 </div>
 
                 {/* Compact List */}
-                <div className="bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                     {warningLetters.data.length > 0 ? (
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left">
+                            <table className="w-full min-w-[600px] text-left">
                                 <thead>
                                     <tr className="bg-slate-50/50 border-b border-slate-100">
                                         <th className="px-5 py-3 text-[10px] font-normal text-slate-400 uppercase tracking-normal">Recipient Details</th>

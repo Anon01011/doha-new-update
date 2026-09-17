@@ -12,6 +12,7 @@ use App\Models\TrainingAssignment;
 use App\Models\Grievance;
 use App\Models\Loan;
 use App\Models\Advance;
+use App\Models\ExpenseClaim;
 use App\Models\ShiftRoster;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -124,6 +125,21 @@ class EmployeeDashboardController extends Controller
             ->where('status', 'pending')
             ->count();
 
+        // Expense stats
+        $totalExpenses = ExpenseClaim::where('employee_id', $employee->id)->count();
+        $pendingExpenses = ExpenseClaim::where('employee_id', $employee->id)
+            ->whereIn('status', ['submitted', 'manager_approved', 'under_review'])
+            ->count();
+        $totalClaimedAmount = (float) ExpenseClaim::where('employee_id', $employee->id)->sum('amount');
+        $totalReimbursedAmount = (float) ExpenseClaim::where('employee_id', $employee->id)
+            ->where('status', 'paid')
+            ->sum('amount');
+        $recentExpenses = ExpenseClaim::with('category')
+            ->where('employee_id', $employee->id)
+            ->orderBy('created_at', 'desc')
+            ->take(5)
+            ->get();
+
         // This week's shifts
         $thisWeekShifts = ShiftRoster::where('employee_id', $employee->id)
             ->whereBetween('week_start', [$weekStart->toDateString(), $weekEnd->toDateString()])
@@ -144,12 +160,18 @@ class EmployeeDashboardController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // My Evaluations
+        // My Evaluations – full history for dashboard
         $myEvaluations = \App\Models\EmployeeEvaluation::where('employee_id', $employee->id)
-            ->with('evaluator')
-            ->orderBy('created_at', 'desc')
-            ->take(3)
+            ->with(['evaluator', 'approver'])
+            ->orderBy('year', 'desc')
+            ->orderBy('month', 'desc')
             ->get();
+
+        // Appraisal summary stats
+        $totalEvaluations     = $myEvaluations->count();
+        $pendingAckEvaluations = $myEvaluations->where('status', 'pending_acknowledgment')->count();
+        $latestEvaluation     = $myEvaluations->first();
+        $latestScore          = $latestEvaluation ? (float) $latestEvaluation->overall_score : null;
 
         // Today's Holiday
         $todayHoliday = \App\Models\Holiday::where('start_date', '<=', now()->toDateString())
@@ -191,12 +213,21 @@ class EmployeeDashboardController extends Controller
             'activeLoans' => $activeLoans,
             'totalAdvances' => $totalAdvances,
             'pendingAdvances' => $pendingAdvances,
+            // Expenses
+            'totalExpenses' => $totalExpenses,
+            'pendingExpenses' => $pendingExpenses,
+            'totalClaimedAmount' => $totalClaimedAmount,
+            'totalReimbursedAmount' => $totalReimbursedAmount,
+            'recentExpenses' => $recentExpenses,
             // Shifts
             'thisWeekShifts' => $thisWeekShifts,
             'weekStart' => $weekStart->toDateString(),
             'weekEnd' => $weekEnd->toDateString(),
             'warningLetters' => $warningLetters,
             'myEvaluations' => $myEvaluations,
+            'totalEvaluations' => $totalEvaluations,
+            'pendingAckEvaluations' => $pendingAckEvaluations,
+            'latestScore' => $latestScore,
             'todayHoliday' => $todayHoliday,
         ]);
     }

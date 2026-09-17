@@ -20,7 +20,7 @@ export default function Assignments({ assignments, taskId, status }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Task Assignments</h2>}>
+        <AuthenticatedLayout>
             <Head title="Task Assignments" />
 
             <div className="p-4 space-y-6 bg-slate-50 min-h-screen">

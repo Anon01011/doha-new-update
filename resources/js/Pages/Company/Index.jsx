@@ -47,14 +47,7 @@ export default function Index() {
     );
 
     return (
-        <AuthenticatedLayout
-            header={
-                <div>
-                    <h2 className="text-xl font-normal text-slate-900 tracking-normal leading-none">Branches</h2>
-                    <p className="text-[10px] text-slate-400 font-normal uppercase tracking-normal mt-1.5">Manage all your company branches</p>
-                </div>
-            }
-        >
+        <AuthenticatedLayout>
             <Head title="Branches" />
 
             <div className="max-w-[1600px] mx-auto py-4 px-4 sm:px-6 lg:px-5 space-y-4">

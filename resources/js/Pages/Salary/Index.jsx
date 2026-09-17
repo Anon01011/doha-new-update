@@ -276,29 +276,29 @@ export default function Index({
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-base font-normal text-slate-800">Salary Records</h2>}>
+        <AuthenticatedLayout>
             <Head title="Salary Management" />
 
-            <div className="py-3 px-4 sm:px-6 lg:px-8 space-y-4">
+            <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div className="rounded-lg p-4 text-white shadow-md relative overflow-hidden group" style={{ backgroundColor: 'var(--secondary-color)' }}>
-                        <div className="absolute -right-3 -bottom-3 opacity-10 group-hover:scale-110 transition-transform">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                    <div className="rounded-xl p-3.5 sm:p-4 text-white shadow-md relative overflow-hidden group min-w-0" style={{ backgroundColor: 'var(--secondary-color)' }}>
+                        <div className="absolute -right-3 -bottom-3 opacity-10 group-hover:scale-110 transition-transform pointer-events-none">
                             <FaMoneyBillWave size={60} />
                         </div>
-                        <p className="text-[11px] font-normal text-slate-300 uppercase tracking-normal mb-1">Total Salary</p>
-                        <h3 className="text-xl font-normal text-white">
+                        <p className="text-[10px] sm:text-[11px] font-normal text-slate-300 uppercase tracking-normal mb-1 truncate">Total Salary</p>
+                        <h3 className="text-base sm:text-xl font-normal text-white truncate">
                             {formatCurrency(salaryPostings.data.reduce((acc, curr) => acc + parseFloat(curr.net_salary || 0), 0))}
                         </h3>
-                        <div className="mt-3">
-                            <span className="text-[10px] font-normal uppercase tracking-normal bg-white/10 px-2 py-0.5 rounded text-white/80">Live Data</span>
+                        <div className="mt-2.5 sm:mt-3">
+                            <span className="text-[9px] sm:text-[10px] font-normal uppercase tracking-normal bg-white/10 px-2 py-0.5 rounded text-white/80">Live Data</span>
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm">
-                        <p className="text-[11px] font-normal text-slate-400 uppercase tracking-normal mb-1">Total</p>
-                        <h3 className="text-xl font-normal text-slate-900">{salaryPostings.total} <span className="text-xs text-slate-400 font-normal">records</span></h3>
-                        <div className="mt-3 flex -space-x-1.5">
+                    <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200 shadow-sm min-w-0">
+                        <p className="text-[10px] sm:text-[11px] font-normal text-slate-400 uppercase tracking-normal mb-1 truncate">Total</p>
+                        <h3 className="text-base sm:text-xl font-normal text-slate-900 truncate">{salaryPostings.total} <span className="text-xs text-slate-400 font-normal">records</span></h3>
+                        <div className="mt-2.5 sm:mt-3 flex -space-x-1.5">
                             {salaryPostings.data.slice(0, 4).map((p, i) => (
                                 <div key={i} className="w-5 h-5 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-[8px] font-normal text-slate-600">
                                     {p.employee?.name?.charAt(0)}
@@ -307,19 +307,19 @@ export default function Index({
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm">
-                        <p className="text-[11px] font-normal text-slate-400 uppercase tracking-normal mb-1">Period</p>
-                        <h3 className="text-xl font-normal text-slate-900">
+                    <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200 shadow-sm min-w-0">
+                        <p className="text-[10px] sm:text-[11px] font-normal text-slate-400 uppercase tracking-normal mb-1 truncate">Period</p>
+                        <h3 className="text-base sm:text-xl font-normal text-slate-900 truncate">
                             {months.find(m => m.value == month)?.label || 'Period'}
                         </h3>
                         <p className="text-xs font-normal text-primary mt-1">{year}</p>
                     </div>
 
-                    <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm">
-                        <p className="text-[11px] font-normal text-slate-400 uppercase tracking-normal mb-1">Status</p>
+                    <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200 shadow-sm min-w-0">
+                        <p className="text-[10px] sm:text-[11px] font-normal text-slate-400 uppercase tracking-normal mb-1 truncate">Status</p>
                         <div className="flex items-center gap-2 mt-2">
                             <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                            <span className="text-sm font-normal text-slate-700">Active</span>
+                            <span className="text-xs sm:text-sm font-normal text-slate-700">Active</span>
                         </div>
                     </div>
                 </div>
@@ -335,73 +335,58 @@ export default function Index({
                                 className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 placeholder-slate-400 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 transition-all outline-none"
                             />
                         </div>
-                        <div className="relative">
-                            <select
-                                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all"
-                                value={month}
-                                onChange={(e) => router.get(route('salary-postings.index'), { month: e.target.value, year, company_id: companyId, department_id: departmentId, employee_id: employeeId }, { preserveState: true })}
-                            >
-                                {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                            </select>
-                            <FaChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={9} />
-                        </div>
-                        <div className="relative">
-                            <select
-                                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all"
-                                value={year}
-                                onChange={(e) => router.get(route('salary-postings.index'), { month, year: e.target.value, company_id: companyId, department_id: departmentId, employee_id: employeeId }, { preserveState: true })}
-                            >
-                                {years.map(y => <option key={y} value={y}>{y}</option>)}
-                            </select>
-                            <FaChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={9} />
-                        </div>
+                        <select
+                            className="bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all"
+                            value={month || ''}
+                            onChange={(e) => router.get(route('salary-postings.index'), { month: e.target.value, year, company_id: companyId, department_id: departmentId, employee_id: employeeId }, { preserveState: true })}
+                        >
+                            {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                        </select>
+                        <select
+                            className="bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all"
+                            value={year || ''}
+                            onChange={(e) => router.get(route('salary-postings.index'), { month, year: e.target.value, company_id: companyId, department_id: departmentId, employee_id: employeeId }, { preserveState: true })}
+                        >
+                            {years.map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
 
                         {/* Company Filter (Admin Only) */}
                         {companies.length > 0 && (
-                            <div className="relative">
-                                <select
-                                    className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all min-w-[130px]"
-                                    value={companyId}
-                                    onChange={(e) => router.get(route('salary-postings.index'), { month, year, company_id: e.target.value, department_id: '', employee_id: '' }, { preserveState: true })}
-                                >
-                                    <option value="">All Companies</option>
-                                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                                <FaChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={9} />
-                            </div>
+                            <select
+                                className="bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all min-w-[130px]"
+                                value={companyId || ''}
+                                onChange={(e) => router.get(route('salary-postings.index'), { month, year, company_id: e.target.value, department_id: '', employee_id: '' }, { preserveState: true })}
+                            >
+                                <option value="">All Companies</option>
+                                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
                         )}
 
                         {/* Department Filter */}
-                        <div className="relative">
-                            <select
-                                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all min-w-[130px]"
-                                value={departmentId}
-                                onChange={(e) => router.get(route('salary-postings.index'), { month, year, company_id: companyId, department_id: e.target.value, employee_id: '' }, { preserveState: true })}
-                            >
-                                <option value="">All Departments</option>
-                                {departments
-                                    .filter(d => !companyId || d.company_id == companyId)
-                                    .map(d => <option key={d.id} value={d.id}>{d.name}</option>)
-                                }
-                            </select>
-                            <FaChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={9} />
-                        </div>
+                        <select
+                            className="bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all min-w-[130px]"
+                            value={departmentId || ''}
+                            onChange={(e) => router.get(route('salary-postings.index'), { month, year, company_id: companyId, department_id: e.target.value, employee_id: '' }, { preserveState: true })}
+                        >
+                            <option value="">All Departments</option>
+                            {departments
+                                .filter(d => !companyId || d.company_id == companyId)
+                                .map(d => <option key={d.id} value={d.id}>{d.name}</option>)
+                            }
+                        </select>
 
                         {/* Employee Filter */}
-                        <div className="relative">
-                            <select
-                                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all min-w-[130px]"
-                                value={employeeId}
-                                onChange={(e) => router.get(route('salary-postings.index'), { month, year, company_id: companyId, department_id: departmentId, employee_id: e.target.value }, { preserveState: true })}
-                            >
-                                <option value="">All Employees</option>
-                                {employees
-                                    .filter(emp => (!companyId || emp.company_id == companyId) && (!departmentId || emp.department_id == departmentId))
-                                    .map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)
-                                }
-                            </select>
-                            <FaChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={9} />
-                        </div>
+                        <select
+                            className="bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-700 focus:ring-1 focus:ring-primary/30 focus:border-primary/40 cursor-pointer transition-all min-w-[130px]"
+                            value={employeeId || ''}
+                            onChange={(e) => router.get(route('salary-postings.index'), { month, year, company_id: companyId, department_id: departmentId, employee_id: e.target.value }, { preserveState: true })}
+                        >
+                            <option value="">All Employees</option>
+                            {employees
+                                .filter(emp => (!companyId || emp.company_id == companyId) && (!departmentId || emp.department_id == departmentId))
+                                .map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)
+                            }
+                        </select>
                     </div>
 
                     <div className="flex items-center gap-2 w-full md:w-auto">
@@ -414,6 +399,15 @@ export default function Index({
                         )}
                         {['admin', 'hr', 'manager'].includes(userRole) && (
                             <div className="flex gap-2 flex-wrap md:flex-nowrap">
+                                <a
+                                    href={`${route('reports.salary.export.excel')}?month=${month}&year=${year}${companyId ? `&company_id=${companyId}` : ''}${departmentId ? `&department_id=${departmentId}` : ''}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 text-white rounded-lg text-xs font-normal hover:bg-emerald-700 shadow shadow-emerald-600/20 transition-all active:scale-95 whitespace-nowrap"
+                                >
+                                    <FaFileInvoiceDollar size={11} />
+                                    Bank Payment File
+                                </a>
                                 <button
                                     onClick={() => setAutoUpdateModal(true)}
                                     className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-normal hover:brightness-110 shadow shadow-indigo-600/20 transition-all active:scale-95 whitespace-nowrap"

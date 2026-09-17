@@ -226,45 +226,8 @@ class DashboardController extends Controller
             ->take(5)
             ->get();
 
-        // Debug log
-        \Log::info('DashboardController@index debug', [
-            'totalEmployees' => $totalEmployees,
-            'totalCompanies' => $totalCompanies,
-            'totalShifts' => $totalShifts,
-            'totalAttendances' => $totalAttendances,
-            'recentEmployees' => $recentEmployees,
-            'recentShifts' => $recentShifts,
-            'recentAttendances' => $recentAttendances,
-            'companies' => $companies,
-            'totalUsers' => $totalUsers,
-            'recentUsers' => $recentUsers,
-            'userRoles' => $userRoles,
-            'systemSettings' => $systemSettings,
-            'attendanceTrends' => $attendanceTrends,
-            'activeEmployees' => $activeEmployeesCount,
-            'inactiveEmployees' => $inactiveEmployeesCount,
-        ]);
-
-        // TEMP: Return as JSON for debugging
-        if (request()->has('debug')) {
-            return response()->json([
-                'totalEmployees' => $totalEmployees,
-                'totalCompanies' => $totalCompanies,
-                'totalShifts' => $totalShifts,
-                'totalAttendances' => $totalAttendances,
-                'recentEmployees' => $recentEmployees,
-                'recentShifts' => $recentShifts,
-                'recentAttendances' => $recentAttendances,
-                'companies' => $companies,
-                'totalUsers' => $totalUsers,
-                'recentUsers' => $recentUsers,
-                'userRoles' => $userRoles,
-                'systemSettings' => $systemSettings,
-                'attendanceTrends' => $attendanceTrends,
-                'activeEmployees' => $activeEmployeesCount,
-                'inactiveEmployees' => $inactiveEmployeesCount,
-            ]);
-        }
+        // SECURITY: Removed unauthenticated ?debug JSON dump and verbose Log::info
+        // that exposed employee counts, company data, system settings, and user roles.
 
         return Inertia::render('Dashboard', [
             'totalEmployees' => $totalEmployees,

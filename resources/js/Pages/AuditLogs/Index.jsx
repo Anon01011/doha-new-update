@@ -27,7 +27,7 @@ export default function Index({ auditLogs, modelTypes, users, filters }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-gray-800">Audit Logs</h2>}>
+        <AuthenticatedLayout>
             <Head title="Audit Logs" />
 
             <div className="max-w-[1600px] mx-auto p-4 lg:p-5 space-y-4">

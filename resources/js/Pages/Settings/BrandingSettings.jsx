@@ -81,9 +81,7 @@ export default function BrandingSettings({ settings }) {
     };
 
     return (
-        <AuthenticatedLayout
-            header="Branding Settings"
-        >
+        <AuthenticatedLayout>
             <Head title="Branding Settings" />
 
             <div className="py-6">

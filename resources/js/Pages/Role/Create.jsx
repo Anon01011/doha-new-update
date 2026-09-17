@@ -35,7 +35,7 @@ export default function Create({ permissions }) {
     }, {}) || {};
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-sm font-normal text-slate-900 uppercase">Add Role</h2>}>
+        <AuthenticatedLayout>
             <Head title="Create New Role" />
 
             <div className="min-h-screen bg-slate-50/50 py-4">

@@ -42,6 +42,15 @@ class RolePermissionSeeder extends Seeder
             ]
         );
 
+        $financeRole = Role::updateOrCreate(
+            ['slug' => 'finance'],
+            [
+                'name' => 'Finance & Payroll Approver',
+                'description' => 'Finance, payroll review, approval, and accounting access',
+                'is_active' => true,
+            ]
+        );
+
         $employeeRole = Role::updateOrCreate(
             ['slug' => 'employee'],
             [
@@ -167,7 +176,13 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'View Expiring Documents', 'slug' => 'view-expiring-documents', 'module' => 'employee', 'description' => 'Can view expiring documents list'],
             ['name' => 'Manage Dropdowns', 'slug' => 'manage-dropdowns', 'module' => 'settings', 'description' => 'Can manage dropdown configurations'],
             ['name' => 'View Branches', 'slug' => 'view-branches', 'module' => 'company', 'description' => 'Can view branches list'],
-            ['name' => 'View Departments', 'slug' => 'view-departments', 'module' => 'company', 'description' => 'Can view departments list'],
+            // Expense Module
+            ['name' => 'View Expenses', 'slug' => 'view-expenses', 'module' => 'expense', 'description' => 'Can view expense claims'],
+            ['name' => 'Create Expenses', 'slug' => 'create-expenses', 'module' => 'expense', 'description' => 'Can create and submit expense claims'],
+            ['name' => 'Approve Expenses (Manager)', 'slug' => 'approve-expenses-manager', 'module' => 'expense', 'description' => 'Can verify and approve expense claims as manager'],
+            ['name' => 'Approve Expenses (Finance)', 'slug' => 'approve-expenses-finance', 'module' => 'expense', 'description' => 'Can review, approve tax coding, and process payments as finance'],
+            ['name' => 'Manage Expense Categories', 'slug' => 'manage-expense-categories', 'module' => 'expense', 'description' => 'Can manage expense categories and policy limits'],
+            ['name' => 'View Expense Reports', 'slug' => 'view-expense-reports', 'module' => 'report', 'description' => 'Can view expense analytics and reports'],
         ];
 
         $permissionModels = [];
@@ -223,9 +238,37 @@ class RolePermissionSeeder extends Seeder
                 'view-branches',
                 'view-departments',
                 'view-warning-letters',
+                'view-expenses',
+                'create-expenses',
+                'approve-expenses-manager',
+                'view-expense-reports',
             ]);
         })->pluck('id')->toArray();
         $managerRole->assignPermissions($managerPermissions);
+
+        // Assign Finance permissions
+        $financePermissions = collect($permissionModels)->filter(function ($p) {
+            return in_array($p->module, ['salary', 'loan', 'report', 'expense']) ||
+                in_array($p->slug, [
+                    'view-employees',
+                    'view-attendance',
+                    'view-leave-requests',
+                    'view-salary-postings',
+                    'approve-salary-postings',
+                    'view-salary-reports',
+                    'view-loan-reports',
+                    'view-attendance-reports',
+                    'view-leave-reports',
+                    'view-reports',
+                    'manage-salary-components',
+                    'view-expenses',
+                    'create-expenses',
+                    'approve-expenses-finance',
+                    'manage-expense-categories',
+                    'view-expense-reports',
+                ]);
+        })->pluck('id')->toArray();
+        $financeRole->assignPermissions($financePermissions);
 
         // Assign Employee permissions (limited)
         $employeePermissions = collect($permissionModels)->filter(function ($p) {
@@ -250,6 +293,8 @@ class RolePermissionSeeder extends Seeder
                 'view-projects',
                 'view-documents',
                 'view-warning-letters',
+                'view-expenses', // Only their own
+                'create-expenses',
             ]);
         })->pluck('id')->toArray();
         $employeeRole->assignPermissions($employeePermissions);
@@ -266,6 +311,25 @@ class RolePermissionSeeder extends Seeder
             }
         });
 
-        $this->command->info('Roles and permissions seeded successfully!');
+        // Seed default expense categories in INR
+        $defaultCategories = [
+            ['name' => 'Travel & Commute', 'code' => 'EXP-TRV', 'policy_limit_amount' => 5000.00, 'requires_receipt' => true, 'is_tax_deductible' => true, 'description' => 'Outstation travel, train/bus/flight bookings for Company business'],
+            ['name' => 'Accommodation', 'code' => 'EXP-HOTEL', 'policy_limit_amount' => 3500.00, 'requires_receipt' => true, 'is_tax_deductible' => true, 'description' => 'Hotel and guest house stays for training or new branch setups'],
+            ['name' => 'Meals & Per Diem', 'code' => 'EXP-MEAL', 'policy_limit_amount' => 1000.00, 'requires_receipt' => true, 'is_tax_deductible' => false, 'description' => 'Meals during official duty or late shifts'],
+            ['name' => 'Local Conveyance & Auto/Cab', 'code' => 'EXP-CAB', 'policy_limit_amount' => 1500.00, 'requires_receipt' => true, 'is_tax_deductible' => false, 'description' => 'City travel for vendor visits, bank runs, or branch errands'],
+            ['name' => 'Fuel & Mileage', 'code' => 'EXP-FUEL', 'policy_limit_amount' => 2000.00, 'requires_receipt' => true, 'is_tax_deductible' => true, 'description' => 'Vehicle fuel allowance for operational travel'],
+            ['name' => 'Telephone & Mobile Bills', 'code' => 'EXP-TEL', 'policy_limit_amount' => 800.00, 'requires_receipt' => true, 'is_tax_deductible' => true, 'description' => 'Official mobile and broadband reimbursements'],
+            ['name' => 'Client Meetings & Hospitality', 'code' => 'EXP-CLIENT', 'policy_limit_amount' => 2500.00, 'requires_receipt' => true, 'is_tax_deductible' => false, 'description' => 'Client consultations, VIP guest hospitality, refreshments'],
+            ['name' => 'Company Consumables & Emergency Supplies', 'code' => 'EXP-SUPPLY', 'policy_limit_amount' => 5000.00, 'requires_receipt' => true, 'is_tax_deductible' => true, 'description' => 'Urgent beauty products, cleaning supplies, and Company utility purchases'],
+        ];
+
+        foreach ($defaultCategories as $cat) {
+            \App\Models\ExpenseCategory::firstOrCreate(
+                ['code' => $cat['code']],
+                $cat
+            );
+        }
+
+        $this->command->info('Roles, permissions, and expense categories seeded successfully!');
     }
 }

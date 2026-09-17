@@ -55,40 +55,40 @@ export default function Index({ trainings, status, userRole = 'employee', search
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Trainings</h2>}>
+        <AuthenticatedLayout>
             <Head title="Trainings" />
 
-            <div className="p-4 space-y-4 bg-slate-50 min-h-screen">
+            <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 bg-slate-50 min-h-screen">
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-3 text-primary opacity-5">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                    <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
+                        <div className="absolute top-0 right-0 p-3 text-primary opacity-5 pointer-events-none">
                             <FaGraduationCap size={40} />
                         </div>
-                        <p className="text-xs font-normal text-slate-400 mb-1">Total Trainings</p>
-                        <h3 className="text-2xl font-normal text-slate-900">{trainings?.total || 0}</h3>
+                        <p className="text-[10px] sm:text-xs font-normal text-slate-400 mb-0.5 sm:mb-1 truncate">Total Trainings</p>
+                        <h3 className="text-lg sm:text-2xl font-normal text-slate-900 truncate">{trainings?.total || 0}</h3>
                     </div>
-                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-3 text-amber-500 opacity-5">
+                    <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden min-w-0">
+                        <div className="absolute top-0 right-0 p-3 text-amber-500 opacity-5 pointer-events-none">
                             <FaHourglassHalf size={40} />
                         </div>
-                        <p className="text-xs font-normal text-slate-400 mb-1">Active Sessions</p>
-                        <h3 className="text-2xl font-normal text-slate-900">
+                        <p className="text-[10px] sm:text-xs font-normal text-slate-400 mb-0.5 sm:mb-1 truncate">Active Sessions</p>
+                        <h3 className="text-lg sm:text-2xl font-normal text-slate-900 truncate">
                             {trainings?.data?.filter(t => t.status === 'ongoing').length || 0}
                         </h3>
                     </div>
-                    <div className="bg-slate-900 p-4 rounded-lg shadow-sm relative overflow-hidden md:col-span-2 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs font-normal text-slate-400 mb-1">Training Overview</p>
-                            <h3 className="text-lg font-normal text-white">Competency & Skills</h3>
+                    <div className="bg-slate-900 p-3.5 sm:p-4 rounded-xl shadow-sm relative overflow-hidden col-span-2 flex items-center justify-between min-w-0">
+                        <div className="min-w-0">
+                            <p className="text-[10px] sm:text-xs font-normal text-slate-400 mb-0.5 sm:mb-1 truncate">Training Overview</p>
+                            <h3 className="text-sm sm:text-lg font-normal text-white truncate">Competency & Skills</h3>
                         </div>
-                        <FaMedal size={40} className="text-white opacity-10" />
+                        <FaMedal size={40} className="text-white opacity-10 shrink-0" />
                     </div>
                 </div>
 
                 {/* Search & Filter Bar */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded overflow-x-auto no-scrollbar">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg overflow-x-auto no-scrollbar">
                         <StatusTab label="All" value="" />
                         <StatusTab label="Scheduled" value="scheduled" />
                         <StatusTab label="Ongoing" value="ongoing" />
@@ -101,7 +101,7 @@ export default function Index({ trainings, status, userRole = 'employee', search
                             <input
                                 type="text"
                                 placeholder="Search trainings..."
-                                className="w-full sm:w-56 pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-primary transition-all outline-none"
+                                className="w-full sm:w-56 pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs sm:text-sm focus:bg-white focus:border-primary transition-all outline-none"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
@@ -110,7 +110,7 @@ export default function Index({ trainings, status, userRole = 'employee', search
                         {userRole !== 'employee' && (
                             <Link
                                 href={route('trainings.create')}
-                                className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-normal hover:brightness-110 transition-all flex items-center gap-2 whitespace-nowrap"
+                                className="px-3.5 sm:px-4 py-2 bg-primary text-white rounded-lg text-xs sm:text-sm font-normal hover:brightness-110 transition-all flex items-center justify-center gap-2 whitespace-nowrap"
                             >
                                 <FaPlus size={11} />
                                 Add Training
@@ -121,7 +121,7 @@ export default function Index({ trainings, status, userRole = 'employee', search
 
                 {/* Training Cards */}
                 {trainings?.data && trainings.data.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                         {trainings.data.map((training) => {
                             const statusStyle = getStatusStyles(training.status);
                             return (

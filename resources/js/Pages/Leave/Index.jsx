@@ -1,8 +1,11 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
-import { FaPlus, FaSearch, FaHistory, FaCalendarCheck, FaCalendarAlt, FaUser, FaInfoCircle, FaEdit, FaTrash, FaEye } from 'react-icons/fa';
+import { FaPlus, FaSearch, FaHistory, FaCalendarCheck, FaCalendarAlt, FaUser, FaInfoCircle, FaEdit, FaTrash, FaEye, FaTimesCircle } from 'react-icons/fa';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import Modal from '@/Components/Modal';
+import SecondaryButton from '@/Components/SecondaryButton';
+import DangerButton from '@/Components/DangerButton';
 import Avatar from '@/Components/Avatar';
 
 export default function Index({ leaveRequests, leaveBalances, status, userRole = 'employee', search: initialSearch = '' }) {
@@ -15,6 +18,7 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
     const [requestAction, setRequestAction] = useState({ type: null, request: null });
     const [processing, setProcessing] = useState(false);
     const [selectedIds, setSelectedIds] = useState([]);
+    const [bulkRejectModal, setBulkRejectModal] = useState({ show: false, reason: '', error: '' });
 
     const canUserApprove = (request) => {
         if (request.status === 'approved' || request.status === 'rejected' || request.status === 'cancelled') {
@@ -70,21 +74,23 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
 
     const handleBulkReject = () => {
         if (selectedIds.length === 0) return;
+        setBulkRejectModal({ show: true, reason: '', error: '' });
+    };
 
-        const reason = window.prompt("Enter rejection reason for selected leave request(s):");
-        if (reason === null) return; // User cancelled
-        if (!reason.trim()) {
-            alert("Rejection reason is required.");
+    const confirmBulkReject = () => {
+        if (!bulkRejectModal.reason.trim()) {
+            setBulkRejectModal(prev => ({ ...prev, error: 'Rejection reason is required.' }));
             return;
         }
 
         setProcessing(true);
         router.post(route('leave-requests.bulk-reject'), {
             ids: selectedIds,
-            rejection_reason: reason
+            rejection_reason: bulkRejectModal.reason.trim()
         }, {
             onSuccess: () => {
                 setSelectedIds([]);
+                setBulkRejectModal({ show: false, reason: '', error: '' });
             },
             onFinish: () => {
                 setProcessing(false);
@@ -153,23 +159,23 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Leave List</h2>}>
+        <AuthenticatedLayout>
             <Head title="Leave Management" />
 
-            <div className="py-4 px-4 sm:px-6 lg:px-8 space-y-6">
+            <div className="w-full p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
                 {/* Balances */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                     {leaveBalances && Object.entries(leaveBalances).map(([type, balance]) => (
-                        <div key={type} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <FaCalendarCheck size={14} />
+                        <div key={type} className="bg-white p-3.5 sm:p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group min-w-0">
+                            <div className="flex items-center justify-between mb-2 sm:mb-3">
+                                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
+                                    <FaCalendarCheck size={13} />
                                 </div>
-                                <span className="text-[10px] font-normal text-slate-400">{type}</span>
+                                <span className="text-[10px] font-normal text-slate-400 truncate ml-2">{type}</span>
                             </div>
-                            <div className="flex items-end justify-between">
-                                <div className="text-2xl font-normal text-slate-900 tracking-normal leading-none">{balance}</div>
-                                <div className="text-[8px] font-normal text-slate-400 mb-1">Days Available</div>
+                            <div className="flex items-end justify-between min-w-0">
+                                <div className="text-xl sm:text-2xl font-normal text-slate-900 tracking-normal leading-none truncate">{balance}</div>
+                                <div className="text-[8px] sm:text-[9px] font-normal text-slate-400 mb-0.5 whitespace-nowrap">Available</div>
                             </div>
                         </div>
                     ))}
@@ -182,26 +188,26 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
                 </div>
 
                 {/* Filters */}
-                <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-4 w-full md:w-auto">
-                        <form onSubmit={handleSearch} className="relative flex-1 md:flex-none">
-                            <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                        <form onSubmit={handleSearch} className="relative flex-1 sm:flex-none">
+                            <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
                             <input
                                 type="text"
                                 placeholder="Search..."
-                                className="w-full md:w-64 pl-10 pr-4 py-2.5 bg-slate-50 border-slate-200 rounded-xl text-[11px] font-normal focus:ring-0 focus:border-slate-300 transition-all outline-none"
+                                className="w-full sm:w-56 pl-9 pr-4 py-2 bg-slate-50 border-slate-200 rounded-xl text-[11px] font-normal focus:ring-0 focus:border-slate-300 transition-all outline-none"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </form>
-                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
+                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200 overflow-x-auto no-scrollbar">
                             {['all', 'pending', 'approved', 'rejected'].map((tab) => (
                                 <Link
                                     key={tab}
                                     href={route('leave-requests.index', { status: tab === 'all' ? '' : tab })}
-                                    className={`px-4 py-1.5 rounded-xl text-[9px] font-normal transition-all ${
+                                    className={`px-3 sm:px-4 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-normal transition-all whitespace-nowrap ${
                                         (status === tab || (tab === 'all' && !status)) 
-                                        ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' 
+                                        ? 'bg-slate-900 text-white shadow-md' 
                                         : 'text-slate-400 hover:text-slate-600'
                                     }`}
                                 >
@@ -213,41 +219,41 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
 
                     <Link
                         href={route('leave-requests.create')}
-                        className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-normal hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all active:scale-95"
+                        className="w-full md:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-normal hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all active:scale-95 whitespace-nowrap"
                     >
                         <FaPlus size={10} />
-                        Add Leave
+                        <span>Add Leave</span>
                     </Link>
                 </div>
 
                 {/* Bulk Action Bar */}
                 {selectedIds.length > 0 && (
-                    <div className="flex items-center justify-between bg-slate-50 border border-slate-200 p-4 rounded-xl shadow-sm animate-fadeIn">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50 border border-slate-200 p-3.5 sm:p-4 rounded-xl shadow-sm animate-fadeIn">
                         <div className="text-[11px] font-normal text-slate-600">
                             Selected <span className="font-semibold text-slate-900">{selectedIds.length}</span> request(s) for bulk action.
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                             <button
                                 onClick={() => setSelectedIds([])}
-                                className="px-4 py-2 bg-white border border-slate-200 text-slate-500 rounded-xl text-[10px] font-normal hover:bg-slate-50 transition-all"
+                                className="flex-1 sm:flex-initial px-3.5 py-2 bg-white border border-slate-200 text-slate-500 rounded-xl text-[10px] font-normal hover:bg-slate-50 transition-all"
                             >
                                 Clear Selection
                             </button>
                              <button
                                 onClick={handleBulkReject}
                                 disabled={processing}
-                                className="px-5 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-normal hover:bg-rose-700 shadow-lg shadow-rose-100 transition-all flex items-center gap-2 disabled:opacity-50"
+                                className="flex-1 sm:flex-initial px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-normal hover:bg-rose-700 shadow-lg shadow-rose-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                             >
                                 <FaTrash size={10} />
-                                Reject Selected
+                                Reject
                             </button>
                             <button
                                 onClick={handleBulkApprove}
                                 disabled={processing}
-                                className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-normal hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all flex items-center gap-2 disabled:opacity-50"
+                                className="flex-1 sm:flex-initial px-4 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-normal hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                             >
                                 <FaCalendarCheck size={12} />
-                                Approve Selected
+                                Approve
                             </button>
                         </div>
                     </div>
@@ -410,6 +416,53 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
                 type="danger"
                 processing={processing}
             />
+
+            <Modal
+                show={bulkRejectModal.show}
+                onClose={() => setBulkRejectModal({ show: false, reason: '', error: '' })}
+                maxWidth="md"
+            >
+                <div className="p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 rounded-full bg-rose-50 text-rose-600">
+                            <FaTimesCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-normal text-slate-900">Reject Selected Requests</h3>
+                            <p className="text-xs text-slate-500">Provide a reason for rejecting {selectedIds.length} leave application(s)</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="block text-xs font-normal text-slate-700">Rejection Reason <span className="text-rose-500">*</span></label>
+                        <textarea
+                            value={bulkRejectModal.reason}
+                            onChange={(e) => setBulkRejectModal(prev => ({ ...prev, reason: e.target.value, error: '' }))}
+                            rows={3}
+                            placeholder="State the reason for rejecting these applications..."
+                            className="w-full text-xs rounded-xl border-slate-200 focus:border-slate-400 focus:ring-0"
+                        />
+                        {bulkRejectModal.error && (
+                            <p className="text-[11px] text-rose-600 font-normal">{bulkRejectModal.error}</p>
+                        )}
+                    </div>
+
+                    <div className="mt-6 flex justify-end gap-2">
+                        <SecondaryButton
+                            onClick={() => setBulkRejectModal({ show: false, reason: '', error: '' })}
+                            disabled={processing}
+                        >
+                            Cancel
+                        </SecondaryButton>
+                        <DangerButton
+                            onClick={confirmBulkReject}
+                            disabled={processing}
+                        >
+                            {processing ? 'Processing...' : 'Confirm Rejection'}
+                        </DangerButton>
+                    </div>
+                </div>
+            </Modal>
         </AuthenticatedLayout>
     );
 }

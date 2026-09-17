@@ -49,6 +49,20 @@ class PayrollService
             }
         }
 
+        // Include Approved Expense Reimbursements marked for payroll (Step 31)
+        if (class_exists(\App\Models\ExpenseClaim::class)) {
+            $approvedExpensesTotal = (float) \App\Models\ExpenseClaim::where('employee_id', $employeeId)
+                ->where('status', 'finance_approved')
+                ->where('reimbursement_method', 'payroll')
+                ->where('reimbursement_status', 'pending')
+                ->where('expense_date', '<=', $endDate->toDateString())
+                ->sum('amount');
+
+            if ($approvedExpensesTotal > 0) {
+                $allowances['Expense Reimbursements'] = ($allowances['Expense Reimbursements'] ?? 0) + $approvedExpensesTotal;
+            }
+        }
+
         // 3. Count Weekly Off Days for this employee in this month
         $weeklyOffDaysCount = $this->weeklyOffService->countWeeklyOffDaysInRange(
             $employee, $startDate, $endDate

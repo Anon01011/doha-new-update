@@ -36,31 +36,7 @@ export default function Show({ warningLetter, userRole }) {
     const style = getTypeStyles(warningLetter.type);
 
     return (
-        <AuthenticatedLayout
-            header={
-                <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                        <Link
-                            href={route('warning-letters.index')}
-                            className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 group"
-                        >
-                            <FiArrowLeft className="w-5 h-5 group-hover:text-slate-600" />
-                        </Link>
-                        <h2 className="text-lg font-normal text-slate-800 tracking-normal flex items-center gap-2">
-                            <span className="w-1 h-4 bg-rose-500 rounded-full"></span>
-                            Document #{warningLetter.id.toString().padStart(5, '0')}
-                        </h2>
-                    </div>
-                    <button
-                        onClick={() => window.print()}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-normal text-slate-600 hover:bg-slate-50 transition-all active:scale-95"
-                    >
-                        <FiPrinter className="w-4 h-4" />
-                        Print Notice
-                    </button>
-                </div>
-            }
-        >
+        <AuthenticatedLayout>
             <Head title={`Warning: ${warningLetter.subject}`} />
 
             <div className="max-w-full mx-auto py-4">

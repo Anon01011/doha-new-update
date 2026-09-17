@@ -35,21 +35,23 @@ class TestEmployeesSeeder extends Seeder
 
         // Create 5 dummy employees for Department 1
         for ($i = 1; $i <= 5; $i++) {
-            Employee::create([
-                'name' => 'Test Employee ' . $i,
-                'first_name' => 'Test',
-                'last_name' => 'Employee ' . $i,
-                'employee_code' => 'EMP00' . $i,
-                'email' => 'test' . $i . '@example.com',
-                'department_id' => $department->id,
-                'company_id' => $company->id,
-                'designation' => 'Software Engineer',
-                'mobile' => '123456789' . $i,
-                'nationality' => 'Qatari',
-                'joining_date' => now(),
-                'status' => 'active',
-                'manual_status' => 'active',
-            ]);
+            Employee::updateOrCreate(
+                ['employee_code' => 'TEST-EMP00' . $i],
+                [
+                    'name' => 'Test Employee ' . $i,
+                    'email' => 'test' . $i . '@example.com',
+                    'gender' => $i % 2 === 0 ? 'Female' : 'Male',
+                    'department_id' => $department->id,
+                    'company_id' => $company->id,
+                    'designation' => 'Company Specialist',
+                    'mobile' => '987654321' . $i,
+                    'nationality' => 'Indian',
+                    'joined_date' => now()->subMonths(12 - $i),
+                    'basic_salary' => 25000 + ($i * 2000),
+                    'manual_status' => 'active',
+                    'payment_type' => 'Bank Transfer',
+                ]
+            );
         }
     }
 }

@@ -25,7 +25,7 @@ export default function Index({ leaveTypes }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Leave Types</h2>}>
+        <AuthenticatedLayout>
             <Head title="Leave Policy Management" />
 
             <div className="py-4 px-3 sm:px-4 lg:px-6 space-y-4">

@@ -62,7 +62,7 @@ class SalaryComponentController extends Controller
             'value_type' => 'required|in:flat,percentage',
             'is_taxable' => 'boolean',
             'default_amount' => 'nullable|numeric|min:0',
-            'description' => 'nullable|string',
+            'description' => 'nullable|string|max:1000',
             'is_active' => 'boolean',
         ]);
 
@@ -114,7 +114,7 @@ class SalaryComponentController extends Controller
             'value_type' => 'required|in:flat,percentage',
             'is_taxable' => 'boolean',
             'default_amount' => 'nullable|numeric|min:0',
-            'description' => 'nullable|string',
+            'description' => 'nullable|string|max:1000',
             'is_active' => 'boolean',
         ]);
 

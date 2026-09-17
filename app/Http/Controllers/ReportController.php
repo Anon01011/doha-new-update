@@ -12,6 +12,12 @@ use App\Models\Training;
 use App\Models\Task;
 use App\Models\Grievance;
 use App\Models\EmployeeEvaluation;
+use App\Models\Department;
+use App\Models\ExpenseClaim;
+use App\Models\ExpenseCategory;
+use App\Models\OffboardingRequest;
+use App\Models\OffboardingTask;
+use App\Models\Company;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Carbon\Carbon;
@@ -22,7 +28,6 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use App\Models\Setting;
-use App\Models\Company;
 use App\Services\WeeklyOffService;
 
 class ReportController extends Controller
@@ -68,32 +73,32 @@ class ReportController extends Controller
 
         // Calculate summary (including weekly off)
         $summary = [
-            'total_days'      => $attendances->count(),
-            'present'         => $attendances->whereIn('attendance', ['Present', 'Late'])->count(),
-            'absent'          => $attendances->where('attendance', 'Absent')->count(),
-            'leave'           => $attendances->whereIn('attendance', ['Leave', 'Sick Leave', 'Annual Leave'])->count(),
-            'weekly_off'      => $attendances->where('attendance', 'Weekly Off')->count(),
-            'half_day'        => $attendances->where('attendance', 'Half Day')->count(),
-            'total_hours'     => $attendances->sum('hours_worked'),
-            'total_ot_hours'  => $attendances->sum('ot'),
+            'total_days' => $attendances->count(),
+            'present' => $attendances->whereIn('attendance', ['Present', 'Late'])->count(),
+            'absent' => $attendances->where('attendance', 'Absent')->count(),
+            'leave' => $attendances->whereIn('attendance', ['Leave', 'Sick Leave', 'Annual Leave'])->count(),
+            'weekly_off' => $attendances->where('attendance', 'Weekly Off')->count(),
+            'half_day' => $attendances->where('attendance', 'Half Day')->count(),
+            'total_hours' => $attendances->sum('hours_worked'),
+            'total_ot_hours' => $attendances->sum('ot'),
             'total_ot_amount' => $attendances->sum('ot_amt'),
         ];
 
         return Inertia::render('Reports/Attendance', [
             'attendances' => $attendances,
-            'summary'     => $summary,
-            'startDate'   => $startDate,
-            'endDate'     => $endDate,
-            'companyId'   => $companyId,
-            'employeeId'  => $employeeId,
-            'companies'   => $user->isAdmin() ? Company::orderBy('name')->get(['id', 'name']) : [],
-            'employees'   => !empty($companyIds) 
-                ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id']) 
-                : ($user->isAdmin() 
-                    ? [] 
+            'summary' => $summary,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'companyId' => $companyId,
+            'employeeId' => $employeeId,
+            'companies' => $user->isAdmin() ? Company::orderBy('name')->get(['id', 'name']) : [],
+            'employees' => !empty($companyIds)
+                ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id'])
+                : ($user->isAdmin()
+                    ? []
                     : Employee::where('company_id', $user->employee->company_id)->orderBy('name')->get(['id', 'name', 'company_id'])
                 ),
-            'settings'    => [
+            'settings' => [
                 'standard_working_hours' => Setting::get('standard_working_hours', 9, !empty($companyIds) ? reset($companyIds) : null)
             ],
         ]);
@@ -219,10 +224,10 @@ class ReportController extends Controller
         ];
 
         $departments = !empty($companyIds)
-            ? \App\Models\Department::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id'])
+            ? Department::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id'])
             : ($user->role === 'admin'
-                ? \App\Models\Department::orderBy('name')->get(['id', 'name', 'company_id'])
-                : \App\Models\Department::where('company_id', $user->employee->company_id)->orderBy('name')->get(['id', 'name', 'company_id'])
+                ? Department::orderBy('name')->get(['id', 'name', 'company_id'])
+                : Department::where('company_id', $user->employee->company_id)->orderBy('name')->get(['id', 'name', 'company_id'])
             );
 
         return Inertia::render('Reports/Salary', [
@@ -235,10 +240,10 @@ class ReportController extends Controller
             'employeeId' => $employeeId,
             'companies' => $user->role === 'admin' ? Company::orderBy('name')->get(['id', 'name']) : [],
             'departments' => $departments,
-            'employees' => !empty($companyIds) 
-                ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id']) 
-                : ($user->role === 'admin' 
-                    ? [] 
+            'employees' => !empty($companyIds)
+                ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id'])
+                : ($user->role === 'admin'
+                    ? []
                     : Employee::where('company_id', $user->employee->company_id)->orderBy('name')->get(['id', 'name', 'company_id'])
                 ),
         ]);
@@ -307,10 +312,10 @@ class ReportController extends Controller
             'companyId' => $companyId,
             'employeeId' => $employeeId,
             'companies' => $user->role === 'admin' ? Company::orderBy('name')->get(['id', 'name']) : [],
-            'employees' => !empty($companyIds) 
-                ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id']) 
-                : ($user->role === 'admin' 
-                    ? [] 
+            'employees' => !empty($companyIds)
+                ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id'])
+                : ($user->role === 'admin'
+                    ? []
                     : Employee::where('company_id', $user->employee->company_id)->orderBy('name')->get(['id', 'name', 'company_id'])
                 ),
         ]);
@@ -434,67 +439,7 @@ class ReportController extends Controller
         ]);
     }
 
-    public function evaluation(Request $request)
-    {
-        $month = $request->query('month', now()->month);
-        $year = $request->query('year', now()->year);
-        $companyId = $request->query('company_id');
 
-        $user = auth()->user();
-        $query = EmployeeEvaluation::with(['employee', 'evaluator'])
-            ->where('month', $month)
-            ->where('year', $year);
-
-        if ($user->role !== 'admin' && $user->employee_id) {
-            $companyId = $user->employee->company_id;
-            $query->whereHas('employee', function ($q) use ($companyId) {
-                $q->where('company_id', $companyId);
-            });
-        } elseif (!empty($companyId) && $user->role === 'admin') {
-            $companyIds = is_array($companyId) ? $companyId : explode(',', $companyId);
-            $companyIds = array_filter($companyIds);
-            if (!empty($companyIds)) {
-                $query->whereHas('employee', function ($q) use ($companyIds) {
-                    $q->whereIn('company_id', $companyIds);
-                });
-            }
-        }
-
-        $evaluations = $query->orderBy('overall_score', 'desc')->get();
-
-        $summary = [
-            'total_evaluations' => $evaluations->count(),
-            'avg_score' => $evaluations->avg('overall_score') ?: 0,
-            'top_performers' => $evaluations->where('overall_score', '>=', 80)->count(), // Changed to 80% scale
-            'low_performers' => $evaluations->where('overall_score', '<', 50)->count(),  // Changed to 50% scale
-            'dept_averages' => $evaluations->groupBy('employee.department.name')->map(function ($items) {
-                return $items->avg('overall_score');
-            })->toArray()
-        ];
-
-        return Inertia::render('Reports/Evaluation', [
-            'evaluations' => $evaluations->map(function($ev) {
-                return [
-                    'id' => $ev->id,
-                    'overall_score' => $ev->overall_score,
-                    'criteria_scores' => $ev->criteria_scores,
-                    'comments' => $ev->comments,
-                    'created_at' => $ev->created_at,
-                    'employee' => $ev->employee ? [
-                        'name' => $ev->employee->name,
-                        'employee_code' => $ev->employee->employee_code,
-                        'department' => $ev->employee->department ? $ev->employee->department->name : 'N/A'
-                    ] : null,
-                    'evaluator' => $ev->evaluator ? ['name' => $ev->evaluator->name] : null
-                ];
-            }),
-            'summary' => $summary,
-            'month' => (int)$month,
-            'year' => (int)$year,
-            'companyId' => $companyId,
-            'companies' => $user->role === 'admin' ? Company::orderBy('name')->get(['id', 'name']) : [],
-        ]);
-    }
 
     public function advance(Request $request)
     {
@@ -512,7 +457,9 @@ class ReportController extends Controller
             });
         }
 
-        if ($status) { $query->where('status', $status); }
+        if ($status) {
+            $query->where('status', $status);
+        }
 
         $advances = $query->latest()->get();
 
@@ -571,16 +518,16 @@ class ReportController extends Controller
         }
 
         $attendances = $query->orderBy('date')->get();
-        
+
         $summary = [
-            'total_days'      => $attendances->count(),
-            'present'         => $attendances->whereIn('attendance', ['Present', 'Late'])->count(),
-            'absent'          => $attendances->where('attendance', 'Absent')->count(),
-            'leave'           => $attendances->whereIn('attendance', ['Leave', 'Sick Leave', 'Annual Leave'])->count(),
-            'weekly_off'      => $attendances->where('attendance', 'Weekly Off')->count(),
-            'half_day'        => $attendances->where('attendance', 'Half Day')->count(),
-            'total_hours'     => $attendances->sum('hours_worked'),
-            'total_ot_hours'  => $attendances->sum('ot'),
+            'total_days' => $attendances->count(),
+            'present' => $attendances->whereIn('attendance', ['Present', 'Late'])->count(),
+            'absent' => $attendances->where('attendance', 'Absent')->count(),
+            'leave' => $attendances->whereIn('attendance', ['Leave', 'Sick Leave', 'Annual Leave'])->count(),
+            'weekly_off' => $attendances->where('attendance', 'Weekly Off')->count(),
+            'half_day' => $attendances->where('attendance', 'Half Day')->count(),
+            'total_hours' => $attendances->sum('hours_worked'),
+            'total_ot_hours' => $attendances->sum('ot'),
             'total_ot_amount' => $attendances->sum('ot_amt'),
         ];
 
@@ -721,7 +668,7 @@ class ReportController extends Controller
 
             $start = Carbon::parse($startDate);
             $end = Carbon::parse($endDate);
-            
+
             $dates = [];
             for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
                 $dates[] = $date->toDateString();
@@ -732,7 +679,7 @@ class ReportController extends Controller
             // ----------------------------------------------------
             $sheet1 = $spreadsheet->getActiveSheet();
             $sheet1->setTitle('Attendance Detail Report');
-            
+
             $headers1 = [
                 'Date',
                 'Day',
@@ -751,7 +698,7 @@ class ReportController extends Controller
                 'incomplete h',
                 'Status'
             ];
-            
+
             foreach ($headers1 as $key => $header) {
                 $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
                 $sheet1->setCellValue($colLetter . '1', $header);
@@ -872,7 +819,7 @@ class ReportController extends Controller
             $lastRow1 = $row1 - 1;
             $totalCols1 = count($headers1);
             $lastColLetter1 = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalCols1);
-            
+
             $sheet1->getStyle('A1:' . $lastColLetter1 . '1')->applyFromArray([
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 10],
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1E293B']],
@@ -947,7 +894,7 @@ class ReportController extends Controller
                 $totalOvertime = 0;
                 $totalIncompleteHours = 0;
                 $totalBreakHours = 0;
-                
+
                 $presentDays = 0;
                 $absentDays = 0;
                 $paidLeaveDays = 0;
@@ -958,7 +905,7 @@ class ReportController extends Controller
                 foreach ($dates as $dateStr) {
                     $cellVal = '';
                     $stdHours = Setting::get('standard_working_hours', 9, $emp->company_id);
-                    
+
                     $attendance = $attendanceMap[$emp->id][$dateStr] ?? null;
                     if ($attendance) {
                         $stdHours = $attendance->normal_hours ?: $stdHours;
@@ -1023,7 +970,7 @@ class ReportController extends Controller
 
                     $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
                     $sheet2->setCellValue($colLetter . $row2, $cellVal);
-                    
+
                     if ($cellVal === 'WO') {
                         $sheet2->getStyle($colLetter . $row2)->applyFromArray([
                             'font' => ['color' => ['rgb' => '475569'], 'bold' => true],
@@ -1040,7 +987,7 @@ class ReportController extends Controller
                             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FEE2E2']]
                         ]);
                     }
-                    
+
                     $colIdx++;
                 }
 
@@ -1086,13 +1033,13 @@ class ReportController extends Controller
                         ]);
                     }
                 }
-                
+
                 $sheet2->getStyle('A2:A' . $lastRow2)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet2->getStyle('B2:D' . $lastRow2)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 $startSumCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(5);
                 $sheet2->getStyle($startSumCol . '2:' . $lastColLetter2 . $lastRow2)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             }
-            
+
             for ($i = 1; $i <= $totalCols2; $i++) {
                 $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
                 $sheet2->getColumnDimension($colLetter)->setAutoSize(true);
@@ -1278,9 +1225,9 @@ class ReportController extends Controller
 
         $writer = new Xlsx($spreadsheet);
         $fileName = 'attendance_report_' . now()->format('YmdHis') . '.xlsx';
-        
+
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="'. $fileName .'"');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
         $writer->save('php://output');
         exit;
     }
@@ -1302,8 +1249,12 @@ class ReportController extends Controller
             });
         }
 
-        if ($status) { $query->where('status', $status); }
-        if ($leaveTypeId) { $query->where('leave_type_id', $leaveTypeId); }
+        if ($status) {
+            $query->where('status', $status);
+        }
+        if ($leaveTypeId) {
+            $query->where('leave_type_id', $leaveTypeId);
+        }
 
         $leaveRequests = $query->orderBy('start_date')->get();
 
@@ -1343,8 +1294,12 @@ class ReportController extends Controller
             });
         }
 
-        if ($status) { $query->where('status', $status); }
-        if ($leaveTypeId) { $query->where('leave_type_id', $leaveTypeId); }
+        if ($status) {
+            $query->where('status', $status);
+        }
+        if ($leaveTypeId) {
+            $query->where('leave_type_id', $leaveTypeId);
+        }
 
         $leaveRequests = $query->orderBy('start_date')->get();
 
@@ -1374,7 +1329,7 @@ class ReportController extends Controller
         $writer = new Xlsx($spreadsheet);
         $fileName = 'leave_report_' . now()->format('YmdHis') . '.xlsx';
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="'. $fileName .'"');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
         $writer->save('php://output');
         exit;
     }
@@ -1448,8 +1403,18 @@ class ReportController extends Controller
 
         $monthNames = [];
         $monthsArray = [
-            1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April', 5 => 'May', 6 => 'June',
-            7 => 'July', 8 => 'August', 9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December'
+            1 => 'January',
+            2 => 'February',
+            3 => 'March',
+            4 => 'April',
+            5 => 'May',
+            6 => 'June',
+            7 => 'July',
+            8 => 'August',
+            9 => 'September',
+            10 => 'October',
+            11 => 'November',
+            12 => 'December'
         ];
         foreach ($months as $m) {
             if (isset($monthsArray[$m])) {
@@ -1555,8 +1520,18 @@ class ReportController extends Controller
         $spreadsheet = new Spreadsheet();
 
         $monthsArray = [
-            1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April', 5 => 'May', 6 => 'June',
-            7 => 'July', 8 => 'August', 9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December'
+            1 => 'January',
+            2 => 'February',
+            3 => 'March',
+            4 => 'April',
+            5 => 'May',
+            6 => 'June',
+            7 => 'July',
+            8 => 'August',
+            9 => 'September',
+            10 => 'October',
+            11 => 'November',
+            12 => 'December'
         ];
 
         // ----------------------------------------------------
@@ -1676,8 +1651,34 @@ class ReportController extends Controller
             }
         }
 
+        // ----------------------------------------------------
+        // SHEET 4: Bank Payment Statement
+        // ----------------------------------------------------
+        $sheet4 = $spreadsheet->createSheet();
+        $sheet4->setTitle('Bank Payment Statement');
+
+        $headers4 = ['Employee ID', 'Employee Name', 'Branch', 'Department', 'Payment Mode', 'Net Salary (INR)', 'Payroll Month', 'Year', 'Status'];
+        foreach ($headers4 as $key => $header) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
+            $sheet4->setCellValue($colLetter . '1', $header);
+        }
+
+        $row4 = 2;
+        foreach ($salaryPostings as $post) {
+            $sheet4->setCellValue('A' . $row4, $post->employee->employee_code ?? '-');
+            $sheet4->setCellValue('B' . $row4, $post->employee->name);
+            $sheet4->setCellValue('C' . $row4, $post->employee->company->name ?? '-');
+            $sheet4->setCellValue('D' . $row4, $post->employee->department->name ?? '-');
+            $sheet4->setCellValue('E' . $row4, $post->employee->payment_type ?? 'Bank Transfer');
+            $sheet4->setCellValue('F' . $row4, floatval($post->net_salary));
+            $sheet4->setCellValue('G' . $row4, $monthsArray[$post->month] ?? $post->month);
+            $sheet4->setCellValue('H' . $row4, $post->year);
+            $sheet4->setCellValue('I' . $row4, ucfirst($post->status));
+            $row4++;
+        }
+
         // Style all sheets
-        foreach ([$sheet1, $sheet2, $sheet3] as $s) {
+        foreach ([$sheet1, $sheet2, $sheet3, $sheet4] as $s) {
             $lastRow = $s->getHighestRow();
             $lastColLetter = $s->getHighestColumn();
             $totalCols = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($lastColLetter);
@@ -1749,8 +1750,12 @@ class ReportController extends Controller
             }
         }
 
-        if ($status) { $query->where('status', $status); }
-        if ($loanType) { $query->where('loan_type', $loanType); }
+        if ($status) {
+            $query->where('status', $status);
+        }
+        if ($loanType) {
+            $query->where('loan_type', $loanType);
+        }
 
         $loans = $query->latest()->get();
 
@@ -1806,8 +1811,12 @@ class ReportController extends Controller
             }
         }
 
-        if ($status) { $query->where('status', $status); }
-        if ($loanType) { $query->where('loan_type', $loanType); }
+        if ($status) {
+            $query->where('status', $status);
+        }
+        if ($loanType) {
+            $query->where('loan_type', $loanType);
+        }
 
         $loans = $query->latest()->get();
 
@@ -1838,7 +1847,7 @@ class ReportController extends Controller
         $writer = new Xlsx($spreadsheet);
         $fileName = 'loan_report_' . now()->format('YmdHis') . '.xlsx';
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="'. $fileName .'"');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
         $writer->save('php://output');
         exit;
     }
@@ -1854,8 +1863,12 @@ class ReportController extends Controller
             $query->where('company_id', $user->employee->company_id);
         }
 
-        if ($status) { $query->where('status', $status); }
-        if ($category) { $query->where('category', $category); }
+        if ($status) {
+            $query->where('status', $status);
+        }
+        if ($category) {
+            $query->where('category', $category);
+        }
 
         $trainings = $query->latest()->get();
 
@@ -1890,8 +1903,12 @@ class ReportController extends Controller
             $query->where('company_id', $user->employee->company_id);
         }
 
-        if ($status) { $query->where('status', $status); }
-        if ($category) { $query->where('category', $category); }
+        if ($status) {
+            $query->where('status', $status);
+        }
+        if ($category) {
+            $query->where('category', $category);
+        }
 
         $trainings = $query->latest()->get();
 
@@ -1921,7 +1938,7 @@ class ReportController extends Controller
         $writer = new Xlsx($spreadsheet);
         $fileName = 'training_report_' . now()->format('YmdHis') . '.xlsx';
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="'. $fileName .'"');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
         $writer->save('php://output');
         exit;
     }
@@ -1937,8 +1954,12 @@ class ReportController extends Controller
             $query->where('branch_id', $user->employee->company_id);
         }
 
-        if ($status) { $query->where('status', $status); }
-        if ($priority) { $query->where('priority', $priority); }
+        if ($status) {
+            $query->where('status', $status);
+        }
+        if ($priority) {
+            $query->where('priority', $priority);
+        }
 
         $tasks = $query->latest()->get();
 
@@ -1971,8 +1992,12 @@ class ReportController extends Controller
             $query->where('branch_id', $user->employee->company_id);
         }
 
-        if ($status) { $query->where('status', $status); }
-        if ($priority) { $query->where('priority', $priority); }
+        if ($status) {
+            $query->where('status', $status);
+        }
+        if ($priority) {
+            $query->where('priority', $priority);
+        }
 
         $tasks = $query->latest()->get();
 
@@ -2001,7 +2026,7 @@ class ReportController extends Controller
         $writer = new Xlsx($spreadsheet);
         $fileName = 'task_report_' . now()->format('YmdHis') . '.xlsx';
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="'. $fileName .'"');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
         $writer->save('php://output');
         exit;
     }
@@ -2019,8 +2044,12 @@ class ReportController extends Controller
             });
         }
 
-        if ($status) { $query->where('status', $status); }
-        if ($priority) { $query->where('priority', $priority); }
+        if ($status) {
+            $query->where('status', $status);
+        }
+        if ($priority) {
+            $query->where('priority', $priority);
+        }
 
         $grievances = $query->latest()->get();
 
@@ -2055,8 +2084,12 @@ class ReportController extends Controller
             });
         }
 
-        if ($status) { $query->where('status', $status); }
-        if ($priority) { $query->where('priority', $priority); }
+        if ($status) {
+            $query->where('status', $status);
+        }
+        if ($priority) {
+            $query->where('priority', $priority);
+        }
 
         $grievances = $query->latest()->get();
 
@@ -2084,121 +2117,12 @@ class ReportController extends Controller
         $writer = new Xlsx($spreadsheet);
         $fileName = 'grievance_report_' . now()->format('YmdHis') . '.xlsx';
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="'. $fileName .'"');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
         $writer->save('php://output');
         exit;
     }
 
-    public function evaluationExportPdf(Request $request)
-    {
-        $month = $request->query('month');
-        $year = $request->query('year');
-        $companyId = $request->query('company_id');
 
-        $user = auth()->user();
-        $query = EmployeeEvaluation::with(['employee', 'evaluator'])
-            ->where('month', $month)
-            ->where('year', $year);
-
-        if ($user->role !== 'admin' && $user->employee_id) {
-            $companyId = $user->employee->company_id;
-            $query->whereHas('employee', function ($q) use ($companyId) {
-                $q->where('company_id', $companyId);
-            });
-        } elseif (!empty($companyId) && $user->role === 'admin') {
-            $companyIds = is_array($companyId) ? $companyId : explode(',', $companyId);
-            $companyIds = array_filter($companyIds);
-            if (!empty($companyIds)) {
-                $query->whereHas('employee', function ($q) use ($companyIds) {
-                    $q->whereIn('company_id', $companyIds);
-                });
-            }
-        }
-
-        $evaluations = $query->orderBy('overall_score', 'desc')->get()->map(function($ev) {
-            return [
-                'overall_score' => $ev->overall_score,
-                'criteria_scores' => $ev->criteria_scores,
-                'comments' => $ev->comments,
-                'employee' => [
-                    'name' => $ev->employee->name,
-                    'department' => $ev->employee->department ? $ev->employee->department->name : 'N/A'
-                ]
-            ];
-        });
-
-        $summary = [
-            'total_evaluations' => $evaluations->count(),
-            'avg_score' => $evaluations->avg('overall_score') ?: 0,
-        ];
-
-        $pdf = Pdf::loadView('reports.evaluation', [
-            'evaluations' => $evaluations,
-            'summary' => $summary,
-            'month' => $month,
-            'year' => $year,
-            'settings' => $this->getReportSettings()
-        ]);
-
-        return $pdf->download('evaluation_report_' . $year . '_' . $month . '.pdf');
-    }
-
-    public function evaluationExportExcel(Request $request)
-    {
-        $month = $request->query('month');
-        $year = $request->query('year');
-        $companyId = $request->query('company_id');
-
-        $user = auth()->user();
-        $query = EmployeeEvaluation::with(['employee', 'evaluator'])
-            ->where('month', $month)
-            ->where('year', $year);
-
-        if ($user->role !== 'admin' && $user->employee_id) {
-            $companyId = $user->employee->company_id;
-            $query->whereHas('employee', function ($q) use ($companyId) {
-                $q->where('company_id', $companyId);
-            });
-        } elseif (!empty($companyId) && $user->role === 'admin') {
-            $companyIds = is_array($companyId) ? $companyId : explode(',', $companyId);
-            $companyIds = array_filter($companyIds);
-            if (!empty($companyIds)) {
-                $query->whereHas('employee', function ($q) use ($companyIds) {
-                    $q->whereIn('company_id', $companyIds);
-                });
-            }
-        }
-
-        $evaluations = $query->orderBy('overall_score', 'desc')->get();
-
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Evaluation Report');
-
-        $headers = ['Employee', 'Evaluator', 'Overall Score', 'Comments', 'Date'];
-        foreach ($headers as $key => $header) {
-            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
-            $sheet->setCellValue($colLetter . '1', $header);
-            $sheet->getStyle($colLetter . '1')->getFont()->setBold(true);
-        }
-
-        $row = 2;
-        foreach ($evaluations as $ev) {
-            $sheet->setCellValue('A' . $row, $ev->employee->name);
-            $sheet->setCellValue('B' . $row, $ev->evaluator->name);
-            $sheet->setCellValue('C' . $row, $ev->overall_score);
-            $sheet->setCellValue('D' . $row, $ev->comments);
-            $sheet->setCellValue('E' . $row, $ev->created_at->toDateString());
-            $row++;
-        }
-
-        $writer = new Xlsx($spreadsheet);
-        $fileName = 'evaluation_report_' . $year . '_' . $month . '.xlsx';
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="'. $fileName .'"');
-        $writer->save('php://output');
-        exit;
-    }
 
     public function advanceExportPdf(Request $request)
     {
@@ -2216,7 +2140,9 @@ class ReportController extends Controller
             });
         }
 
-        if ($status) { $query->where('status', $status); }
+        if ($status) {
+            $query->where('status', $status);
+        }
 
         $advances = $query->latest()->get();
 
@@ -2252,7 +2178,9 @@ class ReportController extends Controller
             });
         }
 
-        if ($status) { $query->where('status', $status); }
+        if ($status) {
+            $query->where('status', $status);
+        }
 
         $advances = $query->latest()->get();
 
@@ -2281,8 +2209,769 @@ class ReportController extends Controller
         $writer = new Xlsx($spreadsheet);
         $fileName = 'advance_report_' . now()->format('YmdHis') . '.xlsx';
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="'. $fileName .'"');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
+        $writer->save('php://output');
+        exit;
+    }
+
+    public function evaluation(Request $request)
+    {
+        $month = (int) $request->query('month', now()->month);
+        $year = (int) $request->query('year', now()->year);
+        $companyId = $request->query('company_id');
+
+        $user = auth()->user();
+        $query = EmployeeEvaluation::with(['employee.company', 'employee.department', 'evaluator', 'approver'])
+            ->where('year', $year);
+
+        if ($month) {
+            $query->where('month', $month);
+        }
+
+        if ($user->role !== 'admin' && $user->employee_id) {
+            $companyId = $user->employee->company_id;
+            $query->whereHas('employee', function ($q) use ($companyId) {
+                $q->where('company_id', $companyId);
+            });
+        } elseif (!empty($companyId)) {
+            $companyIds = is_array($companyId) ? $companyId : explode(',', $companyId);
+            $companyIds = array_filter($companyIds);
+            if (!empty($companyIds)) {
+                $query->whereHas('employee', function ($q) use ($companyIds) {
+                    $q->whereIn('company_id', $companyIds);
+                });
+            }
+        }
+
+        $rawEvaluations = $query->latest()->get();
+
+        $deptAverages = [];
+        $deptGroups = $rawEvaluations->groupBy(function ($item) {
+            return $item->employee && $item->employee->department ? $item->employee->department->name : 'General';
+        });
+
+        foreach ($deptGroups as $deptName => $items) {
+            $deptAverages[$deptName] = round($items->avg('overall_score'), 1);
+        }
+
+        $summary = [
+            'total_evaluations' => $rawEvaluations->count(),
+            'avg_score' => $rawEvaluations->count() > 0 ? round($rawEvaluations->avg('overall_score'), 1) : 0,
+            'top_performers' => $rawEvaluations->where('overall_score', '>=', 80)->count(),
+            'low_performers' => $rawEvaluations->filter(fn($e) => $e->overall_score < 50 || $e->pip_required)->count(),
+            'dept_averages' => $deptAverages,
+            'pending_self' => $rawEvaluations->where('status', 'self_assessment')->count(),
+            'pending_manager' => $rawEvaluations->where('status', 'manager_review')->count(),
+            'pip_cases' => $rawEvaluations->where('pip_required', true)->count(),
+            'increments_total' => $rawEvaluations->sum('increment_recommended'),
+            'promotions_count' => $rawEvaluations->where('promotion_recommended', true)->count(),
+        ];
+
+        $evaluations = $rawEvaluations->map(function ($ev) {
+            return [
+                'id' => $ev->id,
+                'employee' => [
+                    'id' => $ev->employee?->id,
+                    'name' => $ev->employee?->name ?? 'Unknown Staff',
+                    'department' => $ev->employee?->department?->name ?? 'General',
+                    'designation' => $ev->employee?->designation ?? 'Staff',
+                    'company' => $ev->employee?->company?->name ?? 'Main Unit',
+                ],
+                'evaluator' => [
+                    'name' => $ev->evaluator?->name ?? 'System/HR',
+                ],
+                'month' => $ev->month,
+                'year' => $ev->year,
+                'cycle_type' => $ev->cycle_type,
+                'status' => $ev->status,
+                'overall_score' => (float) $ev->overall_score,
+                'criteria_scores' => $ev->criteria_scores ?: [],
+                'self_scores' => $ev->self_scores ?: [],
+                'comments' => $ev->comments,
+                'increment_recommended' => (float) $ev->increment_recommended,
+                'increment_percentage' => (float) $ev->increment_percentage,
+                'promotion_recommended' => (bool) $ev->promotion_recommended,
+                'recommended_designation' => $ev->recommended_designation,
+                'pip_required' => (bool) $ev->pip_required,
+                'created_at' => $ev->created_at?->format('d M Y') ?? '-',
+            ];
+        });
+
+        $compQuery = Company::orderBy('name');
+        if ($user->role !== 'admin' && $user->employee_id) {
+            $compQuery->where('id', $user->employee->company_id);
+        }
+        $companies = $compQuery->get(['id', 'name']);
+
+        return Inertia::render('Reports/Evaluation', [
+            'evaluations' => $evaluations,
+            'summary' => $summary,
+            'month' => $month,
+            'year' => $year,
+            'companyId' => $companyId,
+            'companies' => $companies,
+        ]);
+    }
+
+    public function evaluationExportPdf(Request $request)
+    {
+        $month = (int) $request->query('month', now()->month);
+        $year = (int) $request->query('year', now()->year);
+        $companyId = $request->query('company_id');
+
+        $user = auth()->user();
+        $query = EmployeeEvaluation::with(['employee.company', 'employee.department', 'evaluator'])
+            ->where('year', $year);
+
+        if ($month) {
+            $query->where('month', $month);
+        }
+
+        if ($user->role !== 'admin' && $user->employee_id) {
+            $companyId = $user->employee->company_id;
+            $query->whereHas('employee', function ($q) use ($companyId) {
+                $q->where('company_id', $companyId);
+            });
+        } elseif (!empty($companyId)) {
+            $companyIds = is_array($companyId) ? $companyId : explode(',', $companyId);
+            $companyIds = array_filter($companyIds);
+            if (!empty($companyIds)) {
+                $query->whereHas('employee', function ($q) use ($companyIds) {
+                    $q->whereIn('company_id', $companyIds);
+                });
+            }
+        }
+
+        $rawEvaluations = $query->latest()->get();
+
+        $summary = [
+            'total_evaluations' => $rawEvaluations->count(),
+            'avg_score' => $rawEvaluations->count() > 0 ? round($rawEvaluations->avg('overall_score'), 1) : 0,
+            'top_performers' => $rawEvaluations->where('overall_score', '>=', 80)->count(),
+            'low_performers' => $rawEvaluations->filter(fn($e) => $e->overall_score < 50 || $e->pip_required)->count(),
+        ];
+
+        $evaluations = $rawEvaluations->map(function ($ev) {
+            return [
+                'id' => $ev->id,
+                'employee' => [
+                    'name' => $ev->employee?->name ?? 'Staff',
+                    'department' => $ev->employee?->department?->name ?? 'General',
+                ],
+                'overall_score' => (float) $ev->overall_score,
+                'criteria_scores' => $ev->criteria_scores ?: [],
+                'comments' => $ev->comments,
+                'increment_recommended' => (float) $ev->increment_recommended,
+                'promotion_recommended' => (bool) $ev->promotion_recommended,
+                'pip_required' => (bool) $ev->pip_required,
+            ];
+        });
+
+        $pdf = Pdf::loadView('reports.evaluation', [
+            'evaluations' => $evaluations,
+            'summary' => $summary,
+            'month' => $month,
+            'year' => $year,
+            'settings' => $this->getReportSettings(),
+        ]);
+
+        return $pdf->download('performance_evaluation_report_' . $year . '_' . $month . '.pdf');
+    }
+
+    public function evaluationExportExcel(Request $request)
+    {
+        $month = (int) $request->query('month', now()->month);
+        $year = (int) $request->query('year', now()->year);
+        $companyId = $request->query('company_id');
+
+        $user = auth()->user();
+        $query = EmployeeEvaluation::with(['employee.company', 'employee.department', 'evaluator', 'approver'])
+            ->where('year', $year);
+
+        if ($month) {
+            $query->where('month', $month);
+        }
+
+        if ($user->role !== 'admin' && $user->employee_id) {
+            $companyId = $user->employee->company_id;
+            $query->whereHas('employee', function ($q) use ($companyId) {
+                $q->where('company_id', $companyId);
+            });
+        } elseif (!empty($companyId)) {
+            $companyIds = is_array($companyId) ? $companyId : explode(',', $companyId);
+            $companyIds = array_filter($companyIds);
+            if (!empty($companyIds)) {
+                $query->whereHas('employee', function ($q) use ($companyIds) {
+                    $q->whereIn('company_id', $companyIds);
+                });
+            }
+        }
+
+        $evaluations = $query->latest()->get();
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Performance Appraisals');
+
+        $headers = [
+            'Employee Code',
+            'Employee Name',
+            'Branch / Company',
+            'Department',
+            'Designation',
+            'Cycle Type',
+            'Month/Period',
+            'Year',
+            'Overall Score (%)',
+            'Status',
+            'Increment Recommended (₹)',
+            'Promotion Recommended',
+            'Recommended Designation',
+            'PIP Required',
+            'Evaluator',
+            'Acknowledged Date',
+            'Approved By'
+        ];
+
+        foreach ($headers as $key => $header) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
+            $sheet->setCellValue($colLetter . '1', $header);
+            $sheet->getStyle($colLetter . '1')->getFont()->setBold(true);
+            $sheet->getStyle($colLetter . '1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF0F172A');
+            $sheet->getStyle($colLetter . '1')->getFont()->getColor()->setARGB('FFFFFFFF');
+        }
+
+        $row = 2;
+        foreach ($evaluations as $ev) {
+            $sheet->setCellValue('A' . $row, $ev->employee?->employee_code ?? '-');
+            $sheet->setCellValue('B' . $row, $ev->employee?->name ?? 'Unknown');
+            $sheet->setCellValue('C' . $row, $ev->employee?->company?->name ?? '-');
+            $sheet->setCellValue('D' . $row, $ev->employee?->department?->name ?? '-');
+            $sheet->setCellValue('E' . $row, $ev->employee?->designation ?? '-');
+            $sheet->setCellValue('F' . $row, ucfirst($ev->cycle_type ?? 'monthly'));
+            $sheet->setCellValue('G' . $row, $ev->month);
+            $sheet->setCellValue('H' . $row, $ev->year);
+            $sheet->setCellValue('I' . $row, $ev->overall_score . '%');
+            $sheet->setCellValue('J' . $row, ucfirst(str_replace('_', ' ', $ev->status ?? 'approved')));
+            $sheet->setCellValue('K' . $row, $ev->increment_recommended ? '₹' . number_format($ev->increment_recommended, 2) : '-');
+            $sheet->setCellValue('L' . $row, $ev->promotion_recommended ? 'Yes' : 'No');
+            $sheet->setCellValue('M' . $row, $ev->recommended_designation ?? '-');
+            $sheet->setCellValue('N' . $row, $ev->pip_required ? 'Yes (Under Watch)' : 'No');
+            $sheet->setCellValue('O' . $row, $ev->evaluator?->name ?? 'HR/System');
+            $sheet->setCellValue('P' . $row, $ev->employee_acknowledged_at ? $ev->employee_acknowledged_at->format('d M Y') : 'Pending');
+            $sheet->setCellValue('Q' . $row, $ev->approver?->name ?? '-');
+            $row++;
+        }
+
+        foreach (range(1, count($headers)) as $col) {
+            $sheet->getColumnDimensionByColumn($col)->setAutoSize(true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $fileName = 'performance_appraisal_report_' . now()->format('YmdHis') . '.xlsx';
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
+        $writer->save('php://output');
+        exit;
+    }
+
+    /**
+     * Expense Reports & Analytics Suite (Section 3.3)
+     */
+    public function expense(Request $request)
+    {
+        $year = (int) $request->query('year', now()->year);
+        $month = $request->query('month');
+        $companyId = $request->query('company_id');
+        $categoryId = $request->query('category_id');
+        $departmentId = $request->query('department_id');
+        $status = $request->query('status');
+        $reportType = $request->query('report_type', 'all'); // employee, department, category, pending, rejected, reimbursement, violations, trend, project
+
+        $user = auth()->user();
+        $query = ExpenseClaim::with(['employee.company', 'employee.department', 'category', 'manager', 'financeReviewer', 'payer', 'salaryPosting'])
+            ->whereYear('expense_date', $year);
+
+        if ($month) {
+            $query->whereMonth('expense_date', (int) $month);
+        }
+
+        if ($user->role !== 'admin' && $user->employee_id) {
+            $companyId = $user->employee->company_id;
+            $query->whereHas('employee', function ($q) use ($companyId) {
+                $q->where('company_id', $companyId);
+            });
+        } elseif (!empty($companyId)) {
+            $companyIds = is_array($companyId) ? $companyId : explode(',', $companyId);
+            $companyIds = array_filter($companyIds);
+            if (!empty($companyIds)) {
+                $query->whereHas('employee', function ($q) use ($companyIds) {
+                    $q->whereIn('company_id', $companyIds);
+                });
+            }
+        }
+
+        if ($categoryId) {
+            $query->where('expense_category_id', $categoryId);
+        }
+
+        if ($departmentId) {
+            $query->where('department_id', $departmentId);
+        }
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        $allClaims = $query->latest('expense_date')->get();
+
+        // 1. Employee-wise aggregation
+        $employeeWise = $allClaims->groupBy('employee_id')->map(function ($items) {
+            $first = $items->first();
+            return [
+                'employee_id' => $first->employee_id,
+                'employee_name' => $first->employee?->name ?? 'Unknown',
+                'employee_code' => $first->employee?->employee_code ?? '-',
+                'department' => $first->employee?->department?->name ?? 'General',
+                'total_claims' => $items->count(),
+                'total_amount' => (float) $items->sum('amount'),
+                'approved_amount' => (float) $items->whereIn('status', ['finance_approved', 'paid'])->sum('amount'),
+                'paid_amount' => (float) $items->whereIn('reimbursement_status', ['paid', 'included_in_payroll'])->sum('amount'),
+            ];
+        })->values();
+
+        // 2. Department & Cost-Centre breakdown
+        $departmentWise = $allClaims->groupBy(function ($item) {
+            return $item->department?->name ?? 'General';
+        })->map(function ($items, $deptName) {
+            return [
+                'department_name' => $deptName,
+                'total_claims' => $items->count(),
+                'total_amount' => (float) $items->sum('amount'),
+                'cost_centres' => $items->pluck('cost_center')->filter()->unique()->values(),
+            ];
+        })->values();
+
+        // 3. Category-wise expense distribution
+        $categoryWise = $allClaims->groupBy(function ($item) {
+            return $item->category?->name ?? 'Uncategorized';
+        })->map(function ($items, $catName) {
+            return [
+                'category_name' => $catName,
+                'total_claims' => $items->count(),
+                'total_amount' => (float) $items->sum('amount'),
+                'avg_claim' => $items->count() > 0 ? round($items->avg('amount'), 2) : 0,
+            ];
+        })->values();
+
+        // 4. Monthly Trend (12 Months of selected year)
+        $monthlyTrend = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $monthClaims = $allClaims->filter(fn($c) => (int) Carbon::parse($c->expense_date)->format('n') === $m);
+            $monthlyTrend[] = [
+                'month' => $m,
+                'month_name' => date('M', mktime(0, 0, 0, $m, 1)),
+                'total_amount' => (float) $monthClaims->sum('amount'),
+                'paid_amount' => (float) $monthClaims->whereIn('reimbursement_status', ['paid', 'included_in_payroll'])->sum('amount'),
+                'count' => $monthClaims->count(),
+            ];
+        }
+
+        // 5. Project-wise aggregation
+        $projectWise = $allClaims->filter(fn($c) => !empty($c->project_name))->groupBy('project_name')->map(function ($items, $projName) {
+            return [
+                'project_name' => $projName,
+                'total_claims' => $items->count(),
+                'total_amount' => (float) $items->sum('amount'),
+            ];
+        })->values();
+
+        // Summary KPI Metrics
+        $summary = [
+            'total_claims' => $allClaims->count(),
+            'total_claimed_amount' => (float) $allClaims->sum('amount'),
+            'total_tax_amount' => (float) $allClaims->sum('tax_amount'),
+            'pending_manager_approval' => $allClaims->where('status', 'submitted')->count(),
+            'pending_finance_review' => $allClaims->where('status', 'manager_approved')->count(),
+            'approved_pending_payment' => (float) $allClaims->where('status', 'finance_approved')->where('reimbursement_status', 'pending')->sum('amount'),
+            'total_reimbursed' => (float) $allClaims->whereIn('reimbursement_status', ['paid', 'included_in_payroll'])->sum('amount'),
+            'payroll_reimbursements' => (float) $allClaims->where('reimbursement_method', 'payroll')->whereIn('reimbursement_status', ['paid', 'included_in_payroll'])->sum('amount'),
+            'direct_payments' => (float) $allClaims->where('reimbursement_method', 'direct_payment')->where('reimbursement_status', 'paid')->sum('amount'),
+            'rejected_claims_count' => $allClaims->where('status', 'rejected')->count(),
+            'returned_claims_count' => $allClaims->where('status', 'returned_to_employee')->count(),
+            'policy_violations_count' => $allClaims->where('policy_violation_flag', true)->count(),
+        ];
+
+        $compQuery = Company::orderBy('name');
+        if ($user->role !== 'admin' && $user->employee_id) {
+            $compQuery->where('id', $user->employee->company_id);
+        }
+
+        return Inertia::render('Reports/Expense', [
+            'claims' => $allClaims,
+            'summary' => $summary,
+            'employeeWise' => $employeeWise,
+            'departmentWise' => $departmentWise,
+            'categoryWise' => $categoryWise,
+            'monthlyTrend' => $monthlyTrend,
+            'projectWise' => $projectWise,
+            'year' => $year,
+            'month' => $month ? (int) $month : null,
+            'companyId' => $companyId,
+            'categoryId' => $categoryId ? (int) $categoryId : null,
+            'status' => $status,
+            'reportType' => $reportType,
+            'companies' => $compQuery->get(['id', 'name']),
+            'categories' => ExpenseCategory::active()->orderBy('name')->get(['id', 'name']),
+            'departments' => Department::orderBy('name')->get(['id', 'name']),
+        ]);
+    }
+
+    public function expenseExportPdf(Request $request)
+    {
+        $year = (int) $request->query('year', now()->year);
+        $month = $request->query('month');
+        $companyId = $request->query('company_id');
+
+        $user = auth()->user();
+        $query = ExpenseClaim::with(['employee.company', 'employee.department', 'category', 'manager', 'financeReviewer'])
+            ->whereYear('expense_date', $year);
+
+        if ($month) {
+            $query->whereMonth('expense_date', (int) $month);
+        }
+
+        if ($user->role !== 'admin' && $user->employee_id) {
+            $companyId = $user->employee->company_id;
+            $query->whereHas('employee', function ($q) use ($companyId) {
+                $q->where('company_id', $companyId);
+            });
+        } elseif (!empty($companyId)) {
+            $companyIds = is_array($companyId) ? $companyId : explode(',', $companyId);
+            $companyIds = array_filter($companyIds);
+            if (!empty($companyIds)) {
+                $query->whereHas('employee', function ($q) use ($companyIds) {
+                    $q->whereIn('company_id', $companyIds);
+                });
+            }
+        }
+
+        $claims = $query->latest('expense_date')->get();
+
+        $summary = [
+            'total_claims' => $claims->count(),
+            'total_amount' => (float) $claims->sum('amount'),
+            'total_reimbursed' => (float) $claims->whereIn('reimbursement_status', ['paid', 'included_in_payroll'])->sum('amount'),
+            'pending_approval' => $claims->whereIn('status', ['submitted', 'manager_approved'])->count(),
+            'violations_count' => $claims->where('policy_violation_flag', true)->count(),
+        ];
+
+        $pdf = Pdf::loadView('reports.expense', [
+            'claims' => $claims,
+            'summary' => $summary,
+            'month' => $month,
+            'year' => $year,
+            'settings' => $this->getReportSettings(),
+        ]);
+
+        return $pdf->download('employee_expense_report_' . $year . ($month ? '_' . $month : '') . '.pdf');
+    }
+
+    public function expenseExportExcel(Request $request)
+    {
+        $year = (int) $request->query('year', now()->year);
+        $month = $request->query('month');
+        $companyId = $request->query('company_id');
+
+        $user = auth()->user();
+        $query = ExpenseClaim::with(['employee.company', 'employee.department', 'category', 'manager', 'financeReviewer', 'payer'])
+            ->whereYear('expense_date', $year);
+
+        if ($month) {
+            $query->whereMonth('expense_date', (int) $month);
+        }
+
+        if ($user->role !== 'admin' && $user->employee_id) {
+            $companyId = $user->employee->company_id;
+            $query->whereHas('employee', function ($q) use ($companyId) {
+                $q->where('company_id', $companyId);
+            });
+        } elseif (!empty($companyId)) {
+            $companyIds = is_array($companyId) ? $companyId : explode(',', $companyId);
+            $companyIds = array_filter($companyIds);
+            if (!empty($companyIds)) {
+                $query->whereHas('employee', function ($q) use ($companyIds) {
+                    $q->whereIn('company_id', $companyIds);
+                });
+            }
+        }
+
+        $claims = $query->latest('expense_date')->get();
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Employee Expense Report');
+
+        $headers = [
+            'Claim Number',
+            'Employee Code',
+            'Employee Name',
+            'Branch / Company',
+            'Department',
+            'Expense Date',
+            'Category',
+            'Amount (INR ₹)',
+            'Tax (INR ₹)',
+            'Vendor',
+            'Business Purpose',
+            'Cost Centre',
+            'Project',
+            'Payment Method',
+            'Status',
+            'Reimbursement Method',
+            'Reimbursement Status',
+            'Payment Reference',
+            'Policy Violation Flag',
+            'Violation Reason'
+        ];
+
+        foreach ($headers as $key => $header) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
+            $sheet->setCellValue($colLetter . '1', $header);
+            $sheet->getStyle($colLetter . '1')->getFont()->setBold(true);
+            $sheet->getStyle($colLetter . '1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF0F172A');
+            $sheet->getStyle($colLetter . '1')->getFont()->getColor()->setARGB('FFFFFFFF');
+        }
+
+        $row = 2;
+        foreach ($claims as $cl) {
+            $sheet->setCellValue('A' . $row, $cl->claim_number);
+            $sheet->setCellValue('B' . $row, $cl->employee?->employee_code ?? '-');
+            $sheet->setCellValue('C' . $row, $cl->employee?->name ?? 'Unknown');
+            $sheet->setCellValue('D' . $row, $cl->employee?->company?->name ?? '-');
+            $sheet->setCellValue('E' . $row, $cl->employee?->department?->name ?? '-');
+            $sheet->setCellValue('F' . $row, $cl->expense_date ? $cl->expense_date->format('Y-m-d') : '-');
+            $sheet->setCellValue('G' . $row, $cl->category?->name ?? 'Other');
+            $sheet->setCellValue('H' . $row, '₹' . number_format($cl->amount, 2));
+            $sheet->setCellValue('I' . $row, '₹' . number_format($cl->tax_amount, 2));
+            $sheet->setCellValue('J' . $row, $cl->vendor_name ?? '-');
+            $sheet->setCellValue('K' . $row, $cl->business_purpose);
+            $sheet->setCellValue('L' . $row, $cl->cost_center ?? '-');
+            $sheet->setCellValue('M' . $row, $cl->project_name ?? '-');
+            $sheet->setCellValue('N' . $row, ucfirst(str_replace('_', ' ', $cl->payment_method)));
+            $sheet->setCellValue('O' . $row, ucfirst(str_replace('_', ' ', $cl->status)));
+            $sheet->setCellValue('P' . $row, ucfirst(str_replace('_', ' ', $cl->reimbursement_method)));
+            $sheet->setCellValue('Q' . $row, ucfirst(str_replace('_', ' ', $cl->reimbursement_status)));
+            $sheet->setCellValue('R' . $row, $cl->payment_reference ?? '-');
+            $sheet->setCellValue('S' . $row, $cl->policy_violation_flag ? 'YES' : 'NO');
+            $sheet->setCellValue('T' . $row, $cl->violation_reason ?? '-');
+            $row++;
+        }
+
+        foreach (range(1, count($headers)) as $col) {
+            $sheet->getColumnDimensionByColumn($col)->setAutoSize(true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $fileName = 'employee_expense_claims_' . now()->format('YmdHis') . '.xlsx';
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
+        $writer->save('php://output');
+        exit;
+    }
+
+    // ─── Offboarding Report ──────────────────────────────────────────────────────
+
+    public function offboarding(Request $request)
+    {
+        $user = auth()->user();
+        $year = (int) $request->query('year', now()->year);
+        $status = $request->query('status', '');
+        $reason = $request->query('reason', '');
+        $company = $request->query('company_id', '');
+
+        $query = OffboardingRequest::with([
+            'employee.company',
+            'employee.department',
+            'tasks',
+            'exitInterview',
+        ])->whereYear('proposed_last_working_day', $year);
+
+        if ($user->role !== 'admin' && $user->employee_id) {
+            $query->byCompany($user->employee->company_id);
+        } elseif ($company) {
+            $query->byCompany($company);
+        }
+
+        if ($status)
+            $query->where('status', $status);
+        if ($reason)
+            $query->where('separation_reason', $reason);
+
+        $all = $query->latest('proposed_last_working_day')->get();
+
+        // Upcoming separations (next 30 days)
+        $upcoming = $all->filter(
+            fn($r) =>
+                in_array($r->status, ['approved', 'in_progress', 'clearance_pending']) &&
+                $r->proposed_last_working_day->gte(now()) &&
+                $r->proposed_last_working_day->lte(now()->addDays(30))
+        )->values();
+
+        // Pending tasks by role
+        $pendingTasksByRole = OffboardingTask::whereHas(
+            'offboardingRequest',
+            fn($q) =>
+                $q->whereNotIn('status', ['completed', 'cancelled'])
+        )->where('status', 'pending')
+            ->selectRaw('assigned_role, count(*) as count')
+            ->groupBy('assigned_role')
+            ->pluck('count', 'assigned_role');
+
+        // Reason distribution
+        $byReason = $all->groupBy('separation_reason')->map(fn($group) => $group->count())->sortDesc();
+
+        // Monthly trend
+        $monthlyTrend = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $monthlyTrend[] = [
+                'month' => $m,
+                'month_name' => date('M', mktime(0, 0, 0, $m, 1)),
+                'total' => $all->filter(function ($r) use ($m) {
+                    $d = $r->proposed_last_working_day ? \Carbon\Carbon::parse($r->proposed_last_working_day) : null;
+                    return $d && (int) $d->format('n') === $m;
+                })->count(),
+                'completed' => $all->filter(function ($r) use ($m) {
+                    $d = $r->proposed_last_working_day ? \Carbon\Carbon::parse($r->proposed_last_working_day) : null;
+                    return $d && (int) $d->format('n') === $m && $r->status === 'completed';
+                })->count(),
+            ];
+        }
+
+        // Exit interview stats
+        $exitInterviews = $all->filter(fn($r) => $r->exitInterview)->map(fn($r) => $r->exitInterview);
+        $avgRatings = [
+            'job_satisfaction' => $exitInterviews->avg('job_satisfaction_rating'),
+            'management' => $exitInterviews->avg('management_rating'),
+            'work_environment' => $exitInterviews->avg('work_environment_rating'),
+            'compensation' => $exitInterviews->avg('compensation_rating'),
+            'growth_opportunity' => $exitInterviews->avg('growth_opportunity_rating'),
+        ];
+        $rehireEligibleCount = $exitInterviews->where('rehire_eligible', true)->count();
+
+        $summary = [
+            'total' => $all->count(),
+            'completed' => $all->where('status', 'completed')->count(),
+            'in_progress' => $all->whereIn('status', ['approved', 'in_progress', 'clearance_pending', 'exit_interview_pending', 'settlement_pending'])->count(),
+            'pending_approval' => $all->where('status', 'pending_approval')->count(),
+            'upcoming_30' => $upcoming->count(),
+            'exit_interviews' => $exitInterviews->count(),
+            'rehire_eligible' => $rehireEligibleCount,
+        ];
+
+        $companies = $user->role === 'admin'
+            ? Company::orderBy('name')->get(['id', 'name'])
+            : collect();
+
+        return Inertia::render('Reports/Offboarding', [
+            'requests' => $all,
+            'upcoming' => $upcoming,
+            'summary' => $summary,
+            'byReason' => $byReason,
+            'monthlyTrend' => $monthlyTrend,
+            'pendingTasksByRole' => $pendingTasksByRole,
+            'avgRatings' => $avgRatings,
+            'year' => $year,
+            'status' => $status,
+            'reason' => $reason,
+            'companies' => $companies,
+        ]);
+    }
+
+    public function offboardingExportExcel(Request $request)
+    {
+        $user = auth()->user();
+        $year = (int) $request->query('year', now()->year);
+        $status = $request->query('status', '');
+        $reason = $request->query('reason', '');
+        $company = $request->query('company_id', '');
+
+        $query = OffboardingRequest::with([
+            'employee.company',
+            'employee.department',
+            'tasks',
+            'exitInterview',
+        ])->whereYear('proposed_last_working_day', $year);
+
+        if ($user->role !== 'admin' && $user->employee_id) {
+            $query->byCompany($user->employee->company_id);
+        } elseif ($company) {
+            $query->byCompany($company);
+        }
+
+        if ($status) $query->where('status', $status);
+        if ($reason) $query->where('separation_reason', $reason);
+
+        $all = $query->latest('proposed_last_working_day')->get();
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Offboarding Report');
+
+        $headers = [
+            'Employee Code',
+            'Employee Name',
+            'Company / Branch',
+            'Department',
+            'Designation',
+            'Separation Reason',
+            'Last Working Day',
+            'Notice Pay Applicable',
+            'Notice Pay Amount (INR)',
+            'Status',
+            'Clearance Completed',
+            'Exit Interview Done',
+            'Net Settlement (INR)',
+            'Completed Date'
+        ];
+
+        foreach ($headers as $key => $header) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
+            $sheet->setCellValue($colLetter . '1', $header);
+            $sheet->getStyle($colLetter . '1')->getFont()->setBold(true);
+            $sheet->getStyle($colLetter . '1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF0F172A');
+            $sheet->getStyle($colLetter . '1')->getFont()->getColor()->setARGB('FFFFFFFF');
+        }
+
+        $row = 2;
+        foreach ($all as $req) {
+            $sheet->setCellValue('A' . $row, $req->employee?->employee_code ?? '-');
+            $sheet->setCellValue('B' . $row, $req->employee?->name ?? 'Unknown');
+            $sheet->setCellValue('C' . $row, $req->employee?->company?->name ?? '-');
+            $sheet->setCellValue('D' . $row, $req->employee?->department?->name ?? '-');
+            $sheet->setCellValue('E' . $row, $req->employee?->designation ?? '-');
+            $sheet->setCellValue('F' . $row, ucfirst(str_replace('_', ' ', $req->separation_reason)));
+            $sheet->setCellValue('G' . $row, $req->proposed_last_working_day ? $req->proposed_last_working_day->format('Y-m-d') : '-');
+            $sheet->setCellValue('H' . $row, $req->notice_pay_applicable ? 'Yes' : 'No');
+            $sheet->setCellValue('I' . $row, $req->notice_pay_amount ? '₹' . number_format($req->notice_pay_amount, 2) : '-');
+            $sheet->setCellValue('J' . $row, ucfirst(str_replace('_', ' ', $req->status)));
+            $sheet->setCellValue('K' . $row, $req->clearance_completed_at ? 'Yes (' . $req->clearance_completed_at->format('Y-m-d') . ')' : 'Pending');
+            $sheet->setCellValue('L' . $row, $req->exitInterview ? 'Yes' : 'No');
+            $sheet->setCellValue('M' . $row, $req->net_settlement_payable !== null ? '₹' . number_format($req->net_settlement_payable, 2) : '-');
+            $sheet->setCellValue('N' . $row, $req->completed_at ? $req->completed_at->format('Y-m-d') : '-');
+            $row++;
+        }
+
+        foreach (range(1, count($headers)) as $col) {
+            $sheet->getColumnDimensionByColumn($col)->setAutoSize(true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $fileName = 'offboarding_report_' . now()->format('YmdHis') . '.xlsx';
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
         $writer->save('php://output');
         exit;
     }
 }
+

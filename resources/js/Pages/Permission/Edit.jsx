@@ -17,7 +17,7 @@ export default function Edit({ permission, modules }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-sm font-normal text-slate-900 uppercase">Synchronize Capability</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Edit Permission - ${permission.name}`} />
 
             <div className="min-h-screen bg-slate-50/50 py-4">

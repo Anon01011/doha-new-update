@@ -94,7 +94,7 @@ class TrainingAssignmentController extends Controller
             'training_id' => 'required|exists:trainings,id',
             'employee_ids' => 'required|array|min:1',
             'employee_ids.*' => 'exists:employees,id',
-            'remarks' => 'nullable|string',
+            'remarks' => 'nullable|string|max:2000',
         ]);
 
         $training = Training::findOrFail($validated['training_id']);

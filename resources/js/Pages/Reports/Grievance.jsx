@@ -42,7 +42,7 @@ export default function Grievance({ grievances, summary, status, priority }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800 tracking-normal">Compliance & Relations</h2>}>
+        <AuthenticatedLayout>
             <Head title="Grievance Report" />
 
             <div className="w-full mx-auto p-6 space-y-6 bg-slate-50 min-h-screen">

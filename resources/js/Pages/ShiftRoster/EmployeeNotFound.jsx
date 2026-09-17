@@ -4,7 +4,7 @@ import { Head, Link } from '@inertiajs/react';
 
 export default function EmployeeNotFound({ employee_name, company_name, week_start, employee_exists, company_exists, all_companies = [], all_employees = [] }) {
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-gray-800">Employee Roster Not Found</h2>}>
+        <AuthenticatedLayout>
             <Head title="Employee Roster Not Found" />
             <div className="max-w-lg mx-auto bg-white rounded-lg shadow p-8 mt-10 text-center">
                 <h1 className="text-2xl font-normal mb-4 text-red-600">Roster Not Found</h1>

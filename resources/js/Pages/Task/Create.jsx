@@ -65,7 +65,7 @@ export default function Create({ projects, parentTasks, selectedProjectId, selec
         }`;
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Create Task</h2>}>
+        <AuthenticatedLayout>
             <Head title="Create Task" />
 
             <div className="p-4 space-y-4 bg-slate-50 min-h-screen">

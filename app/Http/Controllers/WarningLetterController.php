@@ -87,7 +87,7 @@ class WarningLetterController extends Controller
             'grievance_id' => 'nullable|exists:grievances,id',
             'type' => 'required|string',
             'subject' => 'required|string|max:255',
-            'content' => 'required|string',
+            'content' => 'required|string|max:20000',
         ]);
 
         $employee = Employee::findOrFail($validated['employee_id']);

@@ -143,7 +143,7 @@ export default function Create({ companies = [], employees = [], initialCompanyI
     };
 
     return (
-        <AuthenticatedLayout header={<div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-t-xl px-6 py-4"><h2 className="text-xl font-normal text-white">Add Attendance (Week View)</h2></div>}>
+        <AuthenticatedLayout>
             <Head title="Add Attendance (Week View)" />
             <div className="bg-white rounded-b-xl shadow p-6 full-w mx-auto mt-0">
                 <form onSubmit={handleSubmit} className="space-y-4">

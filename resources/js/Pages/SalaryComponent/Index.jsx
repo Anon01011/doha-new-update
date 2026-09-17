@@ -30,7 +30,7 @@ export default function Index({ components }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Salary Components</h2>}>
+        <AuthenticatedLayout>
             <Head title="Salary Components" />
 
             <div className="py-4 px-4 sm:px-6 lg:px-8 space-y-6">

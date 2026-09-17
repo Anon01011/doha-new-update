@@ -33,7 +33,7 @@ export default function Create({ employees, leaveTypes, userRole = 'employee', s
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">New Leave Request</h2>}>
+        <AuthenticatedLayout>
             <Head title="Add Leave Request" />
 
             <div className="py-4 px-3 sm:px-4 lg:px-6 space-y-4">

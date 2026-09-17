@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { FiArrowLeft, FiFilter, FiDownload, FiFileText, FiTable, FiClock, FiCheckCircle, FiXCircle, FiCalendar, FiTrendingUp, FiAlertCircle } from 'react-icons/fi';
 import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
@@ -12,6 +12,8 @@ function getHoursColorClass(worked, std) {
 }
 
 export default function Attendance({ attendances, summary, startDate, endDate, companyId, employeeId, companies, employees, settings }) {
+    const { appSettings } = usePage().props;
+    const currency = appSettings?.currency || 'INR';
     const [activeTab, setActiveTab] = useState('detail');
     const today = new Date().toLocaleDateString('en-CA');
     const stdHours = parseFloat(settings?.standard_working_hours || 9);
@@ -123,7 +125,7 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800 tracking-normal">Attendance Analysis</h2>}>
+        <AuthenticatedLayout>
             <Head title="Attendance Report" />
 
             <div className="w-full mx-auto p-6 space-y-6 bg-slate-50 min-h-screen">
@@ -233,7 +235,7 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                 <FiAlertCircle size={18} />
                             </div>
                             <div className="text-xs font-normal text-indigo-400 uppercase tracking-normal">OT Amount</div>
-                            <div className="text-xl font-normal text-indigo-600">{parseFloat(totalOtAmount).toLocaleString('en-US', { style: 'currency', currency: 'QAR', maximumFractionDigits: 0 })}</div>
+                            <div className="text-xl font-normal text-indigo-600">{parseFloat(totalOtAmount).toLocaleString('en-IN', { style: 'currency', currency: currency, maximumFractionDigits: 0 })}</div>
                         </div>
                     </div>
                 )}
@@ -407,7 +409,7 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
                                                     {item.ot_amt > 0 ? (
                                                         <span className="text-sm font-bold text-indigo-600">
-                                                            {item.ot_amt.toLocaleString('en-US', { style: 'currency', currency: 'QAR', maximumFractionDigits: 0 })}
+                                                            {item.ot_amt.toLocaleString('en-IN', { style: 'currency', currency: currency, maximumFractionDigits: 0 })}
                                                         </span>
                                                     ) : <span className="text-slate-300 text-sm">—</span>}
                                                 </td>
@@ -416,7 +418,12 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                     ) : (
                                         <tr>
                                             <td colSpan="10" className="px-6 py-20 text-center">
-                                                <p className="text-slate-400 text-sm font-normal">No summary records found.</p>
+                                                <div className="flex flex-col items-center justify-center">
+                                                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-200 border border-slate-100 shadow-inner">
+                                                        <FiCalendar size={24} />
+                                                    </div>
+                                                    <p className="text-slate-400 text-sm font-normal">No summary records found.</p>
+                                                </div>
                                             </td>
                                         </tr>
                                     )}
@@ -427,15 +434,15 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                         {/* ── OVERTIME TAB ── */}
                         {activeTab === 'overtime' && (
                             <table className="w-full text-left">
-                                <thead className="bg-orange-50/60 border-b border-orange-100">
+                                <thead className="bg-slate-50/80 border-b border-slate-100">
                                     <tr>
                                         <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal">Date</th>
                                         <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal">Employee</th>
                                         <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal">Branch</th>
-                                        <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal text-right">Standard</th>
-                                        <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal text-right">Actual Worked</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-orange-600 uppercase tracking-normal text-right">OT Hours</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-indigo-600 uppercase tracking-normal text-right">OT Amount</th>
+                                        <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal text-center">Clock In</th>
+                                        <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal text-center">Clock Out</th>
+                                        <th className="px-6 py-4 text-xs font-normal text-orange-500 uppercase tracking-normal text-right">OT Hours</th>
+                                        <th className="px-6 py-4 text-xs font-normal text-indigo-600 uppercase tracking-normal text-right">OT Amount</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-slate-50">
@@ -445,18 +452,29 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                             const normal = parseFloat(att.normal_hours || stdHours);
                                             const otH = parseFloat(att.ot || 0);
                                             return (
-                                                <tr key={att.id} className="hover:bg-orange-50/30 transition-colors">
+                                                <tr key={att.id} className="hover:bg-slate-50/80 transition-colors">
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="text-sm font-normal text-slate-700">{formatDate(att.date)}</div>
                                                         <div className="text-[10px] text-slate-400">{new Date(att.date).toLocaleDateString('en-US', { weekday: 'short' })}</div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="text-sm font-normal text-slate-700">{att.employee?.name}</div>
-                                                        <div className="text-[10px] text-slate-400">{att.employee?.employee_code}</div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-7 h-7 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center text-xs font-bold border border-orange-100 shadow-sm">
+                                                                {att.employee?.name?.charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-sm font-normal text-slate-700">{att.employee?.name}</div>
+                                                                <div className="text-[10px] text-slate-400">{att.employee?.employee_code}</div>
+                                                            </div>
+                                                        </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-normal text-slate-500">{att.company?.name}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-normal text-slate-500 text-right">{normal}h</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-700 text-right">{worked.toFixed(2)}h</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-xs font-normal">
+                                                        {att.from_time ? <span className="text-emerald-600 font-medium">{att.from_time}</span> : <span className="text-slate-300">--:--</span>}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-xs font-normal">
+                                                        {att.to_time ? <span className="text-rose-500 font-medium">{att.to_time}</span> : <span className="text-slate-300">--:--</span>}
+                                                    </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right">
                                                         <div className="flex flex-col items-end">
                                                             <span className="text-sm font-bold text-orange-500">{otH.toFixed(2)}h</span>
@@ -464,7 +482,7 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-indigo-600 text-right">
-                                                        {parseFloat(att.ot_amt || 0).toLocaleString('en-US', { style: 'currency', currency: 'QAR' })}
+                                                        {parseFloat(att.ot_amt || 0).toLocaleString('en-IN', { style: 'currency', currency: currency })}
                                                     </td>
                                                 </tr>
                                             );
@@ -491,7 +509,7 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                             </td>
                                             <td className="px-6 py-3 text-right">
                                                 <span className="text-sm font-bold text-indigo-600">
-                                                    {parseFloat(totalOtAmount).toLocaleString('en-US', { style: 'currency', currency: 'QAR' })}
+                                                    {parseFloat(totalOtAmount).toLocaleString('en-IN', { style: 'currency', currency: currency })}
                                                 </span>
                                             </td>
                                         </tr>

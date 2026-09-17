@@ -62,33 +62,33 @@ export default function Documents({ employee, documents, documentTypes, userRole
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-sm font-normal text-slate-900 uppercase">Personnel Documentation Vault</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Documents - ${employee.name}`} />
 
-            <div className="min-h-screen bg-slate-50/50 py-4">
-                <div className="w-full mx-auto px-4 space-y-4">
+            <div className="min-h-screen bg-slate-50/50 py-4 sm:py-6">
+                <div className="w-full mx-auto px-3 sm:px-6 lg:px-8 space-y-4 sm:space-y-6">
 
                     {/* Hero Header */}
-                    <div className="bg-slate-900 rounded-lg p-5 text-white shadow-xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:rotate-12 transition-transform duration-500">
-                            <FaFileContract className="text-7xl" />
+                    <div className="bg-slate-900 rounded-xl p-4 sm:p-6 text-white shadow-xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:rotate-12 transition-transform duration-500 pointer-events-none">
+                            <FaFileContract className="text-6xl sm:text-7xl" />
                         </div>
-                        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-xl bg-primary/20 text-primary flex items-center justify-center border border-primary/30 shadow-lg">
-                                    <FaFileAlt size={20} />
+                        <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-xl bg-primary/20 text-primary flex items-center justify-center border border-primary/30 shadow-lg">
+                                    <FaFileAlt className="text-base sm:text-xl" />
                                 </div>
-                                <div>
-                                    <h1 className="text-xl font-normal mb-0.5 uppercase tracking-normal">{employee.name}</h1>
-                                    <p className="text-slate-400 text-[10px] uppercase font-normal tracking-[0.2em] opacity-80 flex items-center gap-2">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Active Personnel Repository
+                                <div className="min-w-0">
+                                    <h1 className="text-lg sm:text-xl font-normal mb-0.5 uppercase tracking-normal truncate">{employee.name}</h1>
+                                    <p className="text-slate-400 text-[9px] sm:text-[10px] uppercase font-normal tracking-[0.2em] opacity-80 flex items-center gap-2 truncate">
+                                        <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-primary" /> Active Personnel Repository
                                     </p>
                                 </div>
                             </div>
                             {canUpload && (
                                 <button
                                     onClick={() => setShowUploadModal(true)}
-                                    className="bg-primary text-white px-5 py-2.5 rounded-lg text-[11px] font-normal uppercase tracking-normal shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"
+                                    className="w-full sm:w-auto bg-primary text-white px-4 sm:px-5 py-2.5 rounded-lg text-[10px] sm:text-[11px] font-normal uppercase tracking-normal shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2"
                                 >
                                     <FaCloudUploadAlt size={14} /> Upload Vault Entry
                                 </button>
@@ -184,21 +184,21 @@ export default function Documents({ employee, documents, documentTypes, userRole
 
                 {/* Upload Modal */}
                 {showUploadModal && (
-                    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-                        <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200">
+                    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4 animate-fadeIn">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
                             {/* Modal Header */}
-                            <div className="bg-slate-900 px-6 py-4 flex justify-between items-center text-white relative">
-                                <div className="absolute inset-0 bg-primary/5 pattern-grid-slate-100/5" />
+                            <div className="bg-slate-900 px-4 sm:px-6 py-4 flex justify-between items-center text-white relative shrink-0">
+                                <div className="absolute inset-0 bg-primary/5 pattern-grid-slate-100/5 pointer-events-none" />
                                 <h2 className="text-xs font-normal uppercase tracking-normal flex items-center gap-2 relative z-10">
                                     <FaCloudUploadAlt className="text-primary" />
                                     Synchronize New Asset
                                 </h2>
-                                <button onClick={() => setShowUploadModal(false)} className="text-slate-400 hover:text-white transition-colors relative z-10">
+                                <button onClick={() => setShowUploadModal(false)} className="text-slate-400 hover:text-white transition-colors relative z-10 p-1">
                                     <FaTimesCircle className="text-lg" />
                                 </button>
                             </div>
 
-                            <form onSubmit={handleUpload} className="p-6 space-y-5">
+                            <form onSubmit={handleUpload} className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1 md:col-span-2">
                                         <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal ml-1">Document Registry Name *</label>

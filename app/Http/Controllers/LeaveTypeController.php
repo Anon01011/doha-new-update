@@ -61,7 +61,7 @@ class LeaveTypeController extends Controller
             'carry_forward_max_days' => 'nullable|integer|min:0',
             'requires_approval' => 'boolean',
             'is_paid' => 'boolean',
-            'description' => 'nullable|string',
+            'description' => 'nullable|string|max:1000',
             'is_active' => 'boolean',
         ]);
 
@@ -151,7 +151,7 @@ class LeaveTypeController extends Controller
             'carry_forward_max_days' => 'nullable|integer|min:0',
             'requires_approval' => 'boolean',
             'is_paid' => 'boolean',
-            'description' => 'nullable|string',
+            'description' => 'nullable|string|max:1000',
             'is_active' => 'boolean',
         ]);
 

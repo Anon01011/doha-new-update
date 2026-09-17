@@ -1,55 +1,56 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
-import React from 'react';
+import { Head, Link, router } from '@inertiajs/react';
+import React, { useRef, useState } from 'react';
 import {
     FiCalendar, FiClock, FiCheckCircle, FiMinusCircle,
     FiTrendingUp, FiArrowRight, FiBriefcase, FiAlertTriangle,
-    FiFileText, FiPieChart, FiDollarSign, FiCamera, FiTarget
+    FiFileText, FiPieChart, FiDollarSign, FiCamera, FiTarget,
+    FiAward, FiBarChart2, FiStar, FiThumbsUp, FiFlag, FiLayers,
+    FiPlus
 } from 'react-icons/fi';
 import Avatar from '@/Components/Avatar';
-import { useRef, useState } from 'react';
-import { router } from '@inertiajs/react';
 
-// Primitive Components for high-fidelity UI
-const StatCard = ({ title, value, subtitle, icon: Icon, color, sparkline }) => (
-    <div className={`relative overflow-hidden bg-white rounded-lg p-6 shadow-sm border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 group`}>
-        <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-${color}-500/10 to-transparent rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110`} />
+// Compact Metric Card
+const StatCard = ({ title, value, subtitle, icon: Icon, color = 'rose', trend }) => {
+    const colorStyles = {
+        rose: 'bg-rose-50 text-rose-600 border-rose-100',
+        emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+        indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100',
+        amber: 'bg-amber-50 text-amber-600 border-amber-100',
+        purple: 'bg-purple-50 text-purple-600 border-purple-100',
+        blue: 'bg-blue-50 text-blue-600 border-blue-100',
+    };
 
-        <div className="relative z-10">
-            <div className="flex justify-between items-start mb-4">
-                <div className={`p-3 bg-${color}-50 text-${color}-600 rounded-lg group-hover:scale-110 transition-transform`}>
-                    <Icon className="w-6 h-6" />
+    const style = colorStyles[color] || colorStyles.rose;
+
+    return (
+        <div className="bg-white rounded-xl p-3 sm:p-4 shadow-xs border border-slate-200/80 hover:shadow-md hover:border-slate-300 transition-all duration-200 flex flex-col justify-between min-w-0">
+            <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">{title}</span>
+                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center border shrink-0 ${style}`}>
+                    <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
-                {sparkline && (
-                    <div className="flex items-end gap-1 h-8">
-                        {[40, 70, 45, 90, 65, 80, 50].map((h, i) => (
-                            <div
-                                key={i}
-                                className={`w-1 rounded-full bg-${color}-200 transition-all duration-500 group-hover:bg-${color}-500`}
-                                style={{ height: `${h}%` }}
-                            />
-                        ))}
-                    </div>
-                )}
             </div>
-            <div>
-                <h3 className="text-4xl font-normal text-slate-800 tracking-normal mb-1">{value}</h3>
-                <p className="text-[11px] font-normal text-slate-400 uppercase tracking-normal leading-none mb-1">{title}</p>
-                <p className="text-xs text-slate-500 font-normal">{subtitle}</p>
+            <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight truncate">{value}</div>
+                <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate">{subtitle}</div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
-const SectionHeader = ({ title, icon: Icon, action }) => (
-    <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                <Icon className="w-5 h-5" />
+const SectionCard = ({ title, icon: Icon, action, children, className = '' }) => (
+    <div className={`bg-white rounded-xl shadow-xs border border-slate-200/80 overflow-hidden ${className}`}>
+        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-white via-slate-50/40 to-white">
+            <div className="flex items-center gap-2.5">
+                <div className="p-1.5 bg-slate-100 text-slate-700 rounded-lg">
+                    <Icon className="w-4 h-4" />
+                </div>
+                <h3 className="text-xs sm:text-sm font-semibold text-slate-900">{title}</h3>
             </div>
-            <h2 className="text-xl font-normal text-slate-800 tracking-normal">{title}</h2>
+            {action}
         </div>
-        {action}
+        <div className="p-5">{children}</div>
     </div>
 );
 
@@ -81,11 +82,19 @@ export default function Dashboard({
     activeLoans,
     totalAdvances,
     pendingAdvances,
-    thisWeekShifts,
+    thisWeekShifts = [],
     weekStart,
     weekEnd,
     warningLetters = [],
     myEvaluations = [],
+    totalEvaluations = 0,
+    pendingAckEvaluations = 0,
+    latestScore = null,
+    totalExpenses = 0,
+    pendingExpenses = 0,
+    totalClaimedAmount = 0,
+    totalReimbursedAmount = 0,
+    recentExpenses = [],
     todayHoliday
 }) {
     const fileInput = useRef();
@@ -106,55 +115,77 @@ export default function Dashboard({
     };
 
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
+        return new Intl.NumberFormat('en-IN', {
             style: 'currency',
-            currency: 'QAR', // Standard for this project based on earlier context
+            currency: 'INR',
+            maximumFractionDigits: 0,
         }).format(amount || 0);
+    };
+
+    const evalStatusConfig = {
+        draft: { label: 'Draft', color: 'bg-slate-100 text-slate-600' },
+        pending_self: { label: 'Self Assessment', color: 'bg-amber-100 text-amber-700' },
+        pending_manager: { label: 'Manager Review', color: 'bg-blue-100 text-blue-700' },
+        pending_acknowledgment: { label: 'Sign-Off Needed', color: 'bg-purple-100 text-purple-700' },
+        approved: { label: 'Approved', color: 'bg-emerald-100 text-emerald-700' },
+        closed: { label: 'Closed', color: 'bg-slate-200 text-slate-700' },
+    };
+
+    const getEvalStatus = (status) => evalStatusConfig[status] || { label: status, color: 'bg-slate-100 text-slate-600' };
+
+    const scoreColor = (score) => {
+        if (score >= 80) return 'text-emerald-600';
+        if (score >= 60) return 'text-blue-600';
+        if (score >= 40) return 'text-amber-600';
+        return 'text-rose-600';
+    };
+
+    const scoreBarColor = (score) => {
+        if (score >= 80) return 'bg-emerald-500';
+        if (score >= 60) return 'bg-blue-500';
+        if (score >= 40) return 'bg-amber-500';
+        return 'bg-rose-500';
     };
 
     return (
         <AuthenticatedLayout>
             <Head title="Employee Dashboard" />
 
-            <div className="w-full p-4 lg:p-8 space-y-8 bg-slate-50/50 min-h-screen">
-                {/* Holiday Banner */}
+            <div className="w-full p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 bg-slate-50/60 min-h-screen">
+
+                {/* Holiday Alert */}
                 {todayHoliday && (
-                    <div className="relative overflow-hidden bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl shadow-lg p-6 text-white flex items-center justify-between">
-                        <div className="absolute inset-0 bg-white/10 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4xKSIvPjwvc3ZnPg==')] opacity-50"></div>
-                        <div className="relative z-10 flex items-center gap-4">
-                            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                                <FiCalendar className="w-8 h-8 text-white" />
+                    <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-xl p-3.5 sm:p-4 text-white flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white/20 rounded-lg shrink-0">
+                                <FiCalendar className="w-5 h-5 text-white" />
                             </div>
                             <div>
-                                <h2 className="text-xl font-normal tracking-normal mb-1">Today is a Holiday! 🎉</h2>
-                                <p className="text-amber-50 font-normal">{todayHoliday.name}</p>
+                                <h4 className="text-xs sm:text-sm font-semibold">Today is a Company Holiday: {todayHoliday.name} 🎉</h4>
+                                <p className="text-[11px] sm:text-xs text-amber-100">Standard operating shifts are adjusted accordingly.</p>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* Welcome Header */}
-                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-800 to-violet-900 rounded-[2.5rem] shadow-2xl shadow-indigo-200 p-8 lg:p-12 text-white">
-                    {/* Abstract Decorative Shapes */}
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-48 -mt-48 pointer-events-none"></div>
-                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-2xl -ml-32 -mb-32 pointer-events-none"></div>
-
-                    <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-10">
-                        <div className="flex flex-col md:flex-row gap-8 items-center lg:items-start">
+                {/* Compact & Clean Profile Header */}
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-xs relative overflow-hidden">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
+                        <div className="flex items-center gap-4">
                             <div className="relative group shrink-0">
                                 <Avatar
                                     src={employee.employee_image}
                                     name={employee.name}
-                                    size="2xl"
-                                    className="ring-4 ring-white/20 shadow-2xl"
+                                    size="lg"
+                                    className="ring-2 ring-rose-200 shadow-sm"
                                 />
                                 <button
                                     onClick={() => fileInput.current.click()}
-                                    className="absolute bottom-0 right-0 p-2.5 bg-white text-indigo-900 rounded-lg shadow-lg group-hover:scale-110 transition-transform active:scale-95"
+                                    className="absolute -bottom-1 -right-1 p-1.5 bg-slate-900 text-white rounded-full shadow-md hover:bg-rose-600 transition-colors"
                                     title="Update Photo"
                                     disabled={isUploading}
                                 >
-                                    <FiCamera className={`w-4 h-4 ${isUploading ? 'animate-spin' : ''}`} />
+                                    <FiCamera className={`w-3 h-3 ${isUploading ? 'animate-spin' : ''}`} />
                                 </button>
                                 <input
                                     type="file"
@@ -165,325 +196,433 @@ export default function Dashboard({
                                 />
                             </div>
 
-                            <div className="text-center md:text-left">
-                                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-6 font-normal text-sm tracking-normal">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    Identity Verified Online
+                            <div>
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                    <h1 className="text-lg sm:text-xl font-bold text-slate-900">{employee.name}</h1>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                        {employee.employee_code}
+                                    </span>
                                 </div>
-                                <h1 className="text-3xl lg:text-5xl font-normal mb-4 tracking-normal leading-tight">
-                                    Welcome back,<br />
-                                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-100 to-white italic">{employee.name}!</span> 👋
-                                </h1>
-                                <p className="text-sm lg:text-lg text-indigo-100 font-normal opacity-80 leading-relaxed max-w-sm">
-                                    You're doing a great job! Here's a quick look at your attendance and work status.
+                                <p className="text-xs text-slate-500 flex flex-wrap items-center gap-1.5">
+                                    <span className="font-medium text-slate-700">{employee.designation || 'Company Staff'}</span>
+                                    {employee.department?.name && (
+                                        <>
+                                            <span>•</span>
+                                            <span>{employee.department.name}</span>
+                                        </>
+                                    )}
+                                    {employee.company?.name && (
+                                        <>
+                                            <span>•</span>
+                                            <span className="text-slate-400">{employee.company.name}</span>
+                                        </>
+                                    )}
                                 </p>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
-                            {[
-                                { label: 'Present', val: attendanceSummary?.present || 0, icon: FiCheckCircle, color: 'emerald' },
-                                { label: 'Leave', val: attendanceSummary?.leave_days || 0, icon: FiCalendar, color: 'blue' },
-                                { label: 'OT Hours', val: `${attendanceSummary?.total_ot_hours || 0}h`, icon: FiTrendingUp, color: 'amber' }
-                            ].map((stat, i) => (
-                                <div key={i} className="bg-white/10 backdrop-blur-xl p-5 rounded-lg border border-white/15 flex flex-col justify-center items-center text-center group hover:bg-white/20 transition-all cursor-default">
-                                    <stat.icon className={`w-6 h-6 mb-3 text-${stat.color}-300 group-hover:scale-110 transition-transform`} />
-                                    <div className="text-2xl font-normal tracking-normal">{stat.val}</div>
-                                    <div className="text-[10px] font-normal uppercase tracking-[0.2em] opacity-60 mt-1">{stat.label}</div>
-                                </div>
-                            ))}
+                        {/* Punch / Month Quick Metrics */}
+                        <div className="grid grid-cols-3 gap-2.5 sm:gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
+                            <div className="px-3 py-1.5 text-center">
+                                <div className="text-base sm:text-lg font-bold text-emerald-600">{attendanceSummary?.present || 0}</div>
+                                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Present</div>
+                            </div>
+                            <div className="px-3 py-1.5 text-center border-x border-slate-200/80">
+                                <div className="text-base sm:text-lg font-bold text-rose-500">{attendanceSummary?.leave_days || 0}</div>
+                                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Leaves</div>
+                            </div>
+                            <div className="px-3 py-1.5 text-center">
+                                <div className="text-base sm:text-lg font-bold text-indigo-600">{attendanceSummary?.total_ot_hours || 0}h</div>
+                                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Overtime</div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Quick Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4">
                     <StatCard
-                        title="Records"
-                        value={thisMonthAttendance}
-                        subtitle="This month attendance"
+                        title="Attendance"
+                        value={`${thisMonthAttendance}d`}
+                        subtitle="This month total"
                         icon={FiClock}
                         color="indigo"
-                        sparkline={true}
                     />
                     <StatCard
-                        title="Net Payable"
-                        value={currentMonthSalary?.net_salary ? formatCurrency(currentMonthSalary.net_salary) : formatCurrency(0)}
-                        subtitle="Last salary posting"
+                        title="Latest Net Pay"
+                        value={currentMonthSalary?.net_salary ? formatCurrency(currentMonthSalary.net_salary) : '₹0'}
+                        subtitle="Salary posting"
                         icon={FiDollarSign}
                         color="emerald"
-                        sparkline={false}
+                    />
+                    <StatCard
+                        title="Approved Leaves"
+                        value={approvedLeaveRequests}
+                        subtitle={`${pendingLeaveRequests} pending`}
+                        icon={FiCalendar}
+                        color="amber"
                     />
                     <StatCard
                         title="Active Tasks"
                         value={pendingTasks}
-                        subtitle={`Assignments: ${totalTasks}`}
+                        subtitle={`${totalTasks} assigned`}
                         icon={FiBriefcase}
-                        color="orange"
-                        sparkline={true}
+                        color="purple"
                     />
                     <StatCard
-                        title="Leave"
-                        value={approvedLeaveRequests}
-                        subtitle="Approved requests"
-                        icon={FiCalendar}
-                        color="pink"
-                        sparkline={false}
+                        title="Appraisal Score"
+                        value={latestScore !== null ? `${latestScore}%` : '—'}
+                        subtitle={`${pendingAckEvaluations} pending sign-off`}
+                        icon={FiAward}
+                        color="rose"
+                    />
+                    <StatCard
+                        title="Reimbursed"
+                        value={formatCurrency(totalReimbursedAmount)}
+                        subtitle={`${pendingExpenses} in review`}
+                        icon={FiDollarSign}
+                        color="blue"
                     />
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Left Column: Roster & Attendance */}
-                    <div className="lg:col-span-2 space-y-8">
+                {/* Main 2-Column Dashboard Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                    {/* Left Column (2 Cols): Shifts, Attendance, Appraisals */}
+                    <div className="lg:col-span-2 space-y-6">
+
                         {/* Weekly Shift Roster */}
-                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-                            <div className="p-8 pb-4">
-                                <SectionHeader
-                                    title="Weekly Shift Roster"
-                                    icon={FiClock}
-                                    action={<span className="text-xs font-normal text-slate-400 uppercase tracking-normal">{weekStart} — {weekEnd}</span>}
-                                />
-                            </div>
-                            <div className="px-8 pb-8">
-                                {thisWeekShifts.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center py-10 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                                        <div className="p-4 bg-white rounded-lg shadow-sm mb-4">
-                                            <FiCalendar className="w-8 h-8 text-slate-300" />
-                                        </div>
-                                        <p className="text-slate-500 font-normal">No shifts assigned for this week.</p>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                        {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
-                                            const shift = thisWeekShifts.find(s => s.day === day);
-                                            return (
-                                                <div
-                                                    key={day}
-                                                    className={`p-5 rounded-lg border transition-all duration-300 ${shift
-                                                        ? 'bg-indigo-50/50 border-indigo-100 ring-4 ring-indigo-500/0 hover:ring-indigo-500/5'
-                                                        : 'bg-slate-50 border-slate-100 opacity-60'
-                                                        }`}
-                                                >
-                                                    <div className="text-[11px] font-normal text-slate-400 uppercase tracking-normal mb-3">{day}</div>
-                                                    {shift ? (
-                                                        <div className="space-y-1">
-                                                            <div className="text-lg font-normal text-indigo-900 leading-none">{shift.shift_time}</div>
-                                                            <div className="inline-block px-2 py-0.5 rounded-full bg-indigo-100 text-[10px] font-normal text-indigo-700 uppercase tracking-normal">{shift.shift_type}</div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-sm text-slate-400 font-normal italic">Off Day</div>
-                                                    )}
+                        <SectionCard
+                            title="Weekly Shift Roster"
+                            icon={FiClock}
+                            action={
+                                <span className="text-[11px] font-medium text-slate-400">
+                                    {weekStart} — {weekEnd}
+                                </span>
+                            }
+                        >
+                            {thisWeekShifts.length === 0 ? (
+                                <div className="text-center py-6 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                    <FiClock className="w-6 h-6 text-slate-300 mx-auto mb-1.5" />
+                                    <p className="text-xs text-slate-500">No shifts rostered for the current week.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
+                                        const shift = thisWeekShifts.find(s => s.day === day);
+                                        return (
+                                            <div
+                                                key={day}
+                                                className={`p-2.5 rounded-lg border text-center transition-all ${shift
+                                                        ? 'bg-rose-50/50 border-rose-200/80 text-slate-800'
+                                                        : 'bg-slate-50/80 border-slate-100 text-slate-400'
+                                                    }`}
+                                            >
+                                                <div className="text-[10px] font-semibold uppercase tracking-wider mb-1">
+                                                    {day.slice(0, 3)}
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                                                {shift ? (
+                                                    <div>
+                                                        <div className="text-xs font-bold text-rose-700">{shift.shift_time}</div>
+                                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-100/70 text-rose-800 font-medium">
+                                                            {shift.shift_type}
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-[11px] italic text-slate-400">Off</div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </SectionCard>
 
                         {/* Recent Attendance */}
-                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-                            <div className="p-8 pb-4">
-                                <SectionHeader
-                                    title="Recent Attendance"
-                                    icon={FiCheckCircle}
-                                    action={
-                                        <Link
-                                            href={route('employee-attendances.index')}
-                                            className="text-xs font-normal text-indigo-600 hover:text-indigo-800 uppercase tracking-normal flex items-center gap-1 group"
-                                        >
-                                            View History <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
-                                        </Link>
-                                    }
-                                />
-                            </div>
-                            <div className="px-8 pb-8 overflow-x-auto">
-                                <table className="w-full text-left border-separate border-spacing-y-2">
+                        <SectionCard
+                            title="Recent Attendance Log"
+                            icon={FiCheckCircle}
+                            action={
+                                <Link
+                                    href={route('employee-attendances.index')}
+                                    className="text-xs font-semibold text-rose-600 hover:text-rose-800 flex items-center gap-1"
+                                >
+                                    View All <FiArrowRight className="w-3.5 h-3.5" />
+                                </Link>
+                            }
+                        >
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
                                     <thead>
-                                        <tr className="text-[11px] font-normal text-slate-400 uppercase tracking-normal">
-                                            <th className="px-6 py-3">Date</th>
-                                            <th className="px-6 py-3">Status</th>
-                                            <th className="px-6 py-3 text-center">In/Out</th>
-                                            <th className="px-6 py-3 text-center">Work</th>
-                                            <th className="px-6 py-3 text-right">OT</th>
+                                        <tr className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                                            <th className="pb-2">Date</th>
+                                            <th className="pb-2">Status</th>
+                                            <th className="pb-2 text-center">Timings</th>
+                                            <th className="pb-2 text-center">Hours</th>
+                                            <th className="pb-2 text-right">OT</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        {recentAttendance.map((att, idx) => (
-                                            <tr key={idx} className="group hover:bg-slate-50 transition-colors">
-                                                <td className="px-6 py-4 bg-slate-50 group-hover:bg-white border-y border-l border-slate-100 rounded-l-2xl text-sm font-normal text-slate-700">
-                                                    {new Date(att.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    <tbody className="divide-y divide-slate-50">
+                                        {recentAttendance.slice(0, 5).map((att, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                                                <td className="py-2.5 font-medium text-slate-800">
+                                                    {new Date(att.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
                                                 </td>
-                                                <td className="px-6 py-4 bg-slate-50 group-hover:bg-white border-y border-slate-100">
-                                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-normal uppercase tracking-normal ${att.attendance === 'Present' ? 'bg-emerald-100 text-emerald-700' :
-                                                        att.attendance === 'Absent' ? 'bg-red-100 text-red-700' :
-                                                            'bg-amber-100 text-amber-700'
+                                                <td className="py-2.5">
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${att.attendance === 'Present' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                                            att.attendance === 'Absent' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                                                'bg-amber-50 text-amber-700 border border-amber-200'
                                                         }`}>
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${att.attendance === 'Present' ? 'bg-emerald-500' :
-                                                            att.attendance === 'Absent' ? 'bg-red-500' :
-                                                                'bg-amber-500'
-                                                            }`} />
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${att.attendance === 'Present' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                                                         {att.attendance}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 bg-slate-50 group-hover:bg-white border-y border-slate-100 text-sm text-slate-500 font-normal text-center">
-                                                    {att.from_time && att.to_time ? (
-                                                        <span className="inline-flex items-center gap-2">
-                                                            {att.from_time} <FiArrowRight className="text-slate-300 w-3 h-3" /> {att.to_time}
-                                                        </span>
-                                                    ) : '—'}
+                                                <td className="py-2.5 text-center text-slate-500 font-mono text-[11px]">
+                                                    {att.from_time && att.to_time ? `${att.from_time} - ${att.to_time}` : '—'}
                                                 </td>
-                                                <td className="px-6 py-4 bg-slate-50 group-hover:bg-white border-y border-slate-100 text-sm text-slate-900 font-normal text-center">
+                                                <td className="py-2.5 text-center font-medium text-slate-800">
                                                     {att.hours_worked || 0}h
                                                 </td>
-                                                <td className="px-6 py-4 bg-slate-50 group-hover:bg-white border-y border-r border-slate-100 rounded-r-2xl text-sm text-indigo-600 font-normal text-right">
+                                                <td className="py-2.5 text-right font-medium text-indigo-600">
                                                     +{att.ot || 0}h
                                                 </td>
                                             </tr>
                                         ))}
+                                        {recentAttendance.length === 0 && (
+                                            <tr>
+                                                <td colSpan="5" className="py-4 text-center text-slate-400 italic">
+                                                    No recent attendance records.
+                                                </td>
+                                            </tr>
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
+                        </SectionCard>
+
+                        {/* Performance Appraisals & Goal Reviews */}
+                        <SectionCard
+                            title="Performance Appraisals & Reviews"
+                            icon={FiAward}
+                            action={
+                                <Link
+                                    href={route('evaluations.index')}
+                                    className="text-xs font-semibold text-rose-600 hover:text-rose-800 flex items-center gap-1"
+                                >
+                                    View History <FiArrowRight className="w-3.5 h-3.5" />
+                                </Link>
+                            }
+                        >
+                            {pendingAckEvaluations > 0 && (
+                                <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-xl flex items-center justify-between gap-3 text-xs">
+                                    <div className="flex items-center gap-2 text-purple-900 font-medium">
+                                        <FiFlag className="w-4 h-4 text-purple-600" />
+                                        <span>{pendingAckEvaluations} appraisal review awaiting your sign-off.</span>
+                                    </div>
+                                    <Link
+                                        href={route('evaluations.index')}
+                                        className="px-2.5 py-1 bg-purple-600 text-white rounded-lg text-[11px] font-semibold hover:bg-purple-700"
+                                    >
+                                        Review Now
+                                    </Link>
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
+                                {myEvaluations.slice(0, 3).map((evalItem, idx) => {
+                                    const statusCfg = getEvalStatus(evalItem.status);
+                                    const score = parseFloat(evalItem.overall_score || 0);
+                                    return (
+                                        <div key={idx} className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 hover:bg-white hover:border-slate-300 transition-all">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div>
+                                                    <span className="font-bold text-xs text-slate-900">
+                                                        {evalItem.cycle_type?.toUpperCase()} Cycle {evalItem.year}
+                                                    </span>
+                                                    <p className="text-[11px] text-slate-400">Evaluator: {evalItem.evaluator?.name || 'Manager'}</p>
+                                                </div>
+                                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${statusCfg.color}`}>
+                                                    {statusCfg.label}
+                                                </span>
+                                            </div>
+
+                                            {score > 0 && (
+                                                <div className="mb-2">
+                                                    <div className="flex justify-between text-[11px] font-medium mb-1">
+                                                        <span className="text-slate-500">Score</span>
+                                                        <span className={scoreColor(score)}>{score}%</span>
+                                                    </div>
+                                                    <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                                                        <div className={`h-full rounded-full ${scoreBarColor(score)}`} style={{ width: `${score}%` }} />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="flex items-center justify-between pt-1">
+                                                <div className="flex gap-1.5">
+                                                    {evalItem.increment_percentage > 0 && (
+                                                        <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded font-semibold">
+                                                            +{evalItem.increment_percentage}% Increment
+                                                        </span>
+                                                    )}
+                                                    {evalItem.promotion_recommended && (
+                                                        <span className="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded font-semibold">
+                                                            Promotion
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <Link
+                                                    href={route('evaluations.show', evalItem.id)}
+                                                    className="text-[11px] font-semibold text-rose-600 hover:text-rose-800"
+                                                >
+                                                    View Details →
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {myEvaluations.length === 0 && (
+                                    <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                        No performance appraisal records found.
+                                    </p>
+                                )}
+                            </div>
+                        </SectionCard>
                     </div>
 
-                    {/* Right Column: Warnings, Leaves & Slips */}
-                    <div className="space-y-8">
-                        {/* My Evaluations */}
-                        {myEvaluations && myEvaluations.length > 0 && (
-                            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8">
-                                <SectionHeader
-                                    title="My Evaluations"
-                                    icon={FiTarget}
-                                    action={
-                                        <Link
-                                            href={route('evaluations.index')}
-                                            className="text-xs font-normal text-indigo-600 hover:text-indigo-800 uppercase tracking-normal flex items-center gap-1 group"
-                                        >
-                                            View All <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
-                                        </Link>
-                                    }
-                                />
-                                <div className="space-y-4">
-                                    {myEvaluations.map((evalItem, idx) => (
-                                        <div key={idx} className="p-4 bg-slate-50 hover:bg-white hover:shadow-md transition-all rounded-lg border border-slate-100 group">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <span className="text-[10px] font-normal uppercase tracking-normal text-slate-400">
-                                                    {new Date(evalItem.year, evalItem.month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
-                                                </span>
-                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-normal">
-                                                    {evalItem.overall_score}%
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Avatar src={evalItem.evaluator?.image} name={evalItem.evaluator?.name} size="xs" />
-                                                <div className="text-xs text-slate-500">
-                                                    Evaluated by <span className="font-normal text-slate-700">{evalItem.evaluator?.name}</span>
-                                                </div>
-                                            </div>
-                                            {evalItem.comments && (
-                                                <p className="mt-2 text-xs text-slate-500 italic line-clamp-2">"{evalItem.comments}"</p>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Warning Letters */}
-                        {warningLetters && warningLetters.length > 0 && (
-                            <div className="relative overflow-hidden bg-rose-600 rounded-[2rem] p-8 text-white shadow-xl shadow-rose-200">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16"></div>
-                                <h2 className="text-xl font-normal mb-6 flex items-center gap-2 relative z-10">
-                                    <FiAlertTriangle className="w-6 h-6" />
-                                    Active Warnings
-                                    <Link
-                                        href={route('warning-letters.index')}
-                                        className="ml-auto text-[10px] font-normal uppercase tracking-normal text-white/60 hover:text-white transition-colors flex items-center gap-1"
-                                    >
-                                        View All <FiArrowRight className="w-3 h-3" />
-                                    </Link>
-                                </h2>
-                                <div className="space-y-4 relative z-10">
-                                    {warningLetters.map((letter, idx) => (
-                                        <div key={idx} className="p-4 bg-white/15 backdrop-blur-md rounded-lg border border-white/20 hover:bg-white/25 transition-colors cursor-default">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <span className="text-[10px] font-normal uppercase tracking-[0.2em] opacity-80">{letter.type}</span>
-                                                <span className="text-[10px] font-normal opacity-60 italic">{new Date(letter.created_at).toLocaleDateString()}</span>
-                                            </div>
-                                            <h4 className="font-normal text-sm mb-1 line-clamp-1">{letter.subject}</h4>
-                                            <p className="text-xs opacity-70 line-clamp-2 leading-relaxed font-normal">{letter.content}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                    {/* Right Column (1 Col): Leave balances, Expenses, Payslips, Warnings */}
+                    <div className="space-y-6">
 
                         {/* Leave Balances */}
-                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8">
-                            <SectionHeader title="Leave Balances" icon={FiPieChart} />
-                            <div className="space-y-6">
-                                {leaveBalances.map((balance, idx) => {
-                                    const percentage = (balance.remaining_days / balance.total_days) * 100;
+                        <SectionCard
+                            title="Leave Balances"
+                            icon={FiPieChart}
+                            action={
+                                <Link
+                                    href={route('leave-requests.create')}
+                                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1"
+                                >
+                                    <FiPlus className="w-3 h-3" /> Apply
+                                </Link>
+                            }
+                        >
+                            <div className="space-y-3">
+                                {leaveBalances.map((bal, idx) => {
+                                    const pct = bal.total_days > 0 ? (bal.remaining_days / bal.total_days) * 100 : 0;
                                     return (
-                                        <div key={idx} className="space-y-2.5">
-                                            <div className="flex justify-between items-end">
-                                                <span className="text-sm font-normal text-slate-700">{balance.leave_type?.name}</span>
-                                                <span className="text-xs font-normal text-slate-400 uppercase tracking-normal">
-                                                    <span className="text-indigo-600">{balance.remaining_days}</span> / {balance.total_days} Days
+                                        <div key={idx}>
+                                            <div className="flex justify-between text-xs font-semibold text-slate-700 mb-1">
+                                                <span>{bal.leave_type?.name}</span>
+                                                <span className="text-slate-500 font-mono text-[11px]">
+                                                    {bal.remaining_days} / {bal.total_days}d
                                                 </span>
                                             </div>
-                                            <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-50">
+                                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                                 <div
-                                                    className={`h-full rounded-full transition-all duration-1000 ${percentage > 50 ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]' :
-                                                        percentage > 20 ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]' :
-                                                            'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
-                                                        }`}
-                                                    style={{ width: `${percentage}%` }}
-                                                ></div>
+                                                    className={`h-full rounded-full ${pct > 40 ? 'bg-emerald-500' : pct > 15 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                                    style={{ width: `${pct}%` }}
+                                                />
                                             </div>
                                         </div>
                                     );
                                 })}
                                 {leaveBalances.length === 0 && (
-                                    <p className="text-sm text-slate-400 font-normal italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">No leave balances found.</p>
+                                    <p className="text-xs text-slate-400 italic text-center py-3">No leave quotas allocated.</p>
                                 )}
                             </div>
-                            <Link
-                                href={route('leave-requests.create')}
-                                className="mt-8 w-full flex items-center justify-center gap-2 py-4 bg-slate-900 text-white rounded-lg font-normal text-sm tracking-normal hover:bg-primary transition-all duration-300 hover:shadow-xl hover:shadow-indigo-200 group"
-                            >
-                                <FiCalendar className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                                Request Time Off
-                            </Link>
-                        </div>
+                        </SectionCard>
 
-                        {/* Recent Salary Slips */}
-                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8">
-                            <SectionHeader title="Salary Slips" icon={FiFileText} />
-                            <div className="space-y-4">
-                                {recentSalaryPostings.map((salary, idx) => (
-                                    <div key={idx} className="flex items-center justify-between p-4 rounded-lg bg-slate-50 border border-slate-100 hover:bg-white hover:border-indigo-100 hover:shadow-lg hover:shadow-slate-200/40 transition-all group">
+                        {/* Expense Claims */}
+                        <SectionCard
+                            title="Expense Claims"
+                            icon={FiDollarSign}
+                            action={
+                                <Link
+                                    href={route('expenses.create')}
+                                    className="text-xs font-semibold text-rose-600 hover:text-rose-800 flex items-center gap-1"
+                                >
+                                    <FiPlus className="w-3.5 h-3.5" /> Claim
+                                </Link>
+                            }
+                        >
+                            <div className="space-y-2.5">
+                                {recentExpenses.slice(0, 3).map((claim, idx) => (
+                                    <Link
+                                        key={idx}
+                                        href={route('expenses.show', claim.id)}
+                                        className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-rose-50/40 border border-slate-200/60 transition-colors block"
+                                    >
                                         <div>
-                                            <div className="text-sm font-normal text-slate-800">
-                                                {new Date(salary.year, salary.month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                                            <div className="text-xs font-bold text-slate-800">{claim.category?.name || 'General Expense'}</div>
+                                            <div className="text-[10px] text-slate-400">{claim.claim_number}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-xs font-bold text-slate-900">{formatCurrency(claim.amount)}</div>
+                                            <span className="text-[9px] px-1.5 py-0.5 rounded uppercase font-semibold bg-slate-100 text-slate-600">
+                                                {claim.status?.replace('_', ' ')}
+                                            </span>
+                                        </div>
+                                    </Link>
+                                ))}
+                                {recentExpenses.length === 0 && (
+                                    <p className="text-xs text-slate-400 italic text-center py-3">No expense claims yet.</p>
+                                )}
+                            </div>
+                        </SectionCard>
+
+                        {/* Salary Slips */}
+                        <SectionCard
+                            title="Recent Salary Slips"
+                            icon={FiFileText}
+                            action={
+                                <Link
+                                    href={route('salary-postings.index')}
+                                    className="text-xs font-semibold text-rose-600 hover:text-rose-800"
+                                >
+                                    View All
+                                </Link>
+                            }
+                        >
+                            <div className="space-y-2">
+                                {recentSalaryPostings.slice(0, 3).map((salary, idx) => (
+                                    <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-200/60">
+                                        <div>
+                                            <div className="text-xs font-semibold text-slate-800">
+                                                {new Date(salary.year, salary.month - 1).toLocaleString('default', { month: 'short', year: 'numeric' })}
                                             </div>
-                                            <div className="text-xs font-normal text-indigo-600 mt-0.5">{formatCurrency(salary.net_salary)}</div>
+                                            <div className="text-xs font-bold text-emerald-600">{formatCurrency(salary.net_salary)}</div>
                                         </div>
                                         <Link
                                             href={route('salary-postings.slip', salary.id)}
-                                            className="p-3 bg-white text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all shadow-sm border border-slate-100 group-hover:border-indigo-100 group-hover:scale-110"
-                                            title="View Details"
+                                            className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-700"
                                         >
-                                            <FiArrowRight className="w-5 h-5" />
+                                            Payslip
                                         </Link>
                                     </div>
                                 ))}
                                 {recentSalaryPostings.length === 0 && (
-                                    <p className="text-sm text-slate-400 font-normal italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">No salary records.</p>
+                                    <p className="text-xs text-slate-400 italic text-center py-3">No salary slips posted yet.</p>
                                 )}
                             </div>
-                        </div>
+                        </SectionCard>
+
+                        {/* Warning Letters if any */}
+                        {warningLetters && warningLetters.length > 0 && (
+                            <div className="bg-rose-50 border border-rose-200 rounded-xl p-4">
+                                <h4 className="text-xs font-bold text-rose-800 flex items-center gap-1.5 mb-2">
+                                    <FiAlertTriangle className="w-4 h-4 text-rose-600" /> Active Notices ({warningLetters.length})
+                                </h4>
+                                <div className="space-y-2">
+                                    {warningLetters.map((letter, idx) => (
+                                        <div key={idx} className="p-2.5 bg-white rounded-lg border border-rose-200/80 text-xs">
+                                            <div className="font-semibold text-rose-900">{letter.subject}</div>
+                                            <p className="text-[11px] text-slate-600 line-clamp-2 mt-0.5">{letter.content}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                     </div>
                 </div>
             </div>

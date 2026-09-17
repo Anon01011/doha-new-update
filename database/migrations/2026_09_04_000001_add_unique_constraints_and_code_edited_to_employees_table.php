@@ -61,6 +61,13 @@ return new class extends Migration
 
         // 4. Safely create unique indexes if they don't already exist
         $hasIndex = function ($table, $indexName) {
+            if (DB::getDriverName() === 'sqlite') {
+                $indexes = DB::select("PRAGMA index_list('{$table}')");
+                foreach ($indexes as $index) {
+                    if (($index->name ?? '') === $indexName) return true;
+                }
+                return false;
+            }
             $indexes = DB::select("SHOW KEYS FROM `{$table}` WHERE Key_name = ?", [$indexName]);
             return !empty($indexes);
         };
@@ -90,6 +97,13 @@ return new class extends Migration
     public function down(): void
     {
         $hasIndex = function ($table, $indexName) {
+            if (DB::getDriverName() === 'sqlite') {
+                $indexes = DB::select("PRAGMA index_list('{$table}')");
+                foreach ($indexes as $index) {
+                    if (($index->name ?? '') === $indexName) return true;
+                }
+                return false;
+            }
             $indexes = DB::select("SHOW KEYS FROM `{$table}` WHERE Key_name = ?", [$indexName]);
             return !empty($indexes);
         };

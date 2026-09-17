@@ -62,7 +62,7 @@ export default function Evaluation({ evaluations, summary, month, year, companyI
     const [expandedRow, setExpandedRow] = useState(null);
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800 tracking-normal">Advanced Performance Intelligence</h2>}>
+        <AuthenticatedLayout>
             <Head title="Advanced Evaluation Report" />
 
             <div className="w-full mx-auto p-6 space-y-6 bg-slate-50 min-h-screen">

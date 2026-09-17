@@ -72,7 +72,7 @@ export default function Index({ documentTypes }) {
     const categories = [...new Set(documentTypes.map(t => t.category))];
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-sm font-normal text-slate-900 uppercase">Document Control Panel</h2>}>
+        <AuthenticatedLayout>
             <Head title="Document Configuration" />
 
             <div className="min-h-screen bg-slate-50/50 py-4">

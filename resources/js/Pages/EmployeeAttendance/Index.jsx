@@ -438,7 +438,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Attendance</h2>}>
+        <AuthenticatedLayout>
             <Head title="Employee Attendance" />
 
             {/* Import Modal */}

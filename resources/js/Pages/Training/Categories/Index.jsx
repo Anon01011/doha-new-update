@@ -73,7 +73,7 @@ export default function Index({ categories, filters }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Training Categories</h2>}>
+        <AuthenticatedLayout>
             <Head title="Training Categories" />
 
             <div className="p-4 space-y-4 bg-slate-50 min-h-screen">

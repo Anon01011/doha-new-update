@@ -302,8 +302,8 @@ class SettingsController extends Controller
             'app_url' => Setting::get('app_url', env('APP_URL', 'http://localhost'), $companyId),
             'app_timezone' => Setting::get('app_timezone', env('APP_TIMEZONE', 'UTC'), $companyId),
             'app_locale' => Setting::get('app_locale', env('APP_LOCALE', 'en'), $companyId),
-            'currency' => Setting::get('currency', 'QAR', $companyId),
-            'currency_symbol' => Setting::get('currency_symbol', 'QAR', $companyId),
+            'currency' => Setting::get('currency', 'INR', $companyId),
+            'currency_symbol' => Setting::get('currency_symbol', '₹', $companyId),
             'app_logo' => Setting::get('app_logo', null, $companyId),
             'favicon' => Setting::get('favicon', null, $companyId),
             'company_stamp' => Setting::get('company_stamp', null, $companyId),
@@ -520,8 +520,8 @@ class SettingsController extends Controller
 
         if ($request->hasFile('salary_slip_stamp')) {
             $oldStamp = Setting::get('salary_slip_stamp', null, $companyId, $departmentId);
-            if ($oldStamp && \Illuminate\Support\Facades\Storage::disk('public')->exists($oldStamp)) {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($oldStamp);
+            if ($oldStamp && Storage::disk('public')->exists($oldStamp)) {
+                Storage::disk('public')->delete($oldStamp);
             }
             $stampPath = $request->file('salary_slip_stamp')->store('branding', 'public');
             Setting::set('salary_slip_stamp', $stampPath, 'payroll', 'string', $companyId, $departmentId);
@@ -895,7 +895,7 @@ class SettingsController extends Controller
 
         // Convert to key-value array with typed values
         $result = [];
-        /** @var \App\Models\Setting $setting */
+        /** @var Setting $setting */
         foreach ($settings as $setting) {
             $result[$setting->key] = $setting->getValue();
         }

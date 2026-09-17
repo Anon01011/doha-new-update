@@ -162,9 +162,9 @@
 </head>
 <body>
     @php
-        $currency = $appSettings['currency'] ?? 'QAR';
+        $currency = $appSettings['currency'] ?? 'INR';
         $formatCurrency = function ($amount) use ($currency) {
-            return $currency . ' ' . number_format((float) $amount, 2);
+            return ($currency === 'INR' ? '₹ ' : $currency . ' ') . number_format((float) $amount, 2);
         };
 
         $basicSalary = (float) ($salaryPosting->basic_salary ?? 0);
@@ -229,7 +229,20 @@
 
         $netInt = floor($netSalary);
         $netDec = round(($netSalary - $netInt) * 100);
-        $wordsStr = ucwords(convertNumberToWord($netInt)) . ' ' . ($currency === 'QAR' ? 'Qatari Riyals' : $currency) . ($netDec > 0 ? ' and ' . ucwords(convertNumberToWord($netDec)) . ' Dirhams ' : ' ') . 'Only';
+        $currencyWord = match($currency) {
+            'INR' => 'Rupees',
+            'QAR' => 'Qatari Riyals',
+            'AED' => 'Dirhams',
+            'USD' => 'Dollars',
+            default => $currency,
+        };
+        $subCurrencyWord = match($currency) {
+            'INR' => 'Paise',
+            'QAR', 'AED' => 'Dirhams',
+            'USD' => 'Cents',
+            default => 'Cents',
+        };
+        $wordsStr = ucwords(convertNumberToWord($netInt)) . ' ' . $currencyWord . ($netDec > 0 ? ' and ' . ucwords(convertNumberToWord($netDec)) . ' ' . $subCurrencyWord . ' ' : ' ') . 'Only';
         
         $appName = $appSettings['app_name'] ?? 'EARTH.';
         $stampImage = $appSettings['salary_slip_stamp'] ?? ($appSettings['company_stamp'] ?? null);
@@ -429,7 +442,7 @@
                     </tr>
                 </table>
 
-                <p style="text-align: center; margin-bottom: 5px;">I hereby acknowledge and confirm that I have received the above-mentioned amount (salary, allowances, overtime, and other additions) in {{ $currency === 'QAR' ? 'Qatari Riyals' : $currency }}.</p>
+                <p style="text-align: center; margin-bottom: 5px;">I hereby acknowledge and confirm that I have received the above-mentioned amount (salary, allowances, overtime, and other additions) in {{ $currency === 'INR' ? 'Indian Rupees (INR)' : ($currency === 'QAR' ? 'Qatari Riyals' : $currency) }}.</p>
                 <p style="text-align: center; margin-bottom: 10px;" class="arabic">أقر وأؤكد بموجبه أنني قد استلمت المبلغ المذكور أعلاه (الراتب، البدلات، ساعات العمل الإضافية، والإضافات الأخرى) بالريال القطري.</p>
                 <p style="text-align: center; margin-bottom: 5px;">I also acknowledge and agree to any deductions stated, if applicable.</p>
                 <p style="text-align: center; margin-bottom: 20px;" class="arabic">كما أقر وأوافق على أي خصومات مذكورة، إن وجدت.</p>

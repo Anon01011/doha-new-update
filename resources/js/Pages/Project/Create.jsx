@@ -39,7 +39,7 @@ export default function Create({ branches, employees, settings }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-gray-800">New Project</h2>}>
+        <AuthenticatedLayout>
             <Head title="Create Project" />
             <div className="max-w mx-auto p-4 lg:p-8">
                 <form onSubmit={handleSubmit} className="space-y-6">

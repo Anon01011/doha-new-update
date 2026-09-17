@@ -3,7 +3,7 @@ import { Head } from '@inertiajs/react';
 
 export default function Show({ employee, company, week_start, rosters, days }) {
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-gray-800">Roster for {employee.name} ({company.name})</h2>}>
+        <AuthenticatedLayout>
             <Head title="Employee Roster" />
             <div className="max-w mx-auto bg-white rounded-lg shadow p-8 mt-10">
                 <h1 className="text-2xl font-normal mb-4">{employee.name} - {company.name}</h1>

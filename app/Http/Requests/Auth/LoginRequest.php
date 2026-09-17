@@ -50,17 +50,22 @@ class LoginRequest extends FormRequest
         }
 
         $user = Auth::user();
+        $employee = null;
         if ($user->employee_id) {
             $employee = \App\Models\Employee::find($user->employee_id);
-            if ($employee && !$employee->is_active) {
-                Auth::logout();
-                $this->session()->invalidate();
-                $this->session()->regenerateToken();
+        } elseif ($user->email && $user->role !== 'admin') {
+            $employee = \App\Models\Employee::where('email', $user->email)->first();
+        }
 
-                throw ValidationException::withMessages([
-                    'email' => 'Your employee account is inactive. Please contact HR.',
-                ]);
-            }
+        if ($employee && !$employee->is_active) {
+            Auth::logout();
+            $this->session()->invalidate();
+            $this->session()->regenerateToken();
+
+            $statusReason = $employee->exit_status ? " ({$employee->exit_status})" : '';
+            throw ValidationException::withMessages([
+                'email' => "Your employee profile has been locked and deactivated{$statusReason}. Access is restricted. Only HR or Salon Administrator can unlock your profile.",
+            ]);
         }
 
         RateLimiter::clear($this->throttleKey());

@@ -35,7 +35,7 @@ export default function Assign({ tasks, employees, branches, selectedTaskId }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Assign Task</h2>}>
+        <AuthenticatedLayout>
             <Head title="Assign Task" />
 
             <div className="p-4 space-y-6 bg-slate-50 min-h-screen">

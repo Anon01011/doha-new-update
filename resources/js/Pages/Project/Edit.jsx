@@ -44,7 +44,7 @@ export default function Edit({ project, branches, employees, settings }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-gray-800">Edit Project</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Edit ${project.name}`} />
             <div className="max-w mx-auto p-4 lg:p-8">
                 <form onSubmit={handleSubmit} className="space-y-6">

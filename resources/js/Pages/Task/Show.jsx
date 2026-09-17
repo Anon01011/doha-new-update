@@ -78,7 +78,7 @@ export default function Show({ task, userRole = 'employee', projectMemberRole = 
     }, [task.comments, task.assignments]);
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Task Details</h2>}>
+        <AuthenticatedLayout>
             <Head title={task.title} />
 
             <div className="p-4 space-y-4 bg-slate-50 min-h-screen">

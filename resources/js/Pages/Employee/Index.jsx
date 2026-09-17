@@ -239,7 +239,7 @@ export default function Index({ employees, status, search: initialSearch = '', s
     });
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-gray-800">Employees</h2>}>
+        <AuthenticatedLayout>
             <Head title="Employees" />
 
             <div className="py-4 px-4 sm:px-6 lg:px-8 space-y-6">
@@ -687,7 +687,7 @@ export default function Index({ employees, status, search: initialSearch = '', s
                     <form onSubmit={handleImport} className="space-y-4">
                         {companies.length > 1 && (
                             <div>
-                                <label className="block text-xs font-medium text-slate-700 mb-1.5">Default Branch / Salon (Optional)</label>
+                                <label className="block text-xs font-medium text-slate-700 mb-1.5">Default Branch / Company (Optional)</label>
                                 <select
                                     value={importCompanyId}
                                     onChange={e => setImportCompanyId(e.target.value)}

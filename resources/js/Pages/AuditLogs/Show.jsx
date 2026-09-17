@@ -47,12 +47,7 @@ export default function Show({ auditLog }) {
     const config = getEventConfig(auditLog.event);
 
     return (
-        <AuthenticatedLayout header={
-            <div>
-                <h2 className="text-xl font-normal text-gray-900 tracking-normal leading-none">Audit Entry Details</h2>
-                <p className="text-[9px] font-normal text-gray-400 uppercase tracking-[0.2em] mt-1.5">Historical Snapshot Record</p>
-            </div>
-        }>
+        <AuthenticatedLayout>
             <Head title={`Audit Log #${auditLog.id}`} />
 
             <div className="max-w-[1600px] mx-auto p-4 lg:p-5 space-y-4">

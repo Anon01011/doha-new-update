@@ -14,7 +14,7 @@ export default function Show({ role }) {
     }, {}) || {};
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-sm font-normal text-slate-900 uppercase">Role Architecture Review</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Role Profile - ${role.name}`} />
 
             <div className="min-h-screen bg-slate-50/50 py-4">

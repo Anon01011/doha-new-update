@@ -167,7 +167,7 @@ export default function SettingsLayout({ children, activeTab, title, description
     ];
 
     return (
-        <AuthenticatedLayout header={title}>
+        <AuthenticatedLayout>
             <Head title={title} />
 
             <div className="flex flex-col lg:flex-row min-h-[calc(100vh-4rem)] bg-gray-50/50">

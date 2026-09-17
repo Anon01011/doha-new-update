@@ -29,7 +29,7 @@ export default function Expiring({ expiringDocuments, days }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-sm font-normal text-slate-900 uppercase">Critical Expiration Monitoring</h2>}>
+        <AuthenticatedLayout>
             <Head title="Expiring Assets" />
 
             <div className="min-h-screen bg-slate-50/50 py-4">

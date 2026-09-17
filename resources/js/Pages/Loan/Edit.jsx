@@ -82,7 +82,7 @@ export default function Edit({ loan, employees, loanTypes = [], userRole = 'empl
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Edit Loan Request</h2>}>
+        <AuthenticatedLayout>
             <Head title="Edit Loan Request" />
 
             <div className="py-4 px-4 sm:px-6 lg:px-8 space-y-6">
@@ -172,19 +172,16 @@ export default function Edit({ loan, employees, loanTypes = [], userRole = 'empl
                                     <div className="flex gap-3">
                                         {!showNewTypeInput ? (
                                             <>
-                                                <div className="relative flex-1 group">
-                                                    <select
-                                                        className="w-full px-5 py-3.5 bg-slate-50/50 border-2 border-slate-100 rounded-lg focus:ring-8 focus:ring-primary/5 focus:border-primary/20 transition-all outline-none appearance-none cursor-pointer text-[11px] font-normal uppercase tracking-normal"
-                                                        value={data.loan_type} onChange={(e) => setData('loan_type', e.target.value)} required
-                                                    >
-                                                        <option value="">SELECT CATEGORY...</option>
-                                                        {loanTypes.map((type) => <option key={type} value={type}>{type.toUpperCase()}</option>)}
-                                                        {data.loan_type && !loanTypes.includes(data.loan_type) && (
-                                                            <option value={data.loan_type}>{data.loan_type.toUpperCase()}</option>
-                                                        )}
-                                                    </select>
-                                                    <FaChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={10} />
-                                                </div>
+                                                <select
+                                                    className="w-full px-5 py-3.5 bg-slate-50/50 border-2 border-slate-100 rounded-lg focus:ring-8 focus:ring-primary/5 focus:border-primary/20 transition-all outline-none cursor-pointer text-[11px] font-normal uppercase tracking-normal"
+                                                    value={data.loan_type} onChange={(e) => setData('loan_type', e.target.value)} required
+                                                >
+                                                    <option value="">SELECT CATEGORY...</option>
+                                                    {loanTypes.map((type) => <option key={type} value={type}>{type.toUpperCase()}</option>)}
+                                                    {data.loan_type && !loanTypes.includes(data.loan_type) && (
+                                                        <option value={data.loan_type}>{data.loan_type.toUpperCase()}</option>
+                                                    )}
+                                                </select>
                                                 {userRole !== 'employee' && (
                                                     <button type="button" onClick={() => setShowNewTypeInput(true)} className="w-14 h-14 flex items-center justify-center bg-slate-50 text-primary rounded-lg border border-slate-100 hover:bg-primary hover:text-white transition-all shadow-sm">
                                                         <FaPlus size={12} />

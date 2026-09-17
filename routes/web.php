@@ -34,6 +34,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:admin,hr,manager')->group(function () {
         Route::post('employees/bulk-transfer', [EmployeeController::class, 'bulkTransfer'])->name('employees.bulk-transfer');
         Route::post('employees/{employee}/approve', [EmployeeController::class, 'approve'])->name('employees.approve');
+        Route::post('employees/{employee}/unlock', [EmployeeController::class, 'unlockProfile'])->name('employees.unlock');
         Route::get('employees/export', [EmployeeController::class, 'export'])->name('employees.export');
         Route::get('employees/download-template', [EmployeeController::class, 'downloadTemplate'])->name('employees.download-template');
         Route::post('employees/import', [EmployeeController::class, 'import'])->name('employees.import');
@@ -181,6 +182,15 @@ Route::middleware('auth')->group(function () {
             Route::get('/advance', [\App\Http\Controllers\ReportController::class, 'advance'])->name('advance');
             Route::get('/advance/export/pdf', [\App\Http\Controllers\ReportController::class, 'advanceExportPdf'])->name('advance.export.pdf');
             Route::get('/advance/export/excel', [\App\Http\Controllers\ReportController::class, 'advanceExportExcel'])->name('advance.export.excel');
+
+            // Expense Reports
+            Route::get('/expense', [\App\Http\Controllers\ReportController::class, 'expense'])->name('expense');
+            Route::get('/expense/export/pdf', [\App\Http\Controllers\ReportController::class, 'expenseExportPdf'])->name('expense.export.pdf');
+            Route::get('/expense/export/excel', [\App\Http\Controllers\ReportController::class, 'expenseExportExcel'])->name('expense.export.excel');
+
+            // Offboarding Reports
+            Route::get('/offboarding', [\App\Http\Controllers\ReportController::class, 'offboarding'])->name('offboarding');
+            Route::get('/offboarding/export/excel', [\App\Http\Controllers\ReportController::class, 'offboardingExportExcel'])->name('offboarding.export.excel');
         });
     });
 
@@ -228,6 +238,33 @@ Route::middleware('auth')->group(function () {
     Route::post('training-assignments/{assignment}/update-progress', [\App\Http\Controllers\TrainingAssignmentController::class, 'updateProgress'])->name('training-assignments.updateProgress');
 
     Route::resource('evaluations', \App\Http\Controllers\EmployeeEvaluationController::class);
+    Route::post('evaluations/{evaluation}/self-assessment', [\App\Http\Controllers\EmployeeEvaluationController::class, 'submitSelfAssessment'])->name('evaluations.self-assessment');
+    Route::post('evaluations/{evaluation}/acknowledge', [\App\Http\Controllers\EmployeeEvaluationController::class, 'acknowledge'])->name('evaluations.acknowledge');
+    Route::post('evaluations/{evaluation}/approve-close', [\App\Http\Controllers\EmployeeEvaluationController::class, 'approveAndClose'])->name('evaluations.approve-close');
+
+    // Employee Expenses Module
+    Route::resource('expense-categories', \App\Http\Controllers\ExpenseCategoryController::class);
+    Route::resource('expenses', \App\Http\Controllers\ExpenseClaimController::class);
+    Route::post('expenses/{expense}/submit', [\App\Http\Controllers\ExpenseClaimController::class, 'submit'])->name('expenses.submit');
+    Route::post('expenses/{expense}/manager-approve', [\App\Http\Controllers\ExpenseClaimController::class, 'managerApprove'])->name('expenses.manager-approve');
+    Route::post('expenses/{expense}/manager-reject', [\App\Http\Controllers\ExpenseClaimController::class, 'managerReject'])->name('expenses.manager-reject');
+    Route::post('expenses/{expense}/return', [\App\Http\Controllers\ExpenseClaimController::class, 'returnClaim'])->name('expenses.return');
+    Route::post('expenses/{expense}/finance-approve', [\App\Http\Controllers\ExpenseClaimController::class, 'financeApprove'])->name('expenses.finance-approve');
+    Route::post('expenses/{expense}/finance-reject', [\App\Http\Controllers\ExpenseClaimController::class, 'financeReject'])->name('expenses.finance-reject');
+    Route::post('expenses/{expense}/process-payment', [\App\Http\Controllers\ExpenseClaimController::class, 'processPayment'])->name('expenses.process-payment');
+
+    // Offboarding Module
+    Route::resource('offboarding', \App\Http\Controllers\OffboardingController::class);
+    Route::post('offboarding/{offboarding}/approve', [\App\Http\Controllers\OffboardingController::class, 'approve'])->name('offboarding.approve');
+    Route::post('offboarding/{offboarding}/reject', [\App\Http\Controllers\OffboardingController::class, 'reject'])->name('offboarding.reject');
+    Route::post('offboarding/{offboarding}/tasks/{task}', [\App\Http\Controllers\OffboardingController::class, 'updateTask'])->name('offboarding.tasks.update');
+    Route::get('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'exitInterview'])->name('offboarding.exit-interview');
+    Route::post('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'storeExitInterview'])->name('offboarding.exit-interview.store');
+    Route::post('offboarding/{offboarding}/settlement', [\App\Http\Controllers\OffboardingController::class, 'settlementPreview'])->name('offboarding.settlement');
+    Route::post('offboarding/{offboarding}/complete', [\App\Http\Controllers\OffboardingController::class, 'complete'])->name('offboarding.complete');
+    Route::post('offboarding/{offboarding}/unlock', [\App\Http\Controllers\OffboardingController::class, 'unlockProfile'])->name('offboarding.unlock');
+    Route::get('offboarding/{offboarding}/relieving-letter', [\App\Http\Controllers\OffboardingController::class, 'generateRelievingLetter'])->name('offboarding.relieving-letter');
+
 
     // Training Sessions
     Route::resource('training-sessions', \App\Http\Controllers\TrainingSessionController::class)->only(['store', 'update', 'destroy']);

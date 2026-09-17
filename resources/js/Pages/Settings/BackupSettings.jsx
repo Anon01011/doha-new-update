@@ -159,7 +159,7 @@ export default function BackupSettings({ backups = [], stats = {}, settings = {}
                             </div>
                             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">Full System Backup & Restore</h1>
                             <p className="text-slate-300 text-sm mt-1 max-w-2xl">
-                                Backup your entire HRMS system including all Salon branches, departments, employee records, uploaded images/IDs, documents, attendance logs, and payroll.
+                                Backup your entire HRMS system including all Company branches, departments, employee records, uploaded images/IDs, documents, attendance logs, and payroll.
                             </p>
                         </div>
 
@@ -514,11 +514,10 @@ export default function BackupSettings({ backups = [], stats = {}, settings = {}
             <Modal show={confirmModal.show} onClose={() => setConfirmModal(prev => ({ ...prev, show: false }))} maxWidth="md">
                 <div className="p-6">
                     <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            confirmModal.type === 'danger'
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${confirmModal.type === 'danger'
                                 ? 'bg-rose-50 text-rose-600'
                                 : 'bg-indigo-50 text-primary'
-                        }`}>
+                            }`}>
                             {confirmModal.icon === 'delete' ? (
                                 <FiTrash2 className="w-5 h-5" />
                             ) : confirmModal.icon === 'database' ? (
@@ -548,11 +547,10 @@ export default function BackupSettings({ backups = [], stats = {}, settings = {}
                         <button
                             type="button"
                             onClick={confirmModal.onConfirm}
-                            className={`px-5 py-2 text-xs font-medium text-white rounded-lg shadow-md transition-all flex items-center gap-2 ${
-                                confirmModal.type === 'danger'
+                            className={`px-5 py-2 text-xs font-medium text-white rounded-lg shadow-md transition-all flex items-center gap-2 ${confirmModal.type === 'danger'
                                     ? 'bg-rose-600 hover:bg-rose-700'
                                     : 'bg-primary hover:brightness-110'
-                            }`}
+                                }`}
                         >
                             <FiCheckCircle className="w-3.5 h-3.5" />
                             <span>{confirmModal.confirmText}</span>

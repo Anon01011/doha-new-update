@@ -362,7 +362,15 @@ export default function Index({
 
     const handleExport = () => {
         if (!selectedCompany) {
-            alert('Please select a branch/salon first.');
+            setConfirmingAction({
+                show: true,
+                title: 'Branch Required',
+                message: 'Please select a branch/Company from the filter above before exporting the weekly roster.',
+                type: 'warning',
+                hideCancel: true,
+                confirmText: 'Got It',
+                onConfirm: () => setConfirmingAction(prev => ({ ...prev, show: false }))
+            });
             return;
         }
         let baseUrl = '/shift-rosters/export-week';
@@ -459,71 +467,55 @@ export default function Index({
     }, [days, rosterMap, currentUser.employee_id, isEmployee]);
 
     return (
-        <AuthenticatedLayout
-            header={
-                <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-4">
-                        <div className="p-2.5 bg-indigo-600 rounded-lg shadow-lg shadow-indigo-100 ring-4 ring-indigo-50">
-                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-normal text-slate-800 tracking-normal leading-none">Schedule Hub</h2>
-                            <p className="text-[10px] font-normal text-gray-400 uppercase tracking-normal mt-1">Manage your time efficiently</p>
-                        </div>
-                    </div>
-                </div>
-            }
-        >
+        <AuthenticatedLayout>
             <>
                 <Head title="Shift Roster" />
 
-                <div className="w-full mx-auto px-4 py-2 md:px-6 md:py-4 flex flex-col gap-4 bg-gray-50/50 min-h-screen">
+                <div className="w-full mx-auto p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 bg-gray-50/50 min-h-screen">
 
                     {/* 1. Employee "My Schedule" Hero Section */}
                     {isEmployee && myRosters.length > 0 && (
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-in slide-in-from-bottom-4 duration-500">
-                            <div className="md:col-span-1 bg-gradient-to-br from-indigo-600 to-violet-700 p-6 rounded-[2rem] text-white shadow-xl shadow-indigo-100 flex flex-col justify-between relative overflow-hidden group">
-                                <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 sm:gap-4 animate-in slide-in-from-bottom-4 duration-500">
+                            <div className="md:col-span-1 bg-gradient-to-br from-indigo-600 to-violet-700 p-5 sm:p-6 rounded-2xl text-white shadow-xl shadow-indigo-100 flex flex-col justify-between relative overflow-hidden group">
+                                <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700 pointer-events-none"></div>
                                 <div className="relative z-10">
                                     <span className="text-[10px] font-normal uppercase tracking-normal opacity-80">Personal Outlook</span>
-                                    <h3 className="text-2xl font-normal mt-1 leading-tight">Your Upcoming <br />Shifts</h3>
+                                    <h3 className="text-xl sm:text-2xl font-normal mt-1 leading-tight">Your Upcoming <br className="hidden sm:inline" />Shifts</h3>
                                 </div>
-                                <div className="relative z-10 mt-6 flex items-baseline gap-1">
-                                    <span className="text-4xl font-normal">{myRosters.length}</span>
-                                    <span className="text-sm font-normal opacity-80 uppercase tracking-normal">Active Shifts</span>
+                                <div className="relative z-10 mt-4 sm:mt-6 flex items-baseline gap-1.5">
+                                    <span className="text-3xl sm:text-4xl font-normal">{myRosters.length}</span>
+                                    <span className="text-xs sm:text-sm font-normal opacity-80 uppercase tracking-normal">Active Shifts</span>
                                 </div>
                             </div>
 
-                            <div className="md:col-span-3 flex gap-4 overflow-x-auto pb-2 custom-scrollbar no-bg-on-scroll">
+                            <div className="md:col-span-3 flex gap-3 sm:gap-4 overflow-x-auto pb-2 custom-scrollbar no-bg-on-scroll">
                                 {days.map(day => {
                                     const roster = rosterMap[`${currentUser.employee_id}_${day.date}`];
                                     const isToday = day.date === todayDate;
                                     return (
-                                        <div key={day.date} className={`min-w-[200px] flex-shrink-0 p-5 rounded-[2rem] border transition-all duration-300 flex flex-col justify-between ${isToday
-                                            ? 'bg-white border-indigo-200 shadow-xl shadow-indigo-50/50 ring-4 ring-indigo-50/50'
+                                        <div key={day.date} className={`min-w-[160px] sm:min-w-[200px] flex-shrink-0 p-4 sm:p-5 rounded-2xl border transition-all duration-300 flex flex-col justify-between ${isToday
+                                            ? 'bg-white border-indigo-200 shadow-xl shadow-indigo-50/50 ring-2 sm:ring-4 ring-indigo-50/50'
                                             : 'bg-white/60 border-gray-100 hover:bg-white hover:border-gray-200'
                                             }`}>
                                             <div>
                                                 <div className="flex justify-between items-start">
-                                                    <span className={`text-[10px] font-normal uppercase tracking-normal ${isToday ? 'text-indigo-600' : 'text-gray-400'}`}>
+                                                    <span className={`text-[9px] sm:text-[10px] font-normal uppercase tracking-normal ${isToday ? 'text-indigo-600' : 'text-gray-400'}`}>
                                                         {day.day}
                                                     </span>
                                                     {isToday && <span className="bg-primary text-[8px] font-normal text-white px-2 py-0.5 rounded-full uppercase tracking-normal">Today</span>}
                                                 </div>
-                                                <p className="text-sm font-normal text-gray-800 mt-1">{day.label}</p>
+                                                <p className="text-xs sm:text-sm font-normal text-gray-800 mt-1">{day.label}</p>
                                             </div>
 
-                                            <div className="mt-4">
+                                            <div className="mt-3 sm:mt-4">
                                                 {roster ? (
                                                     <div className="space-y-1">
-                                                        <p className="text-lg font-normal text-indigo-700 tracking-normal leading-none">{roster.shift_time}</p>
+                                                        <p className="text-base sm:text-lg font-normal text-indigo-700 tracking-normal leading-none">{roster.shift_time}</p>
                                                         <p className="text-[9px] font-normal text-gray-400 uppercase tracking-normal">{roster.shift_type || 'General'}</p>
                                                     </div>
                                                 ) : (
                                                     <div className="py-2 px-3 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                                                        <span className="text-[10px] font-normal text-gray-400 italic">No assigned shift</span>
+                                                        <span className="text-[9px] sm:text-[10px] font-normal text-gray-400 italic">No assigned shift</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -535,15 +527,15 @@ export default function Index({
                     )}
 
                     {/* 2. Modern Glassmorphism Control Bar */}
-                    <div className="sticky top-4 z-50 flex flex-wrap items-center justify-between gap-4 bg-white/80 backdrop-blur-2xl p-4 rounded-lg shadow-xl shadow-gray-200/50 border border-white/60">
-                        <div className="flex items-center gap-5">
-                            <div className="flex items-center bg-gray-100/80 p-1.5 rounded-lg border border-gray-100 ring-1 ring-black/5">
-                                <button onClick={() => viewMode === 'week' ? handleWeekChange(-1) : handleMonthChange(-1)} className="p-2 hover:bg-white rounded-lg transition-all text-gray-500 hover:text-indigo-600 shadow-sm hover:shadow-md">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" /></svg>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white/90 backdrop-blur-2xl p-3 sm:p-4 rounded-xl shadow-lg shadow-gray-200/50 border border-white/60">
+                        <div className="flex items-center justify-between sm:justify-start gap-3 sm:gap-5 flex-wrap">
+                            <div className="flex items-center bg-gray-100/80 p-1 rounded-lg border border-gray-100 ring-1 ring-black/5">
+                                <button onClick={() => viewMode === 'week' ? handleWeekChange(-1) : handleMonthChange(-1)} className="p-1.5 sm:p-2 hover:bg-white rounded-lg transition-all text-gray-500 hover:text-indigo-600 shadow-sm hover:shadow-md">
+                                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" /></svg>
                                 </button>
-                                <span className="px-5 text-[11px] font-normal text-gray-700 uppercase tracking-normal tabular-nums">{getViewModeLabel()}</span>
-                                <button onClick={() => viewMode === 'week' ? handleWeekChange(1) : handleMonthChange(1)} className="p-2 hover:bg-white rounded-lg transition-all text-gray-500 hover:text-indigo-600 shadow-sm hover:shadow-md">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
+                                <span className="px-3 sm:px-5 text-[10px] sm:text-[11px] font-normal text-gray-700 uppercase tracking-normal tabular-nums">{getViewModeLabel()}</span>
+                                <button onClick={() => viewMode === 'week' ? handleWeekChange(1) : handleMonthChange(1)} className="p-1.5 sm:p-2 hover:bg-white rounded-lg transition-all text-gray-500 hover:text-indigo-600 shadow-sm hover:shadow-md">
+                                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
                                 </button>
                             </div>
 

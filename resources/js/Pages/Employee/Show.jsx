@@ -103,16 +103,7 @@ export default function ShowEmployee({ employee }) {
     );
 
     return (
-        <AuthenticatedLayout header={
-            <div className="flex justify-between items-center w-full px-2">
-                <div className="flex items-center gap-3">
-                    <Link href={route('employees.index')} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors group">
-                        <svg className="w-4 h-4 text-slate-400 group-hover:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                    </Link>
-                    <h2 className="text-lg font-normal text-slate-800 tracking-normal">Employee Dossier</h2>
-                </div>
-            </div>
-        }>
+        <AuthenticatedLayout>
             <Head title={`Employee - ${employee.name}`} />
 
             <div className="w-full p-4 md:p-6 lg:p-8 bg-slate-50/30 min-h-[calc(100vh-64px)]">
@@ -348,77 +339,173 @@ export default function ShowEmployee({ employee }) {
                                 <div className="bg-white rounded-lg border border-slate-100 shadow-xl shadow-slate-200/20 p-6 space-y-6">
                                     {/* Performance Evaluations */}
                                     <div>
-                                        <h4 className="text-sm font-normal text-slate-700 mb-4 flex items-center gap-2">
-                                            <span className="text-lg">🎯</span>
-                                            Performance Evaluations
-                                        </h4>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h4 className="text-sm font-normal text-slate-700 flex items-center gap-2">
+                                                <span className="text-lg">🎯</span>
+                                                Performance Appraisals
+                                            </h4>
+                                            {isAuthorized && (
+                                                <Link
+                                                    href={route('evaluations.create', { employee_id: employee.id })}
+                                                    className="text-[10px] font-normal text-primary hover:underline uppercase tracking-normal"
+                                                >
+                                                    + New Appraisal
+                                                </Link>
+                                            )}
+                                        </div>
                                         <div className="space-y-4">
                                             {employee.evaluations && employee.evaluations.length > 0 ? (
-                                                employee.evaluations.slice(0, 5).map((evalItem, idx) => (
-                                                    <div key={idx} className="p-4 bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-lg hover:shadow-lg transition-all group">
-                                                        {/* Header */}
-                                                        <div className="flex justify-between items-start mb-3">
-                                                            <div className="flex flex-col">
-                                                                <span className="text-xs font-normal uppercase tracking-normal text-slate-700">
-                                                                    {evalItem.month} {evalItem.year}
-                                                                </span>
-                                                                <div className="flex items-center gap-2 mt-1">
-                                                                    <Avatar
-                                                                        src={evalItem.evaluator?.image}
-                                                                        name={evalItem.evaluator?.name}
-                                                                        size="xs"
-                                                                    />
-                                                                    <span className="text-[10px] font-normal text-slate-500">
-                                                                        {evalItem.evaluator?.name || 'Unknown'}
+                                                employee.evaluations.slice(0, 5).map((evalItem, idx) => {
+                                                    const statusMap = {
+                                                        draft: { label: 'Draft', color: 'bg-slate-100 text-slate-600' },
+                                                        self_assessment: { label: 'Self Review', color: 'bg-amber-100 text-amber-700' },
+                                                        manager_review: { label: 'Manager Review', color: 'bg-blue-100 text-blue-700' },
+                                                        calibration: { label: 'Calibration', color: 'bg-purple-100 text-purple-700' },
+                                                        acknowledged: { label: 'Acknowledged', color: 'bg-indigo-100 text-indigo-700' },
+                                                        approved: { label: 'Approved', color: 'bg-emerald-100 text-emerald-700' },
+                                                    };
+                                                    const statusBadge = statusMap[evalItem.status] || { label: evalItem.status || 'Active', color: 'bg-slate-100 text-slate-600' };
+
+                                                    return (
+                                                        <Link
+                                                            key={idx}
+                                                            href={route('evaluations.show', evalItem.id)}
+                                                            className="block p-4 bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-lg hover:shadow-md hover:border-primary/40 transition-all group"
+                                                        >
+                                                            {/* Header */}
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <div className="flex flex-col">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xs font-semibold text-slate-800">
+                                                                            {evalItem.cycle_type ? evalItem.cycle_type.replace('_', ' ').toUpperCase() : 'APPRAISAL'}
+                                                                        </span>
+                                                                        <span className="text-xs text-slate-400">
+                                                                            ({evalItem.month}/{evalItem.year})
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 mt-1">
+                                                                        <Avatar
+                                                                            src={evalItem.evaluator?.image}
+                                                                            name={evalItem.evaluator?.name}
+                                                                            size="xs"
+                                                                        />
+                                                                        <span className="text-[10px] font-normal text-slate-500">
+                                                                            By {evalItem.evaluator?.name || 'HR/Manager'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex flex-col items-end gap-1">
+                                                                    <div className={`px-3 py-1 rounded-lg text-xs font-semibold shadow-sm ${evalItem.overall_score >= 90 ? 'bg-emerald-500 text-white' :
+                                                                        evalItem.overall_score >= 75 ? 'bg-primary text-white' :
+                                                                            evalItem.overall_score >= 60 ? 'bg-amber-500 text-white' :
+                                                                                'bg-rose-500 text-white'
+                                                                        }`}>
+                                                                        {evalItem.overall_score}%
+                                                                    </div>
+                                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-normal ${statusBadge.color}`}>
+                                                                        {statusBadge.label}
                                                                     </span>
                                                                 </div>
                                                             </div>
-                                                            <div className={`px-4 py-2 rounded-lg text-sm font-normal shadow-sm ${evalItem.overall_score >= 90 ? 'bg-emerald-500 text-white' :
-                                                                evalItem.overall_score >= 75 ? 'bg-primary text-white' :
-                                                                    evalItem.overall_score >= 60 ? 'bg-amber-500 text-white' :
-                                                                        'bg-rose-500 text-white'
+
+                                                            {/* Outcome Badges */}
+                                                            <div className="flex flex-wrap gap-1.5 mt-2">
+                                                                {evalItem.increment_recommended > 0 && (
+                                                                    <span className="text-[9px] px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded font-normal">
+                                                                        ₹{Number(evalItem.increment_recommended).toLocaleString('en-IN')} (+{evalItem.increment_percentage || 0}%)
+                                                                    </span>
+                                                                )}
+                                                                {evalItem.promotion_recommended && (
+                                                                    <span className="text-[9px] px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded font-normal">
+                                                                        ★ Promotion: {evalItem.recommended_designation || 'New Role'}
+                                                                    </span>
+                                                                )}
+                                                                {evalItem.pip_required && (
+                                                                    <span className="text-[9px] px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded font-normal">
+                                                                        ⚠ PIP Active
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Comments */}
+                                                            {evalItem.comments && (
+                                                                <div className="mt-2.5 pt-2 border-t border-slate-100">
+                                                                    <p className="text-[10px] text-slate-500 italic line-clamp-2">
+                                                                        "{evalItem.comments}"
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        </Link>
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center p-8 text-center border-2 border-dashed border-slate-200 rounded-lg bg-slate-50/50">
+                                                    <span className="text-3xl mb-2">📋</span>
+                                                    <span className="text-xs font-normal text-slate-500">No Appraisals Yet</span>
+                                                    <span className="text-[10px] text-slate-400 mt-0.5">Performance reviews will appear here</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Expense Claims History */}
+                                    <div className="pt-4 border-t border-slate-200">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h4 className="text-sm font-normal text-slate-700 flex items-center gap-2">
+                                                <span className="text-lg">💳</span>
+                                                Expense Claims & Reimbursements
+                                                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-normal">
+                                                    {employee.expense_claims?.length || 0}
+                                                </span>
+                                            </h4>
+                                            <Link
+                                                href={route('expenses.create', { employee_id: employee.id })}
+                                                className="text-[10px] font-normal text-indigo-600 hover:text-indigo-800 uppercase tracking-normal"
+                                            >
+                                                + New Claim
+                                            </Link>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {employee.expense_claims && employee.expense_claims.length > 0 ? (
+                                                employee.expense_claims.map((claim) => (
+                                                    <Link
+                                                        key={claim.id}
+                                                        href={route('expenses.show', claim.id)}
+                                                        className="block p-3 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-indigo-100 hover:shadow-sm transition-all"
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-xs font-medium text-slate-800">{claim.claim_number}</span>
+                                                                    <span className="text-xs text-slate-500">• {claim.category?.name || 'Expense'}</span>
+                                                                </div>
+                                                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                                                    {claim.expense_date ? formatDate(claim.expense_date) : '—'} • {claim.business_purpose || 'No purpose listed'}
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <div className="text-xs font-semibold text-slate-800">
+                                                                    ₹{Number(claim.total_amount || 0).toLocaleString('en-IN')}
+                                                                </div>
+                                                                <span className={`inline-block text-[9px] px-2 py-0.5 rounded font-normal uppercase tracking-wider mt-0.5 ${
+                                                                    claim.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
+                                                                    claim.status === 'approved' ? 'bg-indigo-100 text-indigo-700' :
+                                                                    claim.status === 'manager_approved' ? 'bg-sky-100 text-sky-700' :
+                                                                    claim.status === 'rejected' ? 'bg-rose-100 text-rose-700' :
+                                                                    claim.status === 'returned' ? 'bg-amber-100 text-amber-700' :
+                                                                    'bg-slate-200 text-slate-700'
                                                                 }`}>
-                                                                {evalItem.overall_score}%
+                                                                    {claim.status?.replace('_', ' ')}
+                                                                </span>
                                                             </div>
                                                         </div>
-
-                                                        {/* Criteria Scores */}
-                                                        {evalItem.criteria_scores && Object.keys(evalItem.criteria_scores).length > 0 && (
-                                                            <div className="mb-3 space-y-2">
-                                                                {Object.entries(evalItem.criteria_scores).map(([criterion, score], i) => (
-                                                                    <div key={i} className="flex items-center gap-2">
-                                                                        <span className="text-[9px] font-normal text-slate-600 w-32 truncate">{criterion}</span>
-                                                                        <div className="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                                                                            <div
-                                                                                className={`h-full rounded-full transition-all ${score >= 8 ? 'bg-emerald-500' :
-                                                                                    score >= 6 ? 'bg-primary' :
-                                                                                        score >= 4 ? 'bg-amber-500' :
-                                                                                            'bg-rose-500'
-                                                                                    }`}
-                                                                                style={{ width: `${(score / 10) * 100}%` }}
-                                                                            />
-                                                                        </div>
-                                                                        <span className="text-[9px] font-normal text-slate-700 w-8 text-right">{score}/10</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-
-                                                        {/* Comments */}
-                                                        {evalItem.comments && (
-                                                            <div className="mt-3 pt-3 border-t border-slate-200">
-                                                                <p className="text-[10px] text-slate-600 italic leading-relaxed">
-                                                                    💬 "{evalItem.comments}"
-                                                                </p>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                    </Link>
                                                 ))
                                             ) : (
-                                                <div className="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-slate-200 rounded-lg bg-slate-50/50">
-                                                    <span className="text-4xl mb-3">📋</span>
-                                                    <span className="text-sm font-normal text-slate-400 uppercase tracking-normal">No Evaluations Yet</span>
-                                                    <span className="text-xs text-slate-400 mt-1">Performance reviews will appear here</span>
+                                                <div className="flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-slate-200 rounded-lg bg-slate-50/50">
+                                                    <span className="text-2xl mb-1">🧾</span>
+                                                    <span className="text-xs font-normal text-slate-500">No Expense Claims</span>
+                                                    <span className="text-[10px] text-slate-400 mt-0.5">Claims submitted by employee will appear here</span>
                                                 </div>
                                             )}
                                         </div>

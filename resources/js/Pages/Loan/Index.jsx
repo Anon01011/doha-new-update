@@ -90,49 +90,49 @@ export default function Index({ loans, status, userRole = 'employee', search: in
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Assistance Ledger</h2>}>
+        <AuthenticatedLayout>
             <Head title="Financial Assistance" />
 
-            <div className="py-4 px-4 sm:px-6 lg:px-8 space-y-6">
+            <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
                 {/* Executive Dashboard Summary */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-3 text-emerald-500 opacity-10 group-hover:scale-110 transition-transform">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                    <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group min-w-0">
+                        <div className="absolute top-0 right-0 p-3 text-emerald-500 opacity-10 group-hover:scale-110 transition-transform pointer-events-none">
                             <FaArrowUp size={32} />
                         </div>
-                        <p className="text-[10px] font-normal text-slate-400 uppercase tracking-normal mb-0.5">Total Allocated</p>
-                        <h3 className="text-xl font-normal text-slate-900 tracking-normal">{formatCurrency(loans?.data?.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0))}</h3>
-                        <p className="text-[9px] font-normal text-emerald-500 uppercase tracking-normal mt-1 flex items-center gap-1">
-                            <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></span>
+                        <p className="text-[9px] sm:text-[10px] font-normal text-slate-400 uppercase tracking-normal mb-0.5 truncate">Total Allocated</p>
+                        <h3 className="text-base sm:text-xl font-normal text-slate-900 tracking-normal truncate">{formatCurrency(loans?.data?.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0))}</h3>
+                        <p className="text-[8px] sm:text-[9px] font-normal text-emerald-500 uppercase tracking-normal mt-1 flex items-center gap-1 truncate">
+                            <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse shrink-0"></span>
                             ACTIVE CAPITAL DISBURSEMENT
                         </p>
                     </div>
-                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-3 text-amber-500 opacity-10 group-hover:scale-110 transition-transform">
+                    <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group min-w-0">
+                        <div className="absolute top-0 right-0 p-3 text-amber-500 opacity-10 group-hover:scale-110 transition-transform pointer-events-none">
                             <FaClock size={32} />
                         </div>
-                        <p className="text-[10px] font-normal text-slate-400 uppercase tracking-normal mb-0.5">Audit Queue</p>
-                        <h3 className="text-xl font-normal text-slate-900 tracking-normal">{loans?.data?.filter(l => l.status?.toLowerCase() === 'pending').length || 0} Entities</h3>
-                        <p className="text-[9px] font-normal text-amber-500 uppercase tracking-normal mt-1 flex items-center gap-1">
-                            <span className="w-1 h-1 bg-amber-500 rounded-full animate-pulse"></span>
+                        <p className="text-[9px] sm:text-[10px] font-normal text-slate-400 uppercase tracking-normal mb-0.5 truncate">Audit Queue</p>
+                        <h3 className="text-base sm:text-xl font-normal text-slate-900 tracking-normal truncate">{loans?.data?.filter(l => l.status?.toLowerCase() === 'pending').length || 0} Entities</h3>
+                        <p className="text-[8px] sm:text-[9px] font-normal text-amber-500 uppercase tracking-normal mt-1 flex items-center gap-1 truncate">
+                            <span className="w-1 h-1 bg-amber-500 rounded-full animate-pulse shrink-0"></span>
                             AWAITING VERIFICATION
                         </p>
                     </div>
-                    <div className="bg-slate-900 p-4 rounded-lg shadow-xl shadow-slate-200 relative overflow-hidden group md:col-span-2">
-                        <div className="absolute top-0 right-0 p-4 text-primary opacity-20 group-hover:scale-110 transition-transform">
+                    <div className="bg-slate-900 p-3.5 sm:p-4 rounded-xl shadow-xl shadow-slate-200 relative overflow-hidden group col-span-2 min-w-0">
+                        <div className="absolute top-0 right-0 p-4 text-primary opacity-20 group-hover:scale-110 transition-transform pointer-events-none">
                             <FaChartLine size={60} />
                         </div>
                         <div className="relative z-10">
-                            <p className="text-[10px] font-normal text-slate-500 uppercase tracking-normal mb-0.5">Assistance Overview</p>
-                            <h3 className="text-xl font-normal text-white tracking-normal">Financial Health Indicator</h3>
-                            <div className="mt-2 flex items-center gap-6">
+                            <p className="text-[9px] sm:text-[10px] font-normal text-slate-500 uppercase tracking-normal mb-0.5">Assistance Overview</p>
+                            <h3 className="text-base sm:text-xl font-normal text-white tracking-normal truncate">Financial Health Indicator</h3>
+                            <div className="mt-2 flex items-center gap-4 sm:gap-6 flex-wrap">
                                 <div className="flex items-center gap-2">
                                     <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                                    <span className="text-[10px] font-normal text-slate-300 uppercase">Sustainable</span>
+                                    <span className="text-[9px] sm:text-[10px] font-normal text-slate-300 uppercase">Sustainable</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <div className="w-2 h-2 bg-primary rounded-full"></div>
-                                    <span className="text-[10px] font-normal text-slate-300 uppercase">Balanced Distribution</span>
+                                    <span className="text-[9px] sm:text-[10px] font-normal text-slate-300 uppercase">Balanced Distribution</span>
                                 </div>
                             </div>
                         </div>
@@ -140,21 +140,21 @@ export default function Index({ loans, status, userRole = 'employee', search: in
                 </div>
 
                 {/* Executive Control Header */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 bg-white p-6 rounded-lg border border-slate-200 shadow-sm relative overflow-hidden">
-                    <div className="flex items-center gap-2 bg-slate-50/50 p-1.5 rounded-lg border border-slate-100 overflow-x-auto no-scrollbar relative z-10">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 sm:gap-6 bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-50/50 p-1 sm:p-1.5 rounded-lg border border-slate-100 overflow-x-auto no-scrollbar relative z-10">
                         <StatusTab label="Aggregate" value="" />
                         <StatusTab label="Audit Queue" value="pending" />
                         <StatusTab label="Authorized" value="approved" />
                         <StatusTab label="Disbursed" value="disbursed" />
                     </div>
 
-                    <div className="flex items-center gap-4 w-full sm:w-auto relative z-10">
+                    <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto relative z-10 flex-wrap">
                         <form onSubmit={handleSearch} className="relative group flex-1 sm:flex-none">
                             <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={12} />
                             <input
                                 type="text"
                                 placeholder="SEARCH ASSISTANCE..."
-                                className="w-full sm:w-64 pl-12 pr-4 py-2.5 bg-slate-50/50 border-2 border-slate-100 rounded-lg text-[10px] font-normal uppercase tracking-normal focus:bg-white focus:border-primary/20 focus:ring-8 focus:ring-primary/5 transition-all outline-none"
+                                className="w-full sm:w-64 pl-12 pr-4 py-2 sm:py-2.5 bg-slate-50/50 border-2 border-slate-100 rounded-lg text-[10px] font-normal uppercase tracking-normal focus:bg-white focus:border-primary/20 focus:ring-8 focus:ring-primary/5 transition-all outline-none"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
@@ -163,7 +163,7 @@ export default function Index({ loans, status, userRole = 'employee', search: in
                         {(isAdmin || hasPermission('create-loans') || userRole === 'employee') && (
                             <Link
                                 href={route('loans.create')}
-                                className="px-6 py-2.5 bg-primary text-white rounded-lg text-[10px] font-normal uppercase tracking-normal hover:brightness-110 transition-all shadow-xl shadow-primary/10 active:scale-95 flex items-center justify-center gap-3 whitespace-nowrap"
+                                className="px-4 sm:px-6 py-2 sm:py-2.5 bg-primary text-white rounded-lg text-[10px] font-normal uppercase tracking-normal hover:brightness-110 transition-all shadow-xl shadow-primary/10 active:scale-95 flex items-center justify-center gap-2 sm:gap-3 whitespace-nowrap flex-1 sm:flex-initial"
                             >
                                 <FaPlus size={10} />
                                 <span>Initiate Request</span>
@@ -173,9 +173,9 @@ export default function Index({ loans, status, userRole = 'employee', search: in
                 </div>
 
                 {/* Tactical Data Grid */}
-                <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full border-separate border-spacing-0">
+                        <table className="w-full min-w-[750px] border-separate border-spacing-0">
                             <thead>
                                 <tr className="bg-slate-50/50">
                                     <th className="px-6 py-3 text-left text-[10px] font-normal text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">Personnel Entity</th>

@@ -262,7 +262,7 @@ export default function Create({
     };
 
     return (
-        <AuthenticatedLayout header="Shift Roster">
+        <AuthenticatedLayout>
             <Head title="Create Shift Roster" />
 
             <div className="max-w-full mx-auto px-2 py-3 md:px-6 md:py-4 flex flex-col gap-4 bg-gray-50/50 min-h-screen">

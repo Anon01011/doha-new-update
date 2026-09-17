@@ -468,6 +468,24 @@ class SalaryPostingController extends Controller
         // Mark loans and advances for this month as repaid
         $this->markRepaymentsAsPaid($salaryPosting);
 
+        // Mark pending payroll expense claims as reimbursed via this salary posting
+        if (class_exists(\App\Models\ExpenseClaim::class)) {
+            $monthEnd = \Carbon\Carbon::create($salaryPosting->year, $salaryPosting->month, 1)->endOfMonth();
+            \App\Models\ExpenseClaim::where('employee_id', $salaryPosting->employee_id)
+                ->where('status', 'finance_approved')
+                ->where('reimbursement_method', 'payroll')
+                ->where('reimbursement_status', 'pending')
+                ->where('expense_date', '<=', $monthEnd->toDateString())
+                ->update([
+                    'reimbursement_status' => 'included_in_payroll',
+                    'salary_posting_id' => $salaryPosting->id,
+                    'paid_at' => now(),
+                    'paid_by' => auth()->id(),
+                    'payment_reference' => "Payroll " . date('F Y', mktime(0, 0, 0, $salaryPosting->month, 1, $salaryPosting->year)) . " (Slip #{$salaryPosting->id})",
+                    'is_locked' => true,
+                ]);
+        }
+
         return redirect()->back()->with('success', 'Salary posting approved successfully!');
     }
 

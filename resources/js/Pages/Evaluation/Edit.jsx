@@ -105,18 +105,11 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
     }, []);
 
     return (
-        <AuthenticatedLayout
-            header={
-                <div>
-                    <h2 className="text-xl font-normal text-slate-900 tracking-normal leading-none">Record Modification</h2>
-                    <p className="text-[9px] text-slate-400 font-normal uppercase tracking-[0.2em] mt-1.5">Adjusting Historical Performance Data</p>
-                </div>
-            }
-        >
+        <AuthenticatedLayout>
             <Head title={`Edit Evaluation - ${evaluation.employee?.name}`} />
 
-            <div className="min-h-screen bg-slate-50/50 py-4 px-4 sm:px-6 lg:px-5">
-                <div className="max-w-[1600px] mx-auto space-y-4">
+            <div className="min-h-screen bg-slate-50/50 py-4 px-4 sm:px-6 lg:px-8">
+                <div className="w-full space-y-4">
                     {/* Action Bar */}
                     <div className="flex items-center gap-3">
                         <Link 

@@ -1,10 +1,12 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { FiArrowLeft, FiFilter, FiDownload, FiFileText, FiTable, FiCreditCard, FiClock, FiCheckCircle, FiTrendingUp } from 'react-icons/fi';
 import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
 
 export default function Loan({ loans, summary, status, loanType, companyId, employeeId, companies, employees }) {
+    const { appSettings } = usePage().props;
+    const currency = appSettings?.currency || 'INR';
     const [filters, setFilters] = useState({
         status: status || '',
         loan_type: loanType || '',
@@ -58,7 +60,7 @@ export default function Loan({ loans, summary, status, loanType, companyId, empl
     };
 
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'QAR' }).format(amount || 0);
+        return new Intl.NumberFormat('en-IN', { style: 'currency', currency: currency }).format(amount || 0);
     };
 
     const getStatusStyle = (s) => {
@@ -73,7 +75,7 @@ export default function Loan({ loans, summary, status, loanType, companyId, empl
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800 tracking-normal">Financial Assets</h2>}>
+        <AuthenticatedLayout>
             <Head title="Loan Report" />
 
             <div className="w-full mx-auto p-6 space-y-6 bg-slate-50 min-h-screen">

@@ -594,18 +594,7 @@ export default function Dashboard(props) {
     const activeLayout = layout.filter(i => i.visible);
 
     return (
-        <AuthenticatedLayout header={
-            <div className="flex items-center justify-between gap-4">
-                <h2 className="text-xl font-normal text-slate-800 tracking-normal text-nowrap">Dashboard</h2>
-                <button
-                    onClick={() => setIsMenuOpen(true)}
-                    className="p-2 bg-white text-slate-500 border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 hover:text-indigo-600 transition-all transform hover:scale-105 active:scale-95"
-                    title="Dashboard Settings"
-                >
-                    <FiSettings className="w-5 h-5" />
-                </button>
-            </div>
-        }>
+        <AuthenticatedLayout>
             <Head title="Dashboard" />
 
             <div className="w-full max-w-[1700px] mx-auto p-4 md:p-6 min-h-screen bg-slate-50/50">

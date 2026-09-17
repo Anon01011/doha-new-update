@@ -1,7 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { FaTasks, FaClock, FaCheckCircle, FaPlay, FaStop, FaArrowRight, FaFilter } from 'react-icons/fa';
+import { FaTasks, FaClock, FaCheckCircle, FaPlay, FaStop, FaArrowRight, FaFilter, FaProjectDiagram } from 'react-icons/fa';
 
 export default function MyTasks({ tasks, status, priority }) {
     const [searchTerm, setSearchTerm] = useState('');
@@ -40,24 +40,24 @@ export default function MyTasks({ tasks, status, priority }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">My Tasks</h2>}>
+        <AuthenticatedLayout>
             <Head title="My Tasks" />
 
-            <div className="p-4 space-y-6 bg-slate-50 min-h-screen">
+            <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 bg-slate-50 min-h-screen">
                 {/* Modern Header & Filters */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-sm">
                     <div>
-                        <h1 className="text-xl font-normal text-slate-900">Assigned Tasks</h1>
-                        <p className="text-sm text-slate-500 mt-1">Manage your tasks and track your progress.</p>
+                        <h1 className="text-lg sm:text-xl font-normal text-slate-900">Assigned Tasks</h1>
+                        <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Manage your tasks and track your progress.</p>
                     </div>
 
-                    <div className="flex flex-wrap gap-3">
-                        <div className="flex items-center gap-2">
-                            <FaFilter size={12} className="text-slate-400" />
+                    <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                        <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+                            <FaFilter size={12} className="text-slate-400 shrink-0" />
                             <select
                                 value={status || ''}
                                 onChange={(e) => handleFilterChange('status', e.target.value)}
-                                className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm text-slate-700 focus:border-primary outline-none transition-all cursor-pointer min-w-[140px]"
+                                className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:border-primary outline-none transition-all cursor-pointer min-w-[120px]"
                             >
                                 <option value="">All Statuses</option>
                                 <option value="pending">Pending</option>
@@ -69,7 +69,7 @@ export default function MyTasks({ tasks, status, priority }) {
                         <select
                             value={priority || ''}
                             onChange={(e) => handleFilterChange('priority', e.target.value)}
-                            className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm text-slate-700 focus:border-primary outline-none transition-all cursor-pointer min-w-[140px]"
+                            className="flex-1 sm:flex-initial bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:border-primary outline-none transition-all cursor-pointer min-w-[120px]"
                         >
                             <option value="">All Priorities</option>
                             <option value="low">Low</option>
@@ -81,7 +81,7 @@ export default function MyTasks({ tasks, status, priority }) {
                 </div>
 
                 {tasks?.data && tasks.data.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
                         {tasks.data.map((task) => {
                             const assignment = task.assignments?.[0];
                             const isTimerRunning = assignment?.timers?.some(t => !t.end_time);

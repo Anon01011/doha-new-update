@@ -63,7 +63,7 @@ export default function Assignments({ assignments, trainingId, status }) {
     ];
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Training Assignments</h2>}>
+        <AuthenticatedLayout>
             <Head title="Training Assignments" />
 
             <div className="py-4 px-4 sm:px-6 lg:px-8 space-y-4">

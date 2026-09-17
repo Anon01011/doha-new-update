@@ -70,7 +70,7 @@ export default function Edit({ training, companies, categories }) {
         }`;
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Edit Training</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Edit Training - ${training.title}`} />
 
             <div className="p-4 space-y-4 bg-slate-50 min-h-screen">

@@ -34,7 +34,7 @@ export default function Leave({ leaveRequests, summary, startDate, endDate, stat
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800 tracking-normal">Leave Analysis</h2>}>
+        <AuthenticatedLayout>
             <Head title="Leave Report" />
 
             <div className="w-full mx-auto p-6 space-y-6 bg-slate-50 min-h-screen">

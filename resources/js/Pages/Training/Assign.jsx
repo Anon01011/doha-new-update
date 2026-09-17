@@ -52,7 +52,7 @@ export default function Assign({ trainings, employees, selectedTrainingId }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Assign Training</h2>}>
+        <AuthenticatedLayout>
             <Head title="Assign Training" />
 
             <div className="py-4 px-4 sm:px-6 lg:px-8 space-y-4">
@@ -199,11 +199,11 @@ export default function Assign({ trainings, employees, selectedTrainingId }) {
                             <div className="space-y-2">
                                 <label className="text-[10px] font-normal text-slate-500 uppercase ml-1">Training Program</label>
                                 <div className="relative group">
-                                    <FaLayerGroup className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={11} />
+                                    <FaLayerGroup className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={11} />
                                     <select
                                         value={data.training_id}
                                         onChange={(e) => setData('training_id', e.target.value)}
-                                        className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none appearance-none cursor-pointer text-[10px] font-normal uppercase"
+                                        className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none cursor-pointer text-[10px] font-normal uppercase"
                                         required
                                     >
                                         <option value="">Select training...</option>
@@ -213,7 +213,6 @@ export default function Assign({ trainings, employees, selectedTrainingId }) {
                                             </option>
                                         ))}
                                     </select>
-                                    <FaChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={9} />
                                 </div>
                                 {errors.training_id && <p className="text-[10px] font-normal text-rose-500 mt-1 uppercase flex items-center gap-1.5"><FaTimesCircle size={10} /> {errors.training_id}</p>}
                             </div>

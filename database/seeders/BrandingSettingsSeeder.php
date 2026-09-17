@@ -34,6 +34,22 @@ class BrandingSettingsSeeder extends Seeder
                 'description' => 'Path to favicon image',
                 'is_public' => true,
             ],
+            [
+                'key' => 'currency',
+                'value' => 'INR',
+                'category' => 'branding',
+                'type' => 'string',
+                'description' => 'Default system currency code',
+                'is_public' => true,
+            ],
+            [
+                'key' => 'currency_symbol',
+                'value' => '₹',
+                'category' => 'branding',
+                'type' => 'string',
+                'description' => 'Default system currency symbol',
+                'is_public' => true,
+            ],
         ];
 
         foreach ($brandingSettings as $setting) {

@@ -103,7 +103,7 @@ class LoanController extends Controller
             'tenure_months' => 'required|integer|min:1',
             'start_date' => 'required|date',
             'purpose' => 'nullable|string',
-            'remarks' => 'nullable|string',
+            'remarks' => 'nullable|string|max:2000',
             'repayment_method' => 'nullable|string|in:salary_deduction,manual',
         ]);
 
@@ -225,7 +225,7 @@ class LoanController extends Controller
             'tenure_months' => 'required|integer|min:1',
             'start_date' => 'required|date',
             'purpose' => 'nullable|string',
-            'remarks' => 'nullable|string',
+            'remarks' => 'nullable|string|max:2000',
             'repayment_method' => 'nullable|string|in:salary_deduction,manual',
         ]);
 

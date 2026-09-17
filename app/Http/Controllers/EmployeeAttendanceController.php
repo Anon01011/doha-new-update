@@ -1145,7 +1145,7 @@ class EmployeeAttendanceController extends Controller
             'normal_hours' => 'nullable|numeric',
             'ot' => 'nullable|numeric',
             'ot_amt' => 'nullable|numeric',
-            'reason' => 'nullable|string',
+            'reason' => 'nullable|string|max:2000',
         ]);
 
         $validated['company_id'] = $validated['company_id'] ?? ($user->employee ? $user->employee->company_id : null);
@@ -1260,7 +1260,7 @@ class EmployeeAttendanceController extends Controller
             'normal_hours' => 'nullable|numeric',
             'ot' => 'nullable|numeric',
             'ot_amt' => 'nullable|numeric',
-            'reason' => 'nullable|string',
+            'reason' => 'nullable|string|max:2000',
         ]);
 
         // Multi-tenancy check for target company

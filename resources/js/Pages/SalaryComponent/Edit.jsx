@@ -18,7 +18,7 @@ export default function Edit({ component }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Edit Component</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Amend Component - ${component.name}`} />
 
             <div className="py-4 px-4 sm:px-6 lg:px-8 space-y-6">

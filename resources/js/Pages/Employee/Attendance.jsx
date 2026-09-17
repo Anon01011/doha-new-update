@@ -147,20 +147,20 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-white">My Attendance</h2>}>
+        <AuthenticatedLayout>
             <Head title="My Attendance" />
 
-            <div className="w-full p-4 space-y-6">
+            <div className="w-full p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
                 {/* Clock Section */}
-                <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-lg shadow-2xl p-8 text-white relative overflow-hidden">
+                <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-2xl shadow-2xl p-4 sm:p-8 text-white relative overflow-hidden">
                     <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
                     <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl"></div>
 
                     <div className="relative z-10 flex flex-col items-center text-center">
-                        <div className="mb-2 text-blue-100 font-normal tracking-normal uppercase text-sm">
+                        <div className="mb-2 text-blue-100 font-normal tracking-normal uppercase text-xs sm:text-sm">
                             {formatDate(currentTime)}
                         </div>
-                        <div className="text-6xl md:text-8xl font-normal tracking-normal mb-4 drop-shadow-lg font-mono">
+                        <div className="text-4xl sm:text-6xl md:text-8xl font-normal tracking-tight mb-4 drop-shadow-lg font-mono">
                             {formatTime(currentTime)}
                         </div>
 
@@ -177,12 +177,12 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
                             </div>
                         )}
 
-                        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-lg">
+                        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full max-w-lg">
                             {!todayAttendance?.from_time ? (
                                 <button
                                     onClick={handleClockIn}
                                     disabled={isProcessing}
-                                    className="flex-1 bg-white text-blue-600 hover:bg-blue-50 px-8 py-4 rounded-lg font-normal text-lg transition-all shadow-xl hover:shadow-2xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                                    className="flex-1 bg-white text-blue-600 hover:bg-blue-50 px-5 py-3 sm:px-8 sm:py-4 rounded-xl font-normal text-base sm:text-lg transition-all shadow-xl hover:shadow-2xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                                 >
                                     <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                                     Clock In
@@ -193,9 +193,9 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
                                         <button
                                             onClick={handleEndBreak}
                                             disabled={isProcessing}
-                                            className="flex-1 bg-orange-500 text-white hover:bg-orange-600 px-8 py-4 rounded-lg font-normal text-lg transition-all shadow-xl hover:shadow-2xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                                            className="flex-1 bg-orange-500 text-white hover:bg-orange-600 px-5 py-3 sm:px-8 sm:py-4 rounded-xl font-normal text-base sm:text-lg transition-all shadow-xl hover:shadow-2xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                                         >
-                                            <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <svg className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
                                             End Break
@@ -204,9 +204,9 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
                                         <button
                                             onClick={handleStartBreak}
                                             disabled={isProcessing}
-                                            className="flex-1 bg-blue-500 text-white hover:bg-primary px-8 py-4 rounded-lg font-normal text-lg transition-all shadow-xl hover:shadow-2xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                                            className="flex-1 bg-blue-500 text-white hover:bg-primary px-5 py-3 sm:px-8 sm:py-4 rounded-xl font-normal text-base sm:text-lg transition-all shadow-xl hover:shadow-2xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                                         >
-                                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
                                             Take Break
@@ -215,15 +215,15 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
                                     <button
                                         onClick={handleClockOut}
                                         disabled={isProcessing || todayAttendance?.current_break_start}
-                                        className="flex-1 bg-red-500 text-white hover:bg-red-600 px-8 py-4 rounded-lg font-normal text-lg transition-all shadow-xl hover:shadow-2xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                                        className="flex-1 bg-red-500 text-white hover:bg-red-600 px-5 py-3 sm:px-8 sm:py-4 rounded-xl font-normal text-base sm:text-lg transition-all shadow-xl hover:shadow-2xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                                     >
                                         <div className="w-3 h-3 bg-white rounded-full"></div>
                                         Clock Out
                                     </button>
                                 </>
                             ) : (
-                                <div className="flex-1 bg-white/20 backdrop-blur-md border border-white/30 px-8 py-4 rounded-lg font-normal text-lg text-white flex items-center justify-center gap-3">
-                                    <svg className="w-6 h-6 text-green-300" fill="currentColor" viewBox="0 0 20 20">
+                                <div className="flex-1 bg-white/20 backdrop-blur-md border border-white/30 px-5 py-3 sm:px-8 sm:py-4 rounded-xl font-normal text-base sm:text-lg text-white flex items-center justify-center gap-3">
+                                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-green-300" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                     </svg>
                                     Shift Completed
@@ -232,18 +232,18 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
                         </div>
 
                         {todayAttendance?.from_time && (
-                            <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
-                                <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg border border-white/10">
+                            <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 w-full max-w-2xl">
+                                <div className="bg-white/10 backdrop-blur-sm p-3.5 sm:p-4 rounded-xl border border-white/10">
                                     <div className="text-blue-200 text-[10px] uppercase font-normal tracking-normal mb-1">Clocked In</div>
-                                    <div className="text-xl font-normal">{todayAttendance.from_time}</div>
+                                    <div className="text-lg sm:text-xl font-normal">{todayAttendance.from_time}</div>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg border border-white/10">
+                                <div className="bg-white/10 backdrop-blur-sm p-3.5 sm:p-4 rounded-xl border border-white/10">
                                     <div className="text-blue-200 text-[10px] uppercase font-normal tracking-normal mb-1">Break Time</div>
-                                    <div className="text-xl font-normal">{todayAttendance.total_break_minutes || 0}m</div>
+                                    <div className="text-lg sm:text-xl font-normal">{todayAttendance.total_break_minutes || 0}m</div>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg border border-white/10">
+                                <div className="bg-white/10 backdrop-blur-sm p-3.5 sm:p-4 rounded-xl border border-white/10">
                                     <div className="text-blue-200 text-[10px] uppercase font-normal tracking-normal mb-1">Working Hours</div>
-                                    <div className="text-xl font-normal">{todayAttendance.hours_worked || '--'}h</div>
+                                    <div className="text-lg sm:text-xl font-normal">{todayAttendance.hours_worked || '--'}h</div>
                                 </div>
                             </div>
                         )}
@@ -251,10 +251,10 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
                 </div>
 
                 {/* History Section */}
-                <div className="bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                        <h3 className="text-xl font-normal text-gray-900 flex items-center gap-2">
-                            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
+                    <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                        <h3 className="text-base sm:text-xl font-normal text-gray-900 flex items-center gap-2">
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             Recent Attendance History
@@ -263,21 +263,21 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
                             <thead>
-                                <tr className="bg-gray-50 text-gray-600 text-xs uppercase tracking-normal font-normal">
-                                    <th className="px-8 py-4">Date</th>
-                                    <th className="px-8 py-4">Status</th>
-                                    <th className="px-8 py-4">Clock In</th>
-                                    <th className="px-8 py-4">Clock Out</th>
-                                    <th className="px-8 py-4">Break</th>
-                                    <th className="px-8 py-4">Total Hours</th>
-                                    <th className="px-8 py-4">Overtime</th>
+                                <tr className="bg-gray-50 text-gray-600 text-[10px] sm:text-xs uppercase tracking-normal font-normal">
+                                    <th className="px-4 sm:px-8 py-3 sm:py-4">Date</th>
+                                    <th className="px-4 sm:px-8 py-3 sm:py-4">Status</th>
+                                    <th className="px-4 sm:px-8 py-3 sm:py-4">Clock In</th>
+                                    <th className="px-4 sm:px-8 py-3 sm:py-4">Clock Out</th>
+                                    <th className="px-4 sm:px-8 py-3 sm:py-4">Break</th>
+                                    <th className="px-4 sm:px-8 py-3 sm:py-4">Total Hours</th>
+                                    <th className="px-4 sm:px-8 py-3 sm:py-4">Overtime</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {attendances.length > 0 ? (
                                     attendances.map((att, idx) => (
                                         <tr key={idx} className="hover:bg-blue-50/30 transition-colors group">
-                                            <td className="px-8 py-5">
+                                            <td className="px-4 sm:px-8 py-3.5 sm:py-5">
                                                 <div className="text-sm font-normal text-gray-900">{new Date(att.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                                                 <div className="text-[10px] text-gray-400 uppercase font-normal">{new Date(att.date).toLocaleDateString('en-US', { weekday: 'long' })}</div>
                                             </td>

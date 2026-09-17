@@ -320,19 +320,7 @@ export default function CreateEmployee(props) {
     const isPreviewable = previewType?.includes('pdf') || previewType?.includes('image') || ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].some(ext => resumePreviewUrl?.toLowerCase().endsWith(ext));
 
     return (
-        <AuthenticatedLayout header={
-            <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-normal text-slate-800 tracking-normal">Add Employee</h2>
-                <div className="flex gap-3">
-                    <button
-                        onClick={() => window.history.back()}
-                        className="px-4 py-2 text-sm font-normal text-slate-600 hover:text-slate-800 transition-colors"
-                    >
-                        Cancel
-                    </button>
-                </div>
-            </div>
-        }>
+        <AuthenticatedLayout>
             <Head title="Create Employee" />
 
             <div className={`min-h-[calc(100vh-120px)] bg-slate-50/50 relative ${processing ? 'pointer-events-none opacity-60' : ''}`}>

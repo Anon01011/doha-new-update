@@ -77,7 +77,7 @@ class BranchManagementSeeder extends Seeder
             [
                 'name' => $employee->name,
                 'password' => Hash::make('password'),
-                'role' => $roleModel->slug, // Legacy role field
+                'role' => in_array($roleModel->slug, ['admin', 'hr', 'manager', 'employee']) ? $roleModel->slug : 'hr',
                 'employee_id' => $employee->id,
                 'company_id' => $branch->id,
                 'email_verified_at' => now(),

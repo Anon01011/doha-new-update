@@ -48,7 +48,7 @@ export default function Edit({ role, permissions }) {
     }, {}) || {};
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-sm font-normal text-slate-900 uppercase">Edit Role</h2>}>
+        <AuthenticatedLayout>
             <Head title={`Edit Role - ${role.name}`} />
 
             <div className="min-h-screen bg-slate-50/50 py-4">

@@ -67,23 +67,12 @@ export default function Index({ grievances, status, priority, search: initialSea
     };
 
     return (
-        <AuthenticatedLayout
-            header={
-                <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-primary/5 rounded-lg">
-                        <FiAlertCircle className="h-5 w-5 text-primary" />
-                    </div>
-                    <h2 className="text-lg font-normal text-slate-800 tracking-normal">
-                        {userRole === 'employee' ? 'My Grievance Cases' : 'Grievance Management'}
-                    </h2>
-                </div>
-            }
-        >
+        <AuthenticatedLayout>
             <Head title="Grievances" />
 
-            <div className="max-w mx-auto space-y-4">
+            <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
                 {/* Search & Statistics */}
-                <div className="bg-white rounded-lg shadow-sm border border-slate-100 p-3 flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 sm:p-4 flex flex-col md:flex-row gap-3 sm:gap-4 items-stretch md:items-center justify-between">
                     <form onSubmit={handleSearch} className="flex md:w-96 gap-2 w-full">
                         <div className="flex-1 relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -94,25 +83,25 @@ export default function Index({ grievances, status, priority, search: initialSea
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 placeholder="Search cases by subject, description..."
-                                className="w-full pl-9 pr-4 py-2 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-primary transition-all font-normal text-sm text-slate-700 placeholder:text-slate-400"
+                                className="w-full pl-9 pr-3 py-2 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-primary transition-all font-normal text-xs sm:text-sm text-slate-700 placeholder:text-slate-400"
                             />
                         </div>
                         <button
                             type="submit"
-                            className="bg-slate-100 text-slate-600 px-5 py-2 rounded-lg hover:bg-slate-200 font-normal text-xs transition-all active:scale-95"
+                            className="bg-slate-100 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-200 font-normal text-xs transition-all active:scale-95"
                         >
                             Filter
                         </button>
                     </form>
 
-                    <div className="flex items-center gap-4 w-full md:w-auto justify-end">
-                        <div className="hidden lg:block text-right pr-4 border-r border-slate-100">
+                    <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                        <div className="text-left md:text-right pr-3 md:pr-4 md:border-r border-slate-100">
                             <div className="text-[9px] font-normal text-slate-400 uppercase tracking-normal leading-none">Total Records</div>
-                            <div className="text-base font-normal text-slate-800 leading-none mt-1">{grievances.total}</div>
+                            <div className="text-sm sm:text-base font-normal text-slate-800 leading-none mt-1">{grievances.total}</div>
                         </div>
                         <Link
                             href={route('grievances.create')}
-                            className="bg-primary text-white px-5 py-2.5 rounded-lg text-xs font-normal uppercase tracking-normal hover:brightness-110 shadow-lg shadow-primary/20 active:scale-95 transition-all flex items-center gap-2"
+                            className="bg-primary text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs font-normal uppercase tracking-normal hover:brightness-110 shadow-lg shadow-primary/20 active:scale-95 transition-all flex items-center gap-2"
                         >
                             <FiPlus className="w-4 h-4" />
                             {userRole === 'employee' ? 'New Submission' : 'Log New Case'}
@@ -121,15 +110,15 @@ export default function Index({ grievances, status, priority, search: initialSea
                 </div>
 
                 {/* Filters */}
-                <div className="flex flex-wrap gap-2 items-center text-[10px] font-normal uppercase tracking-normal text-slate-400">
-                    <FiFilter className="w-3 h-3" />
-                    <span>Quick Status:</span>
-                    <div className="flex gap-1">
+                <div className="flex items-center gap-2 text-[10px] font-normal uppercase tracking-normal text-slate-400 overflow-x-auto pb-1">
+                    <FiFilter className="w-3 h-3 shrink-0" />
+                    <span className="shrink-0">Quick Status:</span>
+                    <div className="flex gap-1 shrink-0">
                         {['submitted', 'under_review', 'resolved', 'closed'].map(s => (
                             <Link
                                 key={s}
                                 href={route('grievances.index', { status: status === s ? null : s, search: searchTerm, priority })}
-                                className={`px-2.5 py-1 rounded-lg border transition-all ${status === s
+                                className={`px-2.5 py-1 rounded-lg border transition-all whitespace-nowrap ${status === s
                                     ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
                                     : 'bg-white border-slate-100 text-slate-400 hover:text-slate-600 hover:border-slate-200'}`}
                             >
@@ -140,10 +129,10 @@ export default function Index({ grievances, status, priority, search: initialSea
                 </div>
 
                 {/* Compact List */}
-                <div className="bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                     {grievances.data.length > 0 ? (
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left">
+                            <table className="w-full min-w-[650px] text-left">
                                 <thead>
                                     <tr className="bg-slate-50/50 border-b border-slate-100">
                                         <th className="px-5 py-3 text-[10px] font-normal text-slate-400 uppercase tracking-normal">Case Origin</th>

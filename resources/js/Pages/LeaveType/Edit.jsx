@@ -21,7 +21,7 @@ export default function Edit({ leaveType }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-slate-800">Edit Leave Type</h2>}>
+        <AuthenticatedLayout>
             <Head title="Edit Leave Type" />
 
             <div className="py-4 px-3 sm:px-4 lg:px-6 space-y-4">

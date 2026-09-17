@@ -33,7 +33,7 @@ export default function Show({ employee = {}, company = {}, weekStart = null, at
     });
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-white">Attendance Details (Week View)</h2>}>
+        <AuthenticatedLayout>
             <Head title="Attendance Details (Week View)" />
             <div className="bg-white rounded-lg shadow p-6 full-w mx-auto mt-8">
                 <div className="mb-4">

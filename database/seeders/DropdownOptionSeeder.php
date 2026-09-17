@@ -9,7 +9,7 @@ class DropdownOptionSeeder extends Seeder
 {
     public function run()
     {
-        // Remove old salon/stylist-specific designations
+        // Remove old Company/stylist-specific designations
         DropdownOption::where('category', 'Designation')
             ->whereIn('value', [
                 'Senior Stylist',

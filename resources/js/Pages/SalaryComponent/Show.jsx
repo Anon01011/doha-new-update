@@ -10,7 +10,7 @@ export default function Show({ component }) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-gray-800">Salary Component Details</h2>}>
+        <AuthenticatedLayout>
             <Head title={component.name} />
 
             <div className="full-w mx-auto p-4 space-y-6">

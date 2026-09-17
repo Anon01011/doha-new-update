@@ -13,7 +13,7 @@ class Employee extends Model
 
 
 
-    protected $appends = ['is_active'];
+    protected $appends = ['is_active', 'joining_date'];
 
     protected $fillable = [
         'name',
@@ -123,6 +123,11 @@ class Employee extends Model
         return !in_array($this->exit_status, ['Abscond', 'Terminated', 'Resigned', 'End of Contract']);
     }
 
+    public function getJoiningDateAttribute()
+    {
+        return $this->attributes['joined_date'] ?? null;
+    }
+
     public function leaveRequests()
     {
         return $this->hasMany(LeaveRequest::class);
@@ -136,6 +141,11 @@ class Employee extends Model
     public function salaryPostings()
     {
         return $this->hasMany(SalaryPosting::class);
+    }
+
+    public function evaluations()
+    {
+        return $this->hasMany(EmployeeEvaluation::class)->latest();
     }
 
     public function salaryStructures()
@@ -163,14 +173,24 @@ class Employee extends Model
         return $this->hasMany(TaskAssignment::class);
     }
 
-    public function evaluations()
+    public function expenseClaims()
     {
-        return $this->hasMany(EmployeeEvaluation::class);
+        return $this->hasMany(ExpenseClaim::class);
     }
 
     public function grievances()
     {
         return $this->hasMany(Grievance::class);
+    }
+
+    public function offboardingRequests()
+    {
+        return $this->hasMany(OffboardingRequest::class);
+    }
+
+    public function activeOffboarding()
+    {
+        return $this->hasOne(OffboardingRequest::class)->whereNotIn('status', ['completed', 'cancelled'])->latest();
     }
 
     public function documents()

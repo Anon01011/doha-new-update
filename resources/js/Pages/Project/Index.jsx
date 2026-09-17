@@ -41,7 +41,7 @@ export default function Index({ projects, userRole, leadProjectIds = [] }) {
     const projectList = Array.isArray(projects) ? projects : (projects.data || []);
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-normal text-gray-800">Projects</h2>}>
+        <AuthenticatedLayout>
             <Head title="Projects" />
             <div className="w-full px-4 py-8 md:px-6 lg:px-8 bg-slate-50 min-h-screen">
 
