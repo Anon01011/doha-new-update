@@ -183,6 +183,16 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'Approve Expenses (Finance)', 'slug' => 'approve-expenses-finance', 'module' => 'expense', 'description' => 'Can review, approve tax coding, and process payments as finance'],
             ['name' => 'Manage Expense Categories', 'slug' => 'manage-expense-categories', 'module' => 'expense', 'description' => 'Can manage expense categories and policy limits'],
             ['name' => 'View Expense Reports', 'slug' => 'view-expense-reports', 'module' => 'report', 'description' => 'Can view expense analytics and reports'],
+
+            // Offboarding Module
+            ['name' => 'View Offboarding', 'slug' => 'view-offboarding', 'module' => 'offboarding', 'description' => 'Can view employee offboarding & separation requests'],
+            ['name' => 'Create Offboarding', 'slug' => 'create-offboarding', 'module' => 'offboarding', 'description' => 'Can initiate offboarding and resignation requests'],
+            ['name' => 'Approve Offboarding', 'slug' => 'approve-offboarding', 'module' => 'offboarding', 'description' => 'Can approve offboarding requests as Manager or HR'],
+            ['name' => 'Manage Clearance Tasks', 'slug' => 'manage-offboarding-tasks', 'module' => 'offboarding', 'description' => 'Can update and manage department clearance tasks'],
+            ['name' => 'Conduct Exit Interview', 'slug' => 'conduct-exit-interview', 'module' => 'offboarding', 'description' => 'Can conduct and record employee exit interviews'],
+            ['name' => 'Manage Final Settlement', 'slug' => 'manage-offboarding-settlement', 'module' => 'offboarding', 'description' => 'Can preview, calculate, and approve final settlement (F&F)'],
+            ['name' => 'Unlock Separated Profiles', 'slug' => 'unlock-employee-profile', 'module' => 'offboarding', 'description' => 'Can unlock and reactivate separated/inactive employee profiles'],
+            ['name' => 'View Offboarding Reports', 'slug' => 'view-offboarding-reports', 'module' => 'report', 'description' => 'Can view offboarding and attrition reports'],
         ];
 
         $permissionModels = [];
@@ -203,7 +213,7 @@ class RolePermissionSeeder extends Seeder
 
         // Assign HR permissions
         $hrPermissions = collect($permissionModels)->filter(function ($p) {
-            return in_array($p->module, ['employee', 'leave', 'salary', 'loan', 'grievance', 'attendance', 'report', 'shift-roster', 'training', 'training-assignment', 'task', 'task-assignment', 'warning-letter', 'company'])
+            return in_array($p->module, ['employee', 'leave', 'salary', 'loan', 'grievance', 'attendance', 'report', 'shift-roster', 'training', 'training-assignment', 'task', 'task-assignment', 'warning-letter', 'company', 'expense', 'offboarding'])
                 && !in_array($p->slug, ['delete-employees', 'manage-settings', 'manage-roles', 'manage-permissions', 'delete-trainings', 'delete-tasks', 'manage-companies', 'manage-departments']);
         })->pluck('id')->toArray();
         $hrRole->assignPermissions($hrPermissions);
@@ -242,6 +252,12 @@ class RolePermissionSeeder extends Seeder
                 'create-expenses',
                 'approve-expenses-manager',
                 'view-expense-reports',
+                'view-offboarding',
+                'create-offboarding',
+                'approve-offboarding',
+                'manage-offboarding-tasks',
+                'conduct-exit-interview',
+                'view-offboarding-reports',
             ]);
         })->pluck('id')->toArray();
         $managerRole->assignPermissions($managerPermissions);
@@ -266,6 +282,10 @@ class RolePermissionSeeder extends Seeder
                     'approve-expenses-finance',
                     'manage-expense-categories',
                     'view-expense-reports',
+                    'view-offboarding',
+                    'manage-offboarding-tasks',
+                    'manage-offboarding-settlement',
+                    'view-offboarding-reports',
                 ]);
         })->pluck('id')->toArray();
         $financeRole->assignPermissions($financePermissions);
@@ -295,6 +315,8 @@ class RolePermissionSeeder extends Seeder
                 'view-warning-letters',
                 'view-expenses', // Only their own
                 'create-expenses',
+                'view-offboarding', // Only their own
+                'create-offboarding', // Self-resignation
             ]);
         })->pluck('id')->toArray();
         $employeeRole->assignPermissions($employeePermissions);

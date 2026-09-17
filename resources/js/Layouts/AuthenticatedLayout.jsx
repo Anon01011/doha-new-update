@@ -242,7 +242,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     href: route('offboarding.index'),
                     icon: <FiUserMinus className="h-4 w-4" />,
                     current: route().current('offboarding.*'),
-                    permissions: ['view-employees'],
+                    permissions: ['view-offboarding'],
                     roles: ['admin', 'hr', 'manager']
                 }
             ]
