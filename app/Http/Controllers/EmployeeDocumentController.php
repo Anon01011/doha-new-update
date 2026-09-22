@@ -77,32 +77,118 @@ class EmployeeDocumentController extends Controller
             'notes' => 'nullable|string|max:5000',
         ]);
 
-        // Store file
+        // Check if a document of this type or name already exists for this employee
+        $existingDoc = null;
+        if (!empty($validated['document_type_id'])) {
+            $existingDoc = EmployeeDocument::where('employee_id', $employee->id)
+                ->where('document_type_id', $validated['document_type_id'])
+                ->first();
+        }
+
+        if (!$existingDoc && !empty($validated['document_name'])) {
+            $existingDoc = EmployeeDocument::where('employee_id', $employee->id)
+                ->whereRaw('LOWER(TRIM(document_name)) = ?', [strtolower(trim($validated['document_name']))])
+                ->first();
+        }
+
+        // Store new file
         $file = $request->file('file');
         $fileName = time() . '_' . $file->getClientOriginalName();
         $filePath = $file->storeAs('employee_documents/' . $employee->id, $fileName, 'public');
 
         try {
-            EmployeeDocument::create([
-                'employee_id' => $employee->id,
-                'document_type_id' => $validated['document_type_id'] ?? null,
-                'document_name' => $validated['document_name'],
-                'file_path' => $filePath,
-                'file_type' => $file->getClientOriginalExtension(),
-                'file_size' => $file->getSize(),
-                'issue_date' => $validated['issue_date'] ?? null,
-                'expiry_date' => $validated['expiry_date'] ?? null,
-                'notes' => $validated['notes'] ?? null,
-                'uploaded_by' => auth()->id(),
-            ]);
+            if ($existingDoc) {
+                // Delete previous file from disk if it exists
+                if ($existingDoc->file_path && Storage::disk('public')->exists($existingDoc->file_path)) {
+                    Storage::disk('public')->delete($existingDoc->file_path);
+                }
 
-            return redirect()->back()->with('success', 'Document uploaded successfully!');
+                $existingDoc->update([
+                    'document_type_id' => $validated['document_type_id'] ?? $existingDoc->document_type_id,
+                    'document_name' => $validated['document_name'],
+                    'file_path' => $filePath,
+                    'file_type' => $file->getClientOriginalExtension(),
+                    'file_size' => $file->getSize(),
+                    'issue_date' => $validated['issue_date'] ?? $existingDoc->issue_date,
+                    'expiry_date' => $validated['expiry_date'] ?? $existingDoc->expiry_date,
+                    'notes' => $validated['notes'] ?? $existingDoc->notes,
+                    'uploaded_by' => auth()->id(),
+                ]);
+
+                $this->syncWithEmployeeProfile($employee, $validated['document_name'], $validated['document_type_id'] ?? null, $filePath, $validated['expiry_date'] ?? null);
+
+                return redirect()->back()->with('success', 'Existing document updated with new upload successfully!');
+            } else {
+                EmployeeDocument::create([
+                    'employee_id' => $employee->id,
+                    'document_type_id' => $validated['document_type_id'] ?? null,
+                    'document_name' => $validated['document_name'],
+                    'file_path' => $filePath,
+                    'file_type' => $file->getClientOriginalExtension(),
+                    'file_size' => $file->getSize(),
+                    'issue_date' => $validated['issue_date'] ?? null,
+                    'expiry_date' => $validated['expiry_date'] ?? null,
+                    'notes' => $validated['notes'] ?? null,
+                    'uploaded_by' => auth()->id(),
+                ]);
+
+                $this->syncWithEmployeeProfile($employee, $validated['document_name'], $validated['document_type_id'] ?? null, $filePath, $validated['expiry_date'] ?? null);
+
+                return redirect()->back()->with('success', 'Document uploaded successfully!');
+            }
         } catch (\Throwable $e) {
             if ($filePath && Storage::disk('public')->exists($filePath)) {
                 Storage::disk('public')->delete($filePath);
             }
             \Log::error('Error storing employee document:', ['error' => $e->getMessage()]);
             return redirect()->back()->withErrors(['error' => 'Failed to save document record: ' . $e->getMessage()]);
+        }
+    }
+
+    private function syncWithEmployeeProfile(Employee $employee, string $docName, ?int $docTypeId, string $filePath, ?string $expiryDate = null): void
+    {
+        $typeName = '';
+        if ($docTypeId) {
+            $docType = DocumentType::find($docTypeId);
+            if ($docType) {
+                $typeName = strtolower(trim($docType->name));
+            }
+        }
+        $nameLower = strtolower(trim($docName));
+        $identifier = $typeName ?: $nameLower;
+
+        $updates = [];
+        if (str_contains($identifier, 'aadhar')) {
+            $updates['aadhar_file_path'] = $filePath;
+        } elseif (str_contains($identifier, 'pan')) {
+            $updates['pan_file_path'] = $filePath;
+        } elseif (str_contains($identifier, 'qid') || str_contains($identifier, 'qatar id')) {
+            $updates['qid_file_path'] = $filePath;
+            if ($expiryDate) $updates['qid_expiry_date'] = $expiryDate;
+        } elseif (str_contains($identifier, 'passport')) {
+            $updates['passport_file_path'] = $filePath;
+            if ($expiryDate) $updates['passport_expiry_date'] = $expiryDate;
+        } elseif (str_contains($identifier, 'resume') || str_contains($identifier, 'cv')) {
+            $updates['resume_doc'] = $filePath;
+        } elseif (str_contains($identifier, 'contract') || str_contains($identifier, 'agreement')) {
+            $updates['agreement_doc'] = $filePath;
+            if ($expiryDate) $updates['contract_expiry_date'] = $expiryDate;
+        } elseif (str_contains($identifier, 'education')) {
+            $updates['education_doc_path'] = $filePath;
+        } elseif (str_contains($identifier, 'relieving') || str_contains($identifier, 'experience')) {
+            $updates['relieving_doc_path'] = $filePath;
+        } elseif (str_contains($identifier, 'bank') || str_contains($identifier, 'passbook')) {
+            $updates['bank_doc_path'] = $filePath;
+        } elseif (str_contains($identifier, 'food') || str_contains($identifier, 'hygiene')) {
+            $updates['food_handler_file_path'] = $filePath;
+            if ($expiryDate) $updates['food_handler_expiry_date'] = $expiryDate;
+        } elseif (str_contains($identifier, 'health')) {
+            $updates['health_card_file_path'] = $filePath;
+            if ($expiryDate) $updates['health_card_expiry_date'] = $expiryDate;
+        }
+
+        if (!empty($updates)) {
+            $employee->update($updates);
         }
     }
 

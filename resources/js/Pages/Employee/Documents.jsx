@@ -249,13 +249,30 @@ export default function Documents({ employee, documents, documentTypes, userRole
                                         <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal ml-1">Asset Classification</label>
                                         <select
                                             value={data.document_type_id}
-                                            onChange={(e) => setData('document_type_id', e.target.value)}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setData(prev => {
+                                                    const selected = documentTypes.find(t => t.id == val);
+                                                    return {
+                                                        ...prev,
+                                                        document_type_id: val,
+                                                        document_name: prev.document_name && !documentTypes.some(t => prev.document_name.startsWith(t.name))
+                                                            ? prev.document_name
+                                                            : selected ? `${selected.name} - ${employee.name}` : prev.document_name
+                                                    };
+                                                });
+                                            }}
                                             className="w-full bg-slate-50 border-slate-200 rounded-lg text-xs font-normal text-slate-800 focus:ring-primary focus:border-primary transition-all uppercase tracking-normal"
                                         >
                                             <option value="">Select Type (Optional)</option>
-                                            {documentTypes.map((type) => (
-                                                <option key={type.id} value={type.id}>{type.name}</option>
-                                            ))}
+                                            {documentTypes.map((type) => {
+                                                const isAlreadyUploaded = documents.some(d => d.document_type_id === type.id);
+                                                return (
+                                                    <option key={type.id} value={type.id}>
+                                                        {type.name} {isAlreadyUploaded ? '• [Already Uploaded - will update]' : ''}
+                                                    </option>
+                                                );
+                                            })}
                                         </select>
                                     </div>
 
