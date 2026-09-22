@@ -58,21 +58,7 @@ Route::middleware('auth')->group(function () {
         Route::get('employee-attendances/template', [\App\Http\Controllers\EmployeeAttendanceController::class, 'downloadTemplate'])->name('employee-attendances.template');
         Route::post('employee-attendances/import', [\App\Http\Controllers\EmployeeAttendanceController::class, 'import'])->name('employee-attendances.import');
 
-        // Admin shift roster management
-        Route::get('shift-rosters/show-employee/{company}/{employee}', [\App\Http\Controllers\ShiftRosterController::class, 'showEmployeeRoster'])->name('shift-rosters.showEmployee');
-        Route::post('shift-rosters/bulk-store', [\App\Http\Controllers\ShiftRosterController::class, 'bulkStore'])->name('shift-rosters.bulkStore');
-        Route::post('shift-rosters/create-shift', [\App\Http\Controllers\ShiftRosterController::class, 'createShift'])->name('shift-rosters.createShift');
-        Route::post('shift-rosters/duplicate-week', [\App\Http\Controllers\ShiftRosterController::class, 'duplicateWeek'])->name('shift-rosters.duplicateWeek');
-        Route::post('shift-rosters/clear-week', [\App\Http\Controllers\ShiftRosterController::class, 'clearWeek'])->name('shift-rosters.clearWeek');
-        Route::get('shift-rosters/export-week', [\App\Http\Controllers\ShiftRosterController::class, 'exportWeek'])->name('shift-rosters.exportWeek');
-        Route::get('shift-rosters/export', [\App\Http\Controllers\ShiftRosterController::class, 'exportWeek'])->name('shift-rosters.export-week');
-        // SECURITY: Debug and test-database routes removed — they expose internal DB structure.
-        // Route::get('shift-rosters/debug', ...) -- REMOVED
-        // Route::get('shift-rosters/test-database', ...) -- REMOVED
-        Route::post('shift-rosters/batch-store', [\App\Http\Controllers\ShiftRosterController::class, 'batchStore'])->name('shift-rosters.batchStore');
-        Route::post('shift-rosters/send-emails', [\App\Http\Controllers\ShiftRosterController::class, 'sendRosterEmails'])->name('shift-rosters.sendEmails');
-        Route::post('shift-rosters/send-emails-selected', [\App\Http\Controllers\ShiftRosterController::class, 'sendRosterEmailsToSelected'])->name('shift-rosters.sendEmailsSelected');
-        Route::post('shift-rosters/send-email-single', [\App\Http\Controllers\ShiftRosterController::class, 'sendRosterEmailToSingle'])->name('shift-rosters.sendEmailSingle');
+
 
         // Settings routes
         Route::get('/settings', [\App\Http\Controllers\SettingsController::class, 'index'])->name('settings.index');
@@ -220,6 +206,17 @@ Route::middleware('auth')->group(function () {
     Route::resource('employee-attendances', \App\Http\Controllers\EmployeeAttendanceController::class);
 
     // Shift Roster custom routes (must be before resource route)
+    Route::get('shift-rosters/show-employee/{company}/{employee}', [\App\Http\Controllers\ShiftRosterController::class, 'showEmployeeRoster'])->name('shift-rosters.showEmployee');
+    Route::post('shift-rosters/bulk-store', [\App\Http\Controllers\ShiftRosterController::class, 'bulkStore'])->name('shift-rosters.bulkStore');
+    Route::post('shift-rosters/create-shift', [\App\Http\Controllers\ShiftRosterController::class, 'createShift'])->name('shift-rosters.createShift');
+    Route::post('shift-rosters/duplicate-week', [\App\Http\Controllers\ShiftRosterController::class, 'duplicateWeek'])->name('shift-rosters.duplicateWeek');
+    Route::post('shift-rosters/clear-week', [\App\Http\Controllers\ShiftRosterController::class, 'clearWeek'])->name('shift-rosters.clearWeek');
+    Route::get('shift-rosters/export-week', [\App\Http\Controllers\ShiftRosterController::class, 'exportWeek'])->name('shift-rosters.exportWeek');
+    Route::get('shift-rosters/export', [\App\Http\Controllers\ShiftRosterController::class, 'exportWeek'])->name('shift-rosters.export-week');
+    Route::post('shift-rosters/batch-store', [\App\Http\Controllers\ShiftRosterController::class, 'batchStore'])->name('shift-rosters.batchStore');
+    Route::post('shift-rosters/send-emails', [\App\Http\Controllers\ShiftRosterController::class, 'sendRosterEmails'])->name('shift-rosters.sendEmails');
+    Route::post('shift-rosters/send-emails-selected', [\App\Http\Controllers\ShiftRosterController::class, 'sendRosterEmailsToSelected'])->name('shift-rosters.sendEmailsSelected');
+    Route::post('shift-rosters/send-email-single', [\App\Http\Controllers\ShiftRosterController::class, 'sendRosterEmailToSingle'])->name('shift-rosters.sendEmailSingle');
     Route::get('shift-rosters/{companySlug}/{employeeSlug}', [\App\Http\Controllers\ShiftRosterController::class, 'showEmployeeRoster'])->name('shift-rosters.showEmployeeRoster');
     Route::resource('shift-rosters', \App\Http\Controllers\ShiftRosterController::class);
     Route::post('leave-requests/bulk-approve', [\App\Http\Controllers\LeaveRequestController::class, 'bulkApprove'])->name('leave-requests.bulk-approve');

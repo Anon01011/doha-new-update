@@ -87,7 +87,11 @@ export default function Create({ permissions }) {
                                         <input
                                             type="text"
                                             value={data.name}
-                                            onChange={(e) => setData('name', e.target.value)}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                const generatedSlug = val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                                                setData(prev => ({ ...prev, name: val, slug: generatedSlug }));
+                                            }}
                                             className="w-full bg-slate-50 border-slate-200 rounded-lg text-xs font-normal text-slate-800 focus:ring-primary focus:border-primary placeholder:text-slate-300 transition-all"
                                             placeholder="E.G. OPERATIONS COORDINATOR"
                                             required

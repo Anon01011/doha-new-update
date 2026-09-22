@@ -32,7 +32,7 @@ class ShiftRosterController extends Controller
             $user = auth()->user();
             $department_id = $request->input('department_id');
 
-            if (!$user->isAdmin() && !$user->hasPermission('view-rosters')) {
+            if (!$user->isAdmin() && !$user->hasPermission('view-shift-rosters') && !$user->hasPermission('view-rosters')) {
                 // Handled below
             }
 
@@ -80,7 +80,7 @@ class ShiftRosterController extends Controller
             $rosters = $this->getRosterData($request, $company_id);
 
             // If employee without permission, filter rosters to only their own
-            if ($user->isEmployee() && $user->employee_id && !$user->hasPermission('view-rosters') && isset($rosters)) {
+            if ($user->isEmployee() && $user->employee_id && !$user->hasPermission('view-shift-rosters') && !$user->hasPermission('view-rosters') && isset($rosters)) {
                 $rosters = $rosters->where('employee_id', $user->employee_id);
             }
 
@@ -112,7 +112,7 @@ class ShiftRosterController extends Controller
     {
         try {
             $user = auth()->user();
-            if (!$user->isAdmin() && !$user->hasPermission('manage-rosters')) {
+            if (!$user->isAdmin() && !$user->hasPermission('create-shift-rosters') && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
                 abort(403, 'Unauthorized.');
             }
             $companiesQuery = Company::orderBy('name');
@@ -198,7 +198,7 @@ class ShiftRosterController extends Controller
     {
         try {
             $user = auth()->user();
-            if (!$user->isAdmin() && !$user->hasPermission('manage-rosters')) {
+            if (!$user->isAdmin() && !$user->hasPermission('create-shift-rosters') && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
                 abort(403, 'Unauthorized.');
             }
             // SECURITY: Do NOT log $request->all() — it may contain sensitive shift/employee data.
@@ -244,6 +244,12 @@ class ShiftRosterController extends Controller
     public function show(ShiftRoster $shiftRoster)
     {
         try {
+            $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('view-shift-rosters') && !$user->hasPermission('view-rosters')) {
+                if ($user->isEmployee() && $user->employee_id && $shiftRoster->employee_id !== $user->employee_id) {
+                    abort(403, 'Unauthorized.');
+                }
+            }
             $shiftRoster->load(['employee', 'company']);
             return Inertia::render('ShiftRoster/Show', [
                 'roster' => $shiftRoster,
@@ -259,7 +265,7 @@ class ShiftRosterController extends Controller
     {
         try {
             $user = auth()->user();
-            if (!$user->isAdmin() && !$user->hasPermission('manage-rosters')) {
+            if (!$user->isAdmin() && !$user->hasPermission('edit-shift-rosters') && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
                 abort(403, 'Unauthorized.');
             }
             $shiftRoster->load(['employee', 'company']);
@@ -284,6 +290,18 @@ class ShiftRosterController extends Controller
     public function update(Request $request, ShiftRoster $shiftRoster)
     {
         try {
+            $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('edit-shift-rosters') && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+                abort(403, 'Unauthorized.');
+            }
+
+            // Multi-tenancy check
+            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+                if ($shiftRoster->company_id != $user->employee->company_id) {
+                    abort(403, 'Unauthorized access to another branch.');
+                }
+            }
+
             $data = $request->validate([
                 'shift_time' => 'required|string|max:255',
                 'shift_type' => 'nullable|string|max:255',
@@ -334,6 +352,18 @@ class ShiftRosterController extends Controller
     public function destroy(ShiftRoster $shiftRoster)
     {
         try {
+            $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('delete-shift-rosters') && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+                abort(403, 'Unauthorized.');
+            }
+
+            // Multi-tenancy check
+            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+                if ($shiftRoster->company_id != $user->employee->company_id) {
+                    abort(403, 'Unauthorized access to another branch.');
+                }
+            }
+
             $shiftRoster->delete();
             Log::info('ShiftRoster deleted', ['id' => $shiftRoster->id]);
 
@@ -348,6 +378,11 @@ class ShiftRosterController extends Controller
     public function createShift(Request $request)
     {
         try {
+            $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('create-shift-rosters') && !$user->hasPermission('edit-shift-rosters') && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+                abort(403, 'Unauthorized.');
+            }
+
             $data = $request->validate([
                 'employee_id' => 'required|exists:employees,id',
                 'company_id' => 'required|exists:companies,id',
@@ -358,6 +393,13 @@ class ShiftRosterController extends Controller
                 'designation' => 'nullable|string|max:255',
                 'notes' => 'nullable|string|max:1000',
             ]);
+
+            // Multi-tenancy check
+            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+                if ($data['company_id'] != $user->employee->company_id) {
+                    abort(403, 'Unauthorized access to another branch.');
+                }
+            }
 
             $employee = Employee::with(['weeklyOffs', 'company'])->find($data['employee_id']);
             if ($employee) {
@@ -404,8 +446,15 @@ class ShiftRosterController extends Controller
     public function bulkStore(Request $request)
     {
         try {
-            $data = $this->validateRosterData($request);
             $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('create-shift-rosters') && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized.'
+                ], 403);
+            }
+
+            $data = $this->validateRosterData($request);
 
             // Multi-tenancy check
             if (!$user->isAdmin() && $user->employee_id && $user->employee) {
@@ -434,10 +483,19 @@ class ShiftRosterController extends Controller
         }
     }
 
+    public function batchStore(Request $request)
+    {
+        return $this->bulkStore($request);
+    }
+
     public function duplicateWeek(Request $request)
     {
         try {
             $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('create-shift-rosters') && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+                abort(403, 'Unauthorized.');
+            }
+
             $data = $request->validate([
                 'source_week' => 'required|date',
                 'target_week' => 'required|date',
@@ -510,6 +568,10 @@ class ShiftRosterController extends Controller
     {
         try {
             $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('delete-shift-rosters') && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+                abort(403, 'Unauthorized.');
+            }
+
             $data = $request->validate([
                 'week_start' => 'required|date',
                 'company_id' => 'required|exists:companies,id',
@@ -545,6 +607,10 @@ class ShiftRosterController extends Controller
     {
         try {
             $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('view-shift-rosters') && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('view-rosters') && !$user->hasPermission('manage-rosters')) {
+                abort(403, 'Unauthorized.');
+            }
+
             $data = $request->validate([
                 'week_start' => 'required|date',
                 'company_id' => 'required|exists:companies,id',
@@ -777,6 +843,10 @@ class ShiftRosterController extends Controller
     {
         try {
             $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
             $company_id = $request->input('company_id');
             $week_start = $request->input('week_start');
             $month = $request->input('month');
@@ -789,7 +859,7 @@ class ShiftRosterController extends Controller
             }
 
             // Multi-tenancy check
-            if ($user->role !== 'admin' && $user->employee_id && $user->employee) {
+            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
                 if ($company_id != $user->employee->company_id) {
                     return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
                 }
@@ -1093,6 +1163,11 @@ class ShiftRosterController extends Controller
     public function sendRosterEmailsToSelected(Request $request)
     {
         try {
+            $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
             $request->validate([
                 'employee_ids' => 'required|array|min:1',
                 'employee_ids.*' => 'integer|exists:employees,id',
@@ -1112,9 +1187,8 @@ class ShiftRosterController extends Controller
             $start_date = $request->input('start_date');
             $end_date = $request->input('end_date');
 
-            $user = auth()->user();
             // Multi-tenancy check
-            if ($user->role !== 'admin' && $user->employee_id && $user->employee) {
+            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
                 if ($company_id != $user->employee->company_id) {
                     return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
                 }
@@ -1272,6 +1346,11 @@ class ShiftRosterController extends Controller
     public function sendRosterEmailToSingle(Request $request)
     {
         try {
+            $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
             $request->validate([
                 'employee_id' => 'required|integer|exists:employees,id',
                 'company_id' => 'required|integer|exists:companies,id',
@@ -1290,9 +1369,8 @@ class ShiftRosterController extends Controller
             $start_date = $request->input('start_date');
             $end_date = $request->input('end_date');
 
-            $user = auth()->user();
             // Multi-tenancy check
-            if ($user->role !== 'admin' && $user->employee_id && $user->employee) {
+            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
                 if ($company_id != $user->employee->company_id) {
                     return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
                 }

@@ -118,9 +118,9 @@ export default function AuthenticatedLayout({ header, children }) {
             permissionAllowed = userHasAnyPermission(permissions);
         }
 
-        // If both are specified, user must satisfy both the role and permission requirement
+        // If both are specified, either having the required permission OR matching role grants access
         if (hasSpecificRoles && hasSpecificPermissions) {
-            return roleAllowed && permissionAllowed;
+            return roleAllowed || permissionAllowed;
         }
 
         if (hasSpecificRoles) return roleAllowed;

@@ -120,4 +120,77 @@ class ShiftRosterTest extends TestCase
             ->where('employees.0.id', $this->emp1->id)
         );
     }
+
+    public function test_custom_shift_manager_role_can_access_and_create_shifts()
+    {
+        // Create custom shift-manager role and assign permissions
+        $shiftManagerRole = Role::create([
+            'name' => 'Shift Manager',
+            'slug' => 'shift-manager',
+            'is_active' => true,
+        ]);
+
+        $perm1 = \App\Models\Permission::create([
+            'name' => 'View Shift Rosters',
+            'slug' => 'view-shift-rosters',
+            'module' => 'shift-roster',
+            'is_active' => true,
+        ]);
+        $perm2 = \App\Models\Permission::create([
+            'name' => 'Create Shift Rosters',
+            'slug' => 'create-shift-rosters',
+            'module' => 'shift-roster',
+            'is_active' => true,
+        ]);
+        $perm3 = \App\Models\Permission::create([
+            'name' => 'Manage Shift Rosters',
+            'slug' => 'manage-shift-rosters',
+            'module' => 'shift-roster',
+            'is_active' => true,
+        ]);
+
+        $shiftManagerRole->permissions()->sync([$perm1->id, $perm2->id, $perm3->id]);
+
+        // Create shift manager user
+        $shiftManagerUser = User::create([
+            'name' => 'Shift Manager User',
+            'email' => 'shiftmanager@earthdoha.com',
+            'password' => bcrypt('password'),
+            'role' => 'shift-manager',
+            'employee_id' => $this->emp1->id,
+            'company_id' => $this->branch1->id,
+        ]);
+        $shiftManagerUser->roles()->sync([$shiftManagerRole->id]);
+
+        // 1. Shift Manager can access index
+        $indexResponse = $this->actingAs($shiftManagerUser)
+            ->get(route('shift-rosters.index'));
+        $indexResponse->assertStatus(200);
+
+        // 2. Shift Manager can access create form
+        $createFormResponse = $this->actingAs($shiftManagerUser)
+            ->get(route('shift-rosters.create'));
+        $createFormResponse->assertStatus(200);
+
+        // 3. Shift Manager can create shift via createShift
+        $createShiftResponse = $this->actingAs($shiftManagerUser)
+            ->post(route('shift-rosters.createShift'), [
+                'employee_id' => $this->emp1->id,
+                'company_id' => $this->branch1->id,
+                'week_start' => '2026-09-21',
+                'day' => 'Monday',
+                'shift_time' => '8:00 AM - 5:00 PM',
+                'shift_type' => 'Morning',
+                'designation' => 'Lead Stylist',
+                'notes' => 'Test Shift',
+            ]);
+
+        $createShiftResponse->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('shift_rosters', [
+            'employee_id' => $this->emp1->id,
+            'company_id' => $this->branch1->id,
+            'day' => 'Monday',
+            'shift_time' => '8:00 AM - 5:00 PM',
+        ]);
+    }
 }

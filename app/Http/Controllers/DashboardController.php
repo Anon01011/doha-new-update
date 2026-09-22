@@ -28,8 +28,8 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
 
-        // Redirect non-management users (not admin, hr, or manager) to their own employee dashboard
-        if (!$user->isAdmin() && !$user->isHR() && !$user->isManager() && $user->employee_id) {
+        // Redirect standard employee-only users to their own employee dashboard
+        if ($user->isEmployee() && !$user->isAdmin() && !$user->isHR() && !$user->isManager() && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('view-shift-rosters') && !$user->hasPermission('view-employees') && !$user->hasPermission('view-reports') && $user->employee_id) {
             return redirect()->route('employee.dashboard');
         }
 

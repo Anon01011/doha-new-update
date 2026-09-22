@@ -421,7 +421,7 @@ class EmployeeController extends Controller
             abort(403, 'Unauthorized. You do not have permission to edit employees.');
         }
 
-        $employee->load(['salaryStructures.component', 'weeklyOffs']);
+        $employee->load(['salaryStructures.component', 'weeklyOffs', 'user.roles']);
         $companies = Company::orderBy('name')->get(['id', 'name']);
         // Branch-scope departments
         $departmentsQuery = Department::orderBy('name');
@@ -435,6 +435,13 @@ class EmployeeController extends Controller
         $salaryComponents = \App\Models\SalaryComponent::where('is_active', true)->get();
         $availableRoles = Role::where('is_active', true)->get(['id', 'name', 'slug']);
 
+        $employeeRole = null;
+        if ($employee->user) {
+            $employeeRole = $employee->user->roles->first()
+                ? $employee->user->roles->first()->slug
+                : $employee->user->role;
+        }
+
         return Inertia::render('Employee/Edit', [
             'employee' => $employee,
             'canEditCode' => $user->isAdmin() && !$employee->is_code_edited,
@@ -444,7 +451,7 @@ class EmployeeController extends Controller
             'availableRoles' => $availableRoles,
             'leadershipEmployees' => $this->getLeadershipEmployees(),
             'managerEmployees' => $this->getManagerAndHrEmployees(),
-            'employee_role' => $employee->user && $employee->user->roles->first() ? $employee->user->roles->first()->slug : null,
+            'employee_role' => $employeeRole,
             'constants' => $this->getConstants(),
         ]);
     }
