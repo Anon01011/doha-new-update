@@ -5,9 +5,8 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import {
     FiMail, FiLock, FiArrowRight, FiCheckCircle, FiShield,
-    FiEye, FiEyeOff, FiUsers, FiUserCheck, FiDollarSign,
-    FiBriefcase, FiAward, FiCheck, FiKey, FiZap,
-    FiBarChart2, FiClock, FiGlobe
+    FiEye, FiEyeOff, FiUsers,
+    FiZap, FiBarChart2, FiClock, FiGlobe
 } from 'react-icons/fi';
 
 export default function Login({ status, canResetPassword }) {
@@ -26,69 +25,17 @@ export default function Login({ status, canResetPassword }) {
         remember: true,
     });
 
-    const [showPassword, setShowPassword]   = useState(false);
-    const [selectedRole, setSelectedRole]   = useState(null);
-    const [mounted, setMounted]             = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [mounted, setMounted]           = useState(false);
 
     useEffect(() => { setMounted(true); }, []);
 
-    const demoRoles = [
-        {
-            id: 'admin',
-            title: 'Super Admin',
-            email: 'admin@earth.com',
-            password: 'password',
-            icon: FiShield,
-            desc: 'Full system access',
-        },
-        {
-            id: 'hr',
-            title: 'HR Manager',
-            email: 'hr@earth.com',
-            password: 'password',
-            icon: FiAward,
-            desc: 'People & talent ops',
-        },
-        {
-            id: 'manager',
-            title: 'Branch Manager',
-            email: 'manager@earth.com',
-            password: 'password',
-            icon: FiBriefcase,
-            desc: 'Operations & shifts',
-        },
-        {
-            id: 'finance',
-            title: 'Finance Lead',
-            email: 'finance@earth.com',
-            password: 'password',
-            icon: FiDollarSign,
-            desc: 'Payroll & expenses',
-        },
-        {
-            id: 'employee',
-            title: 'Employee',
-            email: 'employee@earth.com',
-            password: 'password',
-            icon: FiUsers,
-            desc: 'Self-service portal',
-        },
-    ];
 
-    const applyDemoRole = (role) => {
-        setSelectedRole(role.id);
-        setData({ email: role.email, password: role.password, remember: true });
-    };
 
     useEffect(() => {
         const savedEmail = localStorage.getItem('remember_email');
         if (savedEmail) {
-            setData(prev => ({
-                ...prev,
-                email: savedEmail,
-                password: localStorage.getItem('remember_password') || '',
-                remember: true,
-            }));
+            setData(prev => ({ ...prev, email: savedEmail, remember: true }));
         }
     }, []);
 
@@ -96,10 +43,8 @@ export default function Login({ status, canResetPassword }) {
         e.preventDefault();
         if (data.remember) {
             localStorage.setItem('remember_email', data.email);
-            localStorage.setItem('remember_password', data.password);
         } else {
             localStorage.removeItem('remember_email');
-            localStorage.removeItem('remember_password');
         }
         post(route('login'), { onFinish: () => reset('password') });
     };
@@ -240,63 +185,6 @@ export default function Login({ status, canResetPassword }) {
                             </div>
                         )}
 
-                        {/* Demo accounts */}
-                        <div className="mb-6">
-                            <div className="flex items-center justify-between mb-2.5">
-                                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                                    <FiKey className="w-3 h-3" style={{ color: primary }} />
-                                    Demo Accounts
-                                </span>
-                                <span className="text-[10px] text-slate-400">Click to auto-fill</span>
-                            </div>
-                            <div className="grid grid-cols-5 gap-1.5">
-                                {demoRoles.map((role) => {
-                                    const Icon = role.icon;
-                                    const isSelected = selectedRole === role.id;
-                                    return (
-                                        <button
-                                            key={role.id}
-                                            type="button"
-                                            onClick={() => applyDemoRole(role)}
-                                            title={`${role.title} — ${role.email}`}
-                                            className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl border text-center transition-all cursor-pointer"
-                                            style={isSelected ? {
-                                                background: `${primary}12`,
-                                                borderColor: primary,
-                                                color: primary,
-                                            } : {
-                                                background: '#f8fafc',
-                                                borderColor: '#e2e8f0',
-                                                color: '#64748b',
-                                            }}
-                                        >
-                                            <div
-                                                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
-                                                style={isSelected
-                                                    ? { background: `${primary}20`, color: primary }
-                                                    : { background: '#f1f5f9', color: '#94a3b8' }
-                                                }
-                                            >
-                                                {isSelected
-                                                    ? <FiCheck className="w-3.5 h-3.5" />
-                                                    : <Icon className="w-3.5 h-3.5" />
-                                                }
-                                            </div>
-                                            <span className="text-[10px] font-semibold leading-tight" style={isSelected ? { color: primary } : { color: '#475569' }}>
-                                                {role.title}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* Divider */}
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="flex-1 h-px bg-slate-100" />
-                            <span className="text-[11px] text-slate-400 font-medium">or enter credentials</span>
-                            <div className="flex-1 h-px bg-slate-100" />
-                        </div>
 
                         {/* Form */}
                         <form onSubmit={submit} className="space-y-4">
