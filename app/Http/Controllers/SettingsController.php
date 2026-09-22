@@ -127,7 +127,7 @@ class SettingsController extends Controller
             'app_url' => 'required|url',
             'app_timezone' => 'required|string',
             'app_locale' => 'required|string|max:10',
-            'app_country' => 'nullable|string|in:QA,IN,AE,US,ALL',
+            'app_country' => 'nullable|string|in:QA,IN,AE,SA,US,GB,UK,ALL',
             'currency' => 'required|string|max:10',
             'currency_symbol' => 'required|string|max:10',
             'logo' => 'nullable|image|mimes:png,jpg,jpeg,svg|max:2048',

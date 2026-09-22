@@ -187,6 +187,48 @@ export default function SystemSettings({ systemSettings }) {
                                     )}
                                 </div>
 
+                                {/* Country / Operating Region */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-normal text-gray-700 ml-1">
+                                        Operating Country / Region Compliance
+                                    </label>
+                                    <select
+                                        value={data.app_country}
+                                        onChange={(e) => {
+                                            const country = e.target.value;
+                                            const countryMap = {
+                                                'QA': { currency: 'QAR', symbol: 'QAR', tz: 'Asia/Qatar' },
+                                                'IN': { currency: 'INR', symbol: '₹', tz: 'Asia/Kolkata' },
+                                                'AE': { currency: 'AED', symbol: 'AED', tz: 'Asia/Dubai' },
+                                                'SA': { currency: 'SAR', symbol: 'SAR', tz: 'Asia/Riyadh' },
+                                                'US': { currency: 'USD', symbol: '$', tz: 'America/New_York' },
+                                                'GB': { currency: 'GBP', symbol: '£', tz: 'Europe/London' },
+                                                'ALL': { currency: data.currency || 'USD', symbol: data.currency_symbol || '$', tz: data.app_timezone || 'UTC' },
+                                            };
+                                            const preset = countryMap[country];
+                                            setData(prev => ({
+                                                ...prev,
+                                                app_country: country,
+                                                currency: preset ? preset.currency : prev.currency,
+                                                currency_symbol: preset ? preset.symbol : prev.currency_symbol,
+                                                app_timezone: (preset && systemSettings.available_timezones?.[preset.tz]) ? preset.tz : prev.app_timezone,
+                                            }));
+                                        }}
+                                        className="w-full rounded-lg border-gray-200 bg-gray-50/50 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-normal"
+                                    >
+                                        <option value="QA">Qatar 🇶🇦 (QID, Visa, Health & Food Cards)</option>
+                                        <option value="IN">India 🇮🇳 (Aadhar, PAN, Relieving, Bank & Education Docs)</option>
+                                        <option value="AE">United Arab Emirates 🇦🇪 (Emirates ID & Visa)</option>
+                                        <option value="SA">Saudi Arabia 🇸🇦 (Iqama & National ID)</option>
+                                        <option value="US">United States 🇺🇸 (SSN & Tax Forms)</option>
+                                        <option value="GB">United Kingdom 🇬🇧 (National Insurance)</option>
+                                        <option value="ALL">Global / All Compliance Types</option>
+                                    </select>
+                                    {errors.app_country && (
+                                        <p className="text-[10px] font-normal text-rose-500 ml-1">{errors.app_country}</p>
+                                    )}
+                                </div>
+
                                 {/* Timezone */}
                                 <div className="space-y-1">
                                     <label className="text-xs font-normal text-gray-700 ml-1">
@@ -203,33 +245,6 @@ export default function SystemSettings({ systemSettings }) {
                                     </select>
                                     {errors.app_timezone && (
                                         <p className="text-[10px] font-normal text-rose-500 ml-1">{errors.app_timezone}</p>
-                                    )}
-                                </div>
-
-                                {/* Country / Operating Region */}
-                                <div className="space-y-1">
-                                    <label className="text-xs font-normal text-gray-700 ml-1">
-                                        Country / Region Compliance
-                                    </label>
-                                    <select
-                                        value={data.app_country}
-                                        onChange={(e) => {
-                                            const country = e.target.value;
-                                            setData(prev => ({
-                                                ...prev,
-                                                app_country: country,
-                                                currency: country === 'IN' ? 'INR' : (country === 'QA' ? 'QAR' : prev.currency),
-                                                currency_symbol: country === 'IN' ? '₹' : (country === 'QA' ? 'QAR' : prev.currency_symbol),
-                                            }));
-                                        }}
-                                        className="w-full rounded-lg border-gray-200 bg-gray-50/50 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-normal"
-                                    >
-                                        <option value="QA">Qatar (QID, Visa, Health & Food Cards)</option>
-                                        <option value="IN">India (Aadhar, PAN, Relieving, Bank & Education Docs)</option>
-                                        <option value="ALL">Global / All Document Types</option>
-                                    </select>
-                                    {errors.app_country && (
-                                        <p className="text-[10px] font-normal text-rose-500 ml-1">{errors.app_country}</p>
                                     )}
                                 </div>
 
@@ -261,23 +276,30 @@ export default function SystemSettings({ systemSettings }) {
                                         value={data.currency}
                                         onChange={(e) => {
                                             const code = e.target.value;
+                                            const symbols = {
+                                                'QAR': 'QAR',
+                                                'INR': '₹',
+                                                'AED': 'AED',
+                                                'SAR': 'SAR',
+                                                'USD': '$',
+                                                'GBP': '£',
+                                                'EUR': '€'
+                                            };
                                             setData(prev => ({
                                                 ...prev,
                                                 currency: code,
-                                                currency_symbol: {
-                                                    'QAR': 'QAR',
-                                                    'AED': 'AED',
-                                                    'INR': '₹',
-                                                    'USD': '$'
-                                                }[code] || prev.currency_symbol
+                                                currency_symbol: symbols[code] || prev.currency_symbol
                                             }));
                                         }}
                                         className="w-full rounded-lg border-gray-200 bg-gray-50/50 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-normal"
                                     >
                                         <option value="QAR">QAR (Qatari Riyal)</option>
-                                        <option value="AED">AED (United Arab Emirates Dirham)</option>
-                                        <option value="INR">INR (Indian Rupee)</option>
-                                        <option value="USD">USD (US Dollar)</option>
+                                        <option value="INR">INR (Indian Rupee - ₹)</option>
+                                        <option value="AED">AED (UAE Dirham)</option>
+                                        <option value="SAR">SAR (Saudi Riyal)</option>
+                                        <option value="USD">USD (US Dollar - $)</option>
+                                        <option value="GBP">GBP (British Pound - £)</option>
+                                        <option value="EUR">EUR (Euro - €)</option>
                                     </select>
                                     {errors.currency && (
                                         <p className="text-[10px] font-normal text-rose-500 ml-1">{errors.currency}</p>
@@ -294,7 +316,7 @@ export default function SystemSettings({ systemSettings }) {
                                         value={data.currency_symbol}
                                         onChange={(e) => setData('currency_symbol', e.target.value)}
                                         className="w-full rounded-lg border-gray-200 bg-gray-50/50 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-normal"
-                                        placeholder="QAR"
+                                        placeholder="₹ / QAR / $"
                                     />
                                     {errors.currency_symbol && (
                                         <p className="text-[10px] font-normal text-rose-500 ml-1">{errors.currency_symbol}</p>
