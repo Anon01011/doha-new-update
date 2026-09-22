@@ -1,12 +1,14 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
-import { FaFileAlt, FaCloudUploadAlt, FaDownload, FaTrash, FaCheckCircle, FaExclamationCircle, FaTimesCircle, FaCalendarAlt, FaFileContract, FaInfoCircle } from 'react-icons/fa';
+import { FaFileAlt, FaCloudUploadAlt, FaDownload, FaTrash, FaCheckCircle, FaExclamationCircle, FaTimesCircle, FaCalendarAlt, FaFileContract, FaInfoCircle, FaEye } from 'react-icons/fa';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import Lightbox from '@/Components/Lightbox';
 
 export default function Documents({ employee, documents, documentTypes, userRole, settings }) {
     const { auth } = usePage().props;
     const [showUploadModal, setShowUploadModal] = useState(false);
+    const [lightbox, setLightbox] = useState({ isOpen: false, src: '', title: '', type: 'auto' });
     const { data, setData, post, processing, errors, reset } = useForm({
         document_type_id: '',
         document_name: '',
@@ -19,6 +21,26 @@ export default function Documents({ employee, documents, documentTypes, userRole
     const isOwnProfile = auth?.user?.employee_id === employee.id || (auth?.user?.role === 'employee' && auth?.user?.employee_id == employee.id);
     const canUpload = ['admin', 'hr', 'manager'].includes(userRole) || isOwnProfile;
     const canDelete = ['admin', 'hr'].includes(userRole);
+
+    const openLightbox = (src, title) => {
+        if (!src) return;
+        const cleanSrc = src.toString().trim().replace(/^[\\/]+/, '');
+        const ext = cleanSrc.split('?')[0].split('.').pop().toLowerCase();
+        let type = 'auto';
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+            type = 'image';
+        } else if (ext === 'pdf') {
+            type = 'application/pdf';
+        } else {
+            type = 'other';
+        }
+        const fullUrl = cleanSrc.startsWith('http') || cleanSrc.startsWith('blob:')
+            ? cleanSrc
+            : cleanSrc.startsWith('storage/')
+            ? `/${cleanSrc}`
+            : `/storage/${cleanSrc}`;
+        setLightbox({ isOpen: true, src: fullUrl, title, type });
+    };
 
     const handleUpload = (e) => {
         e.preventDefault();
@@ -150,20 +172,28 @@ export default function Documents({ employee, documents, documentTypes, userRole
                                         </div>
 
                                         {/* Card Footer Actions */}
-                                        <div className="p-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+                                        <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => openLightbox(doc.file_path, `${employee.name} - ${doc.document_name}`)}
+                                                className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-[10px] font-semibold uppercase tracking-normal hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all active:scale-95 shadow-xs"
+                                            >
+                                                <FaEye size={11} /> Preview
+                                            </button>
                                             <a
                                                 href={route('employee-documents.download', doc.id)}
-                                                className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-normal uppercase tracking-normal hover:bg-primary hover:text-white hover:border-primary transition-all active:scale-95 shadow-sm"
+                                                className="w-9 h-8 flex items-center justify-center bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] hover:bg-slate-100 hover:text-slate-900 transition-all active:scale-95 shadow-xs"
+                                                title="Download File"
                                             >
-                                                <FaDownload size={10} /> Access Asset
+                                                <FaDownload size={11} />
                                             </a>
                                             {canDelete && (
                                                 <button
                                                     onClick={() => handleDelete(doc.id)}
-                                                    className="w-10 h-9 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all active:scale-95 shadow-sm"
+                                                    className="w-9 h-8 flex items-center justify-center bg-white border border-slate-200 text-slate-400 rounded-lg hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all active:scale-95 shadow-xs"
                                                     title="Purge Document"
                                                 >
-                                                    <FaTrash size={12} />
+                                                    <FaTrash size={11} />
                                                 </button>
                                             )}
                                         </div>
@@ -303,6 +333,15 @@ export default function Documents({ employee, documents, documentTypes, userRole
                     onClose={() => setConfirmingDeletion(false)}
                     type="danger"
                     processing={isProcessing}
+                />
+
+                {/* Lightbox / Document Preview Modal */}
+                <Lightbox
+                    isOpen={lightbox.isOpen}
+                    onClose={() => setLightbox({ ...lightbox, isOpen: false })}
+                    src={lightbox.src}
+                    type={lightbox.type}
+                    title={lightbox.title}
                 />
             </div>
         </AuthenticatedLayout>

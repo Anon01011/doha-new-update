@@ -391,7 +391,7 @@ class EmployeeController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
-        $employee->load(['company', 'department', 'salaryStructures.component', 'user.roles', 'evaluations.evaluator', 'weeklyOffs', 'expenseClaims.category']);
+        $employee->load(['company', 'department', 'salaryStructures.component', 'user.roles', 'evaluations.evaluator', 'weeklyOffs', 'expenseClaims.category', 'documents.documentType']);
 
         // Handle department - it can be either a string or a relationship
         $departmentName = null;

@@ -417,7 +417,7 @@ export default function EditEmployee(props) {
 
                 {/* Top Sticky Header */}
                 <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-4 shadow-sm">
-                    <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="w-full px-2 sm:px-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div className="flex items-center gap-3">
                             <Link
                                 href={route('employees.show', employee.id)}
@@ -468,7 +468,7 @@ export default function EditEmployee(props) {
                     </div>
 
                     {/* Step Tabs Navigation */}
-                    <div className="max-w-7xl mx-auto mt-4">
+                    <div className="w-full px-2 sm:px-4 mt-4">
                         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none border-t border-slate-100 pt-3">
                             {TABS.map((tab, idx) => {
                                 const Icon = tab.icon;
@@ -504,7 +504,7 @@ export default function EditEmployee(props) {
                 </div>
 
                 {/* Main Content Area */}
-                <div className="max-w-7xl mx-auto px-4 sm:px-8 pt-8">
+                <div className="w-full px-4 sm:px-8 lg:px-10 pt-8">
                     <form onSubmit={handleSubmit}>
                         
                         {/* ============================================================== */}

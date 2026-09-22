@@ -1,15 +1,26 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, usePage, router } from '@inertiajs/react';
 import { useState } from 'react';
-import EmployeeFieldIcons from '@/Components/EmployeeFieldIcons';
 import Lightbox from '@/Components/Lightbox';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import {
+    FiUser, FiCreditCard, FiMapPin, FiBriefcase, FiClock, FiDollarSign,
+    FiFileText, FiArrowLeft, FiEdit3, FiPrinter, FiTrash2, FiCheckCircle,
+    FiEye, FiDownload, FiGlobe, FiShield, FiPhone, FiMail, FiCalendar,
+    FiLayers, FiInfo, FiFile, FiExternalLink, FiX, FiPlus, FiUpload
+} from 'react-icons/fi';
 
 export default function ShowEmployee({ employee }) {
     const { appSettings, auth } = usePage().props;
-    const isAuthorized = ['admin', 'hr', 'manager'].includes(auth.user.role);
+    const isAuthorized = ['admin', 'hr', 'manager'].includes(auth.user?.role || '');
     const currency = appSettings?.currency || 'QAR';
+    const appCountry = appSettings?.app_country || (currency === 'INR' ? 'IN' : 'QA');
+    const isIndiaMode = appCountry === 'IN';
+    const isQatarMode = appCountry === 'QA';
+    const isAllMode = appCountry === 'ALL';
+
+    const [activeTab, setActiveTab] = useState('overview');
     const [lightbox, setLightbox] = useState({ isOpen: false, src: '', title: '', type: 'auto' });
 
     const [confirmingApproval, setConfirmingApproval] = useState(false);
@@ -19,9 +30,7 @@ export default function ShowEmployee({ employee }) {
 
     const canDelete = auth.user?.role === 'admin' || auth.user?.roles?.some(r => r.slug === 'admin');
 
-    const handleApprove = () => {
-        setConfirmingApproval(true);
-    };
+    const handleApprove = () => setConfirmingApproval(true);
 
     const confirmApprove = () => {
         setProcessing(true);
@@ -33,9 +42,7 @@ export default function ShowEmployee({ employee }) {
         });
     };
 
-    const handleDelete = () => {
-        setConfirmingDelete(true);
-    };
+    const handleDelete = () => setConfirmingDelete(true);
 
     const confirmDelete = () => {
         setDeleting(true);
@@ -47,9 +54,23 @@ export default function ShowEmployee({ employee }) {
         });
     };
 
+    const getFileUrl = (src) => {
+        if (!src) return '';
+        const trimmed = src.toString().trim();
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('blob:')) {
+            return trimmed;
+        }
+        const clean = trimmed.replace(/^[\\/]+/, '');
+        if (clean.startsWith('storage/')) {
+            return `/${clean}`;
+        }
+        return `/storage/${clean}`;
+    };
+
     const openLightbox = (src, title) => {
         if (!src) return;
-        const ext = src.split('.').pop().toLowerCase();
+        const fullUrl = getFileUrl(src);
+        const ext = fullUrl.split('?')[0].split('.').pop().toLowerCase();
         let type = 'auto';
         if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
             type = 'image';
@@ -58,11 +79,11 @@ export default function ShowEmployee({ employee }) {
         } else {
             type = 'other';
         }
-        setLightbox({ isOpen: true, src: `/storage/${src}`, title, type });
+        setLightbox({ isOpen: true, src: fullUrl, title, type });
     };
 
     const formatDate = (dateString) => {
-        if (!dateString) return 'N/A';
+        if (!dateString) return '—';
         return new Date(dateString).toLocaleDateString('en-GB', {
             day: '2-digit',
             month: 'short',
@@ -70,649 +91,225 @@ export default function ShowEmployee({ employee }) {
         });
     };
 
-
-    const getStatusColor = (status) => {
-        switch (status?.toLowerCase()) {
-            case 'active': return 'bg-emerald-400 text-white';
-            case 'inactive': return 'bg-rose-400 text-white';
-            case 'on leave': return 'bg-sky-400 text-white';
-            default: return 'bg-slate-400 text-white';
+    const getStatusBadge = (status) => {
+        const s = (status || 'active').toLowerCase();
+        switch (s) {
+            case 'active':
+                return { bg: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400', label: 'Active Staff' };
+            case 'waiting':
+                return { bg: 'bg-amber-500/10 border-amber-500/30 text-amber-400', label: 'Pending Approval' };
+            case 'inactive':
+                return { bg: 'bg-rose-500/10 border-rose-500/30 text-rose-400', label: 'Inactive' };
+            case 'on leave':
+                return { bg: 'bg-sky-500/10 border-sky-500/30 text-sky-400', label: 'On Leave' };
+            default:
+                return { bg: 'bg-slate-500/10 border-slate-500/30 text-slate-300', label: status?.toUpperCase() || 'UNKNOWN' };
         }
     };
 
-    const InfoItem = ({ icon, label, value, className = "" }) => (
-        <div className={`group flex items-center p-3 bg-white rounded-lg border border-slate-100 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 ${className}`}>
-            <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-slate-50 rounded-lg group-hover:bg-primary/5 group-hover:text-primary transition-colors">
-                <span className="scale-75">{icon}</span>
-            </div>
-            <div className="ml-3 flex-1 min-w-0">
-                <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-0">{label}</p>
-                <p className="text-xs font-normal text-slate-700 truncate">{value || '—'}</p>
-            </div>
-        </div>
-    );
+    const statusStyle = getStatusBadge(employee.manual_status || employee.status);
 
-    const SectionTitle = ({ title, icon, color = "primary" }) => (
-        <div className="flex items-center gap-2 mb-4">
-            <div className={`w-1 h-4 bg-primary rounded-full shadow-[0_0_8px_rgba(var(--primary-color-rgb),0.2)]`}></div>
-            <h3 className="text-[10px] font-normal text-slate-800 uppercase tracking-[0.15em] flex items-center gap-2">
-                <span className="opacity-50">{icon}</span>
-                {title}
-            </h3>
-        </div>
-    );
+    // Compute Net Salary
+    const basicSalary = parseFloat(employee.basic_salary?.toString().replace(/,/g, '') || 0);
+    let totalAllowances = 0;
+    let totalDeductions = 0;
+
+    (employee.salary_structures || employee.salaryStructures || []).forEach(struct => {
+        const amt = parseFloat(struct.amount) || 0;
+        const computedAmt = struct.value_type === 'percentage' ? (basicSalary * amt) / 100 : amt;
+        if (struct.component?.type === 'allowance' || struct.type === 'allowance' || struct.type === 'earning') {
+            totalAllowances += computedAmt;
+        } else if (struct.component?.type === 'deduction' || struct.type === 'deduction') {
+            totalDeductions += computedAmt;
+        }
+    });
+
+    const netSalary = Math.max(0, basicSalary + totalAllowances - totalDeductions);
+
+    // Document Items List for Compliance Tab
+    const customDocs = (employee.documents || []).map(d => ({
+        id: `custom_${d.id}`,
+        title: d.document_name || d.document_type?.name || 'Custom Document',
+        file: d.file_path || d.file,
+        number: null,
+        expiry: d.expiry_date,
+        category: d.document_type?.name || 'Uploaded Document',
+        notes: d.notes
+    }));
+
+    const documentsList = [
+        // India Docs
+        ...(isIndiaMode || isAllMode ? [
+            { id: 'aadhar', title: 'Aadhar Card', file: employee.aadhar_file || employee.aadhar_file_path, number: employee.aadhar_number, category: 'Identity (India)' },
+            { id: 'pan', title: 'PAN Card (Tax ID)', file: employee.pan_file || employee.pan_file_path, number: employee.pan_number, category: 'Tax ID (India)' },
+            { id: 'education', title: 'Education Certificate', file: employee.education_doc || employee.education_doc_path, number: null, category: 'Education' },
+            { id: 'relieving', title: 'Relieving / Experience Document', file: employee.relieving_doc || employee.relieving_doc_path, number: null, category: 'Employment Proof' },
+            { id: 'bank', title: 'Bank Passbook / Cheque', file: employee.bank_doc || employee.bank_doc_path, number: employee.bank_account_number, category: 'Banking' },
+        ] : []),
+
+        // Qatar Docs
+        ...(isQatarMode || isAllMode ? [
+            { id: 'qid', title: 'Qatar ID (QID)', file: employee.qid_file || employee.qid_file_path, number: employee.qid_number, expiry: employee.qid_expiry_date, category: 'Identity (Qatar)' },
+            { id: 'passport', title: 'Passport Document', file: employee.passport_file || employee.passport_file_path, number: employee.passport_number, expiry: employee.passport_expiry_date, category: 'Passport' },
+            { id: 'health', title: 'Health Card', file: employee.health_card_file || employee.health_card_file_path, number: employee.health_card_number, expiry: employee.health_card_expiry_date, category: 'Medical' },
+            { id: 'food', title: 'Food Handler Certificate', file: employee.food_handler_file || employee.food_handler_file_path, expiry: employee.food_handler_expiry_date, category: 'Hygiene Card' },
+        ] : []),
+
+        // General Docs
+        { id: 'resume', title: 'Curriculum Vitae (Resume)', file: employee.resume_doc || employee.resume_doc_path, category: 'CV / Profile' },
+        { id: 'agreement', title: 'Signed Contract / Agreement', file: employee.agreement_doc || employee.agreement_doc_path, category: 'Employment Contract' },
+        { id: 'other', title: 'Other Supporting Documents', file: employee.other_docs || employee.other_docs_path, category: 'Miscellaneous' },
+
+        // Custom Uploaded Docs from Employee Documents module
+        ...customDocs
+    ];
+
+    const attachedDocsCount = documentsList.filter(d => d.file || d.number).length;
+
+    const TABS = [
+        { id: 'overview', label: 'Profile Overview', icon: FiUser },
+        { id: 'work', label: 'Work & Placement', icon: FiBriefcase },
+        { id: 'salary', label: 'Salary & Banking', icon: FiDollarSign },
+        { id: 'documents', label: `Documents (${attachedDocsCount})`, icon: FiFileText },
+        { id: 'schedule', label: 'Schedule & Offs', icon: FiClock },
+    ];
 
     return (
         <AuthenticatedLayout>
             <Head title={`Employee - ${employee.name}`} />
 
-            <div className="w-full p-4 md:p-6 lg:p-8 bg-slate-50/30 min-h-[calc(100vh-64px)]">
-                <div className="w-full mx-auto space-y-6">
+            <div className="w-full min-h-screen bg-slate-50/60 pb-20">
+                
+                {/* Full Width Hero Profile Banner */}
+                <div className="w-full bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white border-b border-slate-800 relative overflow-hidden">
+                    {/* Subtle geometric light patterns */}
+                    <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                    <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-                    {/* Hero Profile Section - Full Width */}
-                    <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-lg shadow-xl border border-slate-700 overflow-hidden relative">
-                        {/* Decorative background elements */}
-                        <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-indigo-500/20 to-transparent opacity-50 blur-2xl transform translate-x-1/4"></div>
-                        <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-primary/30 rounded-full blur-3xl opacity-50"></div>
+                    <div className="w-full px-4 sm:px-8 lg:px-10 py-8 relative z-10">
+                        {/* Top Breadcrumbs & Quick Back */}
+                        <div className="flex items-center justify-between gap-4 mb-6">
+                            <Link
+                                href={route('employees.index')}
+                                className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                            >
+                                <FiArrowLeft className="w-4 h-4" />
+                                <span>Back to Employee Directory</span>
+                            </Link>
 
-                        <div className="relative p-6 md:p-8 flex flex-col sm:flex-row items-center sm:items-stretch gap-6 sm:gap-8">
-                            {/* Avatar */}
-                            <div className="relative flex-shrink-0">
-                                <Avatar
-                                    src={employee.employee_image}
-                                    name={employee.name}
-                                    size="xl"
-                                    className="ring-4 ring-slate-800 shadow-2xl h-28 w-28 text-3xl"
-                                />
-                                <div className={`absolute -bottom-2 right-0 px-3 py-1 rounded-full border-2 border-slate-800 shadow-lg text-[9px] font-normal uppercase tracking-normal ${getStatusColor(employee.manual_status)}`}>
-                                    {employee.manual_status || 'ACTIVE'}
-                                </div>
+                            <div className="flex items-center gap-2">
+                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${statusStyle.bg}`}>
+                                    <span className="w-2 h-2 rounded-full bg-current"></span>
+                                    <span>{statusStyle.label}</span>
+                                </span>
                             </div>
+                        </div>
 
-                            {/* Info */}
-                            <div className="flex-1 flex flex-col justify-center text-center sm:text-left min-w-0 z-10">
-                                <h1 className="text-3xl sm:text-4xl font-normal text-white tracking-normal mb-2 truncate drop-shadow-md">{employee.name}</h1>
-                                <div className="flex flex-wrap justify-center sm:justify-start gap-2 mb-5">
-                                    <span className="px-3 py-1.5 bg-white/10 text-indigo-100 rounded-lg text-[10px] font-normal uppercase tracking-normal border border-white/10 backdrop-blur-sm">
-                                        {employee.designation || 'Specialist'}
-                                    </span>
-                                    <span className="px-3 py-1.5 bg-white/5 text-slate-300 rounded-lg text-[10px] font-normal uppercase tracking-normal border border-white/5 backdrop-blur-sm">
-                                        ID: {employee.employee_code}
-                                    </span>
-                                    {employee.role_name && (
-                                        <span className="px-3 py-1.5 bg-amber-500/20 text-amber-300 rounded-lg text-[10px] font-normal uppercase tracking-normal border border-amber-500/30 backdrop-blur-sm">
-                                            {employee.role_name}
-                                        </span>
-                                    )}
-                                </div>
-
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-6 pt-5 border-t border-white/10">
-                                    <div>
-                                        <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Department</p>
-                                        <p className="text-sm font-normal text-slate-200 truncate">{employee.department_name || 'General'}</p>
+                        {/* Profile Hero Row */}
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left">
+                                {/* Avatar */}
+                                <div className="relative group shrink-0">
+                                    <div className="w-28 h-28 rounded-2xl overflow-hidden border-2 border-white/20 bg-white/10 shadow-2xl flex items-center justify-center backdrop-blur-sm">
+                                        <Avatar
+                                            src={employee.employee_image}
+                                            name={employee.name}
+                                            size="xl"
+                                        />
                                     </div>
-                                    <div>
-                                        <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Branch</p>
-                                        <p className="text-sm font-normal text-slate-200 truncate">{employee.company_name || 'Main Branch'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Joined</p>
-                                        <p className="text-sm font-normal text-slate-200 truncate">{formatDate(employee.joined_date)}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Actions Column */}
-                            <div className="w-full sm:w-64 flex flex-col justify-between gap-4 z-10 sm:border-l sm:border-white/10 sm:pl-8">
-                                <div className="space-y-2">
-                                    {employee.manual_status === 'waiting' && isAuthorized && (
-                                        <button
-                                            onClick={handleApprove}
-                                            className="w-full bg-emerald-500 text-white px-4 py-2.5 rounded-lg font-normal text-[10px] uppercase tracking-normal shadow-lg hover:bg-emerald-400 transition-all active:scale-95 flex items-center justify-center gap-2"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                            Approve
-                                        </button>
-                                    )}
-
-                                    <Link
-                                        href={route('employees.edit', employee.id)}
-                                        className="w-full bg-white text-slate-900 px-4 py-2.5 rounded-lg font-normal text-[10px] uppercase tracking-normal shadow-lg hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-2"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                        Edit Profile
-                                    </Link>
-
-                                    {canDelete && (
+                                    {employee.employee_image && (
                                         <button
                                             type="button"
-                                            onClick={handleDelete}
-                                            className="w-full bg-rose-600/90 hover:bg-rose-600 text-white px-4 py-2.5 rounded-lg font-normal text-[10px] uppercase tracking-normal shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 border border-rose-500/50"
+                                            onClick={() => openLightbox(employee.employee_image, `${employee.name} - Profile Photo`)}
+                                            className="absolute -bottom-2 -right-2 p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg transition-all"
+                                            title="View Full Photo"
                                         >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                            Delete Employee
+                                            <FiEye className="w-3.5 h-3.5" />
                                         </button>
                                     )}
                                 </div>
 
-                                <div className="bg-slate-800/50 rounded-lg p-4 border border-white/10 backdrop-blur-sm">
-                                    <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Basic Salary</p>
-                                    <div className="flex items-baseline gap-1.5">
-                                        <span className="text-2xl font-normal text-white tracking-normal">
-                                            {employee.basic_salary ? parseFloat(employee.basic_salary.toString().replace(/,/g, '')).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00'}
+                                {/* Names, Designation & Tags */}
+                                <div className="space-y-2">
+                                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                                        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">{employee.name}</h1>
+                                        <span className="px-2.5 py-1 bg-white/10 text-indigo-200 rounded-lg text-xs font-mono font-bold border border-white/10">
+                                            {employee.employee_code}
                                         </span>
-                                        <span className="text-[10px] font-normal text-indigo-300 uppercase">{currency}</span>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
-                    {/* Split Layout Section */}
-                    <div className="flex flex-col lg:flex-row gap-6">
+                                    <p className="text-sm font-medium text-slate-300">
+                                        {employee.designation || 'Staff'} • <span className="text-indigo-300 font-semibold">{employee.company?.name || employee.company_name || 'Main Salon Branch'}</span>
+                                    </p>
 
-                        {/* Left Column - Details (55%) */}
-                        <div className="w-full lg:w-[55%] space-y-8">
-
-                            {/* Personal & Employment Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Personal Info */}
-                                <div className="space-y-4">
-                                    <SectionTitle title="Personal Identity" icon="👤" color="blue" />
-                                    <div className="grid grid-cols-1 gap-3">
-                                        <InfoItem icon={EmployeeFieldIcons.gender} label="Gender" value={employee.gender} />
-                                        <InfoItem icon={EmployeeFieldIcons.dob} label="Date of Birth" value={formatDate(employee.dob)} />
-                                        <InfoItem icon={EmployeeFieldIcons.nationality} label="Nationality" value={employee.nationality} />
-                                        <InfoItem icon={EmployeeFieldIcons.marital_status} label="Marital Status" value={employee.marital_status} />
-                                        <InfoItem icon={EmployeeFieldIcons.mobile} label="Mobile" value={employee.mobile} />
-                                        <InfoItem icon={EmployeeFieldIcons.email} label="Email" value={employee.email} />
-                                        <InfoItem icon={EmployeeFieldIcons.location} label="Current Location" value={employee.location} />
-                                        {employee.aadhar_number && <InfoItem icon={EmployeeFieldIcons.card} label="Aadhar No." value={employee.aadhar_number} />}
-                                        {employee.pan_number && <InfoItem icon={EmployeeFieldIcons.passport} label="PAN No." value={employee.pan_number} />}
-                                        {employee.passport_number && <InfoItem icon={EmployeeFieldIcons.passport} label="Passport No." value={employee.passport_number} />}
-                                        {employee.passport_expiry_date && <InfoItem icon={EmployeeFieldIcons.passport} label="Passport Exp." value={formatDate(employee.passport_expiry_date)} />}
-                                        {employee.qid_number && <InfoItem icon={EmployeeFieldIcons.card} label="QID No." value={employee.qid_number} />}
-                                        {employee.qid_expiry_date && <InfoItem icon={EmployeeFieldIcons.card} label="QID Exp." value={formatDate(employee.qid_expiry_date)} />}
-                                        {employee.health_card_number && <InfoItem icon={EmployeeFieldIcons.card} label="Health Card No." value={employee.health_card_number} />}
-                                        {employee.health_card_expiry_date && <InfoItem icon={EmployeeFieldIcons.card} label="Health Card Exp." value={formatDate(employee.health_card_expiry_date)} />}
-                                        {employee.food_handler_expiry_date && <InfoItem icon={EmployeeFieldIcons.card} label="Food Handler Exp." value={formatDate(employee.food_handler_expiry_date)} />}
-                                    </div>
-                                </div>
-
-                                {/* Employment Info */}
-                                <div className="space-y-4">
-                                    <SectionTitle title="Employment Details" icon="💼" color="emerald" />
-                                    <div className="grid grid-cols-1 gap-3">
-                                        <InfoItem icon={EmployeeFieldIcons.employee_category} label="Category" value={employee.employee_category} />
-                                        <InfoItem icon={EmployeeFieldIcons.contract_duration} label="Contract" value={employee.contract_duration} />
-                                        <InfoItem icon={EmployeeFieldIcons.contract_duration} label="Contract Issued" value={formatDate(employee.contract_issue_date)} />
-                                        <InfoItem icon={EmployeeFieldIcons.contract_duration} label="Contract Exp." value={formatDate(employee.contract_expiry_date)} />
-                                        <InfoItem icon={EmployeeFieldIcons.shift} label="Shift" value={employee.shift} />
-                                        <InfoItem icon={EmployeeFieldIcons.reported_to} label="Reported To" value={employee.reported_to} />
-                                        <InfoItem icon={EmployeeFieldIcons.joined_date} label="Joined Date" value={formatDate(employee.joined_date)} />
-                                        <InfoItem icon={EmployeeFieldIcons.rejoined_date} label="Rejoined Date" value={formatDate(employee.rejoined_date)} />
-                                        <InfoItem icon={EmployeeFieldIcons.visa_type} label="Visa Type" value={employee.visa_type} />
-                                        <InfoItem icon={EmployeeFieldIcons.visa_designation} label="Visa Designation" value={employee.visa_designation} />
-                                        <InfoItem icon={EmployeeFieldIcons.sponsor} label="Sponsor" value={employee.sponsor} />
-                                        <InfoItem icon={EmployeeFieldIcons.employee_category} label="System Role" value={employee.role_name} />
+                                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1 text-xs text-slate-400">
+                                        {employee.mobile && (
+                                            <span className="inline-flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
+                                                <FiPhone className="w-3.5 h-3.5 text-indigo-400" />
+                                                <span>{employee.mobile}</span>
+                                            </span>
+                                        )}
+                                        {employee.email && (
+                                            <span className="inline-flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
+                                                <FiMail className="w-3.5 h-3.5 text-indigo-400" />
+                                                <span>{employee.email}</span>
+                                            </span>
+                                        )}
+                                        {employee.location && (
+                                            <span className="inline-flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
+                                                <FiMapPin className="w-3.5 h-3.5 text-indigo-400" />
+                                                <span>{employee.location}</span>
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Payment & Banking Information */}
-                            <div className="bg-white rounded-lg border border-slate-100 shadow-lg shadow-slate-200/20 overflow-hidden">
-                                <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
-                                    <SectionTitle title="Payment & Banking Details" icon="💳" color="indigo" />
-                                    {employee.payment_type && (
-                                        <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md text-[10px] font-semibold uppercase">
-                                            {employee.payment_type}
-                                        </span>
+                            {/* Right Quick Actions & Salary Highlight */}
+                            <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
+                                {/* Salary Tag */}
+                                <div className="bg-white/10 border border-white/10 rounded-2xl p-4 text-center sm:text-right shrink-0 backdrop-blur-sm min-w-[170px]">
+                                    <span className="text-[11px] font-semibold text-indigo-200 uppercase tracking-wider block">Net Take-Home Pay</span>
+                                    <span className="text-xl font-black text-white mt-0.5 block">
+                                        {currency} {netSalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 block mt-0.5">Mode: {employee.payment_type || 'Bank'}</span>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex flex-col gap-2 w-full sm:w-auto">
+                                    {employee.manual_status === 'waiting' && isAuthorized && (
+                                        <button
+                                            type="button"
+                                            onClick={handleApprove}
+                                            disabled={processing}
+                                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-md transition-all active:scale-[0.98]"
+                                        >
+                                            <FiCheckCircle className="w-4 h-4" />
+                                            <span>Approve Profile</span>
+                                        </button>
                                     )}
-                                </div>
-                                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <InfoItem icon={EmployeeFieldIcons.payment_type} label="Payment Mode" value={employee.payment_type || 'Bank Transfer'} />
-                                    {employee.bank_name && <InfoItem icon={EmployeeFieldIcons.card} label="Bank Name" value={employee.bank_name} />}
-                                    {employee.bank_account_number && <InfoItem icon={EmployeeFieldIcons.card} label="Account Number" value={employee.bank_account_number} />}
-                                    {employee.bank_code && <InfoItem icon={EmployeeFieldIcons.card} label="Bank / IFSC / SWIFT Code" value={employee.bank_code} />}
-                                    {employee.bank_branch && <InfoItem icon={EmployeeFieldIcons.location} label="Branch Name" value={employee.bank_branch} />}
-                                    {employee.iban && <InfoItem icon={EmployeeFieldIcons.card} label="IBAN Number" value={employee.iban} />}
-                                    {employee.upi_id && <InfoItem icon={EmployeeFieldIcons.card} label="UPI / Wallet ID" value={employee.upi_id} />}
-                                    {employee.pan_number && <InfoItem icon={EmployeeFieldIcons.passport} label="PAN / Tax ID" value={employee.pan_number} />}
-                                </div>
-                            </div>
 
-                            {/* Work Schedule (Weekly Offs) */}
-                            <div className="bg-white rounded-lg border border-slate-100 shadow-lg shadow-slate-200/20 overflow-hidden">
-                                <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/30">
-                                    <SectionTitle title="Work Schedule & Weekly Offs" icon="📅" color="amber" />
-                                </div>
-                                <div className="p-6 space-y-4">
-                                    {/* Branch default fallback */}
-                                    <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Branch Default Weekly Off Days</p>
-                                        {employee.company?.weekly_off_days && employee.company.weekly_off_days.length > 0 ? (
-                                            <div className="flex flex-wrap gap-2">
-                                                {employee.company.weekly_off_days.map(day => (
-                                                    <span key={day} className="px-3 py-1 bg-slate-200/60 text-slate-700 text-xs font-semibold rounded-lg">
-                                                        {day}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className="text-xs text-slate-400 italic">No default weekly off days configured for this branch.</p>
-                                        )}
-                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Link
+                                            href={route('employees.edit', employee.id)}
+                                            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-md transition-all active:scale-[0.98]"
+                                        >
+                                            <FiEdit3 className="w-4 h-4" />
+                                            <span>Edit Profile</span>
+                                        </Link>
 
-                                    {/* Staff-specific configurations */}
-                                    <div>
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Staff-Specific Weekly Offs</p>
-                                        {(employee.weekly_offs || employee.weeklyOffs || []).length > 0 ? (
-                                            <div className="overflow-x-auto">
-                                                <table className="w-full border-collapse">
-                                                    <thead>
-                                                        <tr className="border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase text-left">
-                                                            <th className="pb-2">Day of Week</th>
-                                                            <th className="pb-2">Effective Date</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-55 text-xs font-normal text-slate-700">
-                                                        {(employee.weekly_offs || employee.weeklyOffs).map((off, idx) => (
-                                                            <tr key={idx}>
-                                                                <td className="py-2.5 font-semibold text-primary">{off.weekly_off_day}</td>
-                                                                <td className="py-2.5">{formatDate(off.effective_date)}</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        ) : (
-                                            <p className="text-xs text-slate-400 italic">No staff-specific configurations. Using branch defaults.</p>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Salary Structure Breakdown */}
-                            {employee.salary_structures && employee.salary_structures.length > 0 && (
-                                <div className="bg-white rounded-lg border border-slate-100 shadow-lg shadow-slate-200/20 overflow-hidden">
-                                    <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/30">
-                                        <SectionTitle title="Salary Components" icon="📊" color="blue" />
-                                    </div>
-                                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {employee.salary_structures.map((struct) => (
-                                            <div key={struct.id} className="flex justify-between items-center p-3.5 bg-slate-50/50 rounded-lg border border-slate-100 group hover:bg-white hover:shadow-md transition-all">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-1.5 h-1.5 rounded-full ${struct.component?.type === 'allowance' ? 'bg-emerald-400' : 'bg-rose-400'}`}></div>
-                                                    <span className="text-[10px] font-normal text-slate-600 uppercase tracking-normal">{struct.component?.name}</span>
-                                                </div>
-                                                <span className={`text-[11px] font-normal ${struct.component?.type === 'allowance' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                    {struct.component?.type === 'allowance' ? '+' : '-'}{parseFloat(struct.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Right Column - Sticky Resume Preview (45%) */}
-                        <div className="w-full lg:w-[45%]">
-                            <div className="sticky top-6 space-y-6">
-                                <SectionTitle title="Performance & Documents" icon="📈" color="slate" />
-
-                                <div className="bg-white rounded-lg border border-slate-100 shadow-xl shadow-slate-200/20 p-6 space-y-6">
-                                    {/* Performance Evaluations */}
-                                    <div>
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h4 className="text-sm font-normal text-slate-700 flex items-center gap-2">
-                                                <span className="text-lg">🎯</span>
-                                                Performance Appraisals
-                                            </h4>
-                                            {isAuthorized && (
-                                                <Link
-                                                    href={route('evaluations.create', { employee_id: employee.id })}
-                                                    className="text-[10px] font-normal text-primary hover:underline uppercase tracking-normal"
-                                                >
-                                                    + New Appraisal
-                                                </Link>
-                                            )}
-                                        </div>
-                                        <div className="space-y-4">
-                                            {employee.evaluations && employee.evaluations.length > 0 ? (
-                                                employee.evaluations.slice(0, 5).map((evalItem, idx) => {
-                                                    const statusMap = {
-                                                        draft: { label: 'Draft', color: 'bg-slate-100 text-slate-600' },
-                                                        self_assessment: { label: 'Self Review', color: 'bg-amber-100 text-amber-700' },
-                                                        manager_review: { label: 'Manager Review', color: 'bg-blue-100 text-blue-700' },
-                                                        calibration: { label: 'Calibration', color: 'bg-purple-100 text-purple-700' },
-                                                        acknowledged: { label: 'Acknowledged', color: 'bg-indigo-100 text-indigo-700' },
-                                                        approved: { label: 'Approved', color: 'bg-emerald-100 text-emerald-700' },
-                                                    };
-                                                    const statusBadge = statusMap[evalItem.status] || { label: evalItem.status || 'Active', color: 'bg-slate-100 text-slate-600' };
-
-                                                    return (
-                                                        <Link
-                                                            key={idx}
-                                                            href={route('evaluations.show', evalItem.id)}
-                                                            className="block p-4 bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-lg hover:shadow-md hover:border-primary/40 transition-all group"
-                                                        >
-                                                            {/* Header */}
-                                                            <div className="flex justify-between items-start mb-2">
-                                                                <div className="flex flex-col">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-xs font-semibold text-slate-800">
-                                                                            {evalItem.cycle_type ? evalItem.cycle_type.replace('_', ' ').toUpperCase() : 'APPRAISAL'}
-                                                                        </span>
-                                                                        <span className="text-xs text-slate-400">
-                                                                            ({evalItem.month}/{evalItem.year})
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2 mt-1">
-                                                                        <Avatar
-                                                                            src={evalItem.evaluator?.image}
-                                                                            name={evalItem.evaluator?.name}
-                                                                            size="xs"
-                                                                        />
-                                                                        <span className="text-[10px] font-normal text-slate-500">
-                                                                            By {evalItem.evaluator?.name || 'HR/Manager'}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex flex-col items-end gap-1">
-                                                                    <div className={`px-3 py-1 rounded-lg text-xs font-semibold shadow-sm ${evalItem.overall_score >= 90 ? 'bg-emerald-500 text-white' :
-                                                                        evalItem.overall_score >= 75 ? 'bg-primary text-white' :
-                                                                            evalItem.overall_score >= 60 ? 'bg-amber-500 text-white' :
-                                                                                'bg-rose-500 text-white'
-                                                                        }`}>
-                                                                        {evalItem.overall_score}%
-                                                                    </div>
-                                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-normal ${statusBadge.color}`}>
-                                                                        {statusBadge.label}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Outcome Badges */}
-                                                            <div className="flex flex-wrap gap-1.5 mt-2">
-                                                                {evalItem.increment_recommended > 0 && (
-                                                                    <span className="text-[9px] px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded font-normal">
-                                                                        ₹{Number(evalItem.increment_recommended).toLocaleString('en-IN')} (+{evalItem.increment_percentage || 0}%)
-                                                                    </span>
-                                                                )}
-                                                                {evalItem.promotion_recommended && (
-                                                                    <span className="text-[9px] px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded font-normal">
-                                                                        ★ Promotion: {evalItem.recommended_designation || 'New Role'}
-                                                                    </span>
-                                                                )}
-                                                                {evalItem.pip_required && (
-                                                                    <span className="text-[9px] px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded font-normal">
-                                                                        ⚠ PIP Active
-                                                                    </span>
-                                                                )}
-                                                            </div>
-
-                                                            {/* Comments */}
-                                                            {evalItem.comments && (
-                                                                <div className="mt-2.5 pt-2 border-t border-slate-100">
-                                                                    <p className="text-[10px] text-slate-500 italic line-clamp-2">
-                                                                        "{evalItem.comments}"
-                                                                    </p>
-                                                                </div>
-                                                            )}
-                                                        </Link>
-                                                    );
-                                                })
-                                            ) : (
-                                                <div className="flex flex-col items-center justify-center p-8 text-center border-2 border-dashed border-slate-200 rounded-lg bg-slate-50/50">
-                                                    <span className="text-3xl mb-2">📋</span>
-                                                    <span className="text-xs font-normal text-slate-500">No Appraisals Yet</span>
-                                                    <span className="text-[10px] text-slate-400 mt-0.5">Performance reviews will appear here</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Expense Claims History */}
-                                    <div className="pt-4 border-t border-slate-200">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h4 className="text-sm font-normal text-slate-700 flex items-center gap-2">
-                                                <span className="text-lg">💳</span>
-                                                Expense Claims & Reimbursements
-                                                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-normal">
-                                                    {employee.expense_claims?.length || 0}
-                                                </span>
-                                            </h4>
-                                            <Link
-                                                href={route('expenses.create', { employee_id: employee.id })}
-                                                className="text-[10px] font-normal text-indigo-600 hover:text-indigo-800 uppercase tracking-normal"
+                                        {canDelete && (
+                                            <button
+                                                type="button"
+                                                onClick={handleDelete}
+                                                disabled={deleting}
+                                                className="p-2.5 bg-white/10 hover:bg-rose-600 text-slate-300 hover:text-white rounded-xl border border-white/10 transition-colors"
+                                                title="Delete Employee"
                                             >
-                                                + New Claim
-                                            </Link>
-                                        </div>
-                                        <div className="space-y-3">
-                                            {employee.expense_claims && employee.expense_claims.length > 0 ? (
-                                                employee.expense_claims.map((claim) => (
-                                                    <Link
-                                                        key={claim.id}
-                                                        href={route('expenses.show', claim.id)}
-                                                        className="block p-3 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-indigo-100 hover:shadow-sm transition-all"
-                                                    >
-                                                        <div className="flex items-center justify-between">
-                                                            <div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-xs font-medium text-slate-800">{claim.claim_number}</span>
-                                                                    <span className="text-xs text-slate-500">• {claim.category?.name || 'Expense'}</span>
-                                                                </div>
-                                                                <div className="text-[10px] text-slate-400 mt-0.5">
-                                                                    {claim.expense_date ? formatDate(claim.expense_date) : '—'} • {claim.business_purpose || 'No purpose listed'}
-                                                                </div>
-                                                            </div>
-                                                            <div className="text-right">
-                                                                <div className="text-xs font-semibold text-slate-800">
-                                                                    ₹{Number(claim.total_amount || 0).toLocaleString('en-IN')}
-                                                                </div>
-                                                                <span className={`inline-block text-[9px] px-2 py-0.5 rounded font-normal uppercase tracking-wider mt-0.5 ${claim.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
-                                                                        claim.status === 'approved' ? 'bg-indigo-100 text-indigo-700' :
-                                                                            claim.status === 'manager_approved' ? 'bg-sky-100 text-sky-700' :
-                                                                                claim.status === 'rejected' ? 'bg-rose-100 text-rose-700' :
-                                                                                    claim.status === 'returned' ? 'bg-amber-100 text-amber-700' :
-                                                                                        'bg-slate-200 text-slate-700'
-                                                                    }`}>
-                                                                    {claim.status?.replace('_', ' ')}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </Link>
-                                                ))
-                                            ) : (
-                                                <div className="flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-slate-200 rounded-lg bg-slate-50/50">
-                                                    <span className="text-2xl mb-1">🧾</span>
-                                                    <span className="text-xs font-normal text-slate-500">No Expense Claims</span>
-                                                    <span className="text-[10px] text-slate-400 mt-0.5">Claims submitted by employee will appear here</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                        {/* Documents Section */}
-                                        <div className="pt-4 border-t border-slate-200">
-                                            <div className="flex items-center justify-between mb-4">
-                                                <h4 className="text-sm font-normal text-slate-700 flex items-center gap-2">
-                                                    <span className="text-lg">📄</span>
-                                                    Personnel Documents
-                                                </h4>
-                                                <Link
-                                                    href={route('employees.documents.index', employee.id)}
-                                                    className="text-[10px] font-normal text-primary hover:underline uppercase tracking-wider"
-                                                >
-                                                    Open Vault →
-                                                </Link>
-                                            </div>
-                                            <div className="grid grid-cols-1 gap-2">
-                                                {employee.aadhar_file_path && (
-                                                    <button
-                                                        onClick={() => openLightbox(employee.aadhar_file_path, 'Aadhar Card')}
-                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0c0 .884-.25 1.705-.667 2.417C12.56 9.696 11.232 10 9.771 10c-1.462 0-2.79-.304-3.562-1.583A5.002 5.002 0 015.539 6H10" /></svg>
-                                                            </div>
-                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Aadhar Card</span>
-                                                        </div>
-                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                    </button>
-                                                )}
-
-                                                {employee.pan_file_path && (
-                                                    <button
-                                                        onClick={() => openLightbox(employee.pan_file_path, 'PAN Card')}
-                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0c0 .884-.25 1.705-.667 2.417C12.56 9.696 11.232 10 9.771 10c-1.462 0-2.79-.304-3.562-1.583A5.002 5.002 0 015.539 6H10" /></svg>
-                                                            </div>
-                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">PAN Card</span>
-                                                        </div>
-                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                    </button>
-                                                )}
-
-                                                {employee.education_doc_path && (
-                                                    <button
-                                                        onClick={() => openLightbox(employee.education_doc_path, 'Education Certificate')}
-                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" /></svg>
-                                                            </div>
-                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Education Certificate</span>
-                                                        </div>
-                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                    </button>
-                                                )}
-
-                                                {employee.relieving_doc_path && (
-                                                    <button
-                                                        onClick={() => openLightbox(employee.relieving_doc_path, 'Relieving Document')}
-                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                                            </div>
-                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Relieving Doc</span>
-                                                        </div>
-                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                    </button>
-                                                )}
-
-                                                {employee.bank_doc_path && (
-                                                    <button
-                                                        onClick={() => openLightbox(employee.bank_doc_path, 'Bank Account Details Document')}
-                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-                                                            </div>
-                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Bank Details Doc</span>
-                                                        </div>
-                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                    </button>
-                                            )}
-
-                                            {employee.passport_file_path && (
-                                                    <button
-                                                        onClick={() => openLightbox(employee.passport_file_path, 'Passport Document')}
-                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-                                                            </div>
-                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Passport</span>
-                                                        </div>
-                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                    </button>
-                                                )}
-
-                                                {employee.qid_file_path && (
-                                                    <button
-                                                        onClick={() => openLightbox(employee.qid_file_path, 'QID Document')}
-                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0c0 .884-.25 1.705-.667 2.417C12.56 9.696 11.232 10 9.771 10c-1.462 0-2.79-.304-3.562-1.583A5.002 5.002 0 015.539 6H10" /></svg>
-                                                            </div>
-                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">QID Card</span>
-                                                        </div>
-                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                    </button>
-                                                )}
-
-                                                {employee.food_handler_file_path && (
-                                                    <button
-                                                        onClick={() => openLightbox(employee.food_handler_file_path, 'Food Handler Document')}
-                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                                            </div>
-                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Food Handler</span>
-                                                        </div>
-                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                    </button>
-                                                )}
-
-                                                {employee.agreement_doc && (
-                                                    <button
-                                                        onClick={() => openLightbox(employee.agreement_doc, 'Contract Document')}
-                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                                            </div>
-                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Contract</span>
-                                                        </div>
-                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                    </button>
-                                                )}
-
-                                                {employee.resume_doc && (
-                                                    <button
-                                                        onClick={() => openLightbox(employee.resume_doc, 'Resume Document')}
-                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                                            </div>
-                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Resume</span>
-                                                        </div>
-                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                    </button>
-                                                )}
-
-                                                {employee.other_docs && (
-                                                    <button
-                                                        onClick={() => openLightbox(employee.other_docs, 'Other Documents')}
-                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                                            </div>
-                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Other Docs</span>
-                                                        </div>
-                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
+                                                <FiTrash2 className="w-4 h-4" />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -720,34 +317,498 @@ export default function ShowEmployee({ employee }) {
                     </div>
                 </div>
 
-                <Lightbox
-                    isOpen={lightbox.isOpen}
-                    onClose={() => setLightbox({ ...lightbox, isOpen: false })}
-                    src={lightbox.src}
-                    type={lightbox.type}
-                    title={lightbox.title}
-                />
-                <ConfirmationModal
-                    show={confirmingApproval}
-                    title="Approve Employee"
-                    message={`Are you sure you want to approve ${employee.name}? This will grant them system access.`}
-                    onConfirm={confirmApprove}
-                    onClose={() => setConfirmingApproval(false)}
-                    confirmText="Approve"
-                    type="success"
-                    processing={processing}
-                />
-                <ConfirmationModal
-                    show={confirmingDelete}
-                    title={`Delete ${employee.name}?`}
-                    message="Are you sure you want to permanently delete this employee? This action can only proceed if there are no related transactional records (attendance, salary postings, loans, leaves, etc.)."
-                    onConfirm={confirmDelete}
-                    onClose={() => setConfirmingDelete(false)}
-                    confirmText="Yes, Delete Employee"
-                    type="danger"
-                    processing={deleting}
-                />
+                {/* Sticky White/Light Tab Navigation Bar */}
+                <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-sm px-4 sm:px-8 lg:px-10 py-2.5">
+                    <div className="w-full flex items-center gap-2 overflow-x-auto scrollbar-none">
+                        {TABS.map(tab => {
+                            const Icon = tab.icon;
+                            const isActive = activeTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                                        isActive
+                                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25 ring-2 ring-indigo-600/30'
+                                            : 'bg-slate-100/90 hover:bg-slate-200/80 text-slate-700 hover:text-slate-950 border border-slate-200/60'
+                                    }`}
+                                >
+                                    <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-indigo-600'}`} />
+                                    <span>{tab.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Main Full-Width Details Content */}
+                <div className="w-full px-4 sm:px-8 lg:px-10 pt-6">
+                    
+                    {/* ============================================================== */}
+                    {/* TAB 1: OVERVIEW & PERSONAL DETAILS */}
+                    {/* ============================================================== */}
+                    {activeTab === 'overview' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
+                            
+                            {/* Personal & Demographic Card */}
+                            <div className="lg:col-span-2 bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6">
+                                <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+                                    <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+                                        <FiUser className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-bold text-slate-900">Personal & Legal Identity</h3>
+                                        <p className="text-xs text-slate-500">Demographic info and national identity details</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+                                    <InfoField label="Full Legal Name" value={employee.name} icon={<FiUser />} />
+                                    <InfoField label="Employee Code" value={employee.employee_code} icon={<FiShield />} isMono />
+                                    <InfoField label="Gender" value={employee.gender} icon={<FiUser />} />
+                                    <InfoField label="Date of Birth" value={formatDate(employee.dob)} icon={<FiCalendar />} />
+                                    <InfoField label="Nationality" value={employee.nationality} icon={<FiGlobe />} />
+                                    <InfoField label="Marital Status" value={employee.marital_status} icon={<FiUser />} />
+
+                                    {/* India Identity */}
+                                    {(isIndiaMode || isAllMode) && (
+                                        <>
+                                            <InfoField label="Aadhar Card No." value={employee.aadhar_number} icon={<FiCreditCard />} isMono />
+                                            <InfoField label="PAN Card No." value={employee.pan_number} icon={<FiCreditCard />} isMono />
+                                        </>
+                                    )}
+
+                                    {/* Qatar Identity */}
+                                    {(isQatarMode || isAllMode) && (
+                                        <>
+                                            <InfoField label="Qatar ID (QID)" value={employee.qid_number} icon={<FiCreditCard />} isMono />
+                                            <InfoField label="QID Expiry Date" value={formatDate(employee.qid_expiry_date)} icon={<FiCalendar />} />
+                                            <InfoField label="Passport Number" value={employee.passport_number} icon={<FiGlobe />} isMono />
+                                            <InfoField label="Passport Expiry" value={formatDate(employee.passport_expiry_date)} icon={<FiCalendar />} />
+                                            <InfoField label="Health Card No." value={employee.health_card_number} icon={<FiShield />} isMono />
+                                            <InfoField label="Health Card Expiry" value={formatDate(employee.health_card_expiry_date)} icon={<FiCalendar />} />
+                                            <InfoField label="Sponsor / Kafeel" value={employee.sponsor} icon={<FiShield />} />
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Contact & Quick Reach Card */}
+                            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6">
+                                <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+                                    <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                                        <FiPhone className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-bold text-slate-900">Contact Channels</h3>
+                                        <p className="text-xs text-slate-500">Official and personal reachability</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
+                                        <div className="p-2 bg-white text-emerald-600 rounded-lg shadow-xs">
+                                            <FiPhone className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] font-semibold text-slate-400 uppercase">Mobile Number</span>
+                                            <p className="text-sm font-bold text-slate-800">{employee.mobile || '—'}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
+                                        <div className="p-2 bg-white text-emerald-600 rounded-lg shadow-xs">
+                                            <FiMail className="w-4 h-4" />
+                                        </div>
+                                        <div className="truncate">
+                                            <span className="text-[10px] font-semibold text-slate-400 uppercase">Email Address</span>
+                                            <p className="text-sm font-bold text-slate-800 truncate">{employee.email || '—'}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
+                                        <div className="p-2 bg-white text-emerald-600 rounded-lg shadow-xs">
+                                            <FiMapPin className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] font-semibold text-slate-400 uppercase">Residential Location</span>
+                                            <p className="text-sm font-bold text-slate-800">{employee.location || '—'}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ============================================================== */}
+                    {/* TAB 2: WORK & PLACEMENT */}
+                    {/* ============================================================== */}
+                    {activeTab === 'work' && (
+                        <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6 animate-in fade-in duration-200">
+                            <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+                                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+                                    <FiBriefcase className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-slate-900">Work Placement & System Access</h3>
+                                    <p className="text-xs text-slate-500">Salon branch placement, department, designation, and supervisor</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                <InfoField label="Branch / Company" value={employee.company?.name || employee.company_name} icon={<FiBriefcase />} />
+                                <InfoField label="Department" value={employee.department?.name || employee.department_name} icon={<FiLayers />} />
+                                <InfoField label="Designation" value={employee.designation} icon={<FiBriefcase />} />
+                                <InfoField label="Reporting Supervisor" value={employee.reported_to} icon={<FiUser />} />
+                                <InfoField label="System Access Role" value={employee.role_name || 'Staff Member'} icon={<FiShield />} />
+                                <InfoField label="Joined Date" value={formatDate(employee.joined_date)} icon={<FiCalendar />} />
+                                <InfoField label="Rejoined Date" value={formatDate(employee.rejoined_date)} icon={<FiCalendar />} />
+                                <InfoField label="Staff Category" value={employee.employee_category} icon={<FiLayers />} />
+                                <InfoField label="Assigned Shift" value={employee.shift} icon={<FiClock />} />
+                                <InfoField label="Visa Type" value={employee.visa_type} icon={<FiFileText />} />
+                                <InfoField label="Visa Designation" value={employee.visa_designation} icon={<FiFileText />} />
+                                <InfoField label="Contract Duration" value={employee.contract_duration} icon={<FiClock />} />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ============================================================== */}
+                    {/* TAB 3: SALARY & BANKING */}
+                    {/* ============================================================== */}
+                    {activeTab === 'salary' && (
+                        <div className="space-y-6 animate-in fade-in duration-200">
+                            
+                            {/* Salary Summary Card */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-sm">
+                                    <span className="text-xs font-semibold text-slate-500 uppercase">Basic Monthly Salary</span>
+                                    <p className="text-2xl font-black text-slate-900 mt-1">
+                                        {currency} {basicSalary.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </p>
+                                </div>
+
+                                <div className="p-5 bg-emerald-50/60 rounded-2xl border border-emerald-200 shadow-sm">
+                                    <span className="text-xs font-semibold text-emerald-700 uppercase">+ Total Allowances</span>
+                                    <p className="text-2xl font-black text-emerald-800 mt-1">
+                                        {currency} {totalAllowances.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </p>
+                                </div>
+
+                                <div className="p-5 bg-rose-50/60 rounded-2xl border border-rose-200 shadow-sm">
+                                    <span className="text-xs font-semibold text-rose-700 uppercase">- Total Deductions</span>
+                                    <p className="text-2xl font-black text-rose-800 mt-1">
+                                        {currency} {totalDeductions.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </p>
+                                </div>
+
+                                <div className="p-5 bg-indigo-900 text-white rounded-2xl shadow-md">
+                                    <span className="text-xs font-semibold text-indigo-200 uppercase">Net Monthly Take-Home</span>
+                                    <p className="text-2xl font-black text-white mt-1">
+                                        {currency} {netSalary.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Banking & Disbursement Mode Details */}
+                            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6">
+                                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                                            <FiCreditCard className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-bold text-slate-900">Payment & Bank Account Credentials</h3>
+                                            <p className="text-xs text-slate-500">Selected mode: {employee.payment_type || 'Bank Transfer'}</p>
+                                        </div>
+                                    </div>
+                                    <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold border border-emerald-200">
+                                        {employee.payment_type || 'Bank Transfer'}
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                    <InfoField label="Payment Method" value={employee.payment_type || 'Bank Transfer'} icon={<FiCreditCard />} />
+                                    {employee.bank_name && <InfoField label="Bank / Provider Name" value={employee.bank_name} icon={<FiCreditCard />} />}
+                                    {employee.bank_account_number && <InfoField label="Account Number" value={employee.bank_account_number} icon={<FiCreditCard />} isMono />}
+                                    {employee.bank_code && <InfoField label={isIndiaMode ? "IFSC Code" : "SWIFT / Bank Code"} value={employee.bank_code} icon={<FiCreditCard />} isMono />}
+                                    {employee.bank_branch && <InfoField label="Branch Name" value={employee.bank_branch} icon={<FiMapPin />} />}
+                                    {employee.iban && <InfoField label="IBAN Number" value={employee.iban} icon={<FiCreditCard />} isMono />}
+                                    {employee.upi_id && <InfoField label="UPI / VPA ID" value={employee.upi_id} icon={<FiCreditCard />} isMono />}
+                                    {employee.pan_number && <InfoField label="PAN / Tax ID" value={employee.pan_number} icon={<FiCreditCard />} isMono />}
+                                </div>
+                            </div>
+
+                            {/* Salary Structures Table */}
+                            {(employee.salary_structures || employee.salaryStructures || []).length > 0 && (
+                                <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-4">
+                                    <h4 className="text-sm font-bold text-slate-900">Configured Salary Components</h4>
+                                    <div className="overflow-hidden border border-slate-200 rounded-xl">
+                                        <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+                                            <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                                <tr>
+                                                    <th className="px-4 py-3">Component</th>
+                                                    <th className="px-4 py-3">Type</th>
+                                                    <th className="px-4 py-3">Calculation</th>
+                                                    <th className="px-4 py-3 text-right">Amount ({currency})</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
+                                                {(employee.salary_structures || employee.salaryStructures).map((struct, idx) => (
+                                                    <tr key={idx} className="hover:bg-slate-50/50">
+                                                        <td className="px-4 py-3 font-semibold text-slate-900">{struct.component?.name || struct.name || 'Component'}</td>
+                                                        <td className="px-4 py-3">
+                                                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                                                (struct.component?.type || struct.type) === 'allowance' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                                                            }`}>
+                                                                {(struct.component?.type || struct.type)?.toUpperCase()}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 font-medium text-slate-500">
+                                                            {struct.value_type === 'percentage' ? `${struct.amount}% of Basic` : 'Flat Amount'}
+                                                        </td>
+                                                        <td className={`px-4 py-3 text-right font-bold ${
+                                                            (struct.component?.type || struct.type) === 'allowance' ? 'text-emerald-600' : 'text-rose-600'
+                                                        }`}>
+                                                            {(struct.component?.type || struct.type) === 'allowance' ? '+' : '-'} {parseFloat(struct.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ============================================================== */}
+                    {/* TAB 4: COMPLIANCE & DOCUMENTS */}
+                    {/* ============================================================== */}
+                    {activeTab === 'documents' && (
+                        <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6 animate-in fade-in duration-200">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 bg-violet-50 text-violet-600 rounded-xl">
+                                        <FiFileText className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-bold text-slate-900">Official Compliance & Documents</h3>
+                                        <p className="text-xs text-slate-500">Preview, inspect, download, and verify employee certificates & files</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs font-semibold px-3 py-1 bg-violet-50 text-violet-700 rounded-full border border-violet-200/60">
+                                        {attachedDocsCount} Files Recorded
+                                    </span>
+                                    <Link
+                                        href={route('employees.documents.index', employee.id)}
+                                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
+                                    >
+                                        <FiPlus className="w-3.5 h-3.5" />
+                                        <span>Upload / Manage Documents</span>
+                                    </Link>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {documentsList.map(doc => {
+                                    const hasFile = !!doc.file;
+                                    const hasData = hasFile || doc.number || doc.expiry;
+                                    return (
+                                        <div
+                                            key={doc.id}
+                                            className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${
+                                                hasFile
+                                                    ? 'bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-indigo-300'
+                                                    : hasData
+                                                    ? 'bg-slate-50/70 border-slate-200'
+                                                    : 'bg-slate-50/40 border-dashed border-slate-200 opacity-70'
+                                            }`}
+                                        >
+                                            <div>
+                                                <div className="flex items-start justify-between gap-3 mb-3">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className={`p-2.5 rounded-xl ${hasFile ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                            <FiFileText className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{doc.category}</span>
+                                                            <h4 className="text-xs font-bold text-slate-900">{doc.title}</h4>
+                                                        </div>
+                                                    </div>
+                                                    {hasFile ? (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md text-[10px] font-bold border border-emerald-200">
+                                                            <FiCheckCircle className="w-3 h-3" />
+                                                            <span>Uploaded</span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">Pending</span>
+                                                    )}
+                                                </div>
+
+                                                {/* Number / Expiry if any */}
+                                                {(doc.number || doc.expiry || doc.notes) && (
+                                                    <div className="p-2.5 bg-slate-50 rounded-xl text-xs space-y-1 mb-3">
+                                                        {doc.number && (
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[11px] text-slate-500">ID / Number:</span>
+                                                                <span className="font-mono font-bold text-slate-800">{doc.number}</span>
+                                                            </div>
+                                                        )}
+                                                        {doc.expiry && (
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[11px] text-slate-500">Expiry Date:</span>
+                                                                <span className="font-semibold text-slate-800">{formatDate(doc.expiry)}</span>
+                                                            </div>
+                                                        )}
+                                                        {doc.notes && (
+                                                            <p className="text-[11px] text-slate-500 italic mt-1">{doc.notes}</p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Actions */}
+                                            {hasFile ? (
+                                                <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openLightbox(doc.file, `${employee.name} - ${doc.title}`)}
+                                                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all shadow-xs active:scale-[0.98]"
+                                                    >
+                                                        <FiEye className="w-4 h-4" />
+                                                        <span>Preview Document</span>
+                                                    </button>
+                                                    <a
+                                                        href={getFileUrl(doc.file)}
+                                                        download
+                                                        className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors border border-slate-200"
+                                                        title="Download File"
+                                                    >
+                                                        <FiDownload className="w-4 h-4" />
+                                                    </a>
+                                                </div>
+                                            ) : (
+                                                <div className="pt-3 border-t border-slate-100 mt-2">
+                                                    <Link
+                                                        href={route('employees.documents.index', employee.id)}
+                                                        className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-medium transition-colors border border-slate-200/60"
+                                                    >
+                                                        <FiPlus className="w-3.5 h-3.5 text-slate-400" />
+                                                        <span>Upload Document</span>
+                                                    </Link>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ============================================================== */}
+                    {/* TAB 5: SCHEDULE & CONTRACT */}
+                    {/* ============================================================== */}
+                    {activeTab === 'schedule' && (
+                        <div className="space-y-6 animate-in fade-in duration-200">
+                            
+                            {/* Contract Period Card */}
+                            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6">
+                                <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+                                    <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
+                                        <FiClock className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-bold text-slate-900">Contract & Shift Schedule</h3>
+                                        <p className="text-xs text-slate-500">Contract timeline, status, and shift parameters</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                                    <InfoField label="Contract Duration" value={employee.contract_duration} icon={<FiClock />} />
+                                    <InfoField label="Issue Date" value={formatDate(employee.contract_issue_date)} icon={<FiCalendar />} />
+                                    <InfoField label="Expiry Date" value={formatDate(employee.contract_expiry_date)} icon={<FiCalendar />} />
+                                    <InfoField label="Leave Status" value={employee.leave_status || 'Available'} icon={<FiClock />} />
+                                </div>
+                            </div>
+
+                            {/* Staff Weekly Offs */}
+                            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-4">
+                                <h4 className="text-sm font-bold text-slate-900">Assigned Weekly Off Days</h4>
+                                
+                                {(employee.weekly_offs || employee.weeklyOffs || []).length > 0 ? (
+                                    <div className="overflow-hidden border border-slate-200 rounded-xl">
+                                        <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+                                            <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                                <tr>
+                                                    <th className="px-4 py-3">Weekly Off Day</th>
+                                                    <th className="px-4 py-3">Effective Date</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
+                                                {(employee.weekly_offs || employee.weeklyOffs).map((off, idx) => (
+                                                    <tr key={idx} className="hover:bg-slate-50/50">
+                                                        <td className="px-4 py-3 font-bold text-indigo-700">{off.weekly_off_day}</td>
+                                                        <td className="px-4 py-3">{formatDate(off.effective_date)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="p-4 bg-slate-50 rounded-xl text-xs text-slate-500">
+                                        No staff-specific weekly offs configured. Standard branch schedule applies.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
+
+            {/* Lightbox / Media Viewer */}
+            <Lightbox
+                isOpen={lightbox.isOpen}
+                onClose={() => setLightbox({ ...lightbox, isOpen: false })}
+                src={lightbox.src}
+                type={lightbox.type}
+                title={lightbox.title}
+            />
+
+            {/* Confirmation Modals */}
+            <ConfirmationModal
+                show={confirmingApproval}
+                title="Approve Employee"
+                message={`Are you sure you want to approve ${employee.name}? Their profile will become active immediately.`}
+                onConfirm={confirmApprove}
+                onClose={() => setConfirmingApproval(false)}
+                type="info"
+            />
+
+            <ConfirmationModal
+                show={confirmingDelete}
+                title="Delete Employee"
+                message={`Are you sure you want to permanently delete ${employee.name}? This action cannot be undone.`}
+                onConfirm={confirmDelete}
+                onClose={() => setConfirmingDelete(false)}
+                type="danger"
+            />
         </AuthenticatedLayout>
     );
+
+    // Reusable Info Card Helper
+    function InfoField({ label, value, icon, isMono = false }) {
+        return (
+            <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-100/80">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                    {icon && <span className="opacity-60">{icon}</span>}
+                    <span>{label}</span>
+                </span>
+                <p className={`text-xs font-bold text-slate-800 truncate ${isMono ? 'font-mono' : ''}`}>
+                    {value || '—'}
+                </p>
+            </div>
+        );
+    }
 }
