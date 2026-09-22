@@ -80,6 +80,7 @@ class HandleInertiaRequests extends Middleware
                 'company_stamp' => \App\Models\Setting::get('company_stamp', null, $user?->employee?->company_id),
                 'currency' => \App\Models\Setting::get('currency', 'USD', $user?->employee?->company_id),
                 'currency_symbol' => \App\Models\Setting::get('currency_symbol', '$', $user?->employee?->company_id),
+                'app_country' => \App\Models\Setting::get('app_country', (\App\Models\Setting::get('currency', 'USD', $user?->employee?->company_id) === 'INR' ? 'IN' : 'QA'), $user?->employee?->company_id),
                 'theme_color' => \App\Models\Setting::get('theme_color', '#090b4e', $user?->employee?->company_id),
                 'secondary_color' => \App\Models\Setting::get('secondary_color', '#103c7f', $user?->employee?->company_id),
                 'accent_color' => \App\Models\Setting::get('accent_color', '#818cf8', $user?->employee?->company_id),
@@ -88,6 +89,8 @@ class HandleInertiaRequests extends Middleware
                 'salary_slip_stamp' => \App\Models\Setting::get('salary_slip_stamp', null, $user?->employee?->company_id),
                 'salary_slip_show_photo' => \App\Models\Setting::get('salary_slip_show_photo', '1', $user?->employee?->company_id) === '1' || \App\Models\Setting::get('salary_slip_show_photo', '1', $user?->employee?->company_id) === true,
                 'salary_slip_show_charts' => \App\Models\Setting::get('salary_slip_show_charts', '1', $user?->employee?->company_id) === '1' || \App\Models\Setting::get('salary_slip_show_charts', '1', $user?->employee?->company_id) === true,
+                'salary_slip_format' => \App\Models\Setting::get('salary_slip_format', 'classic', $user?->employee?->company_id),
+                'salary_slip_payment_display' => \App\Models\Setting::get('salary_slip_payment_display', 'full_details', $user?->employee?->company_id),
             ],
             'csrf_token' => csrf_token(),
             'flash' => [

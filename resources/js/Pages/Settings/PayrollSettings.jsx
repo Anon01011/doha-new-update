@@ -38,6 +38,8 @@ export default function PayrollSettings({ settings, companies = [], departments 
         salary_slip_stamp: null,
         salary_slip_show_photo: settings.salary_slip_show_photo === '0' ? false : true,
         salary_slip_show_charts: settings.salary_slip_show_charts === '0' ? false : true,
+        salary_slip_format: settings.salary_slip_format || 'classic',
+        salary_slip_payment_display: settings.salary_slip_payment_display || 'full_details',
         payment_methods: settings.payment_methods || 'Bank Transfer,Cash,Cheque,WPS',
         default_payment_method: settings.default_payment_method || 'Bank Transfer',
     });
@@ -340,6 +342,127 @@ export default function PayrollSettings({ settings, companies = [], departments 
                             </div>
 
                             <div className="space-y-4">
+                                {/* Salary Slip Format Selector */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-normal text-gray-700 ml-1">Salary Slip Format</label>
+                                    <p className="text-[10px] text-gray-500 ml-1 -mt-1">Choose how the salary slip looks when printed or downloaded.</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                                        {/* Classic Format Card */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setData('salary_slip_format', 'classic')}
+                                            className={`relative text-left rounded-xl border-2 p-3 transition-all focus:outline-none ${
+                                                data.salary_slip_format === 'classic'
+                                                    ? 'border-purple-500 bg-purple-50/50 shadow-md shadow-purple-100'
+                                                    : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                                            }`}
+                                        >
+                                            {data.salary_slip_format === 'classic' && (
+                                                <span className="absolute top-2 right-2 w-4 h-4 bg-purple-600 rounded-full flex items-center justify-center">
+                                                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>
+                                                </span>
+                                            )}
+                                            {/* Classic Preview Thumbnail */}
+                                            <div className="w-full bg-white border border-gray-200 rounded overflow-hidden mb-2" style={{height: '110px', fontSize: '3px', lineHeight: '1.2'}}>
+                                                <div className="bg-gray-800 text-white text-center py-1" style={{fontSize: '4px', fontFamily: 'serif', letterSpacing: '2px'}}>COMPANY NAME</div>
+                                                <div className="text-center text-gray-500 italic" style={{fontSize: '3px'}}>Employees monthly salary slip</div>
+                                                <div className="flex border-t border-gray-200" style={{height: '30px'}}>
+                                                    <div className="flex-1 border-r border-gray-200 p-1">
+                                                        <div className="bg-green-100 text-center mb-0.5" style={{fontSize: '3px', padding: '1px'}}>Employee details</div>
+                                                        {['Name','Designation','Department','ID'].map(l => (
+                                                            <div key={l} className="flex gap-1 border-b border-gray-100" style={{padding: '0.5px 1px'}}>
+                                                                <span className="text-gray-400 w-8" style={{fontSize: '2.5px'}}>{l}</span>
+                                                                <span className="font-semibold text-gray-600" style={{fontSize: '2.5px'}}>———</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <div className="bg-gray-900 flex items-center justify-center" style={{width: '28px'}}>
+                                                        <span className="text-gray-500" style={{fontSize: '2.5px'}}>Photo</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex border-t border-gray-200" style={{height: '30px'}}>
+                                                    <div className="flex-1 border-r border-gray-200 p-1">
+                                                        <div className="bg-green-100 text-center mb-0.5" style={{fontSize: '3px', padding: '1px'}}>Additions</div>
+                                                        {['Basic Salary','HRA','Allowances','Overtime'].map(l => (
+                                                            <div key={l} className="flex justify-between border-b border-gray-100" style={{padding: '0.5px 1px'}}>
+                                                                <span className="text-gray-400" style={{fontSize: '2.5px'}}>{l}</span>
+                                                                <span style={{fontSize: '2.5px'}} className="text-gray-600">—</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <div className="flex items-center justify-center p-1" style={{width: '28px'}}>
+                                                        <div className="rounded-full border-4 border-blue-400" style={{width: '16px', height: '16px', borderTopColor:'#fcd34d'}}></div>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-green-100 text-center border-t border-gray-300 font-semibold" style={{fontSize: '3px', padding: '1px'}}>Net Payable ——</div>
+                                            </div>
+                                            <div className="text-xs font-semibold text-gray-800">Classic</div>
+                                            <p className="text-[10px] text-gray-500 leading-tight">Photo, pie charts, Arabic signatures section</p>
+                                        </button>
+
+                                        {/* Corporate Format Card */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setData('salary_slip_format', 'corporate')}
+                                            className={`relative text-left rounded-xl border-2 p-3 transition-all focus:outline-none ${
+                                                data.salary_slip_format === 'corporate'
+                                                    ? 'border-purple-500 bg-purple-50/50 shadow-md shadow-purple-100'
+                                                    : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                                            }`}
+                                        >
+                                            {data.salary_slip_format === 'corporate' && (
+                                                <span className="absolute top-2 right-2 w-4 h-4 bg-purple-600 rounded-full flex items-center justify-center">
+                                                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>
+                                                </span>
+                                            )}
+                                            {/* Corporate Preview Thumbnail */}
+                                            <div className="w-full bg-white border border-gray-200 rounded overflow-hidden mb-2" style={{height: '110px', fontSize: '3px', lineHeight: '1.2'}}>
+                                                <div className="text-center border-b border-gray-300 bg-white" style={{padding: '3px 1px'}}>
+                                                    <div className="font-bold text-gray-800" style={{fontSize: '5px', letterSpacing: '1px'}}>COMPANY NAME</div>
+                                                    <div className="text-gray-500 italic" style={{fontSize: '3px'}}>SALARY SLIP</div>
+                                                </div>
+                                                {/* Info grid */}
+                                                <div className="grid grid-cols-2 border-b border-gray-200" style={{fontSize: '2.5px'}}>
+                                                    {[['Employee Name','John Doe'],['Employee ID','EMP001'],['Designation','Manager'],['Pay Period','Aug 2026']].map(([k,v]) => (
+                                                        <div key={k} className="flex gap-1 border border-gray-100 px-1" style={{padding: '0.5px 2px'}}>
+                                                            <span className="text-gray-400">{k}</span>
+                                                            <span className="font-semibold text-gray-700 ml-auto">{v}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                {/* Earnings table */}
+                                                <div className="border-b border-gray-200" style={{padding: '1px'}}>
+                                                    <div className="flex bg-gray-100 font-semibold" style={{fontSize: '2.5px', padding: '1px'}}>
+                                                        <span className="flex-1">EARNINGS</span><span className="w-10 text-right">Monthly</span>
+                                                    </div>
+                                                    {['Basic Salary','HRA','Allowances'].map(e => (
+                                                        <div key={e} className="flex border-b border-gray-100" style={{fontSize: '2.5px', padding: '0.5px 1px'}}>
+                                                            <span className="flex-1 text-gray-500">{e}</span><span className="w-10 text-right text-gray-700">——</span>
+                                                        </div>
+                                                    ))}
+                                                    <div className="flex font-bold border-t border-gray-300" style={{fontSize: '2.5px', padding: '0.5px 1px'}}>
+                                                        <span className="flex-1">GROSS SALARY</span><span className="w-10 text-right">——</span>
+                                                    </div>
+                                                </div>
+                                                {/* Deductions table */}
+                                                <div style={{padding: '1px'}}>
+                                                    <div className="flex bg-gray-100 font-semibold" style={{fontSize: '2.5px', padding: '1px'}}>
+                                                        <span className="flex-1">DEDUCTIONS</span><span className="w-10 text-right">Amount</span>
+                                                    </div>
+                                                    {['PF','Prof Tax'].map(d => (
+                                                        <div key={d} className="flex border-b border-gray-100" style={{fontSize: '2.5px', padding: '0.5px 1px'}}>
+                                                            <span className="flex-1 text-gray-500">{d}</span><span className="w-10 text-right text-gray-700">——</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="bg-gray-50 text-center border-t border-gray-300 font-semibold" style={{fontSize: '3px', padding: '1px'}}>NET SALARY PAYABLE ——</div>
+                                            </div>
+                                            <div className="text-xs font-semibold text-gray-800">Corporate</div>
+                                            <p className="text-[10px] text-gray-500 leading-tight">Clean table with Monthly & Annual columns</p>
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div className="space-y-1">
                                     <label className="text-xs font-normal text-gray-700 ml-1">Acknowledgement Template</label>
                                     <textarea
@@ -391,6 +514,50 @@ export default function PayrollSettings({ settings, companies = [], departments 
                                         <label htmlFor="salary_slip_show_charts" className="text-sm font-normal text-gray-700">
                                             Show Analytics Charts on Salary Slip
                                         </label>
+                                    </div>
+
+                                    {/* Payment Details on Salary Slip Display Mode */}
+                                    <div className="border-t border-gray-100 pt-3 space-y-2">
+                                        <label className="text-xs font-normal text-gray-700 ml-1">Payment &amp; Account Details on Slip</label>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                                            <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                                data.salary_slip_payment_display === 'full_details'
+                                                    ? 'border-purple-500 bg-purple-50/40'
+                                                    : 'border-gray-200 bg-white hover:border-gray-300'
+                                            }`}>
+                                                <input
+                                                    type="radio"
+                                                    name="salary_slip_payment_display"
+                                                    value="full_details"
+                                                    checked={data.salary_slip_payment_display === 'full_details'}
+                                                    onChange={() => setData('salary_slip_payment_display', 'full_details')}
+                                                    className="mt-0.5 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300"
+                                                />
+                                                <div className="text-xs">
+                                                    <span className="font-semibold text-gray-800 block">Show Full Details</span>
+                                                    <span className="text-[10px] text-gray-500">Bank name, account no, IFSC/IBAN/UPI</span>
+                                                </div>
+                                            </label>
+
+                                            <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                                data.salary_slip_payment_display === 'mode_only'
+                                                    ? 'border-purple-500 bg-purple-50/40'
+                                                    : 'border-gray-200 bg-white hover:border-gray-300'
+                                            }`}>
+                                                <input
+                                                    type="radio"
+                                                    name="salary_slip_payment_display"
+                                                    value="mode_only"
+                                                    checked={data.salary_slip_payment_display === 'mode_only'}
+                                                    onChange={() => setData('salary_slip_payment_display', 'mode_only')}
+                                                    className="mt-0.5 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300"
+                                                />
+                                                <div className="text-xs">
+                                                    <span className="font-semibold text-gray-800 block">Mode Name Only</span>
+                                                    <span className="text-[10px] text-gray-500">Show only "Bank Transfer", "Cash", etc.</span>
+                                                </div>
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

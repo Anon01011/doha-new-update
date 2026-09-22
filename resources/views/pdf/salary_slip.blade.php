@@ -21,7 +21,6 @@
             margin: 20px auto;
             width: 190mm;
             border: 1px solid #cbd5e1;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
         }
         .slip-border {
             border: 1px solid #000;
@@ -158,6 +157,75 @@
             transform: rotate(-10deg);
             opacity: 0.8;
         }
+
+        /* Corporate Styles */
+        .corporate-box {
+            border: 1px solid #cbd5e1;
+            margin: 20px;
+            background: #ffffff;
+        }
+        .corp-header {
+            text-align: center;
+            padding: 18px 10px 12px;
+            border-bottom: 2px solid #cbd5e1;
+        }
+        .corp-header h1 {
+            margin: 0;
+            font-size: 20px;
+            letter-spacing: 2px;
+            font-weight: bold;
+            color: #1e293b;
+            text-transform: uppercase;
+        }
+        .corp-header p {
+            margin: 3px 0 0;
+            color: #64748b;
+            font-size: 9px;
+        }
+        .corp-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8.5px;
+        }
+        .corp-table th {
+            background-color: #f1f5f9;
+            padding: 5px 8px;
+            font-weight: bold;
+            color: #334155;
+            text-transform: uppercase;
+            border-bottom: 1px solid #cbd5e1;
+            border-top: 1px solid #cbd5e1;
+        }
+        .corp-table td {
+            padding: 4px 8px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .corp-info-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8.5px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .corp-info-table td {
+            padding: 4px 8px;
+            border-bottom: 1px solid #f8fafc;
+        }
+        .corp-info-label {
+            color: #64748b;
+            width: 25%;
+        }
+        .corp-info-val {
+            font-weight: bold;
+            color: #1e293b;
+            width: 25%;
+        }
+        .corp-net-banner {
+            background-color: #1e293b;
+            color: #ffffff;
+            padding: 8px 12px;
+            font-weight: bold;
+            font-size: 11px;
+        }
     </style>
 </head>
 <body>
@@ -176,10 +244,10 @@
         $deductions = (array) ($salaryPosting->deductions ?? []);
 
         $allowancesTotal = 0;
-        foreach($allowances as $val) if ($val > 0) $allowancesTotal += $val;
+        foreach($allowances as $val) if ($val > 0) $allowancesTotal += (float) $val;
 
         $deductionsTotal = 0;
-        foreach($deductions as $val) if ($val > 0) $deductionsTotal += $val;
+        foreach($deductions as $val) if ($val > 0) $deductionsTotal += (float) $val;
 
         $loanTotal = 0;
         foreach ($loanInstallments as $li) $loanTotal += (float) $li->amount;
@@ -191,8 +259,13 @@
         $allDeductions = $deductionsTotal + $leaveDeduction + $loanTotal + $advanceTotal;
 
         $monthName = DateTime::createFromFormat('!m', $salaryPosting->month)->format('F');
+        $slipFormat = $appSettings['salary_slip_format'] ?? 'classic';
+        $paymentDisplay = $appSettings['salary_slip_payment_display'] ?? 'full_details';
+        $showFullPaymentDetails = $paymentDisplay === 'full_details';
+        $paymentMode = $salaryPosting->employee->payment_type ?: ($appSettings['default_payment_method'] ?? 'Bank Transfer');
         $showPhoto = ($appSettings['salary_slip_show_photo'] ?? '1') != '0';
         $showCharts = ($appSettings['salary_slip_show_charts'] ?? '1') != '0';
+        $appCountry = $appSettings['app_country'] ?? ($currency === 'INR' ? 'IN' : 'QA');
 
         if (!function_exists('convertNumberToWord')) {
             function convertNumberToWord($num) {
@@ -244,248 +317,435 @@
         };
         $wordsStr = ucwords(convertNumberToWord($netInt)) . ' ' . $currencyWord . ($netDec > 0 ? ' and ' . ucwords(convertNumberToWord($netDec)) . ' ' . $subCurrencyWord . ' ' : ' ') . 'Only';
         
-        $appName = $appSettings['app_name'] ?? 'EARTH.';
+        $appName = $appSettings['app_name'] ?? 'COMPANY';
         $stampImage = $appSettings['salary_slip_stamp'] ?? ($appSettings['company_stamp'] ?? null);
         $colors = ['#3b82f6', '#fcd34d', '#f472b6', '#fbbf24', '#34d399', '#a78bfa', '#fb923c'];
     @endphp
 
-    <div class="page-wrapper">
-        <div class="slip-border">
-            
-            <div class="header">
-                <h1>{{ $appName }}</h1>
-                <p>Employees monthly salary slip</p>
-            </div>
+    @if($slipFormat === 'corporate')
+        {{-- Corporate / HDFC-Style Format --}}
+        <div class="page-wrapper">
+            <div class="corporate-box">
+                <div class="corp-header">
+                    <h1>{{ $appName }}</h1>
+                    <p style="font-size: 10px; font-weight: bold; margin-top: 2px;">SALARY SLIP / PAY STUB</p>
+                    <p style="color: #94a3b8; font-size: 8px;">FOR ILLUSTRATION — NOT AN OFFICIAL DOCUMENT UNLESS STAMPED</p>
+                </div>
 
-            <table class="content-table">
-                <tr>
-                    <td style="width: {{ $showPhoto ? '65%' : '100%' }}; border-right: {{ $showPhoto ? '1px solid #000' : 'none' }};">
-                        <div class="section-header">Employee details</div>
-                        <table class="data-row">
-                            <tr><td class="label">Name of the staff</td><td class="value">{{ $salaryPosting->employee->name }}</td></tr>
-                            <tr><td class="label">Designation</td><td class="value">{{ $salaryPosting->employee->designation ?? '-' }}</td></tr>
-                            <tr><td class="label">Department</td><td class="value">{{ $salaryPosting->employee->department->name ?? '-' }}</td></tr>
-                            <tr><td class="label">QID/Passport no.</td><td class="value">{{ $salaryPosting->employee->qid_number ?: ($salaryPosting->employee->passport_number ?: '-') }}</td></tr>
-                            <tr><td class="label">Date of Joining</td><td class="value">{{ $salaryPosting->employee->joining_date ? date('F j, Y', strtotime($salaryPosting->employee->joining_date)) : 'N/A' }}</td></tr>
-                        </table>
-
-                        <div class="section-header" style="border-top: 1px solid #000;">Salary period details</div>
-                        <table class="data-row">
-                            <tr><td class="label">Month of salary</td><td class="value">{{ $monthName }}</td></tr>
-                            <tr><td class="label">Year of salary</td><td class="value">{{ $salaryPosting->year }}</td></tr>
-                            <tr><td class="label">Mode of pay</td><td class="value">WPS / Bank Transfer</td></tr>
-                            <tr><td class="label">Bank account no.</td><td class="value">{{ $salaryPosting->employee->bank_account_number ?? '-' }}</td></tr>
-                        </table>
-                    </td>
-                    @if($showPhoto)
-                    <td style="width: 35%;">
-                        <div class="photo-box">
-                            @if($salaryPosting->employee->employee_image && file_exists(public_path('storage/' . $salaryPosting->employee->employee_image)))
-                                <img src="{{ public_path('storage/' . $salaryPosting->employee->employee_image) }}">
+                <table class="corp-info-table">
+                    <tr>
+                        <td class="corp-info-label">Employee Name</td>
+                        <td class="corp-info-val">{{ $salaryPosting->employee->name }}</td>
+                        <td class="corp-info-label">Employee ID</td>
+                        <td class="corp-info-val">{{ $salaryPosting->employee->employee_code ?: '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="corp-info-label">Designation</td>
+                        <td class="corp-info-val">{{ $salaryPosting->employee->designation ?: '-' }}</td>
+                        <td class="corp-info-label">Department</td>
+                        <td class="corp-info-val">{{ $salaryPosting->employee->department->name ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="corp-info-label">Location</td>
+                        <td class="corp-info-val">{{ $salaryPosting->employee->location ?: ($salaryPosting->employee->department->name ?? '-') }}</td>
+                        <td class="corp-info-label">Pay Period</td>
+                        <td class="corp-info-val">{{ $monthName }} {{ $salaryPosting->year }}</td>
+                    </tr>
+                    <tr>
+                        <td class="corp-info-label">Date of Joining</td>
+                        <td class="corp-info-val">{{ $salaryPosting->employee->joining_date ? date('F j, Y', strtotime($salaryPosting->employee->joining_date)) : 'N/A' }}</td>
+                        <td class="corp-info-label">{{ $appCountry === 'IN' ? 'PAN' : ($appCountry === 'QA' ? 'QID / Visa' : 'PAN / QID') }}</td>
+                        <td class="corp-info-val">{{ $salaryPosting->employee->pan_number ?: ($salaryPosting->employee->aadhar_number ?: ($salaryPosting->employee->qid_number ?: ($salaryPosting->employee->passport_number ?: '-'))) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="corp-info-label">Bank Account</td>
+                        <td class="corp-info-val">
+                            @if($showFullPaymentDetails)
+                                {{ $salaryPosting->employee->bank_account_number ? (($salaryPosting->employee->bank_name ? $salaryPosting->employee->bank_name . ' - ' : '') . $salaryPosting->employee->bank_account_number) : ($salaryPosting->employee->upi_id ? 'UPI: ' . $salaryPosting->employee->upi_id : ($salaryPosting->employee->payment_type == 'Cash' ? 'Cash Payment' : '-')) }}
                             @else
-                                <div style="color: #64748b; padding-top: 60px;">No Photo Available</div>
+                                -
                             @endif
-                        </div>
-                    </td>
-                    @endif
-                </tr>
-            </table>
+                        </td>
+                        <td class="corp-info-label">Mode of Pay</td>
+                        <td class="corp-info-val">{{ $paymentMode }}</td>
+                    </tr>
+                </table>
 
-            <table class="content-table">
-                <tr>
-                    <td style="width: {{ $showCharts ? '65%' : '100%' }}; border-right: {{ $showCharts ? '1px solid #000' : 'none' }};">
-                        <div class="section-header">Additions</div>
-                        <table class="data-row">
-                            <tr><td class="label">Basic salary</td><td class="value" style="text-align: right;">{{ $formatCurrency($basicSalary) }}</td></tr>
-                            @foreach($allowances as $key => $val)
-                                @if($val > 0)
-                                <tr><td class="label" style="text-transform: capitalize;">{{ str_replace('_', ' ', $key) }}</td><td class="value" style="text-align: right;">{{ $formatCurrency($val) }}</td></tr>
-                                @endif
-                            @endforeach
-                            <tr style="border-top: 1px solid #000;"><td class="label" style="font-weight: bold;">Total</td><td class="value" style="text-align: right;">{{ $formatCurrency($basicSalary + $allowancesTotal) }}</td></tr>
-                            <tr class="bg-light"><td class="label">Number of working days</td><td class="value" style="text-align: right;">{{ $overtimeDetails['days_per_month'] ?? ($appSettings['default_working_days_per_month'] ?? 30) }} days</td></tr>
-                            <tr class="bg-light"><td class="label">Gross salary for the month</td><td class="value" style="text-align: right;">{{ $formatCurrency($basicSalary + $allowancesTotal) }}</td></tr>
-                            @if($overtimeAmount > 0)
-                            @php
-                                $dPerMonth = $overtimeDetails['days_per_month'] ?? ($appSettings['default_working_days_per_month'] ?? 30);
-                                $hPerDay = $overtimeDetails['hours_per_day'] ?? ($appSettings['default_working_hours_per_day'] ?? 8);
-                                $hRate = $overtimeDetails['hourly_rate'] ?? ($basicSalary > 0 ? ($basicSalary / $dPerMonth / $hPerDay) : 0);
-                                $otRate = $overtimeDetails['overtime_rate'] ?? $hRate;
-                                $otHours = $overtimeDetails['hours'] ?? ($otRate > 0 ? round($overtimeAmount / $otRate, 2) : 0);
-                            @endphp
-                            <tr style="background-color: #f0fdf4;">
-                                <td class="label" style="font-weight: bold; color: #166534;">
-                                    (Add) Overtime Pay
-                                    <div style="font-size: 7.5px; font-weight: normal; color: #15803d; margin-top: 2px;">
-                                        &bull; Worked Hours: <strong>{{ $otHours }} hrs</strong><br>
-                                        &bull; Hourly Rate: <strong>{{ $formatCurrency($otRate) }}/hr</strong><br>
-                                        <span style="font-style: italic; color: #64748b;">({{ $formatCurrency($basicSalary) }} &divide; {{ $dPerMonth }}d &divide; {{ $hPerDay }}h &times; {{ $otHours }}h)</span>
-                                    </div>
-                                </td>
-                                <td class="value" style="text-align: right; font-weight: bold; color: #166534; vertical-align: top; padding-top: 5px;">{{ $formatCurrency($overtimeAmount) }}</td>
+                {{-- Earnings --}}
+                <table class="corp-table" style="margin-top: 5px;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; width: 50%;">Earnings</th>
+                            <th style="text-align: right; width: 25%;">Monthly ({{ $currency }})</th>
+                            <th style="text-align: right; width: 25%;">Annual ({{ $currency }})</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Basic Salary</td>
+                            <td style="text-align: right;">{{ $formatCurrency($basicSalary) }}</td>
+                            <td style="text-align: right;">{{ $formatCurrency($basicSalary * 12) }}</td>
+                        </tr>
+                        @foreach($allowances as $key => $val)
+                            @if((float)$val > 0)
+                            <tr>
+                                <td style="text-transform: capitalize;">{{ str_replace('_', ' ', $key) }}</td>
+                                <td style="text-align: right;">{{ $formatCurrency($val) }}</td>
+                                <td style="text-align: right;">{{ $formatCurrency((float)$val * 12) }}</td>
                             </tr>
                             @endif
-                            <tr class="bg-light"><td class="label" style="font-weight: bold;">Total Additions</td><td class="value" style="text-align: right;">{{ $formatCurrency($totalEarnings) }}</td></tr>
-                        </table>
-                    </td>
-                    @if($showCharts)
-                    <td style="width: 35%;" class="chart-box">
-                        <div style="font-weight: bold; margin-bottom: 5px;">Additions Breakdown</div>
-                        @php $addTotal = $totalEarnings ?: 1; @endphp
-                        <div style="width: 100%; height: 10px; background: #e2e8f0; border-radius: 2px; overflow: hidden;">
-                            @php $cIdx = 0; @endphp
-                            <div style="float: left; height: 100%; width: {{ ($basicSalary / $addTotal) * 100 }}%; background: {{ $colors[0] }};"></div>
-                            @foreach($allowances as $val)
-                                @if($val > 0)
-                                    @php $cIdx++; @endphp
-                                    <div style="float: left; height: 100%; width: {{ ($val / $addTotal) * 100 }}%; background: {{ $colors[$cIdx % count($colors)] }};"></div>
-                                @endif
-                            @endforeach
-                        </div>
-                        <div class="chart-legend">
-                            <div style="margin-bottom: 2px;"><span class="legend-dot" style="background: {{ $colors[0] }};"></span>Basic Salary</div>
-                            @php $cIdx = 0; @endphp
-                            @foreach($allowances as $key => $val)
-                                @if($val > 0)
-                                    @php $cIdx++; @endphp
-                                    <div style="margin-bottom: 2px;"><span class="legend-dot" style="background: {{ $colors[$cIdx % count($colors)] }};"></span>{{ str_replace('_', ' ', $key) }}</div>
-                                @endif
-                            @endforeach
-                        </div>
-                    </td>
-                    @endif
-                </tr>
-            </table>
-
-            <table class="content-table">
-                <tr>
-                    <td style="width: {{ $showCharts ? '65%' : '100%' }}; border-right: {{ $showCharts ? '1px solid #000' : 'none' }};">
-                        <div class="section-header">Deductions</div>
-                        <table class="data-row">
-                            @foreach($deductions as $key => $val)
-                                @if($val > 0)
-                                <tr><td class="label" style="text-transform: capitalize;">{{ str_replace('_', ' ', $key) }}</td><td class="value" style="text-align: right;">{{ $formatCurrency($val) }}</td></tr>
-                                @endif
-                            @endforeach
-                            @if($leaveDeduction > 0)
-                            <tr><td class="label">Leave recovery</td><td class="value" style="text-align: right;">{{ $formatCurrency($leaveDeduction) }}</td></tr>
-                            @endif
-                            @foreach($loanInstallments as $li)
-                            <tr><td class="label">Loan: {{ $li->loan->loan_type->name ?? 'Repayment' }}</td><td class="value" style="text-align: right;">{{ $formatCurrency($li->amount) }}</td></tr>
-                            @endforeach
-                            @foreach($advances as $adv)
-                            <tr><td class="label">Advance Repayment</td><td class="value" style="text-align: right;">{{ $formatCurrency($adv->amount) }}</td></tr>
-                            @endforeach
-                            @if($allDeductions == 0)
-                            <tr><td class="label" style="font-style: italic; color: #94a3b8;">No deductions</td><td class="value" style="text-align: right;">{{ $formatCurrency(0) }}</td></tr>
-                            @endif
-                            <tr><td class="label" style="font-weight: bold; padding-top: 10px;">Total Deductions</td><td class="value" style="text-align: right; padding-top: 10px;">{{ $formatCurrency($allDeductions) }}</td></tr>
-                        </table>
-                    </td>
-                    @if($showCharts)
-                    <td style="width: 35%;" class="chart-box">
-                        <div style="font-weight: bold; font-style: italic; color: #475569; margin-bottom: 5px;">Reliability track</div>
-                        @php $relTotal = ($basicSalary + $allowancesTotal + $overtimeAmount) ?: 1; @endphp
-                        <div style="width: 100%; height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden;">
-                            <div style="float: left; height: 100%; width: {{ (($basicSalary + $allowancesTotal) / $relTotal) * 100 }}%; background: #3b82f6;"></div>
-                            @if($overtimeAmount > 0)
-                            <div style="float: left; height: 100%; width: {{ ($overtimeAmount / $relTotal) * 100 }}%; background: #34d399;"></div>
-                            @endif
-                        </div>
-                        <div class="chart-legend">
-                            <div style="margin-bottom: 2px;"><span class="legend-dot" style="background: #3b82f6;"></span>Gross Salary</div>
-                            @if($overtimeAmount > 0)
-                            <div style="margin-bottom: 2px;"><span class="legend-dot" style="background: #34d399;"></span>Overtime</div>
-                            @endif
-                        </div>
-                    </td>
-                    @endif
-                </tr>
-            </table>
-
-            <div class="net-payable">
-                <table style="width: 100%;">
-                    <tr><td>Net payable amount</td><td style="text-align: right;">{{ $formatCurrency($netSalary) }}</td></tr>
+                        @endforeach
+                        @if($overtimeAmount > 0)
+                            <tr style="background-color: #f0fdf4;">
+                                <td style="color: #166534; font-weight: bold;">Overtime Pay</td>
+                                <td style="text-align: right; color: #166534; font-weight: bold;">{{ $formatCurrency($overtimeAmount) }}</td>
+                                <td style="text-align: right; color: #64748b; font-style: italic;">variable</td>
+                            </tr>
+                        @endif
+                        <tr style="background-color: #f8fafc; font-weight: bold; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1;">
+                            <td>Gross Salary</td>
+                            <td style="text-align: right;">{{ $formatCurrency($totalEarnings) }}</td>
+                            <td style="text-align: right;">{{ $formatCurrency(($basicSalary + $allowancesTotal) * 12) }}</td>
+                        </tr>
+                    </tbody>
                 </table>
-            </div>
 
-            <div class="amount-words">
-                <span style="color: #64748b;">Amount in words:</span>
-                <span style="font-weight: bold; margin-left: 10px;">{{ $wordsStr }}</span>
-            </div>
+                {{-- Deductions --}}
+                <table class="corp-table" style="margin-top: 8px;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; width: 60%;">Deductions</th>
+                            <th style="text-align: right; width: 40%;">Amount ({{ $currency }})</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($deductions as $key => $val)
+                            @if((float)$val > 0)
+                            <tr>
+                                <td style="text-transform: capitalize;">{{ str_replace('_', ' ', $key) }}</td>
+                                <td style="text-align: right;">{{ $formatCurrency($val) }}</td>
+                            </tr>
+                            @endif
+                        @endforeach
+                        @if($leaveDeduction > 0)
+                            <tr>
+                                <td>Leave Deduction</td>
+                                <td style="text-align: right;">{{ $formatCurrency($leaveDeduction) }}</td>
+                            </tr>
+                        @endif
+                        @foreach($loanInstallments as $li)
+                            <tr>
+                                <td>Loan: {{ $li->loan->loan_type->name ?? 'Repayment' }}</td>
+                                <td style="text-align: right;">{{ $formatCurrency($li->amount) }}</td>
+                            </tr>
+                        @endforeach
+                        @foreach($advances as $adv)
+                            <tr>
+                                <td>Advance Repayment</td>
+                                <td style="text-align: right;">{{ $formatCurrency($adv->amount) }}</td>
+                            </tr>
+                        @endforeach
+                        @if($allDeductions == 0)
+                            <tr>
+                                <td style="color: #94a3b8; font-style: italic;">No deductions</td>
+                                <td style="text-align: right; color: #94a3b8;">{{ $formatCurrency(0) }}</td>
+                            </tr>
+                        @endif
+                        <tr style="background-color: #f8fafc; font-weight: bold; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1;">
+                            <td>Total Deductions</td>
+                            <td style="text-align: right;">{{ $formatCurrency($allDeductions) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
 
-            <div class="remarks">
-                <div style="font-weight: bold; margin-bottom: 4px;">Remarks (if any):</div>
-                <div style="color: #2563eb; font-weight: bold;">
-                    <div>&gt; Salary and allowance for the month.</div>
-                    @if($overtimeAmount > 0)
-                        <div>&gt; OT ({{ $monthName }} {{ $salaryPosting->year }}) - [{{ $formatCurrency($overtimeAmount) }}]</div>
-                    @endif
+                {{-- Summary Banner --}}
+                <table style="width: 100%; border-collapse: collapse; margin-top: 8px; border-top: 2px solid #94a3b8; border-bottom: 2px solid #94a3b8;">
+                    <tr>
+                        <td style="padding: 4px 8px; color: #475569;">Gross Salary</td>
+                        <td style="padding: 4px 8px; text-align: right; font-weight: bold;">{{ $formatCurrency($totalEarnings) }}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 4px 8px; color: #475569;">Total Deductions</td>
+                        <td style="padding: 4px 8px; text-align: right; font-weight: bold; color: #be123c;">{{ $formatCurrency($allDeductions) }}</td>
+                    </tr>
+                </table>
+
+                <div class="corp-net-banner">
+                    <table style="width: 100%; color: #fff; font-size: 11px;">
+                        <tr>
+                            <td style="font-weight: bold; text-transform: uppercase;">Net Salary Payable</td>
+                            <td style="text-align: right; font-weight: bold;">{{ $formatCurrency($netSalary) }}</td>
+                        </tr>
+                    </table>
                 </div>
-            </div>
 
-            <div class="signatures">
-                <p>I the undersigned (Staff name)</p>
-                <table style="width: 100%; margin: 5px 0 10px;">
+                <div style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; font-size: 8.5px;">
+                    <span style="color: #64748b;">Amount in Words: </span>
+                    <strong style="color: #1e293b; text-transform: capitalize;">{{ $wordsStr }}</strong>
+                </div>
+
+                {{-- Footer & Stamp --}}
+                <table style="width: 100%; padding: 10px 8px; font-size: 8px;">
                     <tr>
-                        <td style="width: 45%; border-bottom: 1px solid #000; text-align: center;">{{ $salaryPosting->employee->name }}</td>
-                        <td style="width: 10%;"></td>
-                        <td style="width: 45%; text-align: right;" class="arabic">أنا الموقع أدناه (اسم الموظف):</td>
-                    </tr>
-                </table>
-
-                <table style="width: 100%; margin-bottom: 15px;">
-                    <tr>
-                        <td style="width: 30%;">Holding Qid/passport no:</td>
-                        <td style="width: 30%; border-bottom: 1px solid #000; text-align: center;">{{ $salaryPosting->employee->qid_number ?: $salaryPosting->employee->passport_number }}</td>
-                        <td style="width: 40%; text-align: right;" class="arabic">يحمل رقم البطاقة الشخصية/جواز السفر:</td>
-                    </tr>
-                </table>
-
-                <p style="text-align: center; margin-bottom: 5px;">I hereby acknowledge and confirm that I have received the above-mentioned amount (salary, allowances, overtime, and other additions) in {{ $currency === 'INR' ? 'Indian Rupees (INR)' : ($currency === 'QAR' ? 'Qatari Riyals' : $currency) }}.</p>
-                <p style="text-align: center; margin-bottom: 10px;" class="arabic">أقر وأؤكد بموجبه أنني قد استلمت المبلغ المذكور أعلاه (الراتب، البدلات، ساعات العمل الإضافية، والإضافات الأخرى) بالريال القطري.</p>
-                <p style="text-align: center; margin-bottom: 5px;">I also acknowledge and agree to any deductions stated, if applicable.</p>
-                <p style="text-align: center; margin-bottom: 20px;" class="arabic">كما أقر وأوافق على أي خصومات مذكورة، إن وجدت.</p>
-
-                <table style="width: 100%; margin-top: 20px;">
-                    <tr>
-                        <td style="width: 45%;">
-                            <div>Received & Confirmed</div>
-                            <div style="margin-top: 10px; background: #fef08a; display: inline-block; padding: 2px 5px; font-size: 8px;">Please sign here</div>
-                            <div style="border-bottom: 1px solid #000; width: 100%; margin-top: 5px;"></div>
-                            <div style="margin-top: 5px;">{{ $salaryPosting->employee->name }}</div>
+                        <td style="width: 60%; vertical-align: bottom; color: #94a3b8; font-style: italic;">
+                            Note: This is a system-generated salary slip. Actual salary components and deductions vary by employee, location, tax regime, and applicable rules.
                         </td>
-                        <td style="width: 10%;"></td>
-                        <td style="width: 45%; text-align: right;">
-                            <div class="arabic">تم الاستلام والموافق</div>
-                            <div style="border-bottom: 1px solid #000; width: 100%; margin-top: 40px;"></div>
-                            <div style="text-align: left; margin-top: 5px;">{{ $salaryPosting->employee->name }}</div>
+                        <td style="width: 40%; text-align: right; vertical-align: bottom;">
+                            <div class="stamp-area" style="height: 50px;">
+                                @if($stampImage && file_exists(public_path('storage/' . $stampImage)))
+                                    <img src="{{ public_path('storage/' . $stampImage) }}" style="height: 45px; float: right; transform: rotate(-8deg);">
+                                @else
+                                    <div style="border: 1px dashed #cbd5e1; color: #94a3b8; display: inline-block; padding: 4px 8px; font-size: 7.5px; transform: rotate(-5deg);">STAMP</div>
+                                @endif
+                            </div>
+                            <div style="font-weight: bold; font-size: 8.5px; margin-top: 3px;">{{ $appName }}</div>
+                            <div style="color: #64748b; font-size: 7.5px;">Finance &amp; HR Department</div>
                         </td>
                     </tr>
                 </table>
-            </div>
-
-            <div class="section-header" style="border-top: 1px solid #000;">For office use only</div>
-            <div style="padding: 15px; font-weight: bold;">
-                <div>Authorized by</div>
-                <div class="stamp-area">
-                    @if($stampImage && file_exists(public_path('storage/' . $stampImage)))
-                        <img src="{{ public_path('storage/' . $stampImage) }}" class="stamp-img">
-                    @else
-                        <div style="border: 1px dashed #94a3b8; color: #94a3b8; display: inline-block; padding: 5px; font-size: 8px; transform: rotate(-5deg); margin-top: 10px;">STAMP NOT UPLOADED</div>
-                    @endif
-                </div>
-                <div style="margin-top: 10px;">Finance & HR Department</div>
-                <div style="color: #64748b;">{{ strtoupper($appName) }}</div>
             </div>
         </div>
-    </div>
-</body>
-</html>argin-top: 10px;">Finance & HR Department</div>
-                    <div style="color: #4b5563;">{{ strtoupper($appName) }}</div>
+
+    @else
+        {{-- Classic Format (Original) --}}
+        <div class="page-wrapper">
+            <div class="slip-border">
+                
+                <div class="header">
+                    <h1>{{ $appName }}</h1>
+                    <p>Employees monthly salary slip</p>
                 </div>
-            </td>
-        </tr>
-    </table>
+
+                <table class="content-table">
+                    <tr>
+                        <td style="width: {{ $showPhoto ? '65%' : '100%' }}; border-right: {{ $showPhoto ? '1px solid #000' : 'none' }};">
+                            <div class="section-header">Employee details</div>
+                            <table class="data-row">
+                                <tr><td class="label">Name of the staff</td><td class="value">{{ $salaryPosting->employee->name }}</td></tr>
+                                <tr><td class="label">Designation</td><td class="value">{{ $salaryPosting->employee->designation ?? '-' }}</td></tr>
+                                <tr><td class="label">Department</td><td class="value">{{ $salaryPosting->employee->department->name ?? '-' }}</td></tr>
+                                <tr><td class="label">{{ $appCountry === 'IN' ? 'PAN / Aadhar no.' : ($appCountry === 'QA' ? 'QID/Passport no.' : 'PAN / QID / Passport') }}</td><td class="value">{{ $salaryPosting->employee->pan_number ?: ($salaryPosting->employee->aadhar_number ?: ($salaryPosting->employee->qid_number ?: ($salaryPosting->employee->passport_number ?: '-'))) }}</td></tr>
+                                <tr><td class="label">Date of Joining</td><td class="value">{{ $salaryPosting->employee->joining_date ? date('F j, Y', strtotime($salaryPosting->employee->joining_date)) : 'N/A' }}</td></tr>
+                            </table>
+
+                            <div class="section-header" style="border-top: 1px solid #000;">Salary period details</div>
+                            <table class="data-row">
+                                <tr><td class="label">Month of salary</td><td class="value">{{ $monthName }}</td></tr>
+                                <tr><td class="label">Year of salary</td><td class="value">{{ $salaryPosting->year }}</td></tr>
+                                <tr><td class="label">Mode of pay</td><td class="value">{{ $paymentMode }}</td></tr>
+                                @if($showFullPaymentDetails)
+                                <tr>
+                                    <td class="label">Bank account no.</td>
+                                    <td class="value">
+                                        {{ $salaryPosting->employee->bank_account_number ? (($salaryPosting->employee->bank_name ? $salaryPosting->employee->bank_name . ' - ' : '') . $salaryPosting->employee->bank_account_number) : ($salaryPosting->employee->upi_id ? 'UPI: ' . $salaryPosting->employee->upi_id : ($salaryPosting->employee->payment_type == 'Cash' ? 'Cash' : '-')) }}
+                                    </td>
+                                </tr>
+                                @endif
+                            </table>
+                        </td>
+                        @if($showPhoto)
+                        <td style="width: 35%;">
+                            <div class="photo-box">
+                                @if($salaryPosting->employee->employee_image && file_exists(public_path('storage/' . $salaryPosting->employee->employee_image)))
+                                    <img src="{{ public_path('storage/' . $salaryPosting->employee->employee_image) }}">
+                                @else
+                                    <div style="color: #64748b; padding-top: 60px;">No Photo Available</div>
+                                @endif
+                            </div>
+                        </td>
+                        @endif
+                    </tr>
+                </table>
+
+                <table class="content-table">
+                    <tr>
+                        <td style="width: {{ $showCharts ? '65%' : '100%' }}; border-right: {{ $showCharts ? '1px solid #000' : 'none' }};">
+                            <div class="section-header">Additions</div>
+                            <table class="data-row">
+                                <tr><td class="label">Basic salary</td><td class="value" style="text-align: right;">{{ $formatCurrency($basicSalary) }}</td></tr>
+                                @foreach($allowances as $key => $val)
+                                    @if((float)$val > 0)
+                                    <tr><td class="label" style="text-transform: capitalize;">{{ str_replace('_', ' ', $key) }}</td><td class="value" style="text-align: right;">{{ $formatCurrency($val) }}</td></tr>
+                                    @endif
+                                @endforeach
+                                <tr style="border-top: 1px solid #000;"><td class="label" style="font-weight: bold;">Total</td><td class="value" style="text-align: right;">{{ $formatCurrency($basicSalary + $allowancesTotal) }}</td></tr>
+                                <tr class="bg-light"><td class="label">Number of working days</td><td class="value" style="text-align: right;">{{ $overtimeDetails['days_per_month'] ?? ($appSettings['default_working_days_per_month'] ?? 30) }} days</td></tr>
+                                <tr class="bg-light"><td class="label">Gross salary for the month</td><td class="value" style="text-align: right;">{{ $formatCurrency($basicSalary + $allowancesTotal) }}</td></tr>
+                                @if($overtimeAmount > 0)
+                                @php
+                                    $dPerMonth = $overtimeDetails['days_per_month'] ?? ($appSettings['default_working_days_per_month'] ?? 30);
+                                    $hPerDay = $overtimeDetails['hours_per_day'] ?? ($appSettings['default_working_hours_per_day'] ?? 8);
+                                    $hRate = $overtimeDetails['hourly_rate'] ?? ($basicSalary > 0 ? ($basicSalary / $dPerMonth / $hPerDay) : 0);
+                                    $otRate = $overtimeDetails['overtime_rate'] ?? $hRate;
+                                    $otHours = $overtimeDetails['hours'] ?? ($otRate > 0 ? round($overtimeAmount / $otRate, 2) : 0);
+                                @endphp
+                                <tr style="background-color: #f0fdf4;">
+                                    <td class="label" style="font-weight: bold; color: #166534;">
+                                        (Add) Overtime Pay
+                                        <div style="font-size: 7.5px; font-weight: normal; color: #15803d; margin-top: 2px;">
+                                            &bull; Worked Hours: <strong>{{ $otHours }} hrs</strong><br>
+                                            &bull; Hourly Rate: <strong>{{ $formatCurrency($otRate) }}/hr</strong><br>
+                                            <span style="font-style: italic; color: #64748b;">({{ $formatCurrency($basicSalary) }} &divide; {{ $dPerMonth }}d &divide; {{ $hPerDay }}h &times; {{ $otHours }}h)</span>
+                                        </div>
+                                    </td>
+                                    <td class="value" style="text-align: right; font-weight: bold; color: #166534; vertical-align: top; padding-top: 5px;">{{ $formatCurrency($overtimeAmount) }}</td>
+                                </tr>
+                                @endif
+                                <tr class="bg-light"><td class="label" style="font-weight: bold;">Total Additions</td><td class="value" style="text-align: right;">{{ $formatCurrency($totalEarnings) }}</td></tr>
+                            </table>
+                        </td>
+                        @if($showCharts)
+                        <td style="width: 35%;" class="chart-box">
+                            <div style="font-weight: bold; margin-bottom: 5px;">Additions Breakdown</div>
+                            @php $addTotal = $totalEarnings ?: 1; @endphp
+                            <div style="width: 100%; height: 10px; background: #e2e8f0; border-radius: 2px; overflow: hidden;">
+                                @php $cIdx = 0; @endphp
+                                <div style="float: left; height: 100%; width: {{ ($basicSalary / $addTotal) * 100 }}%; background: {{ $colors[0] }};"></div>
+                                @foreach($allowances as $val)
+                                    @if((float)$val > 0)
+                                        @php $cIdx++; @endphp
+                                        <div style="float: left; height: 100%; width: {{ ((float)$val / $addTotal) * 100 }}%; background: {{ $colors[$cIdx % count($colors)] }};"></div>
+                                    @endif
+                                @endforeach
+                            </div>
+                            <div class="chart-legend">
+                                <div style="margin-bottom: 2px;"><span class="legend-dot" style="background: {{ $colors[0] }};"></span>Basic Salary</div>
+                                @php $cIdx = 0; @endphp
+                                @foreach($allowances as $key => $val)
+                                    @if((float)$val > 0)
+                                        @php $cIdx++; @endphp
+                                        <div style="margin-bottom: 2px;"><span class="legend-dot" style="background: {{ $colors[$cIdx % count($colors)] }};"></span>{{ str_replace('_', ' ', $key) }}</div>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </td>
+                        @endif
+                    </tr>
+                </table>
+
+                <table class="content-table">
+                    <tr>
+                        <td style="width: {{ $showCharts ? '65%' : '100%' }}; border-right: {{ $showCharts ? '1px solid #000' : 'none' }};">
+                            <div class="section-header">Deductions</div>
+                            <table class="data-row">
+                                @foreach($deductions as $key => $val)
+                                    @if((float)$val > 0)
+                                    <tr><td class="label" style="text-transform: capitalize;">{{ str_replace('_', ' ', $key) }}</td><td class="value" style="text-align: right;">{{ $formatCurrency($val) }}</td></tr>
+                                    @endif
+                                @endforeach
+                                @if($leaveDeduction > 0)
+                                <tr><td class="label">Leave recovery</td><td class="value" style="text-align: right;">{{ $formatCurrency($leaveDeduction) }}</td></tr>
+                                @endif
+                                @foreach($loanInstallments as $li)
+                                <tr><td class="label">Loan: {{ $li->loan->loan_type->name ?? 'Repayment' }}</td><td class="value" style="text-align: right;">{{ $formatCurrency($li->amount) }}</td></tr>
+                                @endforeach
+                                @foreach($advances as $adv)
+                                <tr><td class="label">Advance Repayment</td><td class="value" style="text-align: right;">{{ $formatCurrency($adv->amount) }}</td></tr>
+                                @endforeach
+                                @if($allDeductions == 0)
+                                <tr><td class="label" style="font-style: italic; color: #94a3b8;">No deductions</td><td class="value" style="text-align: right;">{{ $formatCurrency(0) }}</td></tr>
+                                @endif
+                                <tr><td class="label" style="font-weight: bold; padding-top: 10px;">Total Deductions</td><td class="value" style="text-align: right; padding-top: 10px;">{{ $formatCurrency($allDeductions) }}</td></tr>
+                            </table>
+                        </td>
+                        @if($showCharts)
+                        <td style="width: 35%;" class="chart-box">
+                            <div style="font-weight: bold; font-style: italic; color: #475569; margin-bottom: 5px;">Reliability track</div>
+                            @php $relTotal = ($basicSalary + $allowancesTotal + $overtimeAmount) ?: 1; @endphp
+                            <div style="width: 100%; height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden;">
+                                <div style="float: left; height: 100%; width: {{ (($basicSalary + $allowancesTotal) / $relTotal) * 100 }}%; background: #3b82f6;"></div>
+                                @if($overtimeAmount > 0)
+                                <div style="float: left; height: 100%; width: {{ ($overtimeAmount / $relTotal) * 100 }}%; background: #34d399;"></div>
+                                @endif
+                            </div>
+                            <div class="chart-legend">
+                                <div style="margin-bottom: 2px;"><span class="legend-dot" style="background: #3b82f6;"></span>Gross Salary</div>
+                                @if($overtimeAmount > 0)
+                                <div style="margin-bottom: 2px;"><span class="legend-dot" style="background: #34d399;"></span>Overtime</div>
+                                @endif
+                            </div>
+                        </td>
+                        @endif
+                    </tr>
+                </table>
+
+                <div class="net-payable">
+                    <table style="width: 100%;">
+                        <tr><td>Net payable amount</td><td style="text-align: right;">{{ $formatCurrency($netSalary) }}</td></tr>
+                    </table>
+                </div>
+
+                <div class="amount-words">
+                    <span style="color: #64748b;">Amount in words:</span>
+                    <span style="font-weight: bold; margin-left: 10px;">{{ $wordsStr }}</span>
+                </div>
+
+                <div class="remarks">
+                    <div style="font-weight: bold; margin-bottom: 4px;">Remarks (if any):</div>
+                    <div style="color: #2563eb; font-weight: bold;">
+                        <div>&gt; Salary and allowance for the month.</div>
+                        @if($overtimeAmount > 0)
+                            <div>&gt; OT ({{ $monthName }} {{ $salaryPosting->year }}) - [{{ $formatCurrency($overtimeAmount) }}]</div>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="signatures">
+                    <p>I the undersigned (Staff name)</p>
+                    <table style="width: 100%; margin: 5px 0 10px;">
+                        <tr>
+                            <td style="width: 45%; border-bottom: 1px solid #000; text-align: center;">{{ $salaryPosting->employee->name }}</td>
+                            <td style="width: 10%;"></td>
+                            <td style="width: 45%; text-align: right;" class="arabic">أنا الموقع أدناه (اسم الموظف):</td>
+                        </tr>
+                    </table>
+
+                    <table style="width: 100%; margin-bottom: 15px;">
+                        <tr>
+                            <td style="width: 30%;">Holding Qid/passport no:</td>
+                            <td style="width: 30%; border-bottom: 1px solid #000; text-align: center;">{{ $salaryPosting->employee->qid_number ?: $salaryPosting->employee->passport_number }}</td>
+                            <td style="width: 40%; text-align: right;" class="arabic">يحمل رقم البطاقة الشخصية/جواز السفر:</td>
+                        </tr>
+                    </table>
+
+                    <p style="text-align: center; margin-bottom: 5px;">I hereby acknowledge and confirm that I have received the above-mentioned amount (salary, allowances, overtime, and other additions) in {{ $currency === 'INR' ? 'Indian Rupees (INR)' : ($currency === 'QAR' ? 'Qatari Riyals' : $currency) }}.</p>
+                    <p style="text-align: center; margin-bottom: 10px;" class="arabic">أقر وأؤكد بموجبه أنني قد استلمت المبلغ المذكور أعلاه (الراتب، البدلات، ساعات العمل الإضافية، والإضافات الأخرى) بالريال القطري.</p>
+                    <p style="text-align: center; margin-bottom: 5px;">I also acknowledge and agree to any deductions stated, if applicable.</p>
+                    <p style="text-align: center; margin-bottom: 20px;" class="arabic">كما أقر وأوافق على أي خصومات مذكورة، إن وجدت.</p>
+
+                    <table style="width: 100%; margin-top: 20px;">
+                        <tr>
+                            <td style="width: 45%;">
+                                <div>Received &amp; Confirmed</div>
+                                <div style="margin-top: 10px; background: #fef08a; display: inline-block; padding: 2px 5px; font-size: 8px;">Please sign here</div>
+                                <div style="border-bottom: 1px solid #000; width: 100%; margin-top: 5px;"></div>
+                                <div style="margin-top: 5px;">{{ $salaryPosting->employee->name }}</div>
+                            </td>
+                            <td style="width: 10%;"></td>
+                            <td style="width: 45%; text-align: right;">
+                                <div class="arabic">تم الاستلام والموافق</div>
+                                <div style="border-bottom: 1px solid #000; width: 100%; margin-top: 40px;"></div>
+                                <div style="text-align: left; margin-top: 5px;">{{ $salaryPosting->employee->name }}</div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="section-header" style="border-top: 1px solid #000;">For office use only</div>
+                <div style="padding: 15px; font-weight: bold;">
+                    <div>Authorized by</div>
+                    <div class="stamp-area">
+                        @if($stampImage && file_exists(public_path('storage/' . $stampImage)))
+                            <img src="{{ public_path('storage/' . $stampImage) }}" class="stamp-img">
+                        @else
+                            <div style="border: 1px dashed #94a3b8; color: #94a3b8; display: inline-block; padding: 5px; font-size: 8px; transform: rotate(-5deg); margin-top: 10px;">STAMP NOT UPLOADED</div>
+                        @endif
+                    </div>
+                    <div style="margin-top: 10px;">Finance &amp; HR Department</div>
+                    <div style="color: #64748b;">{{ strtoupper($appName) }}</div>
+                </div>
+            </div>
+        </div>
+    @endif
 </body>
 </html>

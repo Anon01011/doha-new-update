@@ -7,6 +7,7 @@ import Lightbox from '@/Components/Lightbox';
 import Avatar from '@/Components/Avatar';
 import { hasRole } from '@/helpers/permissions';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { FiCreditCard, FiMapPin, FiDollarSign, FiFileText } from 'react-icons/fi';
 
 const SectionHeader = ({ title, icon, color = "indigo" }) => (
     <div className="relative mb-8 mt-12 first:mt-0">
@@ -53,6 +54,10 @@ const FilePreviewLink = ({ label, file }) => (
 export default function EditEmployee(props) {
     const { appSettings, auth } = usePage().props;
     const currency = appSettings?.currency || 'QAR';
+    const appCountry = appSettings?.app_country || (currency === 'INR' ? 'IN' : 'QA');
+    const isIndiaMode = appCountry === 'IN';
+    const isQatarMode = appCountry === 'QA';
+    const isAllMode = appCountry === 'ALL';
 
     const { employee, canEditCode = false, companies = [], departments = [], constants = {}, salaryComponents = [], availableRoles = [], employee_role = null, leadershipEmployees = [], managerEmployees = [] } = props;
     const [filteredDepartments, setFilteredDepartments] = useState([]);
@@ -101,6 +106,14 @@ export default function EditEmployee(props) {
         contract_duration: employee.contract_duration || '',
         exit_status: employee.exit_status || '',
         payment_type: employee.payment_type || '',
+        bank_name: employee.bank_name || '',
+        bank_account_number: employee.bank_account_number || '',
+        bank_code: employee.bank_code || '',
+        bank_branch: employee.bank_branch || '',
+        iban: employee.iban || '',
+        upi_id: employee.upi_id || '',
+        pan_number: employee.pan_number || '',
+        aadhar_number: employee.aadhar_number || '',
         leave_status: employee.leave_status || '',
         basic_salary: employee.basic_salary || '',
         reported_to: employee.reported_to || '',
@@ -109,6 +122,11 @@ export default function EditEmployee(props) {
         agreement_doc: null,
         resume_doc: null,
         other_docs: null,
+        aadhar_file: null,
+        pan_file: null,
+        education_doc: null,
+        relieving_doc: null,
+        bank_doc: null,
         passport_number: employee.passport_number || '',
         passport_expiry_date: formatDate(employee.passport_expiry_date),
         passport_file: null,
@@ -474,51 +492,98 @@ export default function EditEmployee(props) {
 
                             {/* Identity Documents Section */}
                             <section>
-                                <SectionHeader title="Identity Documents" icon="💳" color="indigo" />
+                                <SectionHeader 
+                                    title={isIndiaMode ? "Identity & Employee Documents (India)" : (isQatarMode ? "Identity & Compliance Documents (Qatar)" : "Identity & Compliance Documents")} 
+                                    icon="💳" 
+                                    color="indigo" 
+                                />
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <InputWrapper label="Passport Number" icon={EmployeeFieldIcons.passport} error={errors.passport_number}>
-                                        <input type="text" className={inputClasses} value={data.passport_number} onChange={e => setData('passport_number', e.target.value)} placeholder="Enter Passport No." />
-                                    </InputWrapper>
+                                    {/* India Mode or Global Mode Documents */}
+                                    {(isIndiaMode || isAllMode) && (
+                                        <>
+                                            <InputWrapper label="Aadhar Card Number" icon={EmployeeFieldIcons.card} error={errors.aadhar_number}>
+                                                <input type="text" className={inputClasses} value={data.aadhar_number} onChange={e => setData('aadhar_number', e.target.value)} placeholder="e.g. 1234 5678 9012" />
+                                            </InputWrapper>
 
-                                    <InputWrapper label="Passport Expiry" error={errors.passport_expiry_date}>
-                                        <input type="date" className={inputClasses} value={data.passport_expiry_date} onChange={e => setData('passport_expiry_date', e.target.value)} />
-                                    </InputWrapper>
+                                            <InputWrapper label="Aadhar Card Copy (PDF/Image)" error={errors.aadhar_file}>
+                                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('aadhar_file', e)} />
+                                                <FilePreviewLink label="Aadhar Card" file={employee.aadhar_file_path} />
+                                            </InputWrapper>
 
-                                    <InputWrapper label="Passport Copy" error={errors.passport_file} className="md:col-span-2">
-                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('passport_file', e)} />
-                                        <FilePreviewLink label="Passport Document" file={employee.passport_file_path} />
-                                    </InputWrapper>
+                                            <InputWrapper label="PAN Card Number" icon={EmployeeFieldIcons.passport} error={errors.pan_number}>
+                                                <input type="text" className={inputClasses} value={data.pan_number} onChange={e => setData('pan_number', e.target.value)} placeholder="e.g. ABCDE1234F" />
+                                            </InputWrapper>
 
-                                    <InputWrapper label="QID Number" icon={EmployeeFieldIcons.card} error={errors.qid_number}>
-                                        <input type="text" className={inputClasses} value={data.qid_number} onChange={e => setData('qid_number', e.target.value)} placeholder="Enter QID No." />
-                                    </InputWrapper>
+                                            <InputWrapper label="PAN Card Copy (PDF/Image)" error={errors.pan_file}>
+                                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('pan_file', e)} />
+                                                <FilePreviewLink label="PAN Card" file={employee.pan_file_path} />
+                                            </InputWrapper>
 
-                                    <InputWrapper label="QID Expiry" error={errors.qid_expiry_date}>
-                                        <input type="date" className={inputClasses} value={data.qid_expiry_date} onChange={e => setData('qid_expiry_date', e.target.value)} />
-                                    </InputWrapper>
+                                            <InputWrapper label="Education Certificate (PDF/Image)" error={errors.education_doc}>
+                                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('education_doc', e)} />
+                                                <FilePreviewLink label="Education Certificate" file={employee.education_doc_path} />
+                                            </InputWrapper>
 
-                                    <InputWrapper label="QID Copy" error={errors.qid_file} className="md:col-span-2">
-                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('qid_file', e)} />
-                                        <FilePreviewLink label="QID Document" file={employee.qid_file_path} />
-                                    </InputWrapper>
+                                            <InputWrapper label="Relieving / Experience Document (PDF/Image)" error={errors.relieving_doc}>
+                                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('relieving_doc', e)} />
+                                                <FilePreviewLink label="Relieving Document" file={employee.relieving_doc_path} />
+                                            </InputWrapper>
 
-                                    {/* New Documents */}
-                                    <InputWrapper label="Health Card Number" icon={EmployeeFieldIcons.card} error={errors.health_card_number}>
-                                        <input type="text" className={inputClasses} value={data.health_card_number} onChange={e => setData('health_card_number', e.target.value)} placeholder="Enter Health Card No." />
-                                    </InputWrapper>
+                                            <InputWrapper label="Bank Account Details / Passbook / Cheque (PDF/Image)" error={errors.bank_doc} className="md:col-span-2">
+                                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('bank_doc', e)} />
+                                                <FilePreviewLink label="Bank Details Document" file={employee.bank_doc_path} />
+                                            </InputWrapper>
+                                        </>
+                                    )}
 
-                                    <InputWrapper label="Health Card Expiry" error={errors.health_card_expiry_date}>
-                                        <input type="date" className={inputClasses} value={data.health_card_expiry_date} onChange={e => setData('health_card_expiry_date', e.target.value)} />
-                                    </InputWrapper>
+                                    {/* Qatar Mode or Global Mode Documents */}
+                                    {(isQatarMode || isAllMode) && (
+                                        <>
+                                            <InputWrapper label="Passport Number" icon={EmployeeFieldIcons.passport} error={errors.passport_number}>
+                                                <input type="text" className={inputClasses} value={data.passport_number} onChange={e => setData('passport_number', e.target.value)} placeholder="Enter Passport No." />
+                                            </InputWrapper>
 
-                                    <InputWrapper label="Food Handler Expiry" error={errors.food_handler_expiry_date}>
-                                        <input type="date" className={inputClasses} value={data.food_handler_expiry_date} onChange={e => setData('food_handler_expiry_date', e.target.value)} />
-                                    </InputWrapper>
+                                            <InputWrapper label="Passport Expiry" error={errors.passport_expiry_date}>
+                                                <input type="date" className={inputClasses} value={data.passport_expiry_date} onChange={e => setData('passport_expiry_date', e.target.value)} />
+                                            </InputWrapper>
 
-                                    <InputWrapper label="Food Handler Copy" error={errors.food_handler_file}>
-                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('food_handler_file', e)} />
-                                        <FilePreviewLink label="Food Handler Document" file={employee.food_handler_file_path} />
-                                    </InputWrapper>
+                                            <InputWrapper label="Passport Copy" error={errors.passport_file} className="md:col-span-2">
+                                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('passport_file', e)} />
+                                                <FilePreviewLink label="Passport Document" file={employee.passport_file_path} />
+                                            </InputWrapper>
+
+                                            <InputWrapper label="QID Number" icon={EmployeeFieldIcons.card} error={errors.qid_number}>
+                                                <input type="text" className={inputClasses} value={data.qid_number} onChange={e => setData('qid_number', e.target.value)} placeholder="Enter QID No." />
+                                            </InputWrapper>
+
+                                            <InputWrapper label="QID Expiry" error={errors.qid_expiry_date}>
+                                                <input type="date" className={inputClasses} value={data.qid_expiry_date} onChange={e => setData('qid_expiry_date', e.target.value)} />
+                                            </InputWrapper>
+
+                                            <InputWrapper label="QID Copy" error={errors.qid_file} className="md:col-span-2">
+                                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('qid_file', e)} />
+                                                <FilePreviewLink label="QID Document" file={employee.qid_file_path} />
+                                            </InputWrapper>
+
+                                            {/* Health Card & Food Handler */}
+                                            <InputWrapper label="Health Card Number" icon={EmployeeFieldIcons.card} error={errors.health_card_number}>
+                                                <input type="text" className={inputClasses} value={data.health_card_number} onChange={e => setData('health_card_number', e.target.value)} placeholder="Enter Health Card No." />
+                                            </InputWrapper>
+
+                                            <InputWrapper label="Health Card Expiry" error={errors.health_card_expiry_date}>
+                                                <input type="date" className={inputClasses} value={data.health_card_expiry_date} onChange={e => setData('health_card_expiry_date', e.target.value)} />
+                                            </InputWrapper>
+
+                                            <InputWrapper label="Food Handler Expiry" error={errors.food_handler_expiry_date}>
+                                                <input type="date" className={inputClasses} value={data.food_handler_expiry_date} onChange={e => setData('food_handler_expiry_date', e.target.value)} />
+                                            </InputWrapper>
+
+                                            <InputWrapper label="Food Handler Copy" error={errors.food_handler_file}>
+                                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-normal file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all" onChange={e => handleFileChange('food_handler_file', e)} />
+                                                <FilePreviewLink label="Food Handler Document" file={employee.food_handler_file_path} />
+                                            </InputWrapper>
+                                        </>
+                                    )}
                                 </div>
                             </section>
 
@@ -527,13 +592,13 @@ export default function EditEmployee(props) {
                                 <SectionHeader title="Contact & Reach" icon="📍" color="rose" />
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <InputWrapper label="Mobile Number" icon={EmployeeFieldIcons.mobile} error={errors.mobile}>
-                                        <input type="text" className={inputClasses} value={data.mobile} onChange={e => setData('mobile', e.target.value)} placeholder="+974 XXXX XXXX" />
+                                        <input type="text" className={inputClasses} value={data.mobile} onChange={e => setData('mobile', e.target.value)} placeholder={isIndiaMode ? "+91 XXXXX XXXXX" : "+974 XXXX XXXX"} />
                                     </InputWrapper>
                                     <InputWrapper label="Email Address" icon={EmployeeFieldIcons.email} error={errors.email} required={!!data.role}>
                                         <input type="email" className={inputClasses} value={data.email} onChange={e => setData('email', e.target.value)} placeholder="john@example.com" required={!!data.role} />
                                     </InputWrapper>
                                     <InputWrapper label="Current Location" icon={EmployeeFieldIcons.location} error={errors.location} className="md:col-span-2">
-                                        <input type="text" className={inputClasses} value={data.location} onChange={e => setData('location', e.target.value)} placeholder="e.g. Doha, Qatar" />
+                                        <input type="text" className={inputClasses} value={data.location} onChange={e => setData('location', e.target.value)} placeholder={isIndiaMode ? "e.g. Mumbai, India" : "e.g. Doha, Qatar"} />
                                     </InputWrapper>
                                 </div>
                             </section>
@@ -940,6 +1005,129 @@ export default function EditEmployee(props) {
                                         </div>
                                     </InputWrapper>
                                 </div>
+
+                                {/* Dynamic Payment Mode Specific Details */}
+                                {data.payment_type && (
+                                    <div className="mt-6 p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-4 animate-in fade-in duration-200">
+                                        <div className="flex items-center gap-2">
+                                            <div className="p-1.5 bg-indigo-100 text-indigo-700 rounded-md">
+                                                <FiCreditCard className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-xs font-semibold text-slate-800">
+                                                    {data.payment_type} Details
+                                                </h4>
+                                                <p className="text-[10px] text-slate-500">Provide payment and account details for {data.payment_type}.</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Bank Transfer / WPS Fields */}
+                                        {(data.payment_type.toLowerCase().includes('bank') || data.payment_type.toLowerCase().includes('wps') || data.payment_type.toLowerCase().includes('wire')) && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                <InputWrapper label="Bank Name" icon={<FiCreditCard />} error={errors.bank_name}>
+                                                    <input type="text" className={inputClasses} value={data.bank_name} onChange={e => setData('bank_name', e.target.value)} placeholder="e.g. Qatar National Bank / HDFC" />
+                                                </InputWrapper>
+
+                                                <InputWrapper label="Account Number" icon={<FiCreditCard />} error={errors.bank_account_number}>
+                                                    <input type="text" className={inputClasses} value={data.bank_account_number} onChange={e => setData('bank_account_number', e.target.value)} placeholder="e.g. 123456789012" />
+                                                </InputWrapper>
+
+                                                <InputWrapper label="Bank Code / IFSC / SWIFT" icon={<FiCreditCard />} error={errors.bank_code}>
+                                                    <input type="text" className={inputClasses} value={data.bank_code} onChange={e => setData('bank_code', e.target.value)} placeholder="e.g. QNBAQAQA / HDFC0001234" />
+                                                </InputWrapper>
+
+                                                <InputWrapper label="Branch Name" icon={<FiMapPin />} error={errors.bank_branch}>
+                                                    <input type="text" className={inputClasses} value={data.bank_branch} onChange={e => setData('bank_branch', e.target.value)} placeholder="e.g. Main Branch, Doha" />
+                                                </InputWrapper>
+
+                                                <InputWrapper label="IBAN Number" icon={<FiCreditCard />} error={errors.iban}>
+                                                    <input type="text" className={inputClasses} value={data.iban} onChange={e => setData('iban', e.target.value)} placeholder="e.g. QA58QNBA00000000123456" />
+                                                </InputWrapper>
+
+                                                <InputWrapper label="PAN / Tax ID" icon={<FiFileText />} error={errors.pan_number}>
+                                                    <input type="text" className={inputClasses} value={data.pan_number} onChange={e => setData('pan_number', e.target.value)} placeholder="e.g. ABCDE1234F" />
+                                                </InputWrapper>
+                                            </div>
+                                        )}
+
+                                        {/* Cheque Fields */}
+                                        {data.payment_type.toLowerCase().includes('cheque') && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <InputWrapper label="Bank Name" icon={<FiCreditCard />} error={errors.bank_name}>
+                                                    <input type="text" className={inputClasses} value={data.bank_name} onChange={e => setData('bank_name', e.target.value)} placeholder="e.g. State Bank of India" />
+                                                </InputWrapper>
+
+                                                <InputWrapper label="Payee Account No. / Notes" icon={<FiCreditCard />} error={errors.bank_account_number}>
+                                                    <input type="text" className={inputClasses} value={data.bank_account_number} onChange={e => setData('bank_account_number', e.target.value)} placeholder="Account No or Payee Name" />
+                                                </InputWrapper>
+
+                                                <InputWrapper label="Branch Name" icon={<FiMapPin />} error={errors.bank_branch}>
+                                                    <input type="text" className={inputClasses} value={data.bank_branch} onChange={e => setData('bank_branch', e.target.value)} placeholder="e.g. Downtown Branch" />
+                                                </InputWrapper>
+
+                                                <InputWrapper label="PAN / Tax ID" icon={<FiFileText />} error={errors.pan_number}>
+                                                    <input type="text" className={inputClasses} value={data.pan_number} onChange={e => setData('pan_number', e.target.value)} placeholder="e.g. ABCDE1234F" />
+                                                </InputWrapper>
+                                            </div>
+                                        )}
+
+                                        {/* UPI / Digital Wallet Fields */}
+                                        {(data.payment_type.toLowerCase().includes('upi') || data.payment_type.toLowerCase().includes('wallet') || data.payment_type.toLowerCase().includes('digital')) && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <InputWrapper label="UPI ID / VPA / Wallet ID" icon={<FiCreditCard />} error={errors.upi_id}>
+                                                    <input type="text" className={inputClasses} value={data.upi_id} onChange={e => setData('upi_id', e.target.value)} placeholder="e.g. username@okhdfcbank" />
+                                                </InputWrapper>
+
+                                                <InputWrapper label="Linked Bank Name (Optional)" icon={<FiCreditCard />} error={errors.bank_name}>
+                                                    <input type="text" className={inputClasses} value={data.bank_name} onChange={e => setData('bank_name', e.target.value)} placeholder="e.g. HDFC Bank" />
+                                                </InputWrapper>
+
+                                                <InputWrapper label="PAN / Tax ID" icon={<FiFileText />} error={errors.pan_number}>
+                                                    <input type="text" className={inputClasses} value={data.pan_number} onChange={e => setData('pan_number', e.target.value)} placeholder="e.g. ABCDE1234F" />
+                                                </InputWrapper>
+                                            </div>
+                                        )}
+
+                                        {/* Cash Fields */}
+                                        {data.payment_type.toLowerCase() === 'cash' && (
+                                            <div className="space-y-3">
+                                                <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-lg flex items-center gap-2.5 text-amber-800 text-xs">
+                                                    <FiDollarSign className="w-4 h-4 text-amber-600 shrink-0" />
+                                                    <span>Cash payment selected. Salary will be disbursed in cash. No bank account details are required.</span>
+                                                </div>
+                                                <div className="max-w-md">
+                                                    <InputWrapper label="PAN / Tax ID (Optional)" icon={<FiFileText />} error={errors.pan_number}>
+                                                        <input type="text" className={inputClasses} value={data.pan_number} onChange={e => setData('pan_number', e.target.value)} placeholder="e.g. ABCDE1234F" />
+                                                    </InputWrapper>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Fallback for other custom payment methods */}
+                                        {!data.payment_type.toLowerCase().includes('bank') &&
+                                         !data.payment_type.toLowerCase().includes('wps') &&
+                                         !data.payment_type.toLowerCase().includes('wire') &&
+                                         !data.payment_type.toLowerCase().includes('cheque') &&
+                                         !data.payment_type.toLowerCase().includes('upi') &&
+                                         !data.payment_type.toLowerCase().includes('wallet') &&
+                                         !data.payment_type.toLowerCase().includes('digital') &&
+                                         data.payment_type.toLowerCase() !== 'cash' && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <InputWrapper label="Provider / Bank Name" icon={<FiCreditCard />} error={errors.bank_name}>
+                                                    <input type="text" className={inputClasses} value={data.bank_name} onChange={e => setData('bank_name', e.target.value)} placeholder="e.g. Exchange / Bank Name" />
+                                                </InputWrapper>
+
+                                                <InputWrapper label="Account / Reference Number" icon={<FiCreditCard />} error={errors.bank_account_number}>
+                                                    <input type="text" className={inputClasses} value={data.bank_account_number} onChange={e => setData('bank_account_number', e.target.value)} placeholder="Reference / ID / Account Number" />
+                                                </InputWrapper>
+
+                                                <InputWrapper label="PAN / Tax ID" icon={<FiFileText />} error={errors.pan_number}>
+                                                    <input type="text" className={inputClasses} value={data.pan_number} onChange={e => setData('pan_number', e.target.value)} placeholder="e.g. ABCDE1234F" />
+                                                </InputWrapper>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Dynamic Salary Structures */}
                                 <div className="mt-8 pt-8 border-t border-slate-100">

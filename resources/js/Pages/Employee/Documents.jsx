@@ -1,10 +1,11 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, useForm, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { FaFileAlt, FaCloudUploadAlt, FaDownload, FaTrash, FaCheckCircle, FaExclamationCircle, FaTimesCircle, FaCalendarAlt, FaFileContract, FaInfoCircle } from 'react-icons/fa';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 
 export default function Documents({ employee, documents, documentTypes, userRole, settings }) {
+    const { auth } = usePage().props;
     const [showUploadModal, setShowUploadModal] = useState(false);
     const { data, setData, post, processing, errors, reset } = useForm({
         document_type_id: '',
@@ -15,7 +16,8 @@ export default function Documents({ employee, documents, documentTypes, userRole
         notes: '',
     });
 
-    const canUpload = ['admin', 'hr', 'manager'].includes(userRole);
+    const isOwnProfile = auth?.user?.employee_id === employee.id || (auth?.user?.role === 'employee' && auth?.user?.employee_id == employee.id);
+    const canUpload = ['admin', 'hr', 'manager'].includes(userRole) || isOwnProfile;
     const canDelete = ['admin', 'hr'].includes(userRole);
 
     const handleUpload = (e) => {

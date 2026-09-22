@@ -107,7 +107,7 @@ class TaskController extends Controller
 
         // BelongsToCompany handles isolation.
         $branches = \App\Models\Company::all(['id', 'name']);
-        $employees = \App\Models\Employee::all(['id', 'name', 'company_id', 'employee_image']);
+        $employees = Employee::all(['id', 'name', 'company_id', 'employee_image']);
         $projects = \App\Models\Project::all(['id', 'name', 'branch_id']);
         $parentTasks = Task::whereNull('parent_id')->get(['id', 'title']);
 
@@ -204,7 +204,7 @@ class TaskController extends Controller
      */
     private function notifyEmployee($employeeId, $notification)
     {
-        $employee = \App\Models\Employee::find($employeeId);
+        $employee = Employee::find($employeeId);
         if ($employee && $employee->user) {
             try {
                 $employee->user->notify($notification);
@@ -289,7 +289,7 @@ class TaskController extends Controller
 
         // BelongsToCompany handles branch isolation.
         $branches = \App\Models\Company::all(['id', 'name']);
-        $employees = \App\Models\Employee::all(['id', 'name', 'company_id', 'employee_image']);
+        $employees = Employee::all(['id', 'name', 'company_id', 'employee_image']);
         $projects = \App\Models\Project::all(['id', 'name', 'branch_id']);
         $parentTasks = Task::whereNull('parent_id')
             ->where('id', '!=', $task->id)

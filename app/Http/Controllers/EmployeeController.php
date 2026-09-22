@@ -215,6 +215,36 @@ class EmployeeController extends Controller
             $newUploadedFiles[] = $path;
         }
 
+        if ($request->hasFile('aadhar_file')) {
+            $path = $request->file('aadhar_file')->store('employee-docs', 'public');
+            $validated['aadhar_file_path'] = $path;
+            $newUploadedFiles[] = $path;
+        }
+
+        if ($request->hasFile('pan_file')) {
+            $path = $request->file('pan_file')->store('employee-docs', 'public');
+            $validated['pan_file_path'] = $path;
+            $newUploadedFiles[] = $path;
+        }
+
+        if ($request->hasFile('education_doc')) {
+            $path = $request->file('education_doc')->store('employee-docs', 'public');
+            $validated['education_doc_path'] = $path;
+            $newUploadedFiles[] = $path;
+        }
+
+        if ($request->hasFile('relieving_doc')) {
+            $path = $request->file('relieving_doc')->store('employee-docs', 'public');
+            $validated['relieving_doc_path'] = $path;
+            $newUploadedFiles[] = $path;
+        }
+
+        if ($request->hasFile('bank_doc')) {
+            $path = $request->file('bank_doc')->store('employee-docs', 'public');
+            $validated['bank_doc_path'] = $path;
+            $newUploadedFiles[] = $path;
+        }
+
         DB::beginTransaction();
         try {
             // Auto-update status based on exit status
@@ -251,17 +281,42 @@ class EmployeeController extends Controller
 
             // Handle Passport Document Creation
             if (isset($validated['passport_file_path'])) {
-                $this->createIdentityDocument($employee, 'Passport', $validated['passport_file_path'], $validated['passport_expiry_date'] ?? null);
+                $this->createIdentityDocument($employee, 'Passport', $validated['passport_file_path'], $validated['passport_expiry_date'] ?? null, 'Identity');
             }
 
             // Handle QID Document Creation
             if (isset($validated['qid_file_path'])) {
-                $this->createIdentityDocument($employee, 'QID', $validated['qid_file_path'], $validated['qid_expiry_date'] ?? null);
+                $this->createIdentityDocument($employee, 'QID', $validated['qid_file_path'], $validated['qid_expiry_date'] ?? null, 'Identity');
             }
 
             // Handle Food Handler Document Creation
             if (isset($validated['food_handler_file_path'])) {
-                $this->createIdentityDocument($employee, 'Food Handler', $validated['food_handler_file_path'], $validated['food_handler_expiry_date'] ?? null);
+                $this->createIdentityDocument($employee, 'Food Handler', $validated['food_handler_file_path'], $validated['food_handler_expiry_date'] ?? null, 'Medical');
+            }
+
+            // Handle Aadhar Document Creation
+            if (isset($validated['aadhar_file_path'])) {
+                $this->createIdentityDocument($employee, 'Aadhar Card', $validated['aadhar_file_path'], null, 'Identity');
+            }
+
+            // Handle PAN Document Creation
+            if (isset($validated['pan_file_path'])) {
+                $this->createIdentityDocument($employee, 'PAN Card', $validated['pan_file_path'], null, 'Identity');
+            }
+
+            // Handle Education Certificate Document Creation
+            if (isset($validated['education_doc_path'])) {
+                $this->createIdentityDocument($employee, 'Education Certificate', $validated['education_doc_path'], null, 'Academic');
+            }
+
+            // Handle Relieving Document Creation
+            if (isset($validated['relieving_doc_path'])) {
+                $this->createIdentityDocument($employee, 'Relieving Document', $validated['relieving_doc_path'], null, 'Experience');
+            }
+
+            // Handle Bank Document Creation
+            if (isset($validated['bank_doc_path'])) {
+                $this->createIdentityDocument($employee, 'Bank Details Document', $validated['bank_doc_path'], null, 'Financial');
             }
 
             // Create or Sync User and Role if role is provided
@@ -509,6 +564,51 @@ class EmployeeController extends Controller
             $newUploadedFiles[] = $path;
         }
 
+        if ($request->hasFile('aadhar_file')) {
+            if ($employee->aadhar_file_path) {
+                $oldFilesToDelete[] = $employee->aadhar_file_path;
+            }
+            $path = $request->file('aadhar_file')->store('employee-docs', 'public');
+            $validated['aadhar_file_path'] = $path;
+            $newUploadedFiles[] = $path;
+        }
+
+        if ($request->hasFile('pan_file')) {
+            if ($employee->pan_file_path) {
+                $oldFilesToDelete[] = $employee->pan_file_path;
+            }
+            $path = $request->file('pan_file')->store('employee-docs', 'public');
+            $validated['pan_file_path'] = $path;
+            $newUploadedFiles[] = $path;
+        }
+
+        if ($request->hasFile('education_doc')) {
+            if ($employee->education_doc_path) {
+                $oldFilesToDelete[] = $employee->education_doc_path;
+            }
+            $path = $request->file('education_doc')->store('employee-docs', 'public');
+            $validated['education_doc_path'] = $path;
+            $newUploadedFiles[] = $path;
+        }
+
+        if ($request->hasFile('relieving_doc')) {
+            if ($employee->relieving_doc_path) {
+                $oldFilesToDelete[] = $employee->relieving_doc_path;
+            }
+            $path = $request->file('relieving_doc')->store('employee-docs', 'public');
+            $validated['relieving_doc_path'] = $path;
+            $newUploadedFiles[] = $path;
+        }
+
+        if ($request->hasFile('bank_doc')) {
+            if ($employee->bank_doc_path) {
+                $oldFilesToDelete[] = $employee->bank_doc_path;
+            }
+            $path = $request->file('bank_doc')->store('employee-docs', 'public');
+            $validated['bank_doc_path'] = $path;
+            $newUploadedFiles[] = $path;
+        }
+
         DB::beginTransaction();
         try {
             // Auto-update status based on exit status
@@ -548,17 +648,42 @@ class EmployeeController extends Controller
 
             // Handle Passport Document Creation (only if new file uploaded)
             if (isset($validated['passport_file_path'])) {
-                $this->createIdentityDocument($employee, 'Passport', $validated['passport_file_path'], $validated['passport_expiry_date'] ?? null);
+                $this->createIdentityDocument($employee, 'Passport', $validated['passport_file_path'], $validated['passport_expiry_date'] ?? null, 'Identity');
             }
 
             // Handle QID Document Creation (only if new file uploaded)
             if (isset($validated['qid_file_path'])) {
-                $this->createIdentityDocument($employee, 'QID', $validated['qid_file_path'], $validated['qid_expiry_date'] ?? null);
+                $this->createIdentityDocument($employee, 'QID', $validated['qid_file_path'], $validated['qid_expiry_date'] ?? null, 'Identity');
             }
 
             // Handle Food Handler Document Creation (only if new file uploaded)
             if (isset($validated['food_handler_file_path'])) {
-                $this->createIdentityDocument($employee, 'Food Handler', $validated['food_handler_file_path'], $validated['food_handler_expiry_date'] ?? null);
+                $this->createIdentityDocument($employee, 'Food Handler', $validated['food_handler_file_path'], $validated['food_handler_expiry_date'] ?? null, 'Medical');
+            }
+
+            // Handle Aadhar Document Creation
+            if (isset($validated['aadhar_file_path'])) {
+                $this->createIdentityDocument($employee, 'Aadhar Card', $validated['aadhar_file_path'], null, 'Identity');
+            }
+
+            // Handle PAN Document Creation
+            if (isset($validated['pan_file_path'])) {
+                $this->createIdentityDocument($employee, 'PAN Card', $validated['pan_file_path'], null, 'Identity');
+            }
+
+            // Handle Education Certificate Document Creation
+            if (isset($validated['education_doc_path'])) {
+                $this->createIdentityDocument($employee, 'Education Certificate', $validated['education_doc_path'], null, 'Academic');
+            }
+
+            // Handle Relieving Document Creation
+            if (isset($validated['relieving_doc_path'])) {
+                $this->createIdentityDocument($employee, 'Relieving Document', $validated['relieving_doc_path'], null, 'Experience');
+            }
+
+            // Handle Bank Document Creation
+            if (isset($validated['bank_doc_path'])) {
+                $this->createIdentityDocument($employee, 'Bank Details Document', $validated['bank_doc_path'], null, 'Financial');
             }
 
             // Create or Sync User and Role if role is provided
@@ -817,7 +942,7 @@ class EmployeeController extends Controller
 
         // Fallback: If no employee with CEO/Founder designation exists yet, include admin users
         if ($leadership->isEmpty()) {
-            $adminUsers = \App\Models\User::where(function ($q) {
+            $adminUsers = User::where(function ($q) {
                 $q->where('role', 'admin')
                   ->orWhereHas('roles', function ($rq) {
                       $rq->whereIn('slug', ['admin', 'owner', 'founder', 'ceo', 'coo']);
@@ -904,11 +1029,11 @@ class EmployeeController extends Controller
 
 
 
-    private function createIdentityDocument($employee, $type, $path, $expiryDate)
+    private function createIdentityDocument($employee, $type, $path, $expiryDate = null, $category = 'Identity')
     {
         $docType = DocumentType::firstOrCreate(
             ['name' => $type],
-            ['category' => 'Identity', 'is_active' => true]
+            ['category' => $category, 'is_active' => true]
         );
 
         EmployeeDocument::updateOrCreate(

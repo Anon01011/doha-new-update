@@ -227,13 +227,15 @@ export default function ShowEmployee({ employee }) {
                                         <InfoItem icon={EmployeeFieldIcons.mobile} label="Mobile" value={employee.mobile} />
                                         <InfoItem icon={EmployeeFieldIcons.email} label="Email" value={employee.email} />
                                         <InfoItem icon={EmployeeFieldIcons.location} label="Current Location" value={employee.location} />
-                                        <InfoItem icon={EmployeeFieldIcons.passport} label="Passport No." value={employee.passport_number} />
-                                        <InfoItem icon={EmployeeFieldIcons.passport} label="Passport Exp." value={formatDate(employee.passport_expiry_date)} />
-                                        <InfoItem icon={EmployeeFieldIcons.card} label="QID No." value={employee.qid_number} />
-                                        <InfoItem icon={EmployeeFieldIcons.card} label="QID Exp." value={formatDate(employee.qid_expiry_date)} />
-                                        <InfoItem icon={EmployeeFieldIcons.card} label="Health Card No." value={employee.health_card_number} />
-                                        <InfoItem icon={EmployeeFieldIcons.card} label="Health Card Exp." value={formatDate(employee.health_card_expiry_date)} />
-                                        <InfoItem icon={EmployeeFieldIcons.card} label="Food Handler Exp." value={formatDate(employee.food_handler_expiry_date)} />
+                                        {employee.aadhar_number && <InfoItem icon={EmployeeFieldIcons.card} label="Aadhar No." value={employee.aadhar_number} />}
+                                        {employee.pan_number && <InfoItem icon={EmployeeFieldIcons.passport} label="PAN No." value={employee.pan_number} />}
+                                        {employee.passport_number && <InfoItem icon={EmployeeFieldIcons.passport} label="Passport No." value={employee.passport_number} />}
+                                        {employee.passport_expiry_date && <InfoItem icon={EmployeeFieldIcons.passport} label="Passport Exp." value={formatDate(employee.passport_expiry_date)} />}
+                                        {employee.qid_number && <InfoItem icon={EmployeeFieldIcons.card} label="QID No." value={employee.qid_number} />}
+                                        {employee.qid_expiry_date && <InfoItem icon={EmployeeFieldIcons.card} label="QID Exp." value={formatDate(employee.qid_expiry_date)} />}
+                                        {employee.health_card_number && <InfoItem icon={EmployeeFieldIcons.card} label="Health Card No." value={employee.health_card_number} />}
+                                        {employee.health_card_expiry_date && <InfoItem icon={EmployeeFieldIcons.card} label="Health Card Exp." value={formatDate(employee.health_card_expiry_date)} />}
+                                        {employee.food_handler_expiry_date && <InfoItem icon={EmployeeFieldIcons.card} label="Food Handler Exp." value={formatDate(employee.food_handler_expiry_date)} />}
                                     </div>
                                 </div>
 
@@ -254,6 +256,28 @@ export default function ShowEmployee({ employee }) {
                                         <InfoItem icon={EmployeeFieldIcons.sponsor} label="Sponsor" value={employee.sponsor} />
                                         <InfoItem icon={EmployeeFieldIcons.employee_category} label="System Role" value={employee.role_name} />
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* Payment & Banking Information */}
+                            <div className="bg-white rounded-lg border border-slate-100 shadow-lg shadow-slate-200/20 overflow-hidden">
+                                <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
+                                    <SectionTitle title="Payment & Banking Details" icon="💳" color="indigo" />
+                                    {employee.payment_type && (
+                                        <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md text-[10px] font-semibold uppercase">
+                                            {employee.payment_type}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <InfoItem icon={EmployeeFieldIcons.payment_type} label="Payment Mode" value={employee.payment_type || 'Bank Transfer'} />
+                                    {employee.bank_name && <InfoItem icon={EmployeeFieldIcons.card} label="Bank Name" value={employee.bank_name} />}
+                                    {employee.bank_account_number && <InfoItem icon={EmployeeFieldIcons.card} label="Account Number" value={employee.bank_account_number} />}
+                                    {employee.bank_code && <InfoItem icon={EmployeeFieldIcons.card} label="Bank / IFSC / SWIFT Code" value={employee.bank_code} />}
+                                    {employee.bank_branch && <InfoItem icon={EmployeeFieldIcons.location} label="Branch Name" value={employee.bank_branch} />}
+                                    {employee.iban && <InfoItem icon={EmployeeFieldIcons.card} label="IBAN Number" value={employee.iban} />}
+                                    {employee.upi_id && <InfoItem icon={EmployeeFieldIcons.card} label="UPI / Wallet ID" value={employee.upi_id} />}
+                                    {employee.pan_number && <InfoItem icon={EmployeeFieldIcons.passport} label="PAN / Tax ID" value={employee.pan_number} />}
                                 </div>
                             </div>
 
@@ -487,14 +511,13 @@ export default function ShowEmployee({ employee }) {
                                                                 <div className="text-xs font-semibold text-slate-800">
                                                                     ₹{Number(claim.total_amount || 0).toLocaleString('en-IN')}
                                                                 </div>
-                                                                <span className={`inline-block text-[9px] px-2 py-0.5 rounded font-normal uppercase tracking-wider mt-0.5 ${
-                                                                    claim.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
-                                                                    claim.status === 'approved' ? 'bg-indigo-100 text-indigo-700' :
-                                                                    claim.status === 'manager_approved' ? 'bg-sky-100 text-sky-700' :
-                                                                    claim.status === 'rejected' ? 'bg-rose-100 text-rose-700' :
-                                                                    claim.status === 'returned' ? 'bg-amber-100 text-amber-700' :
-                                                                    'bg-slate-200 text-slate-700'
-                                                                }`}>
+                                                                <span className={`inline-block text-[9px] px-2 py-0.5 rounded font-normal uppercase tracking-wider mt-0.5 ${claim.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
+                                                                        claim.status === 'approved' ? 'bg-indigo-100 text-indigo-700' :
+                                                                            claim.status === 'manager_approved' ? 'bg-sky-100 text-sky-700' :
+                                                                                claim.status === 'rejected' ? 'bg-rose-100 text-rose-700' :
+                                                                                    claim.status === 'returned' ? 'bg-amber-100 text-amber-700' :
+                                                                                        'bg-slate-200 text-slate-700'
+                                                                    }`}>
                                                                     {claim.status?.replace('_', ' ')}
                                                                 </span>
                                                             </div>
@@ -509,102 +532,186 @@ export default function ShowEmployee({ employee }) {
                                                 </div>
                                             )}
                                         </div>
-                                    </div>
+                                        {/* Documents Section */}
+                                        <div className="pt-4 border-t border-slate-200">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h4 className="text-sm font-normal text-slate-700 flex items-center gap-2">
+                                                    <span className="text-lg">📄</span>
+                                                    Personnel Documents
+                                                </h4>
+                                                <Link
+                                                    href={route('employees.documents.index', employee.id)}
+                                                    className="text-[10px] font-normal text-primary hover:underline uppercase tracking-wider"
+                                                >
+                                                    Open Vault →
+                                                </Link>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {employee.aadhar_file_path && (
+                                                    <button
+                                                        onClick={() => openLightbox(employee.aadhar_file_path, 'Aadhar Card')}
+                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0c0 .884-.25 1.705-.667 2.417C12.56 9.696 11.232 10 9.771 10c-1.462 0-2.79-.304-3.562-1.583A5.002 5.002 0 015.539 6H10" /></svg>
+                                                            </div>
+                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Aadhar Card</span>
+                                                        </div>
+                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                    </button>
+                                                )}
 
-                                    {/* Documents Section */}
-                                    <div className="pt-4 border-t border-slate-200">
-                                        <h4 className="text-sm font-normal text-slate-700 mb-4 flex items-center gap-2">
-                                            <span className="text-lg">📄</span>
-                                            Documents
-                                        </h4>
-                                        <div className="grid grid-cols-1 gap-2">
+                                                {employee.pan_file_path && (
+                                                    <button
+                                                        onClick={() => openLightbox(employee.pan_file_path, 'PAN Card')}
+                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0c0 .884-.25 1.705-.667 2.417C12.56 9.696 11.232 10 9.771 10c-1.462 0-2.79-.304-3.562-1.583A5.002 5.002 0 015.539 6H10" /></svg>
+                                                            </div>
+                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">PAN Card</span>
+                                                        </div>
+                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                    </button>
+                                                )}
+
+                                                {employee.education_doc_path && (
+                                                    <button
+                                                        onClick={() => openLightbox(employee.education_doc_path, 'Education Certificate')}
+                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" /></svg>
+                                                            </div>
+                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Education Certificate</span>
+                                                        </div>
+                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                    </button>
+                                                )}
+
+                                                {employee.relieving_doc_path && (
+                                                    <button
+                                                        onClick={() => openLightbox(employee.relieving_doc_path, 'Relieving Document')}
+                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                            </div>
+                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Relieving Doc</span>
+                                                        </div>
+                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                    </button>
+                                                )}
+
+                                                {employee.bank_doc_path && (
+                                                    <button
+                                                        onClick={() => openLightbox(employee.bank_doc_path, 'Bank Account Details Document')}
+                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                                                            </div>
+                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Bank Details Doc</span>
+                                                        </div>
+                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                    </button>
+                                            )}
+
                                             {employee.passport_file_path && (
-                                                <button
-                                                    onClick={() => openLightbox(employee.passport_file_path, 'Passport Document')}
-                                                    className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                                                    <button
+                                                        onClick={() => openLightbox(employee.passport_file_path, 'Passport Document')}
+                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                                                            </div>
+                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Passport</span>
                                                         </div>
-                                                        <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Passport</span>
-                                                    </div>
-                                                    <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                </button>
-                                            )}
+                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                    </button>
+                                                )}
 
-                                            {employee.qid_file_path && (
-                                                <button
-                                                    onClick={() => openLightbox(employee.qid_file_path, 'QID Document')}
-                                                    className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0c0 .884-.25 1.705-.667 2.417C12.56 9.696 11.232 10 9.771 10c-1.462 0-2.79-.304-3.562-1.583A5.002 5.002 0 015.539 6H10" /></svg>
+                                                {employee.qid_file_path && (
+                                                    <button
+                                                        onClick={() => openLightbox(employee.qid_file_path, 'QID Document')}
+                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0c0 .884-.25 1.705-.667 2.417C12.56 9.696 11.232 10 9.771 10c-1.462 0-2.79-.304-3.562-1.583A5.002 5.002 0 015.539 6H10" /></svg>
+                                                            </div>
+                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">QID Card</span>
                                                         </div>
-                                                        <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">QID Card</span>
-                                                    </div>
-                                                    <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                </button>
-                                            )}
-                                            {employee.food_handler_file_path && (
-                                                <button
-                                                    onClick={() => openLightbox(employee.food_handler_file_path, 'Food Handler Document')}
-                                                    className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                                        </div>
-                                                        <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Food Handler</span>
-                                                    </div>
-                                                    <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                </button>
-                                            )}
-                                            {employee.agreement_doc && (
-                                                <button
-                                                    onClick={() => openLightbox(employee.agreement_doc, 'Contract Document')}
-                                                    className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                                        </div>
-                                                        <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Contract</span>
-                                                    </div>
-                                                    <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                </button>
-                                            )}
+                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                    </button>
+                                                )}
 
-                                            {employee.resume_doc && (
-                                                <button
-                                                    onClick={() => openLightbox(employee.resume_doc, 'Resume Document')}
-                                                    className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                {employee.food_handler_file_path && (
+                                                    <button
+                                                        onClick={() => openLightbox(employee.food_handler_file_path, 'Food Handler Document')}
+                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                            </div>
+                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Food Handler</span>
                                                         </div>
-                                                        <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Resume</span>
-                                                    </div>
-                                                    <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                </button>
-                                            )}
+                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                    </button>
+                                                )}
 
-                                            {employee.other_docs && (
-                                                <button
-                                                    onClick={() => openLightbox(employee.other_docs, 'Other Documents')}
-                                                    className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
-                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                {employee.agreement_doc && (
+                                                    <button
+                                                        onClick={() => openLightbox(employee.agreement_doc, 'Contract Document')}
+                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                            </div>
+                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Contract</span>
                                                         </div>
-                                                        <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Other Docs</span>
-                                                    </div>
-                                                    <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                </button>
-                                            )}
+                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                    </button>
+                                                )}
+
+                                                {employee.resume_doc && (
+                                                    <button
+                                                        onClick={() => openLightbox(employee.resume_doc, 'Resume Document')}
+                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                            </div>
+                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Resume</span>
+                                                        </div>
+                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                    </button>
+                                                )}
+
+                                                {employee.other_docs && (
+                                                    <button
+                                                        onClick={() => openLightbox(employee.other_docs, 'Other Documents')}
+                                                        className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:text-primary">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                            </div>
+                                                            <span className="text-[9px] font-normal text-slate-600 uppercase tracking-normal">Other Docs</span>
+                                                        </div>
+                                                        <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

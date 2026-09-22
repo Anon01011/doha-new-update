@@ -39,8 +39,12 @@ class OffboardingController extends Controller
             'exitInterview',
         ]);
 
-        // Scope by company for non-admins
-        if ($user->role !== 'admin' && $user->employee_id) {
+        $isEmployeeOnly = $user->isEmployee() && !$user->isAdmin() && !$user->isHR() && !$user->hasPermission('approve-offboarding');
+
+        // Scope queries: employees see their own; HR/managers see their company; Admins see all
+        if ($isEmployeeOnly && $user->employee_id) {
+            $query->where('employee_id', $user->employee_id);
+        } elseif ($user->role !== 'admin' && $user->employee_id) {
             $query->byCompany($user->employee->company_id);
         } elseif ($company) {
             $query->byCompany($company);
@@ -74,7 +78,9 @@ class OffboardingController extends Controller
         $requests = $query->latest()->paginate(20)->withQueryString();
 
         // KPI summary
-        $base = OffboardingRequest::when($user->role !== 'admin' && $user->employee_id, fn($q) =>
+        $base = OffboardingRequest::when($isEmployeeOnly && $user->employee_id, fn($q) =>
+            $q->where('employee_id', $user->employee_id)
+        )->when(!$isEmployeeOnly && $user->role !== 'admin' && $user->employee_id, fn($q) =>
             $q->byCompany($user->employee->company_id)
         );
 

@@ -14,6 +14,7 @@ use App\Models\Loan;
 use App\Models\Advance;
 use App\Models\ExpenseClaim;
 use App\Models\ShiftRoster;
+use App\Models\OffboardingRequest;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Carbon\Carbon;
@@ -178,8 +179,15 @@ class EmployeeDashboardController extends Controller
             ->where('end_date', '>=', now()->toDateString())
             ->first();
 
+        // Offboarding / Resignation record for employee
+        $activeOffboarding = OffboardingRequest::with(['tasks', 'exitInterview'])
+            ->where('employee_id', $employee->id)
+            ->latest()
+            ->first();
+
         return Inertia::render('Employee/Dashboard', [
             'employee' => $employee,
+            'activeOffboarding' => $activeOffboarding,
             // Attendance
             'totalAttendance' => $totalAttendance,
             'thisMonthAttendance' => $thisMonthAttendance,

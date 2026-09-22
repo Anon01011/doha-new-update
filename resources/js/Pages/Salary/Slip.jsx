@@ -101,8 +101,12 @@ const numberToWords = (num) => {
 export default function Slip({ salaryPosting, loanInstallments = [], advances = [], overtimeDetails = null }) {
     const { appSettings } = usePage().props;
     const currency = appSettings?.currency || 'QAR';
+    const appCountry = appSettings?.app_country || (currency === 'INR' ? 'IN' : 'QA');
+    const slipFormat = appSettings?.salary_slip_format || 'classic';
+    const paymentDisplay = appSettings?.salary_slip_payment_display || 'full_details';
+    const showFullPaymentDetails = paymentDisplay === 'full_details';
 
-    // Configurable Toggles
+    // Configurable Toggles (Classic only)
     const showPhoto = appSettings?.salary_slip_show_photo !== false;
     const showCharts = appSettings?.salary_slip_show_charts !== false;
     const hasRightColumn = showPhoto || showCharts;
@@ -231,6 +235,274 @@ export default function Slip({ salaryPosting, loanInstallments = [], advances = 
 
     const employee = salaryPosting.employee || {};
 
+    // ─── Shared action bar (both formats) ────────────────────────────────────
+    const actionBar = (
+        <>
+            {salaryPosting.status?.toLowerCase() !== 'approved' && (
+                <div className="max-w-[800px] mx-auto mb-4 bg-amber-50 border border-amber-200 p-3.5 sm:p-4 rounded-xl flex items-center gap-3 text-amber-800 shadow-sm print:hidden">
+                    <div className="p-2 bg-amber-100 rounded-full shrink-0">
+                        <FiClock className="text-amber-600" />
+                    </div>
+                    <div>
+                        <p className="font-normal text-xs sm:text-sm">Action Required: Approval Pending</p>
+                        <p className="text-[11px] sm:text-xs opacity-80">This salary slip is currently in <strong>{salaryPosting.status}</strong> status. It must be approved before it can be printed or downloaded.</p>
+                    </div>
+                </div>
+            )}
+            <div className="max-w-[800px] mx-auto mb-4 print:hidden flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center bg-white p-3.5 sm:p-4 rounded-xl shadow-sm border border-slate-100">
+                <Link href={route('salary-postings.index')} className="text-slate-500 hover:text-slate-800 flex items-center gap-2 font-normal text-xs sm:text-sm">
+                    <FiArrowLeft /> Back to Postings
+                </Link>
+                <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                    {salaryPosting.status?.toLowerCase() === 'approved' && (
+                        <>
+                            <button
+                                onClick={handleDownload}
+                                className="flex-1 sm:flex-initial px-3.5 sm:px-4 py-2 bg-emerald-600 text-white rounded-lg font-normal text-xs sm:text-sm hover:bg-emerald-700 flex items-center justify-center gap-2 transition-all active:scale-95 whitespace-nowrap"
+                            >
+                                <FiDownload /> Download PDF
+                            </button>
+                            <button
+                                onClick={handlePrint}
+                                className="flex-1 sm:flex-initial px-3.5 sm:px-4 py-2 bg-blue-600 text-white rounded-lg font-normal text-xs sm:text-sm hover:bg-blue-700 flex items-center justify-center gap-2 whitespace-nowrap"
+                            >
+                                <FiPrinter /> Print Slip
+                            </button>
+                        </>
+                    )}
+                    {salaryPosting.status?.toLowerCase() !== 'approved' && (
+                        <div className="px-4 py-2 bg-gray-100 text-gray-400 rounded-lg font-normal text-xs flex items-center justify-center gap-2 cursor-not-allowed">
+                            <FiClock /> Pending Approval
+                        </div>
+                    )}
+                </div>
+            </div>
+        </>
+    );
+
+    // ─── Corporate (HDFC-style) format ────────────────────────────────────────
+    if (slipFormat === 'corporate') {
+        const grossSalary = basicSalary + allowancesTotal;
+
+        return (
+            <AuthenticatedLayout>
+                <Head title={`Salary Slip - ${employee.name}`} />
+                <div className="min-h-screen bg-[#F8FAFC] p-3 sm:p-6 lg:p-8 print:p-0 print:bg-white">
+                    {actionBar}
+                    <div className="overflow-x-auto pb-4 no-scrollbar">
+                        <div id="printable-slip" className="min-w-[680px] md:min-w-0 max-w-[780px] mx-auto bg-white border border-gray-200 shadow-xl print:shadow-none print:border-none print-container">
+                            {/* Corporate Header */}
+                            <div className="text-center py-5 border-b-2 border-gray-300">
+                                <h1 className="text-2xl font-bold tracking-widest text-gray-800 uppercase">{appSettings?.app_name || 'COMPANY'}</h1>
+                                <p className="text-xs text-gray-500 mt-1 italic">SALARY SLIP / PAY STUB</p>
+                                <p className="text-[10px] text-gray-400 mt-0.5">FOR ILLUSTRATION — NOT AN OFFICIAL DOCUMENT UNLESS STAMPED</p>
+                            </div>
+
+                            {/* Employee Info Grid */}
+                            <div className="border-b border-gray-200">
+                                <table className="w-full text-xs">
+                                    <tbody>
+                                        <tr className="border-b border-gray-100">
+                                            <td className="px-4 py-1.5 text-gray-500 w-1/4">Employee Name</td>
+                                            <td className="px-4 py-1.5 font-semibold text-gray-800 w-1/4">{employee.name || '—'}</td>
+                                            <td className="px-4 py-1.5 text-gray-500 w-1/4">Employee ID</td>
+                                            <td className="px-4 py-1.5 font-semibold text-gray-800 w-1/4">{employee.employee_code || '—'}</td>
+                                        </tr>
+                                        <tr className="border-b border-gray-100">
+                                            <td className="px-4 py-1.5 text-gray-500">Designation</td>
+                                            <td className="px-4 py-1.5 font-semibold text-gray-800">{employee.designation || '—'}</td>
+                                            <td className="px-4 py-1.5 text-gray-500">Department</td>
+                                            <td className="px-4 py-1.5 font-semibold text-gray-800">{employee.department?.name || '—'}</td>
+                                        </tr>
+                                        <tr className="border-b border-gray-100">
+                                            <td className="px-4 py-1.5 text-gray-500">Location</td>
+                                            <td className="px-4 py-1.5 font-semibold text-gray-800">{employee.location || employee.department?.name || '—'}</td>
+                                            <td className="px-4 py-1.5 text-gray-500">Pay Period</td>
+                                            <td className="px-4 py-1.5 font-semibold text-gray-800">{monthName} {salaryPosting.year}</td>
+                                        </tr>
+                                        <tr className="border-b border-gray-100">
+                                            <td className="px-4 py-1.5 text-gray-500">Date of Joining</td>
+                                            <td className="px-4 py-1.5 font-semibold text-gray-800">{formatDate(employee.joining_date)}</td>
+                                            <td className="px-4 py-1.5 text-gray-500">{appCountry === 'IN' ? 'PAN' : (appCountry === 'QA' ? 'QID / Visa' : 'PAN / Tax / QID')}</td>
+                                            <td className="px-4 py-1.5 font-semibold text-gray-800">{employee.pan_number || employee.aadhar_number || employee.qid_number || employee.passport_number || '—'}</td>
+                                        </tr>
+                                        <tr>
+                                            <td className="px-4 py-1.5 text-gray-500">Bank Account</td>
+                                            <td className="px-4 py-1.5 font-semibold text-gray-800">
+                                                {showFullPaymentDetails
+                                                    ? (employee.bank_account_number ? `${employee.bank_name ? employee.bank_name + ' - ' : ''}${employee.bank_account_number}` : (employee.upi_id ? `UPI: ${employee.upi_id}` : (employee.payment_type?.toLowerCase() === 'cash' ? 'Cash Payment' : '—')))
+                                                    : '—'}
+                                            </td>
+                                            <td className="px-4 py-1.5 text-gray-500">Mode of Pay</td>
+                                            <td className="px-4 py-1.5 font-semibold text-gray-800">{employee.payment_type || appSettings?.default_payment_method || 'Bank Transfer'}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Earnings Table */}
+                            <div className="mt-1">
+                                <table className="w-full text-xs border-collapse">
+                                    <thead>
+                                        <tr className="bg-gray-100 border-y border-gray-300">
+                                            <th className="px-4 py-2 text-left font-semibold text-gray-700 uppercase tracking-wide w-1/2">Earnings</th>
+                                            <th className="px-4 py-2 text-right font-semibold text-gray-700 uppercase tracking-wide">Monthly ({currency})</th>
+                                            <th className="px-4 py-2 text-right font-semibold text-gray-700 uppercase tracking-wide">Annual ({currency})</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr className="border-b border-gray-100">
+                                            <td className="px-4 py-1.5 text-gray-600">Basic Salary</td>
+                                            <td className="px-4 py-1.5 text-right text-gray-800">{formatCurrency(basicSalary)}</td>
+                                            <td className="px-4 py-1.5 text-right text-gray-800">{formatCurrency(basicSalary * 12)}</td>
+                                        </tr>
+                                        {Object.entries(allowances).map(([key, value]) => parseFloat(value) > 0 && (
+                                            <tr key={key} className="border-b border-gray-100">
+                                                <td className="px-4 py-1.5 text-gray-600 capitalize">{key.replace(/_/g, ' ')}</td>
+                                                <td className="px-4 py-1.5 text-right text-gray-800">{formatCurrency(value)}</td>
+                                                <td className="px-4 py-1.5 text-right text-gray-800">{formatCurrency(parseFloat(value) * 12)}</td>
+                                            </tr>
+                                        ))}
+                                        {overtimeAmount > 0 && (
+                                            <tr className="border-b border-gray-100 bg-emerald-50/30">
+                                                <td className="px-4 py-1.5 text-gray-600">Overtime Pay</td>
+                                                <td className="px-4 py-1.5 text-right text-emerald-700 font-medium">{formatCurrency(overtimeAmount)}</td>
+                                                <td className="px-4 py-1.5 text-right text-gray-400 italic text-[10px]">variable</td>
+                                            </tr>
+                                        )}
+                                        <tr className="bg-gray-50 border-y border-gray-300 font-semibold">
+                                            <td className="px-4 py-2 text-gray-800 uppercase tracking-wide text-[11px]">Gross Salary</td>
+                                            <td className="px-4 py-2 text-right text-gray-900">{formatCurrency(totalEarnings)}</td>
+                                            <td className="px-4 py-2 text-right text-gray-900">{formatCurrency((grossSalary) * 12)}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Deductions Table */}
+                            <div className="mt-3">
+                                <table className="w-full text-xs border-collapse">
+                                    <thead>
+                                        <tr className="bg-gray-100 border-y border-gray-300">
+                                            <th className="px-4 py-2 text-left font-semibold text-gray-700 uppercase tracking-wide">Deductions</th>
+                                            <th className="px-4 py-2 text-right font-semibold text-gray-700 uppercase tracking-wide">Amount ({currency})</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Object.entries(deductions).map(([key, value]) => parseFloat(value) > 0 && (
+                                            <tr key={key} className="border-b border-gray-100">
+                                                <td className="px-4 py-1.5 text-gray-600 capitalize">{key.replace(/_/g, ' ')}</td>
+                                                <td className="px-4 py-1.5 text-right text-gray-800">{formatCurrency(value)}</td>
+                                            </tr>
+                                        ))}
+                                        {leaveDeduction > 0 && (
+                                            <tr className="border-b border-gray-100">
+                                                <td className="px-4 py-1.5 text-gray-600">Leave Deduction</td>
+                                                <td className="px-4 py-1.5 text-right text-gray-800">{formatCurrency(leaveDeduction)}</td>
+                                            </tr>
+                                        )}
+                                        {loanInstallments.map((li, i) => parseFloat(li.amount) > 0 && (
+                                            <tr key={`loan-${i}`} className="border-b border-gray-100">
+                                                <td className="px-4 py-1.5 text-gray-600">Loan: {li.loan?.loan_type?.name || 'Repayment'}</td>
+                                                <td className="px-4 py-1.5 text-right text-gray-800">{formatCurrency(li.amount)}</td>
+                                            </tr>
+                                        ))}
+                                        {advances.map((adv, i) => parseFloat(adv.amount) > 0 && (
+                                            <tr key={`adv-${i}`} className="border-b border-gray-100">
+                                                <td className="px-4 py-1.5 text-gray-600">Advance Repayment</td>
+                                                <td className="px-4 py-1.5 text-right text-gray-800">{formatCurrency(adv.amount)}</td>
+                                            </tr>
+                                        ))}
+                                        {allDeductions === 0 && (
+                                            <tr className="border-b border-gray-100">
+                                                <td className="px-4 py-1.5 text-gray-400 italic">No deductions</td>
+                                                <td className="px-4 py-1.5 text-right text-gray-400">{formatCurrency(0)}</td>
+                                            </tr>
+                                        )}
+                                        <tr className="bg-gray-50 border-y border-gray-300 font-semibold">
+                                            <td className="px-4 py-2 text-gray-800 uppercase tracking-wide text-[11px]">Total Deductions</td>
+                                            <td className="px-4 py-2 text-right text-gray-900">{formatCurrency(allDeductions)}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Summary Rows */}
+                            <div className="mt-3 border-y-2 border-gray-400">
+                                <table className="w-full text-xs">
+                                    <tbody>
+                                        <tr className="border-b border-gray-200">
+                                            <td className="px-4 py-1.5 text-gray-600 w-1/2">Gross Salary</td>
+                                            <td className="px-4 py-1.5 text-right font-semibold text-gray-800">{formatCurrency(totalEarnings)}</td>
+                                        </tr>
+                                        <tr className="border-b border-gray-200">
+                                            <td className="px-4 py-1.5 text-gray-600">Total Deductions</td>
+                                            <td className="px-4 py-1.5 text-right font-semibold text-rose-700">{formatCurrency(allDeductions)}</td>
+                                        </tr>
+                                        <tr className="bg-gray-800 text-white">
+                                            <td className="px-4 py-2.5 font-bold text-sm uppercase tracking-wide">Net Salary Payable</td>
+                                            <td className="px-4 py-2.5 text-right font-bold text-sm">{formatCurrency(netSalary)}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Amount in Words */}
+                            <div className="px-4 py-3 border-b border-gray-200 text-xs">
+                                <span className="text-gray-500">Amount in Words: </span>
+                                <span className="font-semibold text-gray-800 capitalize ml-1">{wordsStr}</span>
+                            </div>
+
+                            {/* Footer / Stamp */}
+                            <div className="px-4 py-4 flex justify-between items-end">
+                                <div className="text-[10px] text-gray-400 italic max-w-xs leading-relaxed">
+                                    Note: This is a system-generated salary slip. Actual salary components and deductions vary by employee, location, tax regime, and applicable rules.
+                                </div>
+                                <div className="text-right text-[10px] text-gray-500">
+                                    {stampImage ? (
+                                        <img src={`/storage/${stampImage}`} alt="Company Stamp" className="h-14 object-contain -rotate-12 mix-blend-multiply mb-1 ml-auto" />
+                                    ) : (
+                                        <div className="border border-dashed border-gray-300 text-gray-400 inline-block px-3 py-1 -rotate-6 mb-1 text-[9px]">STAMP</div>
+                                    )}
+                                    <div className="font-semibold">{appSettings?.app_name || 'Company'}</div>
+                                    <div>Finance &amp; HR Department</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <style>{`
+                    @media print {
+                        @page { size: A4; margin: 10mm; }
+                        nav, header, aside, footer, .print\\:hidden, [role="navigation"], button,
+                        .lg\\:fixed, .sticky, .fixed.inset-0 {
+                            display: none !important; width: 0 !important; height: 0 !important;
+                            overflow: hidden !important; opacity: 0 !important; pointer-events: none !important;
+                        }
+                        body { margin: 0 !important; padding: 0 !important;
+                            -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background: white !important; }
+                        div.lg\\:pl-\\[78px\\], div.lg\\:pl-\\[260px\\] { padding-left: 0 !important; margin-left: 0 !important; }
+                        .min-h-screen { min-height: 0 !important; background: white !important; padding: 0 !important; margin: 0 !important; }
+                        main { padding: 0 !important; margin: 0 !important; display: block !important; }
+                        .print-container { display: block !important; visibility: visible !important; opacity: 1 !important;
+                            width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; border: none !important; }
+                    }
+                `}</style>
+                <ConfirmationModal
+                    show={warningModal.show}
+                    onClose={() => setWarningModal({ show: false, message: '' })}
+                    onConfirm={() => setWarningModal({ show: false, message: '' })}
+                    title="Slip Not Yet Approved"
+                    message={warningModal.message}
+                    confirmText="Understood"
+                    hideCancel={true}
+                    type="warning"
+                />
+            </AuthenticatedLayout>
+        );
+    }
+
+    // ─── Classic format (original) ────────────────────────────────────────────
     return (
         <AuthenticatedLayout>
             <Head title={`Salary Slip - ${employee.name}`} />
@@ -311,8 +583,8 @@ export default function Slip({ salaryPosting, loanInstallments = [], advances = 
                                             <div className="w-2/3 font-normal uppercase">{employee.department?.name || '-'}</div>
                                         </div>
                                         <div className="flex border-b border-gray-200 p-1 px-2">
-                                            <div className="w-1/3">QID/Passport no.</div>
-                                            <div className="w-2/3 font-normal uppercase">{employee.qid_number || employee.passport_number || '-'}</div>
+                                            <div className="w-1/3">{appCountry === 'IN' ? 'PAN / Aadhar no.' : (appCountry === 'QA' ? 'QID/Passport no.' : 'PAN / QID / Passport')}</div>
+                                            <div className="w-2/3 font-normal uppercase">{employee.pan_number || employee.aadhar_number || employee.qid_number || employee.passport_number || '-'}</div>
                                         </div>
                                         <div className="flex p-1 px-2">
                                             <div className="w-1/3">Date of Joining</div>
@@ -333,14 +605,18 @@ export default function Slip({ salaryPosting, loanInstallments = [], advances = 
                                             <div className="w-1/3">Year of salary</div>
                                             <div className="w-2/3 font-normal uppercase">{salaryPosting.year}</div>
                                         </div>
-                                        <div className="flex border-b border-gray-200 p-1 px-2">
+                                        <div className={`flex ${showFullPaymentDetails ? 'border-b border-gray-200' : ''} p-1 px-2`}>
                                             <div className="w-1/3">Mode of pay</div>
                                             <div className="w-2/3 font-normal uppercase">{employee.payment_type || appSettings?.default_payment_method || 'Bank Transfer'}</div>
                                         </div>
-                                        <div className="flex p-1 px-2">
-                                            <div className="w-1/3">Bank account no.</div>
-                                            <div className="w-2/3 font-normal uppercase">{employee.bank_account_number || '-'}</div>
-                                        </div>
+                                        {showFullPaymentDetails && (
+                                            <div className="flex p-1 px-2">
+                                                <div className="w-1/3">Bank account no.</div>
+                                                <div className="w-2/3 font-normal uppercase">
+                                                    {employee.bank_account_number ? `${employee.bank_name ? employee.bank_name + ' - ' : ''}${employee.bank_account_number}` : (employee.upi_id ? `UPI: ${employee.upi_id}` : (employee.payment_type?.toLowerCase() === 'cash' ? 'Cash' : '-'))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 

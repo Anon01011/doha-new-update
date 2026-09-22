@@ -6,7 +6,7 @@ import {
     FiTrendingUp, FiArrowRight, FiBriefcase, FiAlertTriangle,
     FiFileText, FiPieChart, FiDollarSign, FiCamera, FiTarget,
     FiAward, FiBarChart2, FiStar, FiThumbsUp, FiFlag, FiLayers,
-    FiPlus
+    FiPlus, FiUserMinus, FiCheckSquare, FiExternalLink, FiShield
 } from 'react-icons/fi';
 import Avatar from '@/Components/Avatar';
 
@@ -95,7 +95,8 @@ export default function Dashboard({
     totalClaimedAmount = 0,
     totalReimbursedAmount = 0,
     recentExpenses = [],
-    todayHoliday
+    todayHoliday,
+    activeOffboarding = null
 }) {
     const fileInput = useRef();
     const [isUploading, setIsUploading] = useState(false);
@@ -131,7 +132,20 @@ export default function Dashboard({
         closed: { label: 'Closed', color: 'bg-slate-200 text-slate-700' },
     };
 
+    const offboardingStatusConfig = {
+        pending_approval: { label: 'Pending Approval', color: 'bg-amber-100 text-amber-800 border-amber-200', dot: 'bg-amber-500 animate-pulse' },
+        approved: { label: 'Approved (Notice Active)', color: 'bg-blue-100 text-blue-800 border-blue-200', dot: 'bg-blue-500' },
+        in_progress: { label: 'Clearance In Progress', color: 'bg-indigo-100 text-indigo-800 border-indigo-200', dot: 'bg-indigo-500 animate-pulse' },
+        clearance_pending: { label: 'Department Clearance', color: 'bg-indigo-100 text-indigo-800 border-indigo-200', dot: 'bg-indigo-500' },
+        exit_interview_pending: { label: 'Exit Interview Pending', color: 'bg-purple-100 text-purple-800 border-purple-200', dot: 'bg-purple-500 animate-pulse' },
+        settlement_pending: { label: 'Final Settlement Pending', color: 'bg-amber-100 text-amber-800 border-amber-200', dot: 'bg-amber-500' },
+        completed: { label: 'Separation Completed', color: 'bg-emerald-100 text-emerald-800 border-emerald-200', dot: 'bg-emerald-500' },
+        rejected: { label: 'Separation Rejected', color: 'bg-rose-100 text-rose-800 border-rose-200', dot: 'bg-rose-500' },
+        cancelled: { label: 'Separation Cancelled', color: 'bg-slate-100 text-slate-800 border-slate-200', dot: 'bg-slate-400' },
+    };
+
     const getEvalStatus = (status) => evalStatusConfig[status] || { label: status, color: 'bg-slate-100 text-slate-600' };
+    const getOffboardingStatus = (status) => offboardingStatusConfig[status] || { label: status?.replace('_', ' ') || 'In Progress', color: 'bg-slate-100 text-slate-700 border-slate-200', dot: 'bg-slate-400' };
 
     const scoreColor = (score) => {
         if (score >= 80) return 'text-emerald-600';
@@ -238,6 +252,58 @@ export default function Dashboard({
                         </div>
                     </div>
                 </div>
+
+                {/* Offboarding / Resignation Active Status Alert */}
+                {activeOffboarding && !['cancelled'].includes(activeOffboarding.status) && (
+                    <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-md border border-indigo-900/50 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+                            <div className="flex items-start sm:items-center gap-3.5">
+                                <div className="p-2.5 bg-white/10 text-indigo-300 rounded-xl shrink-0 border border-white/10">
+                                    <FiUserMinus className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                                        <h4 className="text-sm font-bold text-white">
+                                            Separation Notice: {activeOffboarding.request_number || `#${activeOffboarding.id}`}
+                                        </h4>
+                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${getOffboardingStatus(activeOffboarding.status).color}`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${getOffboardingStatus(activeOffboarding.status).dot}`}></span>
+                                            {getOffboardingStatus(activeOffboarding.status).label}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-slate-300 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                        <span>Type: <strong className="text-white capitalize">{activeOffboarding.separation_reason?.replace('_', ' ')}</strong></span>
+                                        <span>•</span>
+                                        <span>Last Working Day: <strong className="text-white">{activeOffboarding.proposed_last_working_day}</strong></span>
+                                        {activeOffboarding.tasks && activeOffboarding.tasks.length > 0 && (
+                                            <>
+                                                <span>•</span>
+                                                <span>Clearance: <strong className="text-white">{activeOffboarding.tasks.filter(t => t.status === 'completed' || t.status === 'waived').length} / {activeOffboarding.tasks.length}</strong> tasks cleared</span>
+                                            </>
+                                        )}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+                                {activeOffboarding.exit_interview && activeOffboarding.exit_interview.status === 'pending' && (
+                                    <Link
+                                        href={route('offboarding.exit-interview.show', activeOffboarding.id)}
+                                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5"
+                                    >
+                                        <FiFileText className="w-3.5 h-3.5" /> Take Exit Interview
+                                    </Link>
+                                )}
+                                <Link
+                                    href={route('offboarding.show', activeOffboarding.request_number || activeOffboarding.id)}
+                                    className="px-3.5 py-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5"
+                                >
+                                    View Status <FiArrowRight className="w-3.5 h-3.5" />
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Quick Stats Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4">
@@ -604,6 +670,74 @@ export default function Dashboard({
                                     <p className="text-xs text-slate-400 italic text-center py-3">No salary slips posted yet.</p>
                                 )}
                             </div>
+                        </SectionCard>
+
+                        {/* Employment & Separation Widget */}
+                        <SectionCard
+                            title="Resignation & Separation"
+                            icon={FiUserMinus}
+                            action={
+                                activeOffboarding ? (
+                                    <Link
+                                        href={route('offboarding.show', activeOffboarding.request_number || activeOffboarding.id)}
+                                        className="text-xs font-semibold text-rose-600 hover:text-rose-800 flex items-center gap-1"
+                                    >
+                                        View Track <FiArrowRight className="w-3 h-3" />
+                                    </Link>
+                                ) : (
+                                    <Link
+                                        href={route('offboarding.create')}
+                                        className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1"
+                                    >
+                                        <FiPlus className="w-3 h-3" /> Apply
+                                    </Link>
+                                )
+                            }
+                        >
+                            {activeOffboarding ? (
+                                <div className="space-y-3">
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70">
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Active Request</span>
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${getOffboardingStatus(activeOffboarding.status).color}`}>
+                                                {getOffboardingStatus(activeOffboarding.status).label}
+                                            </span>
+                                        </div>
+                                        <div className="text-xs font-bold text-slate-900">{activeOffboarding.request_number || `#${activeOffboarding.id}`}</div>
+                                        <div className="text-[11px] text-slate-500 mt-0.5">
+                                            LWD: <strong className="text-slate-700">{activeOffboarding.proposed_last_working_day}</strong>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+                                        <span>Notice Period Status</span>
+                                        <span className="font-semibold text-slate-800 capitalize">{activeOffboarding.status?.replace('_', ' ')}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-slate-500">Employment Status</span>
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            Active Verified
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-slate-500">Service Tenure</span>
+                                        <span className="font-medium text-slate-700">
+                                            {employee.joined_date ? `Joined ${employee.joined_date}` : 'Active'}
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 leading-relaxed border-t border-slate-100 pt-2.5">
+                                        To submit a formal notice of separation, resignation, or contract completion, initiate an offboarding request.
+                                    </p>
+                                    <Link
+                                        href={route('offboarding.create')}
+                                        className="w-full py-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 border border-slate-200"
+                                    >
+                                        <FiUserMinus className="w-3.5 h-3.5" /> Submit Resignation / Notice
+                                    </Link>
+                                </div>
+                            )}
                         </SectionCard>
 
                         {/* Warning Letters if any */}

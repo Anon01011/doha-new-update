@@ -23,6 +23,7 @@ export default function SystemSettings({ systemSettings }) {
         app_url: systemSettings.app_url,
         app_timezone: systemSettings.app_timezone,
         app_locale: systemSettings.app_locale,
+        app_country: systemSettings.app_country || (systemSettings.currency === 'INR' ? 'IN' : 'QA'),
         currency: systemSettings.currency || '',
         currency_symbol: systemSettings.currency_symbol || '',
         logo: null,
@@ -202,6 +203,33 @@ export default function SystemSettings({ systemSettings }) {
                                     </select>
                                     {errors.app_timezone && (
                                         <p className="text-[10px] font-normal text-rose-500 ml-1">{errors.app_timezone}</p>
+                                    )}
+                                </div>
+
+                                {/* Country / Operating Region */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-normal text-gray-700 ml-1">
+                                        Country / Region Compliance
+                                    </label>
+                                    <select
+                                        value={data.app_country}
+                                        onChange={(e) => {
+                                            const country = e.target.value;
+                                            setData(prev => ({
+                                                ...prev,
+                                                app_country: country,
+                                                currency: country === 'IN' ? 'INR' : (country === 'QA' ? 'QAR' : prev.currency),
+                                                currency_symbol: country === 'IN' ? '₹' : (country === 'QA' ? 'QAR' : prev.currency_symbol),
+                                            }));
+                                        }}
+                                        className="w-full rounded-lg border-gray-200 bg-gray-50/50 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-normal"
+                                    >
+                                        <option value="QA">Qatar (QID, Visa, Health & Food Cards)</option>
+                                        <option value="IN">India (Aadhar, PAN, Relieving, Bank & Education Docs)</option>
+                                        <option value="ALL">Global / All Document Types</option>
+                                    </select>
+                                    {errors.app_country && (
+                                        <p className="text-[10px] font-normal text-rose-500 ml-1">{errors.app_country}</p>
                                     )}
                                 </div>
 

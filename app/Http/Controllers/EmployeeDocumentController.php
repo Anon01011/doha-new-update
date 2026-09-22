@@ -52,12 +52,13 @@ class EmployeeDocumentController extends Controller
     {
         $user = auth()->user();
 
-        // Only admin, hr, manager can upload documents
-        if (!in_array($user->role, ['admin', 'hr', 'manager'])) {
-            abort(403, 'Unauthorized.');
+        // Authorization: admin, hr, manager OR employee uploading their own document
+        $isSelfEmployee = ($user->role === 'employee' && $user->employee_id == $employee->id);
+        if (!in_array($user->role, ['admin', 'hr', 'manager']) && !$isSelfEmployee) {
+            abort(403, 'Unauthorized to upload documents.');
         }
 
-        // Manager/HR from different branch check
+        // Manager/HR/Employee from different branch check
         if ($user->role !== 'admin' && $user->employee_id && $employee->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
@@ -124,7 +125,8 @@ class EmployeeDocumentController extends Controller
             abort(404, 'Document file not found.');
         }
 
-        return Storage::disk('public')->download($document->file_path, $document->document_name . '.' . $document->file_type);
+        $absolutePath = Storage::disk('public')->path($document->file_path);
+        return response()->download($absolutePath, $document->document_name . '.' . $document->file_type);
     }
 
     public function destroy(EmployeeDocument $document)

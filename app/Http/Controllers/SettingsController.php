@@ -127,6 +127,7 @@ class SettingsController extends Controller
             'app_url' => 'required|url',
             'app_timezone' => 'required|string',
             'app_locale' => 'required|string|max:10',
+            'app_country' => 'nullable|string|in:QA,IN,AE,US,ALL',
             'currency' => 'required|string|max:10',
             'currency_symbol' => 'required|string|max:10',
             'logo' => 'nullable|image|mimes:png,jpg,jpeg,svg|max:2048',
@@ -190,6 +191,7 @@ class SettingsController extends Controller
             Setting::set('app_url', $appUrl, 'branding', 'string', $companyId);
             Setting::set('app_timezone', $request->app_timezone, 'branding', 'string', $companyId);
             Setting::set('app_locale', $request->app_locale, 'branding', 'string', $companyId);
+            Setting::set('app_country', $request->app_country ?: ($currency === 'INR' ? 'IN' : 'QA'), 'branding', 'string', $companyId);
             Setting::set('currency', $currency, 'branding', 'string', $companyId);
             Setting::set('currency_symbol', $currencySymbol, 'branding', 'string', $companyId);
             Setting::set('theme_color', $request->theme_color ?: '#090b4e', 'branding', 'string', $companyId);
@@ -302,6 +304,7 @@ class SettingsController extends Controller
             'app_url' => Setting::get('app_url', env('APP_URL', 'http://localhost'), $companyId),
             'app_timezone' => Setting::get('app_timezone', env('APP_TIMEZONE', 'UTC'), $companyId),
             'app_locale' => Setting::get('app_locale', env('APP_LOCALE', 'en'), $companyId),
+            'app_country' => Setting::get('app_country', (Setting::get('currency', 'INR', $companyId) === 'INR' ? 'IN' : 'QA'), $companyId),
             'currency' => Setting::get('currency', 'INR', $companyId),
             'currency_symbol' => Setting::get('currency_symbol', '₹', $companyId),
             'app_logo' => Setting::get('app_logo', null, $companyId),
@@ -510,6 +513,8 @@ class SettingsController extends Controller
             'salary_slip_stamp' => 'nullable|image|mimes:png,jpg,jpeg,svg|max:2048',
             'salary_slip_show_photo' => 'nullable|boolean',
             'salary_slip_show_charts' => 'nullable|boolean',
+            'salary_slip_format' => 'nullable|in:classic,corporate',
+            'salary_slip_payment_display' => 'nullable|in:mode_only,full_details',
             'payment_methods' => 'nullable|string',
             'default_payment_method' => 'nullable|string',
         ]);
@@ -793,12 +798,34 @@ class SettingsController extends Controller
 
     // ==================== Integration Settings ====================
 
+    /**
+     * Fields that contain sensitive secrets/tokens — mask their values before
+     * sending to the frontend (to prevent API credential leakage via Inertia props).
+     */
+    private const INTEGRATION_SECRET_FIELDS = [
+        'whatsapp_api_token',
+        'sms_api_token',
+        'twilio_token',
+        'vonage_api_secret',
+        'infobip_api_key',
+        'messagebird_access_key',
+        'plivo_auth_token',
+    ];
+
     public function integrationSettings()
     {
         $user = auth()->user();
         $companyId = $user->employee_id ? $user->employee->company_id : null;
 
         $settings = $this->getModuleSettings('integration', $companyId);
+
+        // Mask secrets: replace real token value with '***' placeholder.
+        // The update method below will ignore '***' values so existing secrets are preserved.
+        foreach (self::INTEGRATION_SECRET_FIELDS as $field) {
+            if (!empty($settings[$field])) {
+                $settings[$field] = '***';
+            }
+        }
 
         return Inertia::render('Settings/IntegrationSettings', [
             'settings' => $settings,
@@ -868,6 +895,10 @@ class SettingsController extends Controller
         $companyId = $user->employee_id ? $user->employee->company_id : null;
 
         foreach ($validated as $key => $value) {
+            // Skip masked placeholder '***' for secret fields — preserve the existing stored secret.
+            if ($value === '***' && in_array($key, self::INTEGRATION_SECRET_FIELDS)) {
+                continue;
+            }
             Setting::set($key, $value, 'integration', $this->getSettingType($value), $companyId);
         }
 

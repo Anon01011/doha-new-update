@@ -238,12 +238,12 @@ export default function AuthenticatedLayout({ header, children }) {
                     permissions: ['view-warning-letters']
                 },
                 {
-                    name: 'Offboarding',
+                    name: userRole === 'employee' ? 'Resignation / Exit' : 'Offboarding',
                     href: route('offboarding.index'),
                     icon: <FiUserMinus className="h-4 w-4" />,
                     current: route().current('offboarding.*'),
-                    permissions: ['view-offboarding'],
-                    roles: ['admin', 'hr', 'manager']
+                    permissions: ['view-offboarding', 'create-offboarding'],
+                    roles: ['admin', 'hr', 'manager', 'employee']
                 }
             ]
         },

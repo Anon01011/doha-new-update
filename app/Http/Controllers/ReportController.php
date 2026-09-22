@@ -2838,11 +2838,11 @@ class ReportController extends Controller
                 'month' => $m,
                 'month_name' => date('M', mktime(0, 0, 0, $m, 1)),
                 'total' => $all->filter(function ($r) use ($m) {
-                    $d = $r->proposed_last_working_day ? \Carbon\Carbon::parse($r->proposed_last_working_day) : null;
+                    $d = $r->proposed_last_working_day ? Carbon::parse($r->proposed_last_working_day) : null;
                     return $d && (int) $d->format('n') === $m;
                 })->count(),
                 'completed' => $all->filter(function ($r) use ($m) {
-                    $d = $r->proposed_last_working_day ? \Carbon\Carbon::parse($r->proposed_last_working_day) : null;
+                    $d = $r->proposed_last_working_day ? Carbon::parse($r->proposed_last_working_day) : null;
                     return $d && (int) $d->format('n') === $m && $r->status === 'completed';
                 })->count(),
             ];
