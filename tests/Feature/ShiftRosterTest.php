@@ -80,11 +80,11 @@ class ShiftRosterTest extends TestCase
 
         $response->assertStatus(200);
 
-        // Verify Inertia returns all employees and company_id is null/empty
+        // Verify Inertia defaults company_id to first company and filters employees accordingly
         $response->assertInertia(fn (Assert $page) => $page
             ->component('ShiftRoster/Index')
-            ->where('company_id', null)
-            ->has('employees', 2)
+            ->where('company_id', $this->branch1->id)
+            ->has('employees', 1)
         );
     }
 
