@@ -305,7 +305,7 @@ export default function Show({
                                 <span>•</span>
                                 <span>{offboarding.employee?.department?.name || 'Department'}</span>
                                 <span>•</span>
-                                <span>{offboarding.employee?.company?.name || 'Salon Branch'}</span>
+                                <span>{offboarding.employee?.company?.name || 'Company Branch'}</span>
                                 <span>•</span>
                                 <span>{REASON_LABELS[offboarding.separation_reason] || offboarding.separation_reason}</span>
                             </p>
@@ -582,7 +582,7 @@ export default function Show({
                                     ['Employee Code', offboarding.employee?.employee_code],
                                     ['Department', offboarding.employee?.department?.name || '—'],
                                     ['Designation', offboarding.employee?.designation || 'Staff'],
-                                    ['Salon / Branch', offboarding.employee?.company?.name || '—'],
+                                    ['Company / Branch', offboarding.employee?.company?.name || '—'],
                                     ['Last Working Day', offboarding.proposed_last_working_day
                                         ? new Date(offboarding.proposed_last_working_day).toLocaleDateString('en-IN') : '—'],
                                     ['Notice Period', `${offboarding.notice_period_days || 0} days`],

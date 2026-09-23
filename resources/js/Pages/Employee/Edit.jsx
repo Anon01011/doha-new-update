@@ -5,6 +5,8 @@ import axios from 'axios';
 import Lightbox from '@/Components/Lightbox';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import SearchableSelect from '@/Components/SearchableSelect';
+import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
 import {
     FiUser, FiCreditCard, FiMapPin, FiBriefcase, FiClock, FiDollarSign,
     FiFileText, FiPlus, FiTrash2, FiArrowRight, FiArrowLeft, FiEye,
@@ -64,7 +66,9 @@ export default function EditEmployee(props) {
         nationality: employee.nationality || '',
         sponsor: employee.sponsor || '',
         company_id: employee.company_id || '',
+        company_ids: employee.company_ids ? employee.company_ids.map(String) : (employee.company_id ? [String(employee.company_id)] : []),
         department_id: employee.department_id || '',
+        department_ids: employee.department_ids ? employee.department_ids.map(String) : (employee.department_id ? [String(employee.department_id)] : []),
         location: employee.location || '',
         joined_date: formatDate(employee.joined_date),
         rejoined_date: formatDate(employee.rejoined_date),
@@ -125,23 +129,64 @@ export default function EditEmployee(props) {
         })),
     });
 
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
+
     // Fetch branches departments
     useEffect(() => {
-        if (data.company_id) {
-            axios.get(route('api.departments.byBranch', { branch_id: data.company_id }))
-                .then(res => setFilteredDepartments(res.data.departments || []))
-                .catch(() => setFilteredDepartments([]));
+        const branchIds = (data.company_ids && data.company_ids.length > 0)
+            ? data.company_ids
+            : (data.company_id ? [data.company_id] : []);
+
+        if (branchIds.length > 0) {
+            axios.get(route('api.departments.byBranch', { branch_id: branchIds }))
+                .then(res => {
+                    const depts = res.data.departments || [];
+                    setFilteredDepartments(depts);
+
+                    if (!isInitialLoad) {
+                        const validIds = new Set(depts.map(d => String(d.id)));
+                        const currentDeptIds = (data.department_ids || []).map(String);
+                        const validDeptIds = currentDeptIds.filter(id => validIds.has(id));
+
+                        if (validDeptIds.length !== currentDeptIds.length) {
+                            setData(prev => ({
+                                ...prev,
+                                department_ids: validDeptIds,
+                                department_id: validDeptIds[0] || ''
+                            }));
+                        }
+                    }
+                    setIsInitialLoad(false);
+                })
+                .catch(() => {
+                    setFilteredDepartments([]);
+                    if (!isInitialLoad) {
+                        setData(prev => ({ ...prev, department_ids: [], department_id: '' }));
+                    }
+                    setIsInitialLoad(false);
+                });
         } else {
             setFilteredDepartments([]);
+            if (!isInitialLoad && ((data.department_ids && data.department_ids.length > 0) || data.department_id)) {
+                setData(prev => ({ ...prev, department_ids: [], department_id: '' }));
+            }
+            setIsInitialLoad(false);
         }
-    }, [data.company_id]);
+    }, [data.company_ids, data.company_id]);
 
     // Fetch reporting staff
     useEffect(() => {
-        if (data.department_id || data.company_id) {
+        const branchIds = (data.company_ids && data.company_ids.length > 0)
+            ? data.company_ids
+            : (data.company_id ? [data.company_id] : []);
+        const deptIds = (data.department_ids && data.department_ids.length > 0)
+            ? data.department_ids
+            : (data.department_id ? [data.department_id] : []);
+
+        if (deptIds.length > 0 || branchIds.length > 0) {
             axios.get(route('api.employees.byDepartment', {
-                department_id: data.department_id,
-                company_id: data.company_id
+                department_id: deptIds[0] || '',
+                company_id: branchIds[0] || ''
             }))
                 .then(res => {
                     setDepartmentEmployees(res.data.employees || []);
@@ -155,7 +200,7 @@ export default function EditEmployee(props) {
             setDepartmentEmployees([]);
             setBranchManagers([]);
         }
-    }, [data.department_id, data.company_id]);
+    }, [data.department_ids, data.company_ids, data.department_id, data.company_id]);
 
     const isHrOrManager = useMemo(() => {
         const role = (data.role || '').toLowerCase();
@@ -187,6 +232,96 @@ export default function EditEmployee(props) {
             'Office Assistant / Helper',
         ];
     }, [constants.designations]);
+
+    // Formatted dropdown options
+    const companyOptions = useMemo(() => {
+        return (companies || []).map(c => ({ value: String(c.id), label: c.name }));
+    }, [companies]);
+
+    const departmentOptions = useMemo(() => {
+        return (filteredDepartments || []).map(d => ({ value: String(d.id), label: d.name }));
+    }, [filteredDepartments]);
+
+    const designationOptions = useMemo(() => {
+        const opts = designationList.map(opt => ({ value: opt, label: opt }));
+        if (data.designation && !designationList.includes(data.designation)) {
+            opts.unshift({ value: data.designation, label: data.designation });
+        }
+        return opts;
+    }, [designationList, data.designation]);
+
+    const reportingOptions = useMemo(() => {
+        if (isHrOrManager) {
+            return (executiveLeaders || []).map(exec => ({
+                value: exec.name,
+                label: `${exec.name} (${exec.designation || 'Executive Leader'})`
+            }));
+        }
+
+        const groups = [];
+        if (executiveLeaders && executiveLeaders.length > 0) {
+            groups.push({
+                label: 'Executive Leadership',
+                options: executiveLeaders.map(exec => ({
+                    value: exec.name,
+                    label: `${exec.name} (${exec.designation || 'Executive Leader'})`
+                }))
+            });
+        }
+        if (departmentEmployees && departmentEmployees.length > 0) {
+            groups.push({
+                label: 'Department Staff',
+                options: departmentEmployees.map(emp => ({
+                    value: emp.name,
+                    label: `${emp.name} ${emp.designation ? `(${emp.designation})` : ''}`
+                }))
+            });
+        }
+        if (branchManagers && branchManagers.length > 0) {
+            groups.push({
+                label: 'Branch Management / Staff',
+                options: branchManagers.map(mgr => ({
+                    value: mgr.name,
+                    label: `${mgr.name} ${mgr.designation ? `(${mgr.designation})` : ''}`
+                }))
+            });
+        }
+        return groups;
+    }, [isHrOrManager, executiveLeaders, departmentEmployees, branchManagers]);
+
+    const roleOptions = useMemo(() => {
+        return (availableRoles || []).map(r => ({ value: r.slug, label: r.name }));
+    }, [availableRoles]);
+
+    const genderOptions = useMemo(() => {
+        return (constants.genders || ['Male', 'Female', 'Other']).map(g => ({ value: g, label: g }));
+    }, [constants.genders]);
+
+    const shiftOptions = useMemo(() => {
+        return (constants.shifts || ['Morning', 'Evening', 'General', 'Rotational']).map(s => ({ value: s, label: s }));
+    }, [constants.shifts]);
+
+    const categoryOptions = useMemo(() => {
+        return (constants.employee_categories || ['Permanent', 'Contract', 'Probation', 'Intern']).map(c => ({ value: c, label: c }));
+    }, [constants.employee_categories]);
+
+    const contractDurationOptions = useMemo(() => {
+        return (constants.contract_durations || ['1 Year', '2 Years', '3 Years', '5 Years', 'Unlimited']).map(opt => ({ value: opt, label: opt }));
+    }, [constants.contract_durations]);
+
+    const statusOptions = useMemo(() => [
+        { value: 'active', label: 'Active (Full Access)' },
+        { value: 'waiting', label: 'Pending Review / Onboarding' },
+        { value: 'inactive', label: 'Inactive' },
+    ], []);
+
+    const leaveStatusOptions = useMemo(() => {
+        return (constants.leave_statuses || ['Available', 'On Leave', 'Sick Leave', 'Unpaid Leave']).map(opt => ({ value: opt, label: opt }));
+    }, [constants.leave_statuses]);
+
+    const exitStatusOptions = useMemo(() => {
+        return (constants.exit_statuses || ['Resigned', 'Terminated', 'End of Contract', 'Absconded']).map(opt => ({ value: opt, label: opt }));
+    }, [constants.exit_statuses]);
 
     const [confirmingAction, setConfirmingAction] = useState({
         show: false,
@@ -401,7 +536,7 @@ export default function EditEmployee(props) {
             <Head title={`Edit Employee - ${employee.name}`} />
 
             <div className={`min-h-screen bg-slate-50/60 pb-24 relative ${processing ? 'pointer-events-none opacity-60' : ''}`}>
-                
+
                 {/* Full-screen Loading Overlay */}
                 {processing && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
@@ -436,9 +571,8 @@ export default function EditEmployee(props) {
                                         <span className="text-xs font-mono font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md">
                                             {employee.employee_code}
                                         </span>
-                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                                            employee.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
-                                        }`}>
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${employee.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                                            }`}>
                                             {employee.status?.toUpperCase() || 'ACTIVE'}
                                         </span>
                                     </div>
@@ -478,15 +612,13 @@ export default function EditEmployee(props) {
                                         key={tab.id}
                                         type="button"
                                         onClick={() => setActiveTab(tab.id)}
-                                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                                            isActive
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${isActive
                                                 ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20 ring-2 ring-indigo-600/20'
                                                 : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-                                        }`}
+                                            }`}
                                     >
-                                        <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] ${
-                                            isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-                                        }`}>
+                                        <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                                            }`}>
                                             {idx + 1}
                                         </span>
                                         <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
@@ -506,7 +638,7 @@ export default function EditEmployee(props) {
                 {/* Main Content Area */}
                 <div className="w-full px-4 sm:px-8 lg:px-10 pt-8">
                     <form onSubmit={handleSubmit}>
-                        
+
                         {/* ============================================================== */}
                         {/* TAB 1: PERSONAL & CONTACT INFORMATION */}
                         {/* ============================================================== */}
@@ -576,9 +708,8 @@ export default function EditEmployee(props) {
                                             </label>
                                             <input
                                                 type="text"
-                                                className={`w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-mono transition-all ${
-                                                    canEditCode ? 'bg-slate-50/50 focus:bg-white' : 'bg-slate-100 text-slate-500 cursor-not-allowed'
-                                                }`}
+                                                className={`w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-mono transition-all ${canEditCode ? 'bg-slate-50/50 focus:bg-white' : 'bg-slate-100 text-slate-500 cursor-not-allowed'
+                                                    }`}
                                                 value={data.employee_code}
                                                 onChange={e => canEditCode && setData('employee_code', e.target.value)}
                                                 readOnly={!canEditCode}
@@ -593,17 +724,13 @@ export default function EditEmployee(props) {
                                                 <span>Gender</span>
                                                 <span className="text-rose-500">*</span>
                                             </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
+                                            <SearchableSelect
+                                                name="gender"
                                                 value={data.gender}
+                                                options={genderOptions}
                                                 onChange={e => setData('gender', e.target.value)}
-                                                required
-                                            >
-                                                <option value="">Select Gender</option>
-                                                {(constants.genders || ['Male', 'Female', 'Other']).map(opt => (
-                                                    <option key={opt} value={opt}>{opt}</option>
-                                                ))}
-                                            </select>
+                                                placeholder="Select Gender"
+                                            />
                                         </div>
 
                                         {/* DOB */}
@@ -725,43 +852,44 @@ export default function EditEmployee(props) {
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {/* Branch */}
+                                        {/* Branch / Company Locations (Multi-select) */}
                                         <div className="space-y-1.5">
-                                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                                                <FiBriefcase className="w-3.5 h-3.5 text-blue-500" />
-                                                <span>Branch / Company</span>
-                                                <span className="text-rose-500">*</span>
-                                            </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
-                                                value={data.company_id}
-                                                onChange={e => setData('company_id', e.target.value)}
-                                                required
-                                            >
-                                                <option value="">Select Branch</option>
-                                                {companies.map(c => (
-                                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                                ))}
-                                            </select>
+                                            <MultiCheckboxSelect
+                                                label="Branch / Company Locations"
+                                                options={companyOptions}
+                                                value={data.company_ids}
+                                                onChange={(vals) => {
+                                                    setData(prev => ({
+                                                        ...prev,
+                                                        company_ids: vals,
+                                                        company_id: vals.length > 0 ? vals[0] : ''
+                                                    }));
+                                                }}
+                                                placeholder="Select branches..."
+                                                searchPlaceholder="Search branches..."
+                                                required={true}
+                                                error={errors.company_ids || errors.company_id}
+                                            />
                                         </div>
 
-                                        {/* Department */}
+                                        {/* Department (Multi-select) */}
                                         <div className="space-y-1.5">
-                                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                                                <FiLayers className="w-3.5 h-3.5 text-blue-500" />
-                                                <span>Department</span>
-                                            </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white disabled:opacity-50"
-                                                value={data.department_id}
-                                                onChange={e => setData('department_id', e.target.value)}
-                                                disabled={!data.company_id}
-                                            >
-                                                <option value="">{data.company_id ? 'Select Department' : 'Select Branch First'}</option>
-                                                {filteredDepartments.map(d => (
-                                                    <option key={d.id} value={d.id}>{d.name}</option>
-                                                ))}
-                                            </select>
+                                            <MultiCheckboxSelect
+                                                label="Departments"
+                                                options={departmentOptions}
+                                                value={data.department_ids}
+                                                onChange={(vals) => {
+                                                    setData(prev => ({
+                                                        ...prev,
+                                                        department_ids: vals,
+                                                        department_id: vals.length > 0 ? vals[0] : ''
+                                                    }));
+                                                }}
+                                                placeholder={(data.company_ids && data.company_ids.length > 0) ? "Select departments..." : "Select branch first"}
+                                                searchPlaceholder="Search departments..."
+                                                disabled={!data.company_ids || data.company_ids.length === 0}
+                                                error={errors.department_ids || errors.department_id}
+                                            />
                                         </div>
 
                                         {/* Designation */}
@@ -770,19 +898,14 @@ export default function EditEmployee(props) {
                                                 <FiBriefcase className="w-3.5 h-3.5 text-blue-500" />
                                                 <span>Designation</span>
                                             </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
+                                            <SearchableSelect
+                                                name="designation"
                                                 value={data.designation}
+                                                options={designationOptions}
                                                 onChange={e => setData('designation', e.target.value)}
-                                            >
-                                                <option value="">Select Designation</option>
-                                                {designationList.map(opt => (
-                                                    <option key={opt} value={opt}>{opt}</option>
-                                                ))}
-                                                {data.designation && !designationList.includes(data.designation) && (
-                                                    <option value={data.designation}>{data.designation}</option>
-                                                )}
-                                            </select>
+                                                placeholder="Search & Select Designation"
+                                            />
+                                            {errors.designation && <p className="text-xs font-medium text-rose-500">{errors.designation}</p>}
                                         </div>
 
                                         {/* Reports To */}
@@ -791,54 +914,14 @@ export default function EditEmployee(props) {
                                                 <FiUser className="w-3.5 h-3.5 text-blue-500" />
                                                 <span>Supervisor / Reports To</span>
                                             </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
+                                            <SearchableSelect
+                                                name="reported_to"
                                                 value={data.reported_to}
+                                                options={reportingOptions}
                                                 onChange={e => setData('reported_to', e.target.value)}
-                                            >
-                                                <option value="">Select Reporting Person</option>
-                                                {isHrOrManager ? (
-                                                    executiveLeaders.length > 0 && (
-                                                        <optgroup label="Executive Leadership">
-                                                            {executiveLeaders.map(exec => (
-                                                                <option key={exec.id} value={exec.name}>
-                                                                    {exec.name} ({exec.designation || 'Executive Leader'})
-                                                                </option>
-                                                            ))}
-                                                        </optgroup>
-                                                    )
-                                                ) : (
-                                                    <>
-                                                        {departmentEmployees.length > 0 && (
-                                                            <optgroup label="Department Staff">
-                                                                {departmentEmployees.map(emp => (
-                                                                    <option key={emp.id} value={emp.name}>
-                                                                        {emp.name} {emp.designation ? `(${emp.designation})` : ''}
-                                                                    </option>
-                                                                ))}
-                                                            </optgroup>
-                                                        )}
-                                                        {branchManagers.length > 0 && (
-                                                            <optgroup label="Branch Management">
-                                                                {branchManagers.map(mgr => (
-                                                                    <option key={mgr.id} value={mgr.name}>
-                                                                        {mgr.name} {mgr.designation ? `(${mgr.designation})` : ''}
-                                                                    </option>
-                                                                ))}
-                                                            </optgroup>
-                                                        )}
-                                                        {executiveLeaders.length > 0 && (
-                                                            <optgroup label="Executive Leadership">
-                                                                {executiveLeaders.map(exec => (
-                                                                    <option key={exec.id} value={exec.name}>
-                                                                        {exec.name} ({exec.designation || 'Executive'})
-                                                                    </option>
-                                                                ))}
-                                                            </optgroup>
-                                                        )}
-                                                    </>
-                                                )}
-                                            </select>
+                                                placeholder={isHrOrManager ? 'Select Executive Authority (CEO / Founder)' : 'Select Reporting Supervisor'}
+                                            />
+                                            {errors.reported_to && <p className="text-xs font-medium text-rose-500">{errors.reported_to}</p>}
                                         </div>
 
                                         {/* System Role */}
@@ -847,16 +930,13 @@ export default function EditEmployee(props) {
                                                 <FiShield className="w-3.5 h-3.5 text-blue-500" />
                                                 <span>Portal Access Role</span>
                                             </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
+                                            <SearchableSelect
+                                                name="role"
                                                 value={data.role}
+                                                options={roleOptions}
                                                 onChange={e => setData('role', e.target.value)}
-                                            >
-                                                <option value="">No System Role (Staff Only)</option>
-                                                {availableRoles.map(r => (
-                                                    <option key={r.id} value={r.slug}>{r.name}</option>
-                                                ))}
-                                            </select>
+                                                placeholder="No System Role (Staff Only)"
+                                            />
                                         </div>
 
                                         {/* Joining Date */}
@@ -879,16 +959,13 @@ export default function EditEmployee(props) {
                                                 <FiClock className="w-3.5 h-3.5 text-blue-500" />
                                                 <span>Assigned Shift</span>
                                             </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
+                                            <SearchableSelect
+                                                name="shift"
                                                 value={data.shift}
+                                                options={shiftOptions}
                                                 onChange={e => setData('shift', e.target.value)}
-                                            >
-                                                <option value="">Select Shift</option>
-                                                {(constants.shifts || ['Morning', 'Evening', 'General', 'Rotational']).map(s => (
-                                                    <option key={s} value={s}>{s}</option>
-                                                ))}
-                                            </select>
+                                                placeholder="Select Shift"
+                                            />
                                         </div>
 
                                         {/* Category */}
@@ -897,16 +974,13 @@ export default function EditEmployee(props) {
                                                 <FiLayers className="w-3.5 h-3.5 text-blue-500" />
                                                 <span>Staff Category</span>
                                             </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
+                                            <SearchableSelect
+                                                name="employee_category"
                                                 value={data.employee_category}
+                                                options={categoryOptions}
                                                 onChange={e => setData('employee_category', e.target.value)}
-                                            >
-                                                <option value="">Select Category</option>
-                                                {(constants.employee_categories || ['Permanent', 'Contract', 'Probation', 'Intern']).map(c => (
-                                                    <option key={c} value={c}>{c}</option>
-                                                ))}
-                                            </select>
+                                                placeholder="Select Category"
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -918,7 +992,7 @@ export default function EditEmployee(props) {
                         {/* ============================================================== */}
                         {activeTab === 'salary' && (
                             <div className="space-y-6 animate-in fade-in duration-200">
-                                
+
                                 {/* Live Salary Banner */}
                                 <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 rounded-2xl p-6 text-white shadow-xl">
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
@@ -1418,16 +1492,13 @@ export default function EditEmployee(props) {
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-semibold text-slate-700">Contract Duration</label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
+                                            <SearchableSelect
+                                                name="contract_duration"
                                                 value={data.contract_duration}
+                                                options={contractDurationOptions}
                                                 onChange={e => setData('contract_duration', e.target.value)}
-                                            >
-                                                <option value="">Select Duration</option>
-                                                {(constants.contract_durations || ['1 Year', '2 Years', '3 Years', '5 Years', 'Unlimited']).map(opt => (
-                                                    <option key={opt} value={opt}>{opt}</option>
-                                                ))}
-                                            </select>
+                                                placeholder="Select Duration"
+                                            />
                                         </div>
 
                                         <div className="space-y-1.5">
@@ -1452,43 +1523,35 @@ export default function EditEmployee(props) {
 
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-semibold text-slate-700">Employee Status</label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
+                                            <SearchableSelect
+                                                name="manual_status"
                                                 value={data.manual_status}
+                                                options={statusOptions}
                                                 onChange={e => setData('manual_status', e.target.value)}
-                                            >
-                                                <option value="active">Active</option>
-                                                <option value="waiting">Pending Review</option>
-                                                <option value="inactive">Inactive</option>
-                                            </select>
+                                                placeholder="Select Status"
+                                            />
                                         </div>
 
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-semibold text-slate-700">Leave Status</label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
+                                            <SearchableSelect
+                                                name="leave_status"
                                                 value={data.leave_status}
+                                                options={leaveStatusOptions}
                                                 onChange={e => setData('leave_status', e.target.value)}
-                                            >
-                                                <option value="">Select Status</option>
-                                                {(constants.leave_statuses || ['Available', 'On Leave', 'Sick Leave', 'Unpaid Leave']).map(opt => (
-                                                    <option key={opt} value={opt}>{opt}</option>
-                                                ))}
-                                            </select>
+                                                placeholder="Select Leave Status"
+                                            />
                                         </div>
 
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-semibold text-slate-700">Exit Status</label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
+                                            <SearchableSelect
+                                                name="exit_status"
                                                 value={data.exit_status}
+                                                options={exitStatusOptions}
                                                 onChange={e => setData('exit_status', e.target.value)}
-                                            >
-                                                <option value="">Select Exit Status</option>
-                                                {(constants.exit_statuses || ['Resigned', 'Terminated', 'End of Contract', 'Absconded']).map(opt => (
-                                                    <option key={opt} value={opt}>{opt}</option>
-                                                ))}
-                                            </select>
+                                                placeholder="Select Exit Status"
+                                            />
                                         </div>
                                     </div>
                                 </div>

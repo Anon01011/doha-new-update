@@ -291,21 +291,21 @@ class EmployeeEvaluationController extends Controller
         }
 
         $validated = $request->validate([
-            'criteria_scores' => 'nullable|array',
-            'self_scores' => 'nullable|array',
-            'self_comments' => 'nullable|string',
-            'achievements' => 'nullable|string',
-            'development_needs' => 'nullable|string',
-            'goals' => 'nullable|array',
-            'comments' => 'nullable|string',
-            'increment_recommended' => 'nullable|numeric|min:0',
-            'increment_percentage' => 'nullable|numeric|min:0|max:100',
-            'promotion_recommended' => 'nullable|boolean',
-            'recommended_designation' => 'nullable|string',
-            'pip_required' => 'nullable|boolean',
-            'pip_notes' => 'nullable|string',
-            'training_recommended' => 'nullable|array',
-            'status' => 'nullable|string',
+            'criteria_scores'          => 'nullable|array',
+            'self_scores'              => 'nullable|array',
+            'self_comments'            => 'nullable|string',
+            'achievements'             => 'nullable|string',
+            'development_needs'        => 'nullable|string',
+            'goals'                    => 'nullable|array',
+            'comments'                 => 'nullable|string',
+            'increment_recommended'    => 'nullable|numeric|min:0',
+            'increment_percentage'     => 'nullable|numeric|min:0|max:100',
+            'promotion_recommended'    => 'nullable|boolean',
+            'recommended_designation'  => 'nullable|string|max:255',
+            'pip_required'             => 'nullable|boolean',
+            'pip_notes'                => 'nullable|string',
+            'training_recommended'     => 'nullable|array',
+            'status'                   => 'nullable|string',
         ]);
 
         $overallScore = $evaluation->overall_score;
@@ -315,11 +315,14 @@ class EmployeeEvaluationController extends Controller
             $overallScore = round(($average / 4) * 100, 2);
         }
 
-        $pipRequired = $validated['pip_required'] ?? ($overallScore > 0 && $overallScore < 50);
+        // Auto-flag PIP if score < 50 unless explicitly set
+        $pipRequired = isset($validated['pip_required'])
+            ? (bool)$validated['pip_required']
+            : ($overallScore > 0 && $overallScore < 50);
 
         $evaluation->update(array_merge($validated, [
             'overall_score' => $overallScore,
-            'pip_required' => $pipRequired,
+            'pip_required'  => $pipRequired,
         ]));
 
         return redirect()->route('evaluations.show', $evaluation)->with('success', 'Performance evaluation updated successfully.');
@@ -389,23 +392,44 @@ class EmployeeEvaluationController extends Controller
         $applyIncrement = $request->boolean('apply_increment', true);
         $applyPromotion = $request->boolean('apply_promotion', true);
 
-        // Execute Increment to Employee Basic Salary in INR if approved
-        if ($applyIncrement && ($evaluation->increment_recommended > 0 || $evaluation->increment_percentage > 0)) {
-            $employee = $evaluation->employee;
-            if ($employee) {
-                $currentBasic = (float)$employee->basic_salary;
-                $incrementAmt = $evaluation->increment_recommended ?: ($currentBasic * ($evaluation->increment_percentage / 100));
-                $newBasic = $currentBasic + $incrementAmt;
+        // ---------------------------------------------------------------
+        // Apply Salary Increment
+        // Priority: use increment_recommended (fixed ₹) if > 0,
+        // otherwise calculate from increment_percentage.
+        // Both fields are mutually exclusive in the UI (only one is sent).
+        // ---------------------------------------------------------------
+        if ($applyIncrement) {
+            $fixedAmt = (float) ($evaluation->increment_recommended ?? 0);
+            $pctAmt   = (float) ($evaluation->increment_percentage ?? 0);
 
-                $employee->update([
-                    'basic_salary' => round($newBasic, 2),
-                ]);
+            if ($fixedAmt > 0 || $pctAmt > 0) {
+                $employee = $evaluation->employee;
+                if ($employee) {
+                    $currentBasic = (float) $employee->basic_salary;
+
+                    // Determine increment amount
+                    if ($fixedAmt > 0) {
+                        // Fixed amount takes priority
+                        $incrementAmt = $fixedAmt;
+                    } else {
+                        // Percentage-based
+                        $incrementAmt = $currentBasic * ($pctAmt / 100);
+                    }
+
+                    $newBasic = $currentBasic + $incrementAmt;
+
+                    $employee->update([
+                        'basic_salary' => round($newBasic, 2),
+                    ]);
+                }
             }
         }
 
-        // Execute Promotion to new designation if approved
+        // ---------------------------------------------------------------
+        // Apply Promotion — update designation if recommended
+        // ---------------------------------------------------------------
         if ($applyPromotion && $evaluation->promotion_recommended && $evaluation->recommended_designation) {
-            $employee = $evaluation->employee;
+            $employee = $evaluation->employee ?? $evaluation->fresh()->employee;
             if ($employee) {
                 $employee->update([
                     'designation' => $evaluation->recommended_designation,
@@ -414,13 +438,108 @@ class EmployeeEvaluationController extends Controller
         }
 
         $evaluation->update([
-            'status' => 'approved',
+            'status'      => 'approved',
             'approved_by' => $user->id,
             'approved_at' => now(),
-            'is_locked' => true,
+            'is_locked'   => true,
         ]);
 
-        return redirect()->back()->with('success', 'Performance appraisal approved, outcomes linked, and record locked.');
+        // ---------------------------------------------------------------
+        // Send Appraisal Letter Email to Employee (if enabled & email exists)
+        // ---------------------------------------------------------------
+        $employee = $evaluation->employee ?? $evaluation->fresh()->employee;
+        $companyId = $employee ? $employee->company_id : null;
+        $sendEmailSetting = Setting::get('appraisal_letter_send_email', true, $companyId);
+
+        if ($sendEmailSetting && $employee && !empty($employee->email)) {
+            try {
+                $currencySymbol = Setting::get('currency_symbol', '₹', $companyId);
+                $letterSettings = [
+                    'appraisal_letter_header' => Setting::get('appraisal_letter_header', null, $companyId),
+                    'appraisal_letter_signatory_name' => Setting::get('appraisal_letter_signatory_name', null, $companyId),
+                    'appraisal_letter_signatory_title' => Setting::get('appraisal_letter_signatory_title', null, $companyId),
+                    'appraisal_letter_footer_text' => Setting::get('appraisal_letter_footer_text', null, $companyId),
+                ];
+                \Illuminate\Support\Facades\Mail::to($employee->email)->send(
+                    new \App\Mail\AppraisalLetterMail($evaluation, $letterSettings, $currencySymbol)
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Appraisal letter email sending failed: ' . $e->getMessage());
+            }
+        }
+
+        return redirect()->back()->with('success', 'Performance appraisal approved, outcomes linked, appraisal letter generated, and record locked.');
+    }
+
+    /**
+     * Download or view Official Appraisal Letter as PDF
+     */
+    public function downloadAppraisalLetter(Request $request, EmployeeEvaluation $evaluation)
+    {
+        $user = auth()->user();
+        $evaluation->loadMissing(['employee.company', 'employee.department', 'evaluator', 'approver']);
+        $employee = $evaluation->employee;
+
+        if (!$employee) {
+            abort(404, 'Employee record not found for this evaluation.');
+        }
+
+        // Authorization check
+        $isEmployee = ($user->employee_id === $evaluation->employee_id) || ($employee->user_id && $user->id === $employee->user_id);
+        $isStaff = $user->isAdmin() || $user->isHR() || $user->hasPermission('view-evaluations') || $user->id === $evaluation->evaluator_id;
+
+        if (!$isEmployee && !$isStaff) {
+            abort(403, 'Unauthorized. You do not have permission to view this appraisal letter.');
+        }
+
+        // Branch isolation for managers
+        if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee && !$isEmployee) {
+            if ($evaluation->company_id && $evaluation->company_id != $user->employee->company_id) {
+                abort(403, 'Unauthorized.');
+            }
+        }
+
+        $company = $employee->company;
+        $companyId = $company ? $company->id : null;
+        $currencySymbol = Setting::get('currency_symbol', '₹', $companyId);
+
+        $settings = [
+            'appraisal_letter_header' => Setting::get('appraisal_letter_header', null, $companyId),
+            'appraisal_letter_signatory_name' => Setting::get('appraisal_letter_signatory_name', null, $companyId),
+            'appraisal_letter_signatory_title' => Setting::get('appraisal_letter_signatory_title', null, $companyId),
+            'appraisal_letter_footer_text' => Setting::get('appraisal_letter_footer_text', null, $companyId),
+        ];
+
+        // Find logo and stamp paths if present
+        $companyLogoPath = null;
+        $logoSetting = Setting::get('app_logo', null, $companyId);
+        if ($logoSetting && \Illuminate\Support\Facades\Storage::disk('public')->exists($logoSetting)) {
+            $companyLogoPath = storage_path('app/public/' . $logoSetting);
+        }
+
+        $companyStampPath = null;
+        $stampSetting = Setting::get('company_stamp', null, $companyId) ?? Setting::get('salary_slip_stamp', null, $companyId);
+        if ($stampSetting && \Illuminate\Support\Facades\Storage::disk('public')->exists($stampSetting)) {
+            $companyStampPath = storage_path('app/public/' . $stampSetting);
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.appraisal_letter', [
+            'evaluation' => $evaluation,
+            'employee' => $employee,
+            'company' => $company,
+            'settings' => $settings,
+            'currencySymbol' => $currencySymbol,
+            'companyLogoPath' => $companyLogoPath,
+            'companyStampPath' => $companyStampPath,
+        ]);
+
+        $fileName = 'Appraisal_Letter_' . str_replace(' ', '_', $employee->name) . '_' . ($evaluation->year ?? date('Y')) . '.pdf';
+
+        if ($request->boolean('inline')) {
+            return $pdf->stream($fileName);
+        }
+
+        return $pdf->download($fileName);
     }
 
     public function destroy(EmployeeEvaluation $evaluation)

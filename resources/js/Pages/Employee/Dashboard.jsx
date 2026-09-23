@@ -6,7 +6,7 @@ import {
     FiTrendingUp, FiArrowRight, FiBriefcase, FiAlertTriangle,
     FiFileText, FiPieChart, FiDollarSign, FiCamera, FiTarget,
     FiAward, FiBarChart2, FiStar, FiThumbsUp, FiFlag, FiLayers,
-    FiPlus, FiUserMinus, FiCheckSquare, FiExternalLink, FiShield
+    FiPlus, FiUserMinus, FiCheckSquare, FiExternalLink, FiShield, FiDownload
 } from 'react-icons/fi';
 import Avatar from '@/Components/Avatar';
 
@@ -524,25 +524,41 @@ export default function Dashboard({
                                                 </div>
                                             )}
 
-                                            <div className="flex items-center justify-between pt-1">
-                                                <div className="flex gap-1.5">
-                                                    {evalItem.increment_percentage > 0 && (
+                                            <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {evalItem.increment_recommended > 0 ? (
+                                                        <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded font-semibold">
+                                                            +{formatCurrency(evalItem.increment_recommended)} Increment
+                                                        </span>
+                                                    ) : evalItem.increment_percentage > 0 ? (
                                                         <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded font-semibold">
                                                             +{evalItem.increment_percentage}% Increment
                                                         </span>
-                                                    )}
+                                                    ) : null}
                                                     {evalItem.promotion_recommended && (
                                                         <span className="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded font-semibold">
                                                             Promotion
                                                         </span>
                                                     )}
                                                 </div>
-                                                <Link
-                                                    href={route('evaluations.show', evalItem.id)}
-                                                    className="text-[11px] font-semibold text-rose-600 hover:text-rose-800"
-                                                >
-                                                    View Details →
-                                                </Link>
+                                                <div className="flex items-center gap-2">
+                                                    {(evalItem.status === 'approved' || evalItem.is_locked) && (
+                                                        <a
+                                                            href={route('evaluations.appraisal-letter', evalItem.id)}
+                                                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded transition-colors"
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                        >
+                                                            <FiDownload className="w-3 h-3" /> Appraisal Letter (PDF)
+                                                        </a>
+                                                    )}
+                                                    <Link
+                                                        href={route('evaluations.show', evalItem.id)}
+                                                        className="text-[11px] font-semibold text-rose-600 hover:text-rose-800"
+                                                    >
+                                                        View Details →
+                                                    </Link>
+                                                </div>
                                             </div>
                                         </div>
                                     );

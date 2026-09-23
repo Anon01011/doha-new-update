@@ -410,7 +410,9 @@ class SalaryPostingController extends Controller
             if ($salaryPosting->status !== 'approved') {
                 return back()->with('error', 'You cannot download an unapproved salary slip.');
             }
-            $appSettings = \App\Models\Setting::pluck('value', 'key')->toArray();
+            $globalSettings = \App\Models\Setting::whereNull('company_id')->pluck('value', 'key')->toArray();
+            $companySettings = $companyId ? \App\Models\Setting::where('company_id', $companyId)->pluck('value', 'key')->toArray() : [];
+            $appSettings = array_merge($globalSettings, $companySettings);
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.salary_slip', [
                 'salaryPosting' => $salaryPosting,
                 'loanInstallments' => $loanInstallments,

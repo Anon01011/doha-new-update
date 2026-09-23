@@ -5,6 +5,8 @@ import axios from 'axios';
 import Lightbox from '@/Components/Lightbox';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import SearchableSelect from '@/Components/SearchableSelect';
+import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
 import {
     FiUser, FiCreditCard, FiMapPin, FiBriefcase, FiClock, FiDollarSign,
     FiFileText, FiPlus, FiTrash2, FiArrowRight, FiArrowLeft, FiEye,
@@ -56,7 +58,9 @@ export default function CreateEmployee(props) {
         nationality: '',
         sponsor: '',
         company_id: '',
+        company_ids: [],
         department_id: '',
+        department_ids: [],
         location: '',
         joined_date: '',
         rejoined_date: '',
@@ -105,23 +109,55 @@ export default function CreateEmployee(props) {
         weekly_offs: [],
     });
 
-    // Fetch branches departments
+    // Fetch branches departments for multi-branch selection
     useEffect(() => {
-        if (data.company_id) {
-            axios.get(route('api.departments.byBranch', { branch_id: data.company_id }))
-                .then(res => setFilteredDepartments(res.data.departments || []))
-                .catch(() => setFilteredDepartments([]));
+        const branchIds = (data.company_ids && data.company_ids.length > 0)
+            ? data.company_ids
+            : (data.company_id ? [data.company_id] : []);
+
+        if (branchIds.length > 0) {
+            axios.get(route('api.departments.byBranch', { branch_id: branchIds }))
+                .then(res => {
+                    const depts = res.data.departments || [];
+                    setFilteredDepartments(depts);
+
+                    const validIds = new Set(depts.map(d => String(d.id)));
+                    const currentDeptIds = (data.department_ids || []).map(String);
+                    const validDeptIds = currentDeptIds.filter(id => validIds.has(id));
+
+                    if (validDeptIds.length !== currentDeptIds.length) {
+                        setData(prev => ({
+                            ...prev,
+                            department_ids: validDeptIds,
+                            department_id: validDeptIds[0] || ''
+                        }));
+                    }
+                })
+                .catch(() => {
+                    setFilteredDepartments([]);
+                    setData(prev => ({ ...prev, department_ids: [], department_id: '' }));
+                });
         } else {
             setFilteredDepartments([]);
+            if ((data.department_ids && data.department_ids.length > 0) || data.department_id) {
+                setData(prev => ({ ...prev, department_ids: [], department_id: '' }));
+            }
         }
-    }, [data.company_id]);
+    }, [data.company_ids, data.company_id]);
 
     // Fetch employees for reporting manager selection
     useEffect(() => {
-        if (data.department_id || data.company_id) {
+        const branchIds = (data.company_ids && data.company_ids.length > 0)
+            ? data.company_ids
+            : (data.company_id ? [data.company_id] : []);
+        const deptIds = (data.department_ids && data.department_ids.length > 0)
+            ? data.department_ids
+            : (data.department_id ? [data.department_id] : []);
+
+        if (deptIds.length > 0 || branchIds.length > 0) {
             axios.get(route('api.employees.byDepartment', {
-                department_id: data.department_id,
-                company_id: data.company_id
+                department_id: deptIds[0] || '',
+                company_id: branchIds[0] || ''
             }))
                 .then(res => {
                     setDepartmentEmployees(res.data.employees || []);
@@ -135,7 +171,7 @@ export default function CreateEmployee(props) {
             setDepartmentEmployees([]);
             setBranchManagers([]);
         }
-    }, [data.department_id, data.company_id]);
+    }, [data.department_ids, data.company_ids, data.department_id, data.company_id]);
 
     const isHrOrManager = useMemo(() => {
         const role = (data.role || '').toLowerCase();
@@ -167,6 +203,92 @@ export default function CreateEmployee(props) {
             'Office Assistant / Helper',
         ];
     }, [constants.designations]);
+
+    // Formatted dropdown options
+    const companyOptions = useMemo(() => {
+        return (companies || []).map(c => ({ value: String(c.id), label: c.name }));
+    }, [companies]);
+
+    const departmentOptions = useMemo(() => {
+        return (filteredDepartments || []).map(d => ({ value: String(d.id), label: d.name }));
+    }, [filteredDepartments]);
+
+    const designationOptions = useMemo(() => {
+        const opts = designationList.map(opt => ({ value: opt, label: opt }));
+        if (data.designation && !designationList.includes(data.designation)) {
+            opts.unshift({ value: data.designation, label: data.designation });
+        }
+        return opts;
+    }, [designationList, data.designation]);
+
+    const reportingOptions = useMemo(() => {
+        if (isHrOrManager) {
+            return (executiveLeaders || []).map(exec => ({
+                value: exec.name,
+                label: `${exec.name} (${exec.designation || 'Executive Leader'})`
+            }));
+        }
+
+        const groups = [];
+        if (executiveLeaders && executiveLeaders.length > 0) {
+            groups.push({
+                label: 'Executive Leadership',
+                options: executiveLeaders.map(exec => ({
+                    value: exec.name,
+                    label: `${exec.name} (${exec.designation || 'Executive Leader'})`
+                }))
+            });
+        }
+        if (departmentEmployees && departmentEmployees.length > 0) {
+            groups.push({
+                label: 'Department Staff',
+                options: departmentEmployees.map(emp => ({
+                    value: emp.name,
+                    label: `${emp.name} ${emp.designation ? `(${emp.designation})` : ''}`
+                }))
+            });
+        }
+        if (branchManagers && branchManagers.length > 0) {
+            groups.push({
+                label: 'Branch Management / Staff',
+                options: branchManagers.map(mgr => ({
+                    value: mgr.name,
+                    label: `${mgr.name} ${mgr.designation ? `(${mgr.designation})` : ''}`
+                }))
+            });
+        }
+        return groups;
+    }, [isHrOrManager, executiveLeaders, departmentEmployees, branchManagers]);
+
+    const roleOptions = useMemo(() => {
+        return (availableRoles || []).map(r => ({ value: r.slug, label: r.name }));
+    }, [availableRoles]);
+
+    const genderOptions = useMemo(() => {
+        return (constants.genders || ['Male', 'Female', 'Other']).map(g => ({ value: g, label: g }));
+    }, [constants.genders]);
+
+    const shiftOptions = useMemo(() => {
+        return (constants.shifts || ['Morning', 'Evening', 'General', 'Rotational']).map(s => ({ value: s, label: s }));
+    }, [constants.shifts]);
+
+    const categoryOptions = useMemo(() => {
+        return (constants.employee_categories || ['Permanent', 'Contract', 'Probation', 'Intern']).map(c => ({ value: c, label: c }));
+    }, [constants.employee_categories]);
+
+    const contractDurationOptions = useMemo(() => {
+        return (constants.contract_durations || ['1 Year', '2 Years', '3 Years', '5 Years', 'Unlimited']).map(opt => ({ value: opt, label: opt }));
+    }, [constants.contract_durations]);
+
+    const statusOptions = useMemo(() => [
+        { value: 'active', label: 'Active (Full Access)' },
+        { value: 'waiting', label: 'Pending Review / Onboarding' },
+        { value: 'inactive', label: 'Inactive' },
+    ], []);
+
+    const leaveStatusOptions = useMemo(() => {
+        return (constants.leave_statuses || ['Available', 'On Leave', 'Sick Leave', 'Unpaid Leave']).map(opt => ({ value: opt, label: opt }));
+    }, [constants.leave_statuses]);
 
     // Auto-assign default reporting person based on role and branch/department
     useEffect(() => {
@@ -424,7 +546,7 @@ export default function CreateEmployee(props) {
             <Head title="Add New Employee" />
 
             <div className={`min-h-screen bg-slate-50/60 pb-24 relative ${processing ? 'pointer-events-none opacity-60' : ''}`}>
-                
+
                 {/* Full-screen Loading Overlay */}
                 {processing && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
@@ -491,25 +613,22 @@ export default function CreateEmployee(props) {
                                         key={tab.id}
                                         type="button"
                                         onClick={() => setActiveTab(tab.id)}
-                                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                                            isActive
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${isActive
                                                 ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20 ring-2 ring-indigo-600/20'
                                                 : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-                                        }`}
+                                            }`}
                                     >
-                                        <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] ${
-                                            isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-                                        }`}>
+                                        <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                                            }`}>
                                             {idx + 1}
                                         </span>
                                         <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
                                         <span>{tab.label}</span>
                                         {tab.badge && (
-                                            <span className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                                                tab.badge === 'error'
+                                            <span className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${tab.badge === 'error'
                                                     ? 'bg-rose-500 text-white animate-pulse'
                                                     : 'bg-indigo-100 text-indigo-800'
-                                            }`}>
+                                                }`}>
                                                 {tab.badge === 'error' ? '!' : tab.badge}
                                             </span>
                                         )}
@@ -523,13 +642,13 @@ export default function CreateEmployee(props) {
                 {/* Main Form Content */}
                 <div className="w-full px-4 sm:px-8 lg:px-10 pt-8">
                     <form onSubmit={handleSubmit}>
-                        
+
                         {/* ============================================================== */}
                         {/* TAB 1: PERSONAL & CONTACT INFORMATION */}
                         {/* ============================================================== */}
                         {activeTab === 'personal' && (
                             <div className="space-y-6 animate-in fade-in duration-200">
-                                
+
                                 {/* Profile Avatar & Primary Identity Card */}
                                 <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
                                     <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
@@ -580,7 +699,7 @@ export default function CreateEmployee(props) {
 
                                     {/* Form Fields Grid */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        
+
                                         {/* Full Name */}
                                         <div className="space-y-1.5">
                                             <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
@@ -618,9 +737,8 @@ export default function CreateEmployee(props) {
                                             </div>
                                             <input
                                                 type="text"
-                                                className={`w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all ${
-                                                    autoGenerate ? 'bg-slate-100 text-slate-400 cursor-not-allowed font-mono' : 'bg-slate-50/50 focus:bg-white'
-                                                }`}
+                                                className={`w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all ${autoGenerate ? 'bg-slate-100 text-slate-400 cursor-not-allowed font-mono' : 'bg-slate-50/50 focus:bg-white'
+                                                    }`}
                                                 value={autoGenerate ? 'AUTO-GENERATED' : data.employee_code}
                                                 onChange={e => !autoGenerate && setData('employee_code', e.target.value)}
                                                 readOnly={autoGenerate}
@@ -636,17 +754,13 @@ export default function CreateEmployee(props) {
                                                 <span>Gender</span>
                                                 <span className="text-rose-500">*</span>
                                             </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
+                                            <SearchableSelect
+                                                name="gender"
                                                 value={data.gender}
+                                                options={genderOptions}
                                                 onChange={e => setData('gender', e.target.value)}
-                                                required
-                                            >
-                                                <option value="">Select Gender</option>
-                                                {(constants.genders || ['Male', 'Female', 'Other']).map(opt => (
-                                                    <option key={opt} value={opt}>{opt}</option>
-                                                ))}
-                                            </select>
+                                                placeholder="Select Gender"
+                                            />
                                             {errors.gender && <p className="text-xs font-medium text-rose-500">{errors.gender}</p>}
                                         </div>
 
@@ -783,45 +897,45 @@ export default function CreateEmployee(props) {
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        
-                                        {/* Branch / Company */}
+
+                                        {/* Branch / Company Locations (Multi-select) */}
                                         <div className="space-y-1.5">
-                                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                                                <FiBriefcase className="w-3.5 h-3.5 text-blue-500" />
-                                                <span>Branch / Company</span>
-                                                <span className="text-rose-500">*</span>
-                                            </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-                                                value={data.company_id}
-                                                onChange={e => setData('company_id', e.target.value)}
-                                                required
-                                            >
-                                                <option value="">Select Branch</option>
-                                                {companies.map(c => (
-                                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                                ))}
-                                            </select>
-                                            {errors.company_id && <p className="text-xs font-medium text-rose-500">{errors.company_id}</p>}
+                                            <MultiCheckboxSelect
+                                                label="Branch / Company Locations"
+                                                options={companyOptions}
+                                                value={data.company_ids}
+                                                onChange={(vals) => {
+                                                    setData(prev => ({
+                                                        ...prev,
+                                                        company_ids: vals,
+                                                        company_id: vals.length > 0 ? vals[0] : ''
+                                                    }));
+                                                }}
+                                                placeholder="Select branches..."
+                                                searchPlaceholder="Search branches..."
+                                                required={true}
+                                                error={errors.company_ids || errors.company_id}
+                                            />
                                         </div>
 
-                                        {/* Department */}
+                                        {/* Department (Multi-select) */}
                                         <div className="space-y-1.5">
-                                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                                                <FiLayers className="w-3.5 h-3.5 text-blue-500" />
-                                                <span>Department</span>
-                                            </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all disabled:opacity-50"
-                                                value={data.department_id}
-                                                onChange={e => setData('department_id', e.target.value)}
-                                                disabled={!data.company_id}
-                                            >
-                                                <option value="">{data.company_id ? 'Select Department' : 'Select Branch First'}</option>
-                                                {filteredDepartments.map(d => (
-                                                    <option key={d.id} value={d.id}>{d.name}</option>
-                                                ))}
-                                            </select>
+                                            <MultiCheckboxSelect
+                                                label="Departments"
+                                                options={departmentOptions}
+                                                value={data.department_ids}
+                                                onChange={(vals) => {
+                                                    setData(prev => ({
+                                                        ...prev,
+                                                        department_ids: vals,
+                                                        department_id: vals.length > 0 ? vals[0] : ''
+                                                    }));
+                                                }}
+                                                placeholder={(data.company_ids && data.company_ids.length > 0) ? "Select departments..." : "Select branch first"}
+                                                searchPlaceholder="Search departments..."
+                                                disabled={!data.company_ids || data.company_ids.length === 0}
+                                                error={errors.department_ids || errors.department_id}
+                                            />
                                         </div>
 
                                         {/* Designation */}
@@ -830,19 +944,14 @@ export default function CreateEmployee(props) {
                                                 <FiBriefcase className="w-3.5 h-3.5 text-blue-500" />
                                                 <span>Designation</span>
                                             </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                                            <SearchableSelect
+                                                name="designation"
                                                 value={data.designation}
+                                                options={designationOptions}
                                                 onChange={e => setData('designation', e.target.value)}
-                                            >
-                                                <option value="">Select Designation</option>
-                                                {designationList.map(opt => (
-                                                    <option key={opt} value={opt}>{opt}</option>
-                                                ))}
-                                                {data.designation && !designationList.includes(data.designation) && (
-                                                    <option value={data.designation}>{data.designation}</option>
-                                                )}
-                                            </select>
+                                                placeholder="Search & Select Designation"
+                                            />
+                                            {errors.designation && <p className="text-xs font-medium text-rose-500">{errors.designation}</p>}
                                         </div>
 
                                         {/* Reporting Officer */}
@@ -851,54 +960,14 @@ export default function CreateEmployee(props) {
                                                 <FiUser className="w-3.5 h-3.5 text-blue-500" />
                                                 <span>Reports To (Supervisor)</span>
                                             </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                                            <SearchableSelect
+                                                name="reported_to"
                                                 value={data.reported_to}
+                                                options={reportingOptions}
                                                 onChange={e => setData('reported_to', e.target.value)}
-                                            >
-                                                <option value="">{isHrOrManager ? 'Select Executive Authority (CEO / Founder)' : 'Select Reporting Person'}</option>
-                                                {isHrOrManager ? (
-                                                    executiveLeaders.length > 0 && (
-                                                        <optgroup label="Executive Leadership">
-                                                            {executiveLeaders.map(exec => (
-                                                                <option key={exec.id} value={exec.name}>
-                                                                    {exec.name} ({exec.designation || 'Executive Leader'})
-                                                                </option>
-                                                            ))}
-                                                        </optgroup>
-                                                    )
-                                                ) : (
-                                                    <>
-                                                        {departmentEmployees.length > 0 && (
-                                                            <optgroup label="Department Staff">
-                                                                {departmentEmployees.map(emp => (
-                                                                    <option key={emp.id} value={emp.name}>
-                                                                        {emp.name} {emp.designation ? `(${emp.designation})` : ''}
-                                                                    </option>
-                                                                ))}
-                                                            </optgroup>
-                                                        )}
-                                                        {branchManagers.length > 0 && (
-                                                            <optgroup label="Branch Management">
-                                                                {branchManagers.map(mgr => (
-                                                                    <option key={mgr.id} value={mgr.name}>
-                                                                        {mgr.name} {mgr.designation ? `(${mgr.designation})` : ''}
-                                                                    </option>
-                                                                ))}
-                                                            </optgroup>
-                                                        )}
-                                                        {executiveLeaders.length > 0 && (
-                                                            <optgroup label="Executive Leadership">
-                                                                {executiveLeaders.map(exec => (
-                                                                    <option key={exec.id} value={exec.name}>
-                                                                        {exec.name} ({exec.designation || 'Executive'})
-                                                                    </option>
-                                                                ))}
-                                                            </optgroup>
-                                                        )}
-                                                    </>
-                                                )}
-                                            </select>
+                                                placeholder={isHrOrManager ? 'Select Executive Authority (CEO / Founder)' : 'Select Reporting Supervisor'}
+                                            />
+                                            {errors.reported_to && <p className="text-xs font-medium text-rose-500">{errors.reported_to}</p>}
                                         </div>
 
                                         {/* System Role */}
@@ -907,16 +976,13 @@ export default function CreateEmployee(props) {
                                                 <FiShield className="w-3.5 h-3.5 text-blue-500" />
                                                 <span>System Access Role</span>
                                             </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                                            <SearchableSelect
+                                                name="role"
                                                 value={data.role}
+                                                options={roleOptions}
                                                 onChange={e => setData('role', e.target.value)}
-                                            >
-                                                <option value="">No System Access (Staff Only)</option>
-                                                {availableRoles.map(r => (
-                                                    <option key={r.id} value={r.slug}>{r.name}</option>
-                                                ))}
-                                            </select>
+                                                placeholder="No System Access (Staff Only)"
+                                            />
                                             {data.role && (
                                                 <p className="text-[11px] text-amber-600 font-medium">
                                                     * An active email address is required for portal login.
@@ -944,16 +1010,13 @@ export default function CreateEmployee(props) {
                                                 <FiClock className="w-3.5 h-3.5 text-blue-500" />
                                                 <span>Assigned Shift</span>
                                             </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                                            <SearchableSelect
+                                                name="shift"
                                                 value={data.shift}
+                                                options={shiftOptions}
                                                 onChange={e => setData('shift', e.target.value)}
-                                            >
-                                                <option value="">Select Shift</option>
-                                                {(constants.shifts || ['Morning', 'Evening', 'General', 'Rotational']).map(s => (
-                                                    <option key={s} value={s}>{s}</option>
-                                                ))}
-                                            </select>
+                                                placeholder="Select Shift"
+                                            />
                                         </div>
 
                                         {/* Employee Category */}
@@ -962,16 +1025,13 @@ export default function CreateEmployee(props) {
                                                 <FiLayers className="w-3.5 h-3.5 text-blue-500" />
                                                 <span>Staff Category</span>
                                             </label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                                            <SearchableSelect
+                                                name="employee_category"
                                                 value={data.employee_category}
+                                                options={categoryOptions}
                                                 onChange={e => setData('employee_category', e.target.value)}
-                                            >
-                                                <option value="">Select Category</option>
-                                                {(constants.employee_categories || ['Permanent', 'Contract', 'Probation', 'Intern']).map(c => (
-                                                    <option key={c} value={c}>{c}</option>
-                                                ))}
-                                            </select>
+                                                placeholder="Select Category"
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -983,7 +1043,7 @@ export default function CreateEmployee(props) {
                         {/* ============================================================== */}
                         {activeTab === 'salary' && (
                             <div className="space-y-6 animate-in fade-in duration-200">
-                                
+
                                 {/* Salary Summary Live Calculation Card */}
                                 <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 rounded-2xl p-6 text-white shadow-xl">
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
@@ -1288,7 +1348,7 @@ export default function CreateEmployee(props) {
 
                                     {/* Document Upload Grid */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        
+
                                         {/* INDIA SPECIFIC DOCS */}
                                         {(isIndiaMode || isAllMode) && (
                                             <>
@@ -1524,7 +1584,7 @@ export default function CreateEmployee(props) {
                         {/* ============================================================== */}
                         {activeTab === 'schedule' && (
                             <div className="space-y-6 animate-in fade-in duration-200">
-                                
+
                                 {/* Contract Duration & Status Card */}
                                 <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
                                     <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
@@ -1541,16 +1601,13 @@ export default function CreateEmployee(props) {
                                         {/* Contract Duration */}
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-semibold text-slate-700">Contract Duration</label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
+                                            <SearchableSelect
+                                                name="contract_duration"
                                                 value={data.contract_duration}
+                                                options={contractDurationOptions}
                                                 onChange={e => setData('contract_duration', e.target.value)}
-                                            >
-                                                <option value="">Select Duration</option>
-                                                {(constants.contract_durations || ['1 Year', '2 Years', '3 Years', '5 Years', 'Unlimited']).map(opt => (
-                                                    <option key={opt} value={opt}>{opt}</option>
-                                                ))}
-                                            </select>
+                                                placeholder="Select Duration"
+                                            />
                                         </div>
 
                                         {/* Contract Issue Date */}
@@ -1578,30 +1635,25 @@ export default function CreateEmployee(props) {
                                         {/* Employee Status */}
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-semibold text-slate-700">Initial Account Status</label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
+                                            <SearchableSelect
+                                                name="manual_status"
                                                 value={data.manual_status}
+                                                options={statusOptions}
                                                 onChange={e => setData('manual_status', e.target.value)}
-                                            >
-                                                <option value="active">Active (Full Access)</option>
-                                                <option value="waiting">Pending Review / Onboarding</option>
-                                                <option value="inactive">Inactive</option>
-                                            </select>
+                                                placeholder="Select Status"
+                                            />
                                         </div>
 
                                         {/* Leave Status */}
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-semibold text-slate-700">Leave Status</label>
-                                            <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white"
+                                            <SearchableSelect
+                                                name="leave_status"
                                                 value={data.leave_status}
+                                                options={leaveStatusOptions}
                                                 onChange={e => setData('leave_status', e.target.value)}
-                                            >
-                                                <option value="">Select Status</option>
-                                                {(constants.leave_statuses || ['Available', 'On Leave', 'Sick Leave', 'Unpaid Leave']).map(opt => (
-                                                    <option key={opt} value={opt}>{opt}</option>
-                                                ))}
-                                            </select>
+                                                placeholder="Select Leave Status"
+                                            />
                                         </div>
                                     </div>
                                 </div>

@@ -17,11 +17,33 @@ class EmployeeRequest extends FormRequest
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
+    protected function prepareForValidation(): void
+    {
+        $companyIds = $this->input('company_ids');
+        $companyId = $this->input('company_id');
+
+        if (!empty($companyIds) && is_array($companyIds)) {
+            $companyId = $companyIds[0] ?? null;
+        } elseif (!empty($companyId) && empty($companyIds)) {
+            $companyIds = [(int) $companyId];
+        }
+
+        $departmentIds = $this->input('department_ids');
+        $departmentId = $this->input('department_id');
+
+        if (!empty($departmentIds) && is_array($departmentIds)) {
+            $departmentId = $departmentIds[0] ?? null;
+        } elseif (!empty($departmentId) && empty($departmentIds)) {
+            $departmentIds = [(int) $departmentId];
+        }
+
+        $this->merge([
+            'company_id' => $companyId,
+            'company_ids' => $companyIds,
+            'department_id' => $departmentId,
+            'department_ids' => $departmentIds,
+        ]);
+    }
 
     public function rules(): array
     {
@@ -52,9 +74,13 @@ class EmployeeRequest extends FormRequest
             'designation' => 'nullable|string|max:255',
             'nationality' => 'nullable|string|max:255',
             'sponsor' => 'nullable|string|max:255',
-            'company_id' => 'required|exists:companies,id',
+            'company_id' => 'nullable|exists:companies,id',
+            'company_ids' => 'nullable|array',
+            'company_ids.*' => 'exists:companies,id',
             'location' => 'nullable|string|max:255',
             'department_id' => 'nullable|exists:departments,id',
+            'department_ids' => 'nullable|array',
+            'department_ids.*' => 'exists:departments,id',
             'joined_date' => 'nullable|date',
             'rejoined_date' => 'nullable|date',
             'shift' => 'nullable|string|max:255',

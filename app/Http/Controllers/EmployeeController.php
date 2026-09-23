@@ -121,11 +121,14 @@ class EmployeeController extends Controller
         $departmentsQuery = Department::orderBy('name');
         if (!$user->isAdmin() && $user->employee_id && $user->employee) {
             $companyId = $user->employee->company_id;
-            $departmentsQuery->whereHas('companies', function ($q) use ($companyId) {
-                $q->where('companies.id', $companyId);
+            $departmentsQuery->where(function ($q) use ($companyId) {
+                $q->where('departments.company_id', $companyId)
+                  ->orWhereHas('companies', function ($sub) use ($companyId) {
+                      $sub->where('companies.id', $companyId);
+                  });
             });
         }
-        $departments = $departmentsQuery->get(['departments.id', 'name']);
+        $departments = $departmentsQuery->distinct()->get(['departments.id', 'name']);
         $salaryComponents = \App\Models\SalaryComponent::where('is_active', true)->get();
         $availableRoles = Role::where('is_active', true)->get(['id', 'name', 'slug']);
 
@@ -253,6 +256,19 @@ class EmployeeController extends Controller
             }
 
             $employee = Employee::create($validated);
+
+            // Sync multiple companies (branches) and departments
+            if ($request->filled('company_ids') && is_array($request->input('company_ids'))) {
+                $employee->companies()->sync($request->input('company_ids'));
+            } elseif ($employee->company_id) {
+                $employee->companies()->sync([$employee->company_id]);
+            }
+
+            if ($request->filled('department_ids') && is_array($request->input('department_ids'))) {
+                $employee->departments()->sync($request->input('department_ids'));
+            } elseif ($employee->department_id) {
+                $employee->departments()->sync([$employee->department_id]);
+            }
 
             // Sync Salary Structures
             if (isset($validated['salary_structures'])) {
@@ -391,7 +407,7 @@ class EmployeeController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
-        $employee->load(['company', 'department', 'salaryStructures.component', 'user.roles', 'evaluations.evaluator', 'weeklyOffs', 'expenseClaims.category', 'documents.documentType']);
+        $employee->load(['company', 'companies', 'department', 'departments', 'salaryStructures.component', 'user.roles', 'evaluations.evaluator', 'weeklyOffs', 'expenseClaims.category', 'documents.documentType']);
 
         // Handle department - it can be either a string or a relationship
         $departmentName = null;
@@ -401,10 +417,20 @@ class EmployeeController extends Controller
             $departmentName = $employee->department->name;
         }
 
+        $companiesList = $employee->companies->isNotEmpty() 
+            ? $employee->companies->map(fn($c) => ['id' => $c->id, 'name' => $c->name])->values()->all()
+            : ($employee->company ? [['id' => $employee->company->id, 'name' => $employee->company->name]] : []);
+
+        $departmentsList = $employee->departments->isNotEmpty()
+            ? $employee->departments->map(fn($d) => ['id' => $d->id, 'name' => $d->name])->values()->all()
+            : ($employee->department && is_object($employee->department) ? [['id' => $employee->department->id, 'name' => $employee->department->name]] : []);
+
         return Inertia::render('Employee/Show', [
             'employee' => array_merge($employee->toArray(), [
                 'company_name' => $employee->company ? $employee->company->name : null,
                 'department_name' => $departmentName,
+                'companies_list' => $companiesList,
+                'departments_list' => $departmentsList,
                 'role_name' => $employee->user && $employee->user->roles->first() ? $employee->user->roles->first()->name : null,
                 'role_slug' => $employee->user && $employee->user->roles->first() ? $employee->user->roles->first()->slug : null,
             ]),
@@ -421,17 +447,20 @@ class EmployeeController extends Controller
             abort(403, 'Unauthorized. You do not have permission to edit employees.');
         }
 
-        $employee->load(['salaryStructures.component', 'weeklyOffs', 'user.roles']);
+        $employee->load(['salaryStructures.component', 'weeklyOffs', 'user.roles', 'companies', 'departments']);
         $companies = Company::orderBy('name')->get(['id', 'name']);
         // Branch-scope departments
         $departmentsQuery = Department::orderBy('name');
         if (!$user->isAdmin() && $user->employee_id && $user->employee) {
             $companyId = $user->employee->company_id;
-            $departmentsQuery->whereHas('companies', function ($q) use ($companyId) {
-                $q->where('companies.id', $companyId);
+            $departmentsQuery->where(function ($q) use ($companyId) {
+                $q->where('departments.company_id', $companyId)
+                  ->orWhereHas('companies', function ($sub) use ($companyId) {
+                      $sub->where('companies.id', $companyId);
+                  });
             });
         }
-        $departments = $departmentsQuery->get(['departments.id', 'name']);
+        $departments = $departmentsQuery->distinct()->get(['departments.id', 'name']);
         $salaryComponents = \App\Models\SalaryComponent::where('is_active', true)->get();
         $availableRoles = Role::where('is_active', true)->get(['id', 'name', 'slug']);
 
@@ -442,8 +471,18 @@ class EmployeeController extends Controller
                 : $employee->user->role;
         }
 
+        $employeeData = $employee->toArray();
+        $employeeData['company_ids'] = $employee->companies->pluck('id')->values()->all();
+        if (empty($employeeData['company_ids']) && $employee->company_id) {
+            $employeeData['company_ids'] = [(int)$employee->company_id];
+        }
+        $employeeData['department_ids'] = $employee->departments->pluck('id')->values()->all();
+        if (empty($employeeData['department_ids']) && $employee->department_id) {
+            $employeeData['department_ids'] = [(int)$employee->department_id];
+        }
+
         return Inertia::render('Employee/Edit', [
-            'employee' => $employee,
+            'employee' => $employeeData,
             'canEditCode' => $user->isAdmin() && !$employee->is_code_edited,
             'companies' => $companies,
             'departments' => $departments,
@@ -498,7 +537,7 @@ class EmployeeController extends Controller
 
         // Role-based field protection: Only Admin and HR can change company, department, or status
         if (!$user->isAdmin() && !$user->isHR()) {
-            unset($validated['company_id'], $validated['department_id'], $validated['manual_status']);
+            unset($validated['company_id'], $validated['company_ids'], $validated['department_id'], $validated['department_ids'], $validated['manual_status']);
         }
 
         // Remove file fields from validated data so they don't overwrite with null if not uploaded
@@ -624,6 +663,21 @@ class EmployeeController extends Controller
             }
 
             $employee->update($validated);
+
+            // Sync multiple companies (branches) and departments
+            if ($user->isAdmin() || $user->isHR()) {
+                if ($request->filled('company_ids') && is_array($request->input('company_ids'))) {
+                    $employee->companies()->sync($request->input('company_ids'));
+                } elseif ($employee->company_id) {
+                    $employee->companies()->sync([$employee->company_id]);
+                }
+
+                if ($request->filled('department_ids') && is_array($request->input('department_ids'))) {
+                    $employee->departments()->sync($request->input('department_ids'));
+                } elseif ($employee->department_id) {
+                    $employee->departments()->sync([$employee->department_id]);
+                }
+            }
 
             // Sync Salary Structures
             if (isset($validated['salary_structures'])) {

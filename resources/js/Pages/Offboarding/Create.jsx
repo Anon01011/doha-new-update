@@ -26,13 +26,13 @@ const EMPLOYEE_SEPARATION_REASONS = [
     { value: 'other', label: 'Other Reason' },
 ];
 
-export default function Create({ 
-    employees = [], 
-    preselected = null, 
-    currentEmployee = null, 
-    userRole = 'employee', 
-    companies = [], 
-    departments = [] 
+export default function Create({
+    employees = [],
+    preselected = null,
+    currentEmployee = null,
+    userRole = 'employee',
+    companies = [],
+    departments = []
 }) {
     const isManagementRole = ['admin', 'hr', 'manager'].includes(userRole);
     const activeTargetEmployee = preselected || (!isManagementRole ? currentEmployee : null);
@@ -119,20 +119,20 @@ export default function Create({
             <div className="w-full bg-white border-b border-slate-100 px-4 sm:px-6 lg:px-8 py-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                        <Link 
-                            href={route('offboarding.index')} 
+                        <Link
+                            href={route('offboarding.index')}
                             className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-500 hover:text-slate-800"
                         >
                             <FiArrowLeft className="w-5 h-5" />
                         </Link>
                         <div>
                             <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
-                                <FiUserMinus className="text-rose-500 w-5 h-5" /> 
+                                <FiUserMinus className="text-rose-500 w-5 h-5" />
                                 {isManagementRole ? 'Initiate Employee Separation' : 'Submit Resignation / Offboarding Request'}
                             </h1>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                {isManagementRole 
-                                    ? 'Create a formal offboarding request to begin the employee exit process' 
+                                {isManagementRole
+                                    ? 'Create a formal offboarding request to begin the employee exit process'
                                     : 'Submit your formal resignation or separation notice to management and HR'}
                             </p>
                         </div>
@@ -152,7 +152,7 @@ export default function Create({
                             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                        <FiUser className="text-rose-500 w-4 h-4" /> 
+                                        <FiUser className="text-rose-500 w-4 h-4" />
                                         {isManagementRole ? 'Target Employee' : 'Your Employee Profile'}
                                     </h2>
                                     <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
@@ -169,7 +169,7 @@ export default function Create({
                                                 <span>No Employee Profile Linked</span>
                                             </div>
                                             <p className="text-xs text-amber-700 leading-relaxed">
-                                                Your login account is not currently linked to an active employee record. Please contact your Salon Manager or HR Administrator to link your staff record to submit a separation notice.
+                                                Your login account is not currently linked to an active employee record. Please contact your Company Manager or HR Administrator to link your staff record to submit a separation notice.
                                             </p>
                                         </div>
                                     ) : (
@@ -214,7 +214,7 @@ export default function Create({
                                                     <span className="font-semibold text-slate-700">{selectedEmployee.department?.name || 'General'}</span>
                                                 </div>
                                                 <div>
-                                                    <span className="block text-[11px] text-slate-400 font-medium">Branch / Salon</span>
+                                                    <span className="block text-[11px] text-slate-400 font-medium">Branch / Company</span>
                                                     <span className="font-semibold text-slate-700">{selectedEmployee.company?.name || 'Main Branch'}</span>
                                                 </div>
                                                 <div>
@@ -422,8 +422,8 @@ export default function Create({
                                     <textarea
                                         rows="4"
                                         placeholder={
-                                            isManagementRole 
-                                                ? "Add any notes, context, or instructions for the offboarding team…" 
+                                            isManagementRole
+                                                ? "Add any notes, context, or instructions for the offboarding team…"
                                                 : "Provide reason details, transition/handover summary, or any special requests for HR…"
                                         }
                                         value={data.remarks}
@@ -437,7 +437,7 @@ export default function Create({
 
                         {/* Right Column (1 col): Notice Pay, Document Upload & Submission */}
                         <div className="space-y-6">
-                            
+
                             {/* Notice Pay Card (Only for Management or if configured) */}
                             {isManagementRole && (
                                 <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6 space-y-4">
@@ -482,7 +482,7 @@ export default function Create({
                             {/* Document Upload */}
                             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6 space-y-3">
                                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                    <FiUploadCloud className="text-rose-500 w-4 h-4" /> 
+                                    <FiUploadCloud className="text-rose-500 w-4 h-4" />
                                     {isManagementRole ? 'Supporting Document' : 'Resignation Letter / File'}
                                 </h3>
                                 <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-rose-400 hover:bg-rose-50/20 rounded-xl p-5 cursor-pointer transition-all text-center">
@@ -506,8 +506,8 @@ export default function Create({
                                 <div className="p-3.5 bg-slate-50 border border-slate-200/70 rounded-xl flex items-start gap-2.5 text-xs text-slate-600">
                                     <FiInfo className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-500" />
                                     <p className="text-[11px] leading-relaxed">
-                                        {isManagementRole 
-                                            ? 'Submitting this will initiate clearance checklists, exit interview scheduling, and final settlement calculations.' 
+                                        {isManagementRole
+                                            ? 'Submitting this will initiate clearance checklists, exit interview scheduling, and final settlement calculations.'
                                             : 'Your resignation request will be routed to your Branch Manager and HR Department for formal review and clearance schedule.'}
                                     </p>
                                 </div>
@@ -519,8 +519,8 @@ export default function Create({
                                         className="w-full flex items-center justify-center gap-2 py-3 px-4 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-sm hover:shadow transition-all disabled:opacity-50 cursor-pointer"
                                     >
                                         <FiUserMinus className="w-4 h-4" />
-                                        {processing 
-                                            ? 'Submitting…' 
+                                        {processing
+                                            ? 'Submitting…'
                                             : (isManagementRole ? 'Submit Separation Request' : 'Submit Resignation Request')}
                                     </button>
                                     <Link

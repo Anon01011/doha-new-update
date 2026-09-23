@@ -131,7 +131,7 @@ export default function Evaluation({ evaluations, summary, month, year, companyI
                             <MultiCheckboxSelect
                                 value={filters.company_id}
                                 options={companies?.map(c => ({ value: String(c.id), label: c.name })) || []}
-                                onChange={(e) => setFilters({ ...filters, company_id: e.target.value })}
+                                onChange={(vals) => setFilters({ ...filters, company_id: vals })}
                                 placeholder="Select Branches"
                             />
                         </div>

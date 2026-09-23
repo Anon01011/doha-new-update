@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, usePage, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Lightbox from '@/Components/Lightbox';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
@@ -19,6 +19,38 @@ export default function ShowEmployee({ employee }) {
     const isIndiaMode = appCountry === 'IN';
     const isQatarMode = appCountry === 'QA';
     const isAllMode = appCountry === 'ALL';
+
+    const assignedCompanies = useMemo(() => {
+        if (employee.companies_list && employee.companies_list.length > 0) {
+            return employee.companies_list;
+        }
+        if (employee.companies && employee.companies.length > 0) {
+            return employee.companies;
+        }
+        if (employee.company) {
+            return [employee.company];
+        }
+        if (employee.company_name) {
+            return [{ name: employee.company_name }];
+        }
+        return [];
+    }, [employee]);
+
+    const assignedDepartments = useMemo(() => {
+        if (employee.departments_list && employee.departments_list.length > 0) {
+            return employee.departments_list;
+        }
+        if (employee.departments && employee.departments.length > 0) {
+            return employee.departments;
+        }
+        if (employee.department && typeof employee.department === 'object') {
+            return [employee.department];
+        }
+        if (employee.department_name) {
+            return [{ name: employee.department_name }];
+        }
+        return [];
+    }, [employee]);
 
     const [activeTab, setActiveTab] = useState('overview');
     const [lightbox, setLightbox] = useState({ isOpen: false, src: '', title: '', type: 'auto' });
@@ -179,7 +211,7 @@ export default function ShowEmployee({ employee }) {
             <Head title={`Employee - ${employee.name}`} />
 
             <div className="w-full min-h-screen bg-slate-50/60 pb-20">
-                
+
                 {/* Full Width Hero Profile Banner */}
                 <div className="w-full bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white border-b border-slate-800 relative overflow-hidden">
                     {/* Subtle geometric light patterns */}
@@ -239,7 +271,7 @@ export default function ShowEmployee({ employee }) {
                                     </div>
 
                                     <p className="text-sm font-medium text-slate-300">
-                                        {employee.designation || 'Staff'} • <span className="text-indigo-300 font-semibold">{employee.company?.name || employee.company_name || 'Main Salon Branch'}</span>
+                                        {employee.designation || 'Staff'} • <span className="text-indigo-300 font-semibold">{assignedCompanies.length > 0 ? assignedCompanies.map(c => c.name).join(', ') : (employee.company?.name || employee.company_name || 'Main Company Branch')}</span>
                                     </p>
 
                                     <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1 text-xs text-slate-400">
@@ -328,11 +360,10 @@ export default function ShowEmployee({ employee }) {
                                     key={tab.id}
                                     type="button"
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                                        isActive
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${isActive
                                             ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25 ring-2 ring-indigo-600/30'
                                             : 'bg-slate-100/90 hover:bg-slate-200/80 text-slate-700 hover:text-slate-950 border border-slate-200/60'
-                                    }`}
+                                        }`}
                                 >
                                     <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-indigo-600'}`} />
                                     <span>{tab.label}</span>
@@ -344,13 +375,13 @@ export default function ShowEmployee({ employee }) {
 
                 {/* Main Full-Width Details Content */}
                 <div className="w-full px-4 sm:px-8 lg:px-10 pt-6">
-                    
+
                     {/* ============================================================== */}
                     {/* TAB 1: OVERVIEW & PERSONAL DETAILS */}
                     {/* ============================================================== */}
                     {activeTab === 'overview' && (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
-                            
+
                             {/* Personal & Demographic Card */}
                             <div className="lg:col-span-2 bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6">
                                 <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
@@ -452,23 +483,84 @@ export default function ShowEmployee({ employee }) {
                                 </div>
                                 <div>
                                     <h3 className="text-base font-bold text-slate-900">Work Placement & System Access</h3>
-                                    <p className="text-xs text-slate-500">Salon branch placement, department, designation, and supervisor</p>
+                                    <p className="text-xs text-slate-500">Company branch placement, department, designation, and supervisor</p>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                                <InfoField label="Branch / Company" value={employee.company?.name || employee.company_name} icon={<FiBriefcase />} />
-                                <InfoField label="Department" value={employee.department?.name || employee.department_name} icon={<FiLayers />} />
-                                <InfoField label="Designation" value={employee.designation} icon={<FiBriefcase />} />
-                                <InfoField label="Reporting Supervisor" value={employee.reported_to} icon={<FiUser />} />
-                                <InfoField label="System Access Role" value={employee.role_name || 'Staff Member'} icon={<FiShield />} />
-                                <InfoField label="Joined Date" value={formatDate(employee.joined_date)} icon={<FiCalendar />} />
-                                <InfoField label="Rejoined Date" value={formatDate(employee.rejoined_date)} icon={<FiCalendar />} />
-                                <InfoField label="Staff Category" value={employee.employee_category} icon={<FiLayers />} />
-                                <InfoField label="Assigned Shift" value={employee.shift} icon={<FiClock />} />
-                                <InfoField label="Visa Type" value={employee.visa_type} icon={<FiFileText />} />
-                                <InfoField label="Visa Designation" value={employee.visa_designation} icon={<FiFileText />} />
-                                <InfoField label="Contract Duration" value={employee.contract_duration} icon={<FiClock />} />
+                            <div className="space-y-6">
+                                {/* Multi-Branch & Multi-Department Cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Assigned Branches */}
+                                    <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                                <FiBriefcase className="w-3.5 h-3.5 text-blue-600" />
+                                                <span>Assigned Branches / Companys</span>
+                                            </span>
+                                            <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700">
+                                                {assignedCompanies.length} {assignedCompanies.length === 1 ? 'Branch' : 'Branches'}
+                                            </span>
+                                        </div>
+                                        {assignedCompanies.length > 0 ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {assignedCompanies.map((c, i) => (
+                                                    <span
+                                                        key={c.id || i}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-blue-200 text-slate-800 shadow-xs"
+                                                    >
+                                                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                                                        <span>{c.name}</span>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-slate-400 italic">No branch assigned</p>
+                                        )}
+                                    </div>
+
+                                    {/* Assigned Departments */}
+                                    <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                                <FiLayers className="w-3.5 h-3.5 text-indigo-600" />
+                                                <span>Assigned Departments</span>
+                                            </span>
+                                            <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-100 text-indigo-700">
+                                                {assignedDepartments.length} {assignedDepartments.length === 1 ? 'Department' : 'Departments'}
+                                            </span>
+                                        </div>
+                                        {assignedDepartments.length > 0 ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {assignedDepartments.map((d, i) => (
+                                                    <span
+                                                        key={d.id || i}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-indigo-200 text-slate-800 shadow-xs"
+                                                    >
+                                                        <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                                                        <span>{d.name}</span>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-slate-400 italic">No department assigned</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                    <InfoField label="Primary Branch" value={employee.company?.name || employee.company_name || (assignedCompanies[0]?.name)} icon={<FiBriefcase />} />
+                                    <InfoField label="Primary Department" value={employee.department?.name || employee.department_name || (assignedDepartments[0]?.name)} icon={<FiLayers />} />
+                                    <InfoField label="Designation" value={employee.designation} icon={<FiBriefcase />} />
+                                    <InfoField label="Reporting Supervisor" value={employee.reported_to} icon={<FiUser />} />
+                                    <InfoField label="System Access Role" value={employee.role_name || 'Staff Member'} icon={<FiShield />} />
+                                    <InfoField label="Joined Date" value={formatDate(employee.joined_date)} icon={<FiCalendar />} />
+                                    <InfoField label="Rejoined Date" value={formatDate(employee.rejoined_date)} icon={<FiCalendar />} />
+                                    <InfoField label="Staff Category" value={employee.employee_category} icon={<FiLayers />} />
+                                    <InfoField label="Assigned Shift" value={employee.shift} icon={<FiClock />} />
+                                    <InfoField label="Visa Type" value={employee.visa_type} icon={<FiFileText />} />
+                                    <InfoField label="Visa Designation" value={employee.visa_designation} icon={<FiFileText />} />
+                                    <InfoField label="Contract Duration" value={employee.contract_duration} icon={<FiClock />} />
+                                </div>
                             </div>
                         </div>
                     )}
@@ -478,7 +570,7 @@ export default function ShowEmployee({ employee }) {
                     {/* ============================================================== */}
                     {activeTab === 'salary' && (
                         <div className="space-y-6 animate-in fade-in duration-200">
-                            
+
                             {/* Salary Summary Card */}
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-sm">
@@ -558,18 +650,16 @@ export default function ShowEmployee({ employee }) {
                                                     <tr key={idx} className="hover:bg-slate-50/50">
                                                         <td className="px-4 py-3 font-semibold text-slate-900">{struct.component?.name || struct.name || 'Component'}</td>
                                                         <td className="px-4 py-3">
-                                                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                                                (struct.component?.type || struct.type) === 'allowance' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
-                                                            }`}>
+                                                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${(struct.component?.type || struct.type) === 'allowance' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                                                                }`}>
                                                                 {(struct.component?.type || struct.type)?.toUpperCase()}
                                                             </span>
                                                         </td>
                                                         <td className="px-4 py-3 font-medium text-slate-500">
                                                             {struct.value_type === 'percentage' ? `${struct.amount}% of Basic` : 'Flat Amount'}
                                                         </td>
-                                                        <td className={`px-4 py-3 text-right font-bold ${
-                                                            (struct.component?.type || struct.type) === 'allowance' ? 'text-emerald-600' : 'text-rose-600'
-                                                        }`}>
+                                                        <td className={`px-4 py-3 text-right font-bold ${(struct.component?.type || struct.type) === 'allowance' ? 'text-emerald-600' : 'text-rose-600'
+                                                            }`}>
                                                             {(struct.component?.type || struct.type) === 'allowance' ? '+' : '-'} {parseFloat(struct.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                         </td>
                                                     </tr>
@@ -618,13 +708,12 @@ export default function ShowEmployee({ employee }) {
                                     return (
                                         <div
                                             key={doc.id}
-                                            className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${
-                                                hasFile
+                                            className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${hasFile
                                                     ? 'bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-indigo-300'
                                                     : hasData
-                                                    ? 'bg-slate-50/70 border-slate-200'
-                                                    : 'bg-slate-50/40 border-dashed border-slate-200 opacity-70'
-                                            }`}
+                                                        ? 'bg-slate-50/70 border-slate-200'
+                                                        : 'bg-slate-50/40 border-dashed border-slate-200 opacity-70'
+                                                }`}
                                         >
                                             <div>
                                                 <div className="flex items-start justify-between gap-3 mb-3">
@@ -712,7 +801,7 @@ export default function ShowEmployee({ employee }) {
                     {/* ============================================================== */}
                     {activeTab === 'schedule' && (
                         <div className="space-y-6 animate-in fade-in duration-200">
-                            
+
                             {/* Contract Period Card */}
                             <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6">
                                 <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
@@ -736,7 +825,7 @@ export default function ShowEmployee({ employee }) {
                             {/* Staff Weekly Offs */}
                             <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-4">
                                 <h4 className="text-sm font-bold text-slate-900">Assigned Weekly Off Days</h4>
-                                
+
                                 {(employee.weekly_offs || employee.weeklyOffs || []).length > 0 ? (
                                     <div className="overflow-hidden border border-slate-200 rounded-xl">
                                         <table className="min-w-full divide-y divide-slate-200 text-left text-xs">

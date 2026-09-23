@@ -16,7 +16,7 @@ const RATING_CATEGORIES = [
     {
         key: 'management_rating',
         label: 'Management & Leadership',
-        desc: 'Support, clear communication, guidance, and fairness from salon leadership'
+        desc: 'Support, clear communication, guidance, and fairness from Company leadership'
     },
     {
         key: 'work_environment_rating',
@@ -59,11 +59,10 @@ function StarRating({ value, onChange, disabled = false }) {
                         onClick={() => onChange(star)}
                         onMouseEnter={() => !disabled && setHover(star)}
                         onMouseLeave={() => !disabled && setHover(0)}
-                        className={`p-1.5 sm:p-2 rounded-xl transition-all ${
-                            star <= score
+                        className={`p-1.5 sm:p-2 rounded-xl transition-all ${star <= score
                                 ? 'text-amber-400 bg-amber-50 hover:bg-amber-100 scale-105'
                                 : 'text-slate-300 hover:text-slate-400 hover:bg-slate-50'
-                        } ${disabled ? 'cursor-default' : 'cursor-pointer'}`}
+                            } ${disabled ? 'cursor-default' : 'cursor-pointer'}`}
                     >
                         <FiStar className={`w-5 h-5 sm:w-6 sm:h-6 ${star <= score ? 'fill-amber-400' : ''}`} />
                     </button>
@@ -82,16 +81,16 @@ export default function ExitInterview({ offboarding, exitInterview = null }) {
     const isCompleted = offboarding.status === 'completed' || (exitInterview && exitInterview.conducted_at);
 
     const { data, setData, post, processing, errors } = useForm({
-        reason_for_leaving:        exitInterview?.reason_for_leaving || '',
-        job_satisfaction_rating:   exitInterview?.job_satisfaction_rating || 3,
-        management_rating:         exitInterview?.management_rating || 3,
-        work_environment_rating:   exitInterview?.work_environment_rating || 3,
-        compensation_rating:       exitInterview?.compensation_rating || 3,
+        reason_for_leaving: exitInterview?.reason_for_leaving || '',
+        job_satisfaction_rating: exitInterview?.job_satisfaction_rating || 3,
+        management_rating: exitInterview?.management_rating || 3,
+        work_environment_rating: exitInterview?.work_environment_rating || 3,
+        compensation_rating: exitInterview?.compensation_rating || 3,
         growth_opportunity_rating: exitInterview?.growth_opportunity_rating || 3,
-        best_part_of_job:          exitInterview?.best_part_of_job || '',
-        improvement_suggestions:   exitInterview?.improvement_suggestions || '',
-        additional_comments:       exitInterview?.additional_comments || '',
-        rehire_eligible:           exitInterview ? Boolean(exitInterview.rehire_eligible) : true,
+        best_part_of_job: exitInterview?.best_part_of_job || '',
+        improvement_suggestions: exitInterview?.improvement_suggestions || '',
+        additional_comments: exitInterview?.additional_comments || '',
+        rehire_eligible: exitInterview ? Boolean(exitInterview.rehire_eligible) : true,
     });
 
     const averageRating = useMemo(() => {
@@ -207,8 +206,8 @@ export default function ExitInterview({ offboarding, exitInterview = null }) {
                                 <FiMapPin className="w-4 h-4 sm:w-5 sm:h-5" />
                             </div>
                             <div className="min-w-0">
-                                <p className="text-[9px] sm:text-[10px] text-slate-400 uppercase font-bold tracking-wider truncate">Salon / Branch</p>
-                                <p className="font-bold text-slate-900 text-xs sm:text-sm truncate">{offboarding.employee?.company?.name || 'Main Salon'}</p>
+                                <p className="text-[9px] sm:text-[10px] text-slate-400 uppercase font-bold tracking-wider truncate">Company / Branch</p>
+                                <p className="font-bold text-slate-900 text-xs sm:text-sm truncate">{offboarding.employee?.company?.name || 'Main Company'}</p>
                                 <p className="text-[10px] sm:text-[11px] text-rose-600 font-medium capitalize truncate">
                                     {offboarding.separation_reason?.replace(/_/g, ' ') || 'Resignation'}
                                 </p>
@@ -282,11 +281,10 @@ export default function ExitInterview({ offboarding, exitInterview = null }) {
                                             type="button"
                                             disabled={isCompleted}
                                             onClick={() => setData('rehire_eligible', true)}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all ${
-                                                data.rehire_eligible === true
+                                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all ${data.rehire_eligible === true
                                                     ? 'bg-emerald-600 text-white shadow-xs'
                                                     : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                                            }`}
+                                                }`}
                                         >
                                             <FiCheckCircle className="w-4 h-4" /> Eligible for Rehire
                                         </button>
@@ -294,11 +292,10 @@ export default function ExitInterview({ offboarding, exitInterview = null }) {
                                             type="button"
                                             disabled={isCompleted}
                                             onClick={() => setData('rehire_eligible', false)}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all ${
-                                                data.rehire_eligible === false
+                                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all ${data.rehire_eligible === false
                                                     ? 'bg-rose-600 text-white shadow-xs'
                                                     : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                                            }`}
+                                                }`}
                                         >
                                             <FiAlertCircle className="w-4 h-4" /> Not Eligible
                                         </button>
@@ -359,7 +356,7 @@ export default function ExitInterview({ offboarding, exitInterview = null }) {
                                             rows={3}
                                             value={data.improvement_suggestions}
                                             onChange={(e) => setData('improvement_suggestions', e.target.value)}
-                                            placeholder="What could the salon management improve? (e.g. shift schedules, inventory tools, training programs, incentive structure)..."
+                                            placeholder="What could the Company management improve? (e.g. shift schedules, inventory tools, training programs, incentive structure)..."
                                             disabled={isCompleted}
                                             className="w-full text-xs border border-slate-200 rounded-xl p-3 bg-slate-50 focus:bg-white focus:ring-1 focus:ring-rose-400 focus:border-rose-400 transition-all outline-none"
                                         />

@@ -177,11 +177,11 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                         </div>
                         <div className="space-y-2">
                             <label className="block text-xs font-normal text-slate-500 uppercase tracking-normal ml-1">Branch</label>
-                            <MultiCheckboxSelect value={filters.company_id} options={companies?.map(c => ({ value: String(c.id), label: c.name })) || []} onChange={(e) => setFilters({ ...filters, company_id: e.target.value })} placeholder="All Branches" />
+                            <MultiCheckboxSelect value={filters.company_id} options={companies?.map(c => ({ value: String(c.id), label: c.name })) || []} onChange={(vals) => setFilters({ ...filters, company_id: vals })} placeholder="All Branches" />
                         </div>
                         <div className="space-y-2">
                             <label className="block text-xs font-normal text-slate-500 uppercase tracking-normal ml-1">Employee</label>
-                            <MultiCheckboxSelect value={filters.employee_id} options={filteredEmployees.map(emp => ({ value: String(emp.id), label: emp.name }))} onChange={(e) => setFilters({ ...filters, employee_id: e.target.value })} placeholder="All Employees" />
+                            <MultiCheckboxSelect value={filters.employee_id} options={filteredEmployees.map(emp => ({ value: String(emp.id), label: emp.name }))} onChange={(vals) => setFilters({ ...filters, employee_id: vals })} placeholder="All Employees" />
                         </div>
                         <div>
                             <button onClick={handleFilter} className="w-full bg-primary text-white py-2.5 rounded-xl text-sm font-normal hover:brightness-110 shadow-lg shadow-primary/20 active:scale-95 transition-all">

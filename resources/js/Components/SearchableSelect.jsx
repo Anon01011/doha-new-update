@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import Select from 'react-select';
 
 export default function SearchableSelect({
     id,
     name,
     value,
-    options,
+    options = [],
     onChange,
     placeholder = 'Select an option...',
     className = '',
@@ -14,73 +14,106 @@ export default function SearchableSelect({
     isMulti = false,
     ...props
 }) {
+    // Flatten options if grouped for safe value resolution
+    const flatOptions = useMemo(() => {
+        if (!options || !Array.isArray(options)) return [];
+        return options.flatMap(opt => (opt && opt.options ? opt.options : opt));
+    }, [options]);
+
     // Find the current selected option object(s)
     let selectedOption = null;
     if (isMulti) {
         const values = Array.isArray(value)
-            ? value
-            : (value ? String(value).split(',') : []);
-        selectedOption = options?.filter(opt => values.some(v => String(v) == String(opt.value))) || [];
+            ? value.map(String)
+            : (value !== null && value !== undefined && value !== '' ? String(value).split(',') : []);
+        selectedOption = flatOptions.filter(opt => opt && values.includes(String(opt.value))) || [];
     } else {
-        selectedOption = options?.find(opt => opt.value == value) || null;
+        selectedOption = (value !== null && value !== undefined && value !== '')
+            ? flatOptions.find(opt => opt && String(opt.value) === String(value)) || null
+            : null;
     }
 
     const customStyles = {
         control: (provided, state) => ({
             ...provided,
             backgroundColor: '#f8fafc', // slate-50
-            border: state.isFocused ? '1px solid #6366f1' : '1px solid transparent', // indigo-500 or transparent
-            borderRadius: '1rem', // rounded-lg
-            padding: '4px',
-            boxShadow: state.isFocused ? '0 0 0 4px rgba(99, 102, 241, 0.1)' : 'none',
+            border: state.isFocused ? '1px solid #3b82f6' : '1px solid #e2e8f0', // blue-500 or slate-200
+            borderRadius: '0.75rem', // rounded-xl
+            minHeight: '42px',
+            padding: '2px 4px',
+            boxShadow: state.isFocused ? '0 0 0 3px rgba(59, 130, 246, 0.15)' : 'none',
             '&:hover': {
                 backgroundColor: '#ffffff',
+                borderColor: state.isFocused ? '#3b82f6' : '#cbd5e1',
             },
-            transition: 'all 300ms ease',
+            transition: 'all 200ms ease',
         }),
         menu: (provided) => ({
             ...provided,
-            borderRadius: '1rem',
+            borderRadius: '0.75rem',
             overflow: 'hidden',
             boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
             zIndex: 9999,
             border: '1px solid #e2e8f0', // slate-200
+            backgroundColor: '#ffffff',
         }),
         menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+        groupHeading: (provided) => ({
+            ...provided,
+            fontSize: '0.65rem',
+            fontWeight: '700',
+            textTransform: 'uppercase',
+            color: '#64748b',
+            letterSpacing: '0.05em',
+            padding: '6px 12px',
+            backgroundColor: '#f1f5f9',
+        }),
         option: (provided, state) => ({
             ...provided,
             backgroundColor: state.isSelected 
-                ? '#4f46e5' // indigo-600 
+                ? '#2563eb' // blue-600 
                 : state.isFocused 
-                ? '#e0e7ff' // indigo-100 
+                ? '#eff6ff' // blue-50 
                 : 'transparent',
             color: state.isSelected 
-                ? 'white' 
+                ? '#ffffff' 
                 : state.isFocused 
-                ? '#3730a3' // indigo-800
+                ? '#1e40af' // blue-800
                 : '#334155', // slate-700
-            padding: '10px 16px',
+            padding: '8px 14px',
             cursor: 'pointer',
             fontSize: '0.875rem', // text-sm
-            fontWeight: state.isSelected ? '600' : '500',
+            fontWeight: state.isSelected ? '600' : '400',
             '&:active': {
-                backgroundColor: '#4338ca', // indigo-700
+                backgroundColor: '#1d4ed8',
             },
         }),
         singleValue: (provided) => ({
             ...provided,
-            color: '#334155', // slate-700
-            fontWeight: '600',
+            color: '#1e293b', // slate-800
+            fontWeight: '500',
             fontSize: '0.875rem',
+        }),
+        multiValue: (provided) => ({
+            ...provided,
+            backgroundColor: '#eff6ff',
+            borderRadius: '0.375rem',
+        }),
+        multiValueLabel: (provided) => ({
+            ...provided,
+            color: '#1e40af',
+            fontSize: '0.75rem',
+            fontWeight: '500',
         }),
         placeholder: (provided) => ({
             ...provided,
-            color: '#cbd5e1', // slate-300
+            color: '#94a3b8', // slate-400
             fontSize: '0.875rem',
         }),
         input: (provided) => ({
             ...provided,
-            color: '#334155', // slate-700
+            color: '#1e293b',
+            fontSize: '0.875rem',
         }),
         indicatorSeparator: () => ({
             display: 'none',
@@ -96,7 +129,6 @@ export default function SearchableSelect({
                 options={options}
                 isMulti={isMulti}
                 onChange={(option) => {
-                    // We simulate standard event structure to match existing onChange handlers
                     const finalValue = isMulti
                         ? (option ? option.map(opt => opt.value) : [])
                         : (option ? option.value : '');
@@ -107,7 +139,9 @@ export default function SearchableSelect({
                             value: finalValue,
                         }
                     };
-                    onChange(event);
+                    if (onChange) {
+                        onChange(event);
+                    }
                 }}
                 styles={customStyles}
                 placeholder={placeholder}

@@ -1,11 +1,13 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { hasPermission } from '@/helpers/permissions';
 import Avatar from '@/Components/Avatar';
 import Modal from '@/Components/Modal';
 import axios from 'axios';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import SearchableSelect from '@/Components/SearchableSelect';
+import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
 import { FiSearch, FiUsers, FiCheckCircle, FiClock, FiGrid, FiUserPlus, FiSend, FiList, FiPlus, FiEye, FiEdit2, FiTrash2, FiAlertCircle, FiDownload, FiUpload, FiFileText } from 'react-icons/fi';
 
 export default function Index({ employees, status, search: initialSearch = '', stats = {}, companies = [] }) {
@@ -262,16 +264,13 @@ export default function Index({ employees, status, search: initialSearch = '', s
 
                         <div className="w-full md:w-64">
                             <label className="block text-[10px] font-normal text-slate-500 uppercase tracking-normal mb-2 ml-1">Department</label>
-                            <select
+                            <SearchableSelect
                                 value={departmentId}
+                                options={[{ value: '', label: 'All Departments' }, ...departments.map(d => ({ value: String(d.id), label: d.name }))]}
                                 onChange={(e) => setDepartmentId(e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50/50 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-sm font-normal"
-                            >
-                                <option value="">All Departments</option>
-                                {departments.map((dept) => (
-                                    <option key={dept.id} value={dept.id}>{dept.name}</option>
-                                ))}
-                            </select>
+                                placeholder="All Departments"
+                                isClearable={true}
+                            />
                         </div>
 
                         <div className="flex gap-2">
@@ -593,31 +592,23 @@ export default function Index({ employees, status, search: initialSearch = '', s
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-normal text-gray-700 mb-1">Target Branch (Company) *</label>
-                            <select
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                            <SearchableSelect
                                 value={targetCompanyId}
+                                options={availableCompanies.map(c => ({ value: String(c.id), label: c.name }))}
                                 onChange={(e) => setTargetCompanyId(e.target.value)}
-                            >
-                                <option value="">Select Branch</option>
-                                {availableCompanies.map(company => (
-                                    <option key={company.id} value={company.id}>{company.name}</option>
-                                ))}
-                            </select>
+                                placeholder="Select Target Branch"
+                            />
                         </div>
 
                         <div>
                             <label className="block text-sm font-normal text-gray-700 mb-1">Target Department *</label>
-                            <select
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                            <SearchableSelect
                                 value={targetDepartmentId}
+                                options={availableDepartments.map(d => ({ value: String(d.id), label: d.name }))}
                                 onChange={(e) => setTargetDepartmentId(e.target.value)}
-                                disabled={!targetCompanyId || transferSummary.valid === 0}
-                            >
-                                <option value="">Select Department</option>
-                                {availableDepartments.map(dept => (
-                                    <option key={dept.id} value={dept.id}>{dept.name}</option>
-                                ))}
-                            </select>
+                                placeholder={!targetCompanyId ? 'Select Branch First' : 'Select Target Department'}
+                                isDisabled={!targetCompanyId || transferSummary.valid === 0}
+                            />
                             {!targetCompanyId && <p className="text-xs text-gray-500 mt-1">Please select a branch first.</p>}
                             {targetCompanyId && transferSummary.valid === 0 && <p className="text-xs text-red-500 mt-1">No eligible employees to transfer to this branch.</p>}
                         </div>
@@ -688,17 +679,14 @@ export default function Index({ employees, status, search: initialSearch = '', s
                         {companies.length > 1 && (
                             <div>
                                 <label className="block text-xs font-medium text-slate-700 mb-1.5">Default Branch / Company (Optional)</label>
-                                <select
+                                <SearchableSelect
                                     value={importCompanyId}
+                                    options={companies.map(c => ({ value: String(c.id), label: c.name }))}
                                     onChange={e => setImportCompanyId(e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50/50 focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                                    disabled={isImporting}
-                                >
-                                    <option value="">Use branch specified in CSV (or default)</option>
-                                    {companies.map(c => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
-                                </select>
+                                    placeholder="Use branch specified in CSV (or default)"
+                                    isDisabled={isImporting}
+                                    isClearable={true}
+                                />
                                 <p className="text-[11px] text-slate-400 mt-1">If the CSV row leaves branch empty, this selected branch will be used.</p>
                             </div>
                         )}

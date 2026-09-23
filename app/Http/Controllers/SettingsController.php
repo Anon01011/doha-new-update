@@ -517,6 +517,11 @@ class SettingsController extends Controller
             'salary_slip_payment_display' => 'nullable|in:mode_only,full_details',
             'payment_methods' => 'nullable|string',
             'default_payment_method' => 'nullable|string',
+            'appraisal_letter_header' => 'nullable|string|max:255',
+            'appraisal_letter_signatory_name' => 'nullable|string|max:255',
+            'appraisal_letter_signatory_title' => 'nullable|string|max:255',
+            'appraisal_letter_footer_text' => 'nullable|string|max:1000',
+            'appraisal_letter_send_email' => 'nullable|boolean',
         ]);
 
         $scopeType = $request->input('scope_type', 'global');

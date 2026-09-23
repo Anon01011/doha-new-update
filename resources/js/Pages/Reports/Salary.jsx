@@ -151,7 +151,7 @@ export default function Salary({ salaryPostings, summary, month, year, companyId
                             <MultiCheckboxSelect
                                 value={filters.month}
                                 options={months.map(m => ({ value: String(m.value), label: m.label }))}
-                                onChange={(e) => setFilters({ ...filters, month: e.target.value })}
+                                onChange={(vals) => setFilters({ ...filters, month: vals })}
                                 placeholder="Select Months"
                             />
                         </div>
@@ -172,7 +172,7 @@ export default function Salary({ salaryPostings, summary, month, year, companyId
                             <MultiCheckboxSelect
                                 value={filters.company_id}
                                 options={companies?.map(c => ({ value: String(c.id), label: c.name })) || []}
-                                onChange={(e) => setFilters({ ...filters, company_id: e.target.value })}
+                                onChange={(vals) => setFilters({ ...filters, company_id: vals })}
                                 placeholder="Select Branches"
                             />
                         </div>
@@ -181,7 +181,7 @@ export default function Salary({ salaryPostings, summary, month, year, companyId
                             <MultiCheckboxSelect
                                 value={filters.department_id}
                                 options={filteredDepartments?.map(d => ({ value: String(d.id), label: d.name })) || []}
-                                onChange={(e) => setFilters({ ...filters, department_id: e.target.value })}
+                                onChange={(vals) => setFilters({ ...filters, department_id: vals })}
                                 placeholder="Select Departments"
                             />
                         </div>
@@ -190,7 +190,7 @@ export default function Salary({ salaryPostings, summary, month, year, companyId
                             <MultiCheckboxSelect
                                 value={filters.employee_id}
                                 options={filteredEmployees?.map(emp => ({ value: String(emp.id), label: emp.name })) || []}
-                                onChange={(e) => setFilters({ ...filters, employee_id: e.target.value })}
+                                onChange={(vals) => setFilters({ ...filters, employee_id: vals })}
                                 placeholder="Select Employees"
                             />
                         </div>

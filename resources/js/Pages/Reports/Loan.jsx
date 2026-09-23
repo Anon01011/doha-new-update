@@ -148,7 +148,7 @@ export default function Loan({ loans, summary, status, loanType, companyId, empl
                             <MultiCheckboxSelect
                                 value={filters.company_id}
                                 options={companies?.map(c => ({ value: String(c.id), label: c.name })) || []}
-                                onChange={(e) => setFilters({ ...filters, company_id: e.target.value })}
+                                onChange={(vals) => setFilters({ ...filters, company_id: vals })}
                                 placeholder="Select Branches"
                             />
                         </div>
@@ -157,7 +157,7 @@ export default function Loan({ loans, summary, status, loanType, companyId, empl
                             <MultiCheckboxSelect
                                 value={filters.employee_id}
                                 options={filteredEmployees?.map(emp => ({ value: String(emp.id), label: emp.name })) || []}
-                                onChange={(e) => setFilters({ ...filters, employee_id: e.target.value })}
+                                onChange={(vals) => setFilters({ ...filters, employee_id: vals })}
                                 placeholder="Select Employees"
                             />
                         </div>

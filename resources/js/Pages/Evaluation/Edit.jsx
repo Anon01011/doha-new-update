@@ -16,12 +16,23 @@ import {
     ArrowLeftIcon,
     ChartPieIcon,
     SparklesIcon,
-    ArrowPathIcon
+    ArrowPathIcon,
+    CurrencyRupeeIcon,
+    ArrowTrendingUpIcon,
+    ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 
 export default function Edit({ auth, evaluation, employees: initialEmployees, branches, departments: initialDepartments, criteria }) {
-    
-    const { data, setData, put, processing, errors } = useForm({
+
+    // Determine initial increment type from saved data
+    const getInitialIncrementType = () => {
+        if (evaluation.increment_percentage && parseFloat(evaluation.increment_percentage) > 0) {
+            return 'percentage';
+        }
+        return 'fixed';
+    };
+
+    const { data, setData, put, processing, errors, transform } = useForm({
         branch_id: evaluation.employee?.company_id || '',
         department_id: evaluation.employee?.department_id || '',
         employee_id: evaluation.employee_id || '',
@@ -29,8 +40,15 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
         year: evaluation.year || new Date().getFullYear(),
         criteria_scores: evaluation.criteria_scores || criteria.reduce((acc, curr) => ({ ...acc, [curr]: 3 }), {}),
         comments: evaluation.comments || '',
+        increment_recommended: evaluation.increment_recommended ? String(parseFloat(evaluation.increment_recommended)) : '',
+        increment_percentage: evaluation.increment_percentage ? String(parseFloat(evaluation.increment_percentage)) : '',
+        promotion_recommended: evaluation.promotion_recommended || false,
+        recommended_designation: evaluation.recommended_designation || '',
+        pip_required: evaluation.pip_required || false,
+        pip_notes: evaluation.pip_notes || '',
     });
 
+    const [incrementType, setIncrementType] = useState(getInitialIncrementType);
     const [selectedEmployee, setSelectedEmployee] = useState(evaluation.employee);
     const [filteredDepartments, setFilteredDepartments] = useState(initialDepartments);
     const [employees, setEmployees] = useState(initialEmployees);
@@ -48,8 +66,23 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
         }
     }, [data.branch_id]);
 
+    // When switching increment type, clear the opposite field
+    const handleIncrementTypeChange = (type) => {
+        setIncrementType(type);
+        if (type === 'fixed') {
+            setData('increment_percentage', '');
+        } else {
+            setData('increment_recommended', '');
+        }
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
+        transform((formData) => ({
+            ...formData,
+            increment_percentage: incrementType === 'fixed' ? '' : formData.increment_percentage,
+            increment_recommended: incrementType === 'percentage' ? '' : formData.increment_recommended,
+        }));
         put(route('evaluations.update', evaluation.id));
     };
 
@@ -77,15 +110,8 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
         return 'Deficient';
     };
 
-    const getScoreColor = (score) => {
-        if (score >= 4) return 'bg-emerald-500';
-        if (score >= 3) return 'bg-indigo-500';
-        if (score >= 2) return 'bg-amber-500';
-        return 'bg-rose-500';
-    };
-
     const groupedCriteria = useMemo(() => {
-        const groups = {
+        return {
             'Attitude': [
                 'Service Quality', 'Communication Skills', 'Cleanliness',
                 'Teamwork', 'Leadership', 'Professional Behavior', 'Work Under Pressure'
@@ -101,8 +127,24 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
                 'Productivity', 'Initiative', 'Effective Problem Solving'
             ]
         };
-        return groups;
     }, []);
+
+    // Live salary preview
+    const currentBasic = selectedEmployee ? parseFloat(selectedEmployee.basic_salary || 0) : 0;
+    const incrementAmt = useMemo(() => {
+        if (!selectedEmployee) return 0;
+        if (incrementType === 'fixed') {
+            return parseFloat(data.increment_recommended || 0);
+        } else {
+            const pct = parseFloat(data.increment_percentage || 0);
+            return currentBasic * (pct / 100);
+        }
+    }, [incrementType, data.increment_recommended, data.increment_percentage, currentBasic, selectedEmployee]);
+
+    const newSalary = currentBasic + incrementAmt;
+    const incrementPct = currentBasic > 0 && incrementAmt > 0
+        ? ((incrementAmt / currentBasic) * 100).toFixed(2)
+        : 0;
 
     return (
         <AuthenticatedLayout>
@@ -112,8 +154,8 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
                 <div className="w-full space-y-4">
                     {/* Action Bar */}
                     <div className="flex items-center gap-3">
-                        <Link 
-                            href={route('evaluations.show', evaluation.id)} 
+                        <Link
+                            href={route('evaluations.show', evaluation.id)}
                             className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all shadow-sm active:scale-95 group"
                         >
                             <ArrowLeftIcon className="w-4 h-4 text-slate-400 group-hover:text-primary transition-colors" />
@@ -125,7 +167,7 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
                     </div>
 
                     <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                        
+
                         {/* Left Column: Context & Stats (STICKY) */}
                         <div className="lg:col-span-4 space-y-8 lg:sticky lg:top-24 z-[10]">
                             {/* Employee Identity Card */}
@@ -138,9 +180,14 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
                                 </div>
                                 <h3 className="text-xl font-normal text-slate-900 tracking-normal">{selectedEmployee?.name}</h3>
                                 <p className="text-[10px] font-normal text-indigo-600 uppercase tracking-[0.2em] mt-1">{selectedEmployee?.designation || 'Specialist Staff'}</p>
-                                
+                                {currentBasic > 0 && (
+                                    <p className="text-[11px] font-semibold text-emerald-600 mt-2">
+                                        Current Basic: ₹{currentBasic.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </p>
+                                )}
+
                                 <div className="w-full h-px bg-slate-100 my-8"></div>
-                                
+
                                 <div className="grid grid-cols-2 gap-4 w-full">
                                     <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 text-left">
                                         <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal mb-1">Company</p>
@@ -202,7 +249,7 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
                                         </span>
                                     </div>
                                     <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                                        <div 
+                                        <div
                                             className="h-full bg-indigo-500 transition-all duration-700"
                                             style={{ width: `${averageScore}%` }}
                                         ></div>
@@ -234,9 +281,9 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
                                                     <div className="flex items-center justify-between">
                                                         <label className="text-sm font-normal text-slate-700">{criterion}</label>
                                                         <span className={`text-[10px] font-normal uppercase tracking-normal px-3 py-1 rounded-lg ${
-                                                            score === 4 ? 'bg-emerald-50 text-emerald-700' : 
-                                                            score === 3 ? 'bg-indigo-50 text-indigo-700' : 
-                                                            score === 2 ? 'bg-amber-50 text-amber-700' : 
+                                                            score === 4 ? 'bg-emerald-50 text-emerald-700' :
+                                                            score === 3 ? 'bg-indigo-50 text-indigo-700' :
+                                                            score === 2 ? 'bg-amber-50 text-amber-700' :
                                                             'bg-rose-50 text-rose-700'
                                                         }`}>
                                                             {getScoreLabel(score)}
@@ -249,8 +296,8 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
                                                                 type="button"
                                                                 onClick={() => handleScoreChange(criterion, num)}
                                                                 className={`py-3 rounded-lg border-2 transition-all text-[10px] font-normal uppercase tracking-normal ${
-                                                                    score === num 
-                                                                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm' 
+                                                                    score === num
+                                                                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
                                                                     : 'border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-200'
                                                                 }`}
                                                             >
@@ -264,6 +311,163 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
                                     </div>
                                 </div>
                             ))}
+
+                            {/* ====================================================== */}
+                            {/* Salary Increment Section                                */}
+                            {/* ====================================================== */}
+                            <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-8 space-y-5">
+                                <h3 className="text-sm font-normal text-slate-800 uppercase tracking-normal flex items-center gap-2">
+                                    <CurrencyRupeeIcon className="w-5 h-5 text-emerald-600" />
+                                    Salary Increment Recommendation
+                                </h3>
+
+                                {/* Mode Toggle: Fixed vs Percentage */}
+                                <div className="flex items-center gap-0 bg-slate-100 rounded-lg p-1 w-fit">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleIncrementTypeChange('fixed')}
+                                        className={`px-4 py-1.5 rounded-md text-[11px] font-semibold uppercase transition-all ${
+                                            incrementType === 'fixed'
+                                                ? 'bg-white text-emerald-700 shadow-sm border border-slate-200'
+                                                : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        ₹ Fixed Amount
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleIncrementTypeChange('percentage')}
+                                        className={`px-4 py-1.5 rounded-md text-[11px] font-semibold uppercase transition-all ${
+                                            incrementType === 'percentage'
+                                                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
+                                                : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        % Percentage
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {incrementType === 'fixed' ? (
+                                        <div>
+                                            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-normal mb-2">
+                                                Fixed Increment Amount (₹)
+                                            </label>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">₹</span>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={data.increment_recommended}
+                                                    onChange={(e) => setData('increment_recommended', e.target.value)}
+                                                    placeholder="e.g. 2500"
+                                                    className="w-full pl-7 bg-slate-50 border-slate-200 rounded-lg text-sm font-normal text-slate-700 focus:ring-emerald-500 focus:border-emerald-500"
+                                                />
+                                            </div>
+                                            {errors.increment_recommended && (
+                                                <p className="text-rose-500 text-[10px] mt-1">{errors.increment_recommended}</p>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-normal mb-2">
+                                                Increment Percentage (%)
+                                            </label>
+                                            <div className="relative">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    step="0.01"
+                                                    value={data.increment_percentage}
+                                                    onChange={(e) => setData('increment_percentage', e.target.value)}
+                                                    placeholder="e.g. 10"
+                                                    className="w-full pr-8 bg-slate-50 border-slate-200 rounded-lg text-sm font-normal text-slate-700 focus:ring-blue-500 focus:border-blue-500"
+                                                />
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">%</span>
+                                            </div>
+                                            {errors.increment_percentage && (
+                                                <p className="text-rose-500 text-[10px] mt-1">{errors.increment_percentage}</p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Live Salary Preview */}
+                                    {selectedEmployee && incrementAmt > 0 && (
+                                        <div className="sm:col-span-1 flex flex-col gap-2">
+                                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-normal">Salary Outcome Preview</p>
+                                            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-1.5">
+                                                <div className="flex items-center justify-between text-[11px]">
+                                                    <span className="text-slate-500">Current Basic</span>
+                                                    <span className="font-semibold text-slate-700">₹{currentBasic.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between text-[11px]">
+                                                    <span className="text-emerald-600">Increment (+)</span>
+                                                    <span className="font-semibold text-emerald-700">
+                                                        +₹{incrementAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                        {incrementType === 'fixed' && incrementPct > 0 && (
+                                                            <span className="ml-1 text-emerald-500">({incrementPct}%)</span>
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="border-t border-emerald-200 pt-1.5 flex items-center justify-between text-[12px]">
+                                                    <span className="text-slate-700 font-semibold">New Basic Salary</span>
+                                                    <span className="font-bold text-emerald-700">₹{newSalary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* ====================================================== */}
+                            {/* Promotion & PIP                                         */}
+                            {/* ====================================================== */}
+                            <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-8 space-y-4">
+                                <h3 className="text-sm font-normal text-slate-800 uppercase tracking-normal flex items-center gap-2">
+                                    <ArrowTrendingUpIcon className="w-5 h-5 text-indigo-600" />
+                                    Promotion & Performance Action
+                                </h3>
+                                <div className="space-y-3">
+                                    <label className="flex items-center gap-2 text-sm font-normal text-slate-700 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={data.promotion_recommended}
+                                            onChange={(e) => setData('promotion_recommended', e.target.checked)}
+                                            className="rounded border-slate-300 text-primary focus:ring-primary"
+                                        />
+                                        Recommend Employee for Promotion
+                                    </label>
+                                    {data.promotion_recommended && (
+                                        <input
+                                            type="text"
+                                            value={data.recommended_designation}
+                                            onChange={(e) => setData('recommended_designation', e.target.value)}
+                                            placeholder="Enter new recommended designation..."
+                                            className="w-full bg-slate-50 border-slate-200 rounded-lg text-sm font-normal text-slate-700"
+                                        />
+                                    )}
+                                    <label className="flex items-center gap-2 text-sm font-normal cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={data.pip_required}
+                                            onChange={(e) => setData('pip_required', e.target.checked)}
+                                            className="rounded border-slate-300 text-rose-500 focus:ring-rose-400"
+                                        />
+                                        <span className="text-rose-600 font-medium">Flag for Performance Improvement Plan (PIP)</span>
+                                    </label>
+                                    {data.pip_required && (
+                                        <textarea
+                                            value={data.pip_notes}
+                                            onChange={(e) => setData('pip_notes', e.target.value)}
+                                            rows={3}
+                                            placeholder="Describe PIP objectives, timeline, and targets..."
+                                            className="w-full bg-rose-50 border-rose-200 rounded-lg text-sm font-normal text-slate-700 focus:ring-rose-400 focus:border-rose-400 p-3 placeholder:text-slate-400"
+                                        />
+                                    )}
+                                </div>
+                            </div>
 
                             {/* Narrative Feedback Card */}
                             <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
@@ -293,7 +497,7 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
                                 <button
                                     type="submit"
                                     disabled={processing}
-                                    className="w-full py-5 bg-primary hover:brightness-110 shadow-lg shadow-primary/20 active:scale-95 text-white rounded-lg font-normal text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 transition-all active:scale-[0.98] disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-3"
+                                    className="w-full py-5 bg-primary hover:brightness-110 shadow-lg shadow-primary/20 active:scale-95 text-white rounded-lg font-normal text-xs uppercase tracking-[0.2em] transition-all active:scale-[0.98] disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-3"
                                 >
                                     {processing ? (
                                         <div className="flex items-center gap-2">

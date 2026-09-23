@@ -64,7 +64,7 @@ class LoginRequest extends FormRequest
 
             $statusReason = $employee->exit_status ? " ({$employee->exit_status})" : '';
             throw ValidationException::withMessages([
-                'email' => "Your employee profile has been locked and deactivated{$statusReason}. Access is restricted. Only HR or Salon Administrator can unlock your profile.",
+                'email' => "Your employee profile has been locked and deactivated{$statusReason}. Access is restricted. Only HR or Company Administrator can unlock your profile.",
             ]);
         }
 

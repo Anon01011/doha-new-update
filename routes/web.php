@@ -235,6 +235,7 @@ Route::middleware('auth')->group(function () {
     Route::post('training-assignments/{assignment}/update-progress', [\App\Http\Controllers\TrainingAssignmentController::class, 'updateProgress'])->name('training-assignments.updateProgress');
 
     Route::resource('evaluations', \App\Http\Controllers\EmployeeEvaluationController::class);
+    Route::get('evaluations/{evaluation}/appraisal-letter', [\App\Http\Controllers\EmployeeEvaluationController::class, 'downloadAppraisalLetter'])->name('evaluations.appraisal-letter');
     Route::post('evaluations/{evaluation}/self-assessment', [\App\Http\Controllers\EmployeeEvaluationController::class, 'submitSelfAssessment'])->name('evaluations.self-assessment');
     Route::post('evaluations/{evaluation}/acknowledge', [\App\Http\Controllers\EmployeeEvaluationController::class, 'acknowledge'])->name('evaluations.acknowledge');
     Route::post('evaluations/{evaluation}/approve-close', [\App\Http\Controllers\EmployeeEvaluationController::class, 'approveAndClose'])->name('evaluations.approve-close');

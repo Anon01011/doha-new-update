@@ -103,9 +103,19 @@ class Employee extends Model
         return $this->belongsTo(Company::class);
     }
 
+    public function companies()
+    {
+        return $this->belongsToMany(Company::class, 'employee_company')->withTimestamps();
+    }
+
     public function department()
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function departments()
+    {
+        return $this->belongsToMany(Department::class, 'employee_department')->withTimestamps();
     }
 
     public function scopeActive($query)
@@ -314,7 +324,7 @@ class Employee extends Model
         $date = date('Ymd');
         do {
             $code = $prefix . $date . '-' . strtoupper(Str::random(6));
-        } while (self::where('employee_code', $code)->exists());
+        } while (self::withoutGlobalScopes()->where('employee_code', $code)->exists());
 
         return $code;
     }

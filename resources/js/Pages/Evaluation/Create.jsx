@@ -22,7 +22,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 export default function Create({ auth, employees: initialEmployees, branches, departments: initialDepartments, criteria }) {
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData, post, processing, errors, transform } = useForm({
         branch_id: '',
         department_id: '',
         employee_id: '',
@@ -39,6 +39,8 @@ export default function Create({ auth, employees: initialEmployees, branches, de
         pip_notes: '',
     });
 
+    // increment_type is UI-only: 'fixed' or 'percentage'
+    const [incrementType, setIncrementType] = useState('fixed');
     const [selectedEmployee, setSelectedEmployee] = useState(null);
     const [filteredDepartments, setFilteredDepartments] = useState(initialDepartments);
     const [employees, setEmployees] = useState(initialEmployees);
@@ -72,8 +74,23 @@ export default function Create({ auth, employees: initialEmployees, branches, de
         }
     }, [data.department_id]);
 
+    // When switching increment type, clear the opposite field
+    const handleIncrementTypeChange = (type) => {
+        setIncrementType(type);
+        if (type === 'fixed') {
+            setData('increment_percentage', '');
+        } else {
+            setData('increment_recommended', '');
+        }
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
+        transform((formData) => ({
+            ...formData,
+            increment_percentage: incrementType === 'fixed' ? '' : formData.increment_percentage,
+            increment_recommended: incrementType === 'percentage' ? '' : formData.increment_recommended,
+        }));
         post(route('evaluations.store'));
     };
 
@@ -116,7 +133,7 @@ export default function Create({ auth, employees: initialEmployees, branches, de
     };
 
     const groupedCriteria = useMemo(() => {
-        const groups = {
+        return {
             'Attitude & Professionalism': [
                 'Service Quality', 'Communication Skills', 'Cleanliness',
                 'Teamwork', 'Leadership', 'Professional Behavior', 'Work Under Pressure'
@@ -132,8 +149,24 @@ export default function Create({ auth, employees: initialEmployees, branches, de
                 'Productivity', 'Initiative', 'Effective Problem Solving'
             ]
         };
-        return groups;
     }, []);
+
+    // Live salary preview calculations
+    const currentBasic = selectedEmployee ? parseFloat(selectedEmployee.basic_salary || 0) : 0;
+    const incrementAmt = useMemo(() => {
+        if (!selectedEmployee) return 0;
+        if (incrementType === 'fixed') {
+            return parseFloat(data.increment_recommended || 0);
+        } else {
+            const pct = parseFloat(data.increment_percentage || 0);
+            return currentBasic * (pct / 100);
+        }
+    }, [incrementType, data.increment_recommended, data.increment_percentage, currentBasic, selectedEmployee]);
+
+    const newSalary = currentBasic + incrementAmt;
+    const incrementPct = currentBasic > 0 && incrementAmt > 0
+        ? ((incrementAmt / currentBasic) * 100).toFixed(2)
+        : 0;
 
     return (
         <AuthenticatedLayout>
@@ -212,8 +245,10 @@ export default function Create({ auth, employees: initialEmployees, branches, de
                                             <div>
                                                 <p className="text-xs font-normal text-slate-900">{selectedEmployee.name}</p>
                                                 <p className="text-[10px] text-indigo-600 font-normal uppercase">{selectedEmployee.designation || 'Staff'}</p>
-                                                {selectedEmployee.basic_salary && (
-                                                    <p className="text-[10px] text-emerald-600 font-normal">Base: ₹{Number(selectedEmployee.basic_salary).toLocaleString('en-IN')}</p>
+                                                {currentBasic > 0 && (
+                                                    <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                                                        Current Basic: ₹{currentBasic.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                    </p>
                                                 )}
                                             </div>
                                         </div>
@@ -334,53 +369,168 @@ export default function Create({ auth, employees: initialEmployees, branches, de
                                 </div>
                             ))}
 
-                            {/* Recommendations & Action Linkage */}
-                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+                            {/* ====================================================== */}
+                            {/* Salary Increment Section                                */}
+                            {/* ====================================================== */}
+                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-5">
                                 <h3 className="text-xs font-normal text-slate-800 uppercase tracking-normal flex items-center gap-2">
                                     <CurrencyRupeeIcon className="w-4 h-4 text-emerald-600" />
-                                    Outcome & Action Linkage Recommendations (INR ₹)
+                                    Salary Increment Recommendation
                                 </h3>
+
+                                {/* Mode Toggle: Fixed vs Percentage */}
+                                <div className="flex items-center gap-0 bg-slate-100 rounded-lg p-1 w-fit">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleIncrementTypeChange('fixed')}
+                                        className={`px-4 py-1.5 rounded-md text-[11px] font-semibold uppercase transition-all ${
+                                            incrementType === 'fixed'
+                                                ? 'bg-white text-emerald-700 shadow-sm border border-slate-200'
+                                                : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        ₹ Fixed Amount
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleIncrementTypeChange('percentage')}
+                                        className={`px-4 py-1.5 rounded-md text-[11px] font-semibold uppercase transition-all ${
+                                            incrementType === 'percentage'
+                                                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
+                                                : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        % Percentage
+                                    </button>
+                                </div>
+
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-[10px] font-normal text-slate-400 uppercase tracking-normal mb-1">Recommended Salary Increment (₹ INR)</label>
+                                    {incrementType === 'fixed' ? (
+                                        <div>
+                                            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-normal mb-1">
+                                                Fixed Increment Amount (₹)
+                                            </label>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">₹</span>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={data.increment_recommended}
+                                                    onChange={(e) => setData('increment_recommended', e.target.value)}
+                                                    placeholder="e.g. 2500"
+                                                    className="w-full pl-7 bg-slate-50 border-slate-200 rounded-lg text-xs font-normal text-slate-700 focus:ring-emerald-500 focus:border-emerald-500"
+                                                />
+                                            </div>
+                                            {errors.increment_recommended && (
+                                                <p className="text-rose-500 text-[10px] mt-1">{errors.increment_recommended}</p>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-normal mb-1">
+                                                Increment Percentage (%)
+                                            </label>
+                                            <div className="relative">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    step="0.01"
+                                                    value={data.increment_percentage}
+                                                    onChange={(e) => setData('increment_percentage', e.target.value)}
+                                                    placeholder="e.g. 10"
+                                                    className="w-full pr-8 bg-slate-50 border-slate-200 rounded-lg text-xs font-normal text-slate-700 focus:ring-blue-500 focus:border-blue-500"
+                                                />
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">%</span>
+                                            </div>
+                                            {errors.increment_percentage && (
+                                                <p className="text-rose-500 text-[10px] mt-1">{errors.increment_percentage}</p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Live Salary Preview */}
+                                    {selectedEmployee && incrementAmt > 0 && (
+                                        <div className="sm:col-span-1 flex flex-col gap-2">
+                                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-normal">Salary Outcome Preview</p>
+                                            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-1.5">
+                                                <div className="flex items-center justify-between text-[11px]">
+                                                    <span className="text-slate-500">Current Basic</span>
+                                                    <span className="font-semibold text-slate-700">₹{currentBasic.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between text-[11px]">
+                                                    <span className="text-emerald-600">Increment (+)</span>
+                                                    <span className="font-semibold text-emerald-700">
+                                                        +₹{incrementAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                        {incrementType === 'fixed' && incrementPct > 0 && (
+                                                            <span className="ml-1 text-emerald-500">({incrementPct}%)</span>
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="border-t border-emerald-200 pt-1.5 flex items-center justify-between text-[12px]">
+                                                    <span className="text-slate-700 font-semibold">New Basic Salary</span>
+                                                    <span className="font-bold text-emerald-700">₹{newSalary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* No employee selected warning */}
+                                {!selectedEmployee && (data.increment_recommended || data.increment_percentage) && (
+                                    <p className="text-[10px] text-amber-600 flex items-center gap-1">
+                                        <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                                        Select an employee to preview the salary outcome.
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* ====================================================== */}
+                            {/* Promotion & PIP                                         */}
+                            {/* ====================================================== */}
+                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+                                <h3 className="text-xs font-normal text-slate-800 uppercase tracking-normal flex items-center gap-2">
+                                    <ArrowTrendingUpIcon className="w-4 h-4 text-indigo-600" />
+                                    Promotion & Performance Action
+                                </h3>
+                                <div className="space-y-3">
+                                    <label className="flex items-center gap-2 text-xs font-normal text-slate-700 cursor-pointer">
                                         <input
-                                            type="number"
-                                            value={data.increment_recommended}
-                                            onChange={(e) => setData('increment_recommended', e.target.value)}
-                                            placeholder="e.g. 2500"
+                                            type="checkbox"
+                                            checked={data.promotion_recommended}
+                                            onChange={(e) => setData('promotion_recommended', e.target.checked)}
+                                            className="rounded border-slate-300 text-primary focus:ring-primary"
+                                        />
+                                        Recommend Employee for Promotion
+                                    </label>
+                                    {data.promotion_recommended && (
+                                        <input
+                                            type="text"
+                                            value={data.recommended_designation}
+                                            onChange={(e) => setData('recommended_designation', e.target.value)}
+                                            placeholder="Enter new recommended designation..."
                                             className="w-full bg-slate-50 border-slate-200 rounded-lg text-xs font-normal text-slate-700"
                                         />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-normal text-slate-400 uppercase tracking-normal mb-1">Increment Percentage (%)</label>
+                                    )}
+                                    <label className="flex items-center gap-2 text-xs font-normal text-slate-700 cursor-pointer">
                                         <input
-                                            type="number"
-                                            value={data.increment_percentage}
-                                            onChange={(e) => setData('increment_percentage', e.target.value)}
-                                            placeholder="e.g. 10"
-                                            className="w-full bg-slate-50 border-slate-200 rounded-lg text-xs font-normal text-slate-700"
+                                            type="checkbox"
+                                            checked={data.pip_required}
+                                            onChange={(e) => setData('pip_required', e.target.checked)}
+                                            className="rounded border-slate-300 text-rose-500 focus:ring-rose-400"
                                         />
-                                    </div>
-                                    <div className="sm:col-span-2">
-                                        <label className="flex items-center gap-2 text-xs font-normal text-slate-700 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={data.promotion_recommended}
-                                                onChange={(e) => setData('promotion_recommended', e.target.checked)}
-                                                className="rounded border-slate-300 text-primary focus:ring-primary"
-                                            />
-                                            Recommend Employee for Promotion
-                                        </label>
-                                        {data.promotion_recommended && (
-                                            <input
-                                                type="text"
-                                                value={data.recommended_designation}
-                                                onChange={(e) => setData('recommended_designation', e.target.value)}
-                                                placeholder="Enter new recommended designation..."
-                                                className="w-full mt-2 bg-slate-50 border-slate-200 rounded-lg text-xs font-normal text-slate-700"
-                                            />
-                                        )}
-                                    </div>
+                                        <span className="text-rose-600 font-medium">Flag for Performance Improvement Plan (PIP)</span>
+                                    </label>
+                                    {data.pip_required && (
+                                        <textarea
+                                            value={data.pip_notes}
+                                            onChange={(e) => setData('pip_notes', e.target.value)}
+                                            rows={3}
+                                            placeholder="Describe PIP objectives, timeline, and targets..."
+                                            className="w-full bg-rose-50 border-rose-200 rounded-lg text-xs font-normal text-slate-700 focus:ring-rose-400 focus:border-rose-400 p-3 placeholder:text-slate-400"
+                                        />
+                                    )}
                                 </div>
                             </div>
 

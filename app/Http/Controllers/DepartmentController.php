@@ -176,16 +176,26 @@ class DepartmentController extends Controller
     public function getByBranch(Request $request)
     {
         $user = auth()->user();
-        $branchId = $request->input('branch_id');
+        $branchId = $request->input('branch_id') ?: $request->input('company_id');
 
         // Multi-tenancy scoping
         if (!$user->isAdmin() && $user->employee_id && $user->employee) {
             $branchId = $user->employee->company_id;
         }
 
-        $departments = Department::whereHas('companies', function($q) use ($branchId) {
-            $q->where('companies.id', $branchId);
-        })->orderBy('name')->get(['departments.id', 'name']);
+        if (empty($branchId)) {
+            return response()->json(['departments' => []]);
+        }
+
+        $branchIds = is_array($branchId) ? $branchId : explode(',', (string)$branchId);
+        $branchIds = array_filter(array_map('trim', $branchIds));
+
+        $departments = Department::where(function($q) use ($branchIds) {
+            $q->whereIn('departments.company_id', $branchIds)
+              ->orWhereHas('companies', function($subQ) use ($branchIds) {
+                  $subQ->whereIn('companies.id', $branchIds);
+              });
+        })->orderBy('name')->distinct()->get(['departments.id', 'departments.name']);
         
         return response()->json(['departments' => $departments]);
     }

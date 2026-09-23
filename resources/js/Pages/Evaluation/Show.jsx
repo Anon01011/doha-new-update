@@ -195,6 +195,19 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                                 Print
                             </button>
 
+                            {/* Appraisal Letter PDF Download */}
+                            {(evaluation.status === 'approved' || evaluation.is_locked) && (
+                                <a
+                                    href={route('evaluations.appraisal-letter', evaluation.id)}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-normal transition-all shadow-sm active:scale-95 uppercase tracking-normal"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    <DocumentTextIcon className="w-3.5 h-3.5" />
+                                    Appraisal Letter (PDF)
+                                </a>
+                            )}
+
                             {/* Self Assessment Button */}
                             {isEmployee && !evaluation.is_locked && (
                                 <button
