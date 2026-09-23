@@ -267,7 +267,9 @@ class EmployeeAttendanceController extends Controller
                     ->where('week_start', '<=', $date)
                     ->orderBy('week_start', 'desc')
                     ->first();
-                $stdHours = Setting::get('standard_working_hours', 9, $employee->company_id);
+                $stdHours = $employee->department
+                    ? $employee->department->getWorkingHours($employee->company_id)
+                    : Setting::get('standard_working_hours', 9, $employee->company_id, $employee->department_id);
                 $expectedNormalHours = $roster ? ($roster->shift_duration ?? $stdHours) : $stdHours;
 
                 // Parse clock-in and clock-out times
@@ -519,7 +521,9 @@ class EmployeeAttendanceController extends Controller
                             })
                             ->sortByDesc('week_start')
                             ->first();
-                        $stdHours = Setting::get('standard_working_hours', 9, $employee->company_id);
+                        $stdHours = $employee->department
+                            ? $employee->department->getWorkingHours($employee->company_id)
+                            : Setting::get('standard_working_hours', 9, $employee->company_id, $employee->department_id);
                         $expectedNormalHours = $roster ? ($roster->shift_duration ?? $stdHours) : $stdHours;
 
                         // Determine approved leave
@@ -892,7 +896,9 @@ class EmployeeAttendanceController extends Controller
             $updateData['from_time'] = now()->format('H:i');
             $updateData['attendance'] = $attendanceStatus;
             $updateData['shift_id'] = $roster ? $roster->id : null;
-            $defaultStdHours = Setting::get('standard_working_hours', 9, $employee->company_id);
+            $defaultStdHours = $employee->department
+                ? $employee->department->getWorkingHours($employee->company_id)
+                : Setting::get('standard_working_hours', 9, $employee->company_id, $employee->department_id);
             $updateData['normal_hours'] = $roster ? ($roster->shift_duration ?: $defaultStdHours) : $defaultStdHours;
         }
 
@@ -952,7 +958,10 @@ class EmployeeAttendanceController extends Controller
         $totalBreakMinutes = $attendance->calculateFlexibleBreaks();
 
         // Calculate OT
-        $defaultStdHours = Setting::get('standard_working_hours', 9, $attendance->company_id);
+        $emp = $attendance->employee;
+        $defaultStdHours = $emp && $emp->department
+            ? $emp->department->getWorkingHours($attendance->company_id)
+            : Setting::get('standard_working_hours', 9, $attendance->company_id, $emp ? $emp->department_id : null);
         $normalHours = $attendance->normal_hours ?: $defaultStdHours;
         $ot = $hoursWorked > $normalHours ? $hoursWorked - $normalHours : 0;
 
@@ -1500,8 +1509,9 @@ class EmployeeAttendanceController extends Controller
                         ->sortByDesc('week_start')
                         ->first();
 
-                    // Determine normal hours — prefer entry value (if not empty/0), then roster shift duration, then company setting
-                    $stdHours = Setting::get('standard_working_hours', 9, $entry['company_id'] ?? $companyId);
+                    // Determine normal hours — prefer entry value (if not empty/0), then roster shift duration, then dept/company setting
+                    $empDeptHours = $employee && $employee->department ? $employee->department->getWorkingHours($entry['company_id'] ?? $companyId) : null;
+                    $stdHours = $empDeptHours ?? Setting::get('standard_working_hours', 9, $entry['company_id'] ?? $companyId);
                     $normalHours = (!empty($entry['normal_hours']) && $entry['normal_hours'] > 0) ? $entry['normal_hours'] : ($roster ? ($roster->shift_duration ?? $stdHours) : $stdHours);
                     $hoursWorked = $entry['hours_worked'] ?? 0;
 

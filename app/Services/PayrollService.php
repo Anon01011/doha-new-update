@@ -275,7 +275,9 @@ class PayrollService
 
         // 6. Rates & Salary Calculation Method
         $otRate = $this->getOvertimeRate($employee);
-        $daysPerMonth = Setting::get('default_working_days_per_month', 30, $companyId, $departmentId);
+        $daysPerMonth = $employee->department
+            ? $employee->department->getWorkingDaysPerMonth($companyId)
+            : (int) Setting::get('default_working_days_per_month', 30, $companyId, $departmentId);
         $calcMethod = Setting::get('salary_calculation_method', 'fixed', $companyId, $departmentId);
 
         // True working days = calendar days - weekly offs - holidays
@@ -424,12 +426,18 @@ class PayrollService
     public function getHourlyRate(Employee $employee): float
     {
         $companyId = $employee->company_id;
-        $departmentId = $employee->department_id;
-        $daysPerMonth = (int) Setting::get('default_working_days_per_month', 30, $companyId, $departmentId);
+        $department = $employee->department;
+
+        $daysPerMonth = $department
+            ? $department->getWorkingDaysPerMonth($companyId)
+            : (int) Setting::get('default_working_days_per_month', 30, $companyId, $employee->department_id);
         if ($daysPerMonth <= 0) {
             $daysPerMonth = 30;
         }
-        $workHoursPerDay = (int) Setting::get('default_working_hours_per_day', 8, $companyId, $departmentId);
+
+        $workHoursPerDay = $department
+            ? $department->getWorkingHours($companyId)
+            : (float) Setting::get('default_working_hours_per_day', 8, $companyId, $employee->department_id);
         if ($workHoursPerDay <= 0) {
             $workHoursPerDay = 8;
         }

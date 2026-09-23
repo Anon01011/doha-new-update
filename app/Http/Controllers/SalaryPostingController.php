@@ -381,9 +381,14 @@ class SalaryPostingController extends Controller
         $departmentId = $employee ? $employee->department_id : null;
         $payrollService = app(\App\Services\PayrollService::class);
 
-        $daysPerMonth = (int) \App\Models\Setting::get('default_working_days_per_month', 30, $companyId, $departmentId);
+        $daysPerMonth = $employee && $employee->department
+            ? $employee->department->getWorkingDaysPerMonth($companyId)
+            : (int) \App\Models\Setting::get('default_working_days_per_month', 30, $companyId, $departmentId);
         if ($daysPerMonth <= 0) $daysPerMonth = 30;
-        $workHoursPerDay = (int) \App\Models\Setting::get('default_working_hours_per_day', 8, $companyId, $departmentId);
+
+        $workHoursPerDay = $employee && $employee->department
+            ? $employee->department->getWorkingHours($companyId)
+            : (float) \App\Models\Setting::get('default_working_hours_per_day', 8, $companyId, $departmentId);
         if ($workHoursPerDay <= 0) $workHoursPerDay = 8;
 
         $hourlyRate = $employee ? $payrollService->getHourlyRate($employee) : 0;

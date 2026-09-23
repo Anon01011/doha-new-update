@@ -1,11 +1,15 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link } from '@inertiajs/react';
-import { FaLayerGroup, FaBuilding, FaArrowLeft, FaSave, FaCheckCircle, FaTerminal, FaShieldAlt, FaChevronRight } from 'react-icons/fa';
+import { FaLayerGroup, FaBuilding, FaArrowLeft, FaSave, FaCheckCircle, FaTerminal, FaShieldAlt, FaChevronRight, FaClock } from 'react-icons/fa';
 
 export default function Edit({ department, companies = [] }) {
     const { data, setData, put, processing, errors } = useForm({
         name: department.name || '',
         company_ids: department.companies ? department.companies.map(c => c.id) : [],
+        standard_working_hours: department.standard_working_hours !== null && department.standard_working_hours !== undefined ? department.standard_working_hours : '',
+        working_days_per_month: department.working_days_per_month !== null && department.working_days_per_month !== undefined ? department.working_days_per_month : '',
+        opening_time: department.opening_time || '',
+        closing_time: department.closing_time || '',
     });
 
     const handleSubmit = (e) => {
@@ -79,6 +83,78 @@ export default function Edit({ department, companies = [] }) {
                                             />
                                         </div>
                                         {errors.name && <p className="text-rose-500 text-[10px] font-normal uppercase tracking-normal mt-2 ml-1">{errors.name}</p>}
+                                    </div>
+                                </section>
+
+                                {/* Department Specific Working Hours & Shift Rules */}
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-900">
+                                            <FaClock size={14} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xs font-normal text-slate-900 uppercase tracking-normal">Department Working Hours & Shifts</h3>
+                                            <p className="text-[9px] text-slate-400 mt-0.5">Custom daily hours and days for staff in this department. Overrides branch/global defaults.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-normal text-slate-500 uppercase tracking-[0.15em] ml-1">
+                                                Daily Working Hours
+                                            </label>
+                                            <input
+                                                type="number"
+                                                step="0.5"
+                                                min="1"
+                                                max="24"
+                                                placeholder="e.g. 8 (Default)"
+                                                value={data.standard_working_hours}
+                                                onChange={e => setData('standard_working_hours', e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 focus:border-primary focus:ring-0 outline-none"
+                                            />
+                                            <p className="text-[8px] text-slate-400 ml-1">Leave empty to inherit branch or global setting</p>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-normal text-slate-500 uppercase tracking-[0.15em] ml-1">
+                                                Working Days / Month
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="31"
+                                                placeholder="e.g. 26 or 30"
+                                                value={data.working_days_per_month}
+                                                onChange={e => setData('working_days_per_month', e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 focus:border-primary focus:ring-0 outline-none"
+                                            />
+                                            <p className="text-[8px] text-slate-400 ml-1">Used for daily & hourly salary rate calculation</p>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-normal text-slate-500 uppercase tracking-[0.15em] ml-1">
+                                                Shift Opening Time
+                                            </label>
+                                            <input
+                                                type="time"
+                                                value={data.opening_time}
+                                                onChange={e => setData('opening_time', e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 focus:border-primary focus:ring-0 outline-none"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-normal text-slate-500 uppercase tracking-[0.15em] ml-1">
+                                                Shift Closing Time
+                                            </label>
+                                            <input
+                                                type="time"
+                                                value={data.closing_time}
+                                                onChange={e => setData('closing_time', e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 focus:border-primary focus:ring-0 outline-none"
+                                            />
+                                        </div>
                                     </div>
                                 </section>
 

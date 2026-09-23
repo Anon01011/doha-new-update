@@ -102,6 +102,37 @@ export default function Show({ department, employees = [] }) {
                                                 <p className="text-xl font-normal text-slate-900 mt-1">{employees.length} Active Members</p>
                                             </div>
                                         </div>
+
+                                        {/* Working Hours Section */}
+                                        <div className="flex items-start gap-4 pt-3 border-t border-slate-100">
+                                            <div className="w-10 h-10 rounded-lg bg-white shadow-sm text-amber-500 flex items-center justify-center shrink-0">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                                </svg>
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-[10px] font-normal text-slate-400 uppercase tracking-normal mb-2">Working Hours Config</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {department.standard_working_hours ? (
+                                                        <span className="inline-flex items-center px-2.5 py-1 bg-indigo-50 border border-indigo-100 rounded-md text-[9px] font-normal text-indigo-700 uppercase tracking-normal">
+                                                            {department.standard_working_hours}h / day
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[9px] text-slate-400 uppercase">Inherits Global Default</span>
+                                                    )}
+                                                    {department.working_days_per_month && (
+                                                        <span className="inline-flex items-center px-2.5 py-1 bg-amber-50 border border-amber-100 rounded-md text-[9px] font-normal text-amber-700 uppercase tracking-normal">
+                                                            {department.working_days_per_month}d / month
+                                                        </span>
+                                                    )}
+                                                    {(department.opening_time || department.closing_time) && (
+                                                        <span className="inline-flex items-center px-2.5 py-1 bg-emerald-50 border border-emerald-100 rounded-md text-[9px] font-normal text-emerald-700 uppercase tracking-normal">
+                                                            {department.opening_time || '--'} → {department.closing_time || '--'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="p-4 bg-slate-900 rounded-xl text-white relative overflow-hidden group/audit">

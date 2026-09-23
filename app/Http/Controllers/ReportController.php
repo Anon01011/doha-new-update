@@ -707,7 +707,8 @@ class ReportController extends Controller
             $row1 = 2;
             foreach ($attendances as $attendance) {
                 $dayOfWeek = strtoupper(Carbon::parse($attendance->date)->format('l'));
-                $stdHours = $attendance->normal_hours ?: Setting::get('standard_working_hours', 9, $attendance->company_id);
+                $emp = $attendance->employee;
+                $stdHours = $attendance->normal_hours ?: ($emp && $emp->department ? $emp->department->getWorkingHours($attendance->company_id) : Setting::get('standard_working_hours', 9, $attendance->company_id, $emp ? $emp->department_id : null));
                 $workedHours = floatval($attendance->hours_worked ?: 0);
                 $otHours = floatval($attendance->ot ?: 0);
 
@@ -904,7 +905,7 @@ class ReportController extends Controller
                 $colIdx = 5;
                 foreach ($dates as $dateStr) {
                     $cellVal = '';
-                    $stdHours = Setting::get('standard_working_hours', 9, $emp->company_id);
+                    $stdHours = $emp->department ? $emp->department->getWorkingHours($emp->company_id) : Setting::get('standard_working_hours', 9, $emp->company_id, $emp->department_id);
 
                     $attendance = $attendanceMap[$emp->id][$dateStr] ?? null;
                     if ($attendance) {
@@ -991,7 +992,7 @@ class ReportController extends Controller
                     $colIdx++;
                 }
 
-                $empStdHours = Setting::get('standard_working_hours', 9, $emp->company_id);
+                $empStdHours = $emp->department ? $emp->department->getWorkingHours($emp->company_id) : Setting::get('standard_working_hours', 9, $emp->company_id, $emp->department_id);
                 $sheet2->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx) . $row2, floatval($totalWorkedHours));
                 $sheet2->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 1) . $row2, floatval($totalOvertime));
                 $sheet2->setCellValue(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx + 2) . $row2, floatval($totalIncompleteHours));
@@ -1094,7 +1095,7 @@ class ReportController extends Controller
                 $colIdx = 5;
                 foreach ($dates as $dateStr) {
                     $cellVal = '';
-                    $stdHours = Setting::get('standard_working_hours', 9, $emp->company_id);
+                    $stdHours = $emp->department ? $emp->department->getWorkingHours($emp->company_id) : Setting::get('standard_working_hours', 9, $emp->company_id, $emp->department_id);
 
                     $attendance = $attendanceMap[$emp->id][$dateStr] ?? null;
                     if ($attendance) {

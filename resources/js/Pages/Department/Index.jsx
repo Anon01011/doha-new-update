@@ -197,6 +197,7 @@ export default function Index({ departments = [] }) {
                                 <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-normal text-slate-400 uppercase tracking-[0.2em]">
                                     <th className="px-5 py-4">Division Identity</th>
                                     <th className="px-5 py-4">Branch Association</th>
+                                    <th className="px-5 py-4 text-center">Working Hours</th>
                                     <th className="px-5 py-4 text-center">Personnel Count</th>
                                     <th className="px-5 py-4 text-center">Operational State</th>
                                     <th className="px-5 py-4 text-right">Ledger Actions</th>
@@ -228,6 +229,25 @@ export default function Index({ departments = [] }) {
                                                         ))
                                                     ) : (
                                                         <span className="text-[9px] font-normal text-rose-400 uppercase tracking-normal bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100">UNASSIGNED</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-2 text-center">
+                                                <div className="inline-flex flex-col items-center gap-1">
+                                                    {dept.standard_working_hours ? (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 border border-indigo-100 rounded-md text-[9px] font-normal text-indigo-700 uppercase tracking-normal">
+                                                            {dept.standard_working_hours}h/day
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[9px] font-normal text-slate-400 uppercase">Global Default</span>
+                                                    )}
+                                                    {(dept.opening_time || dept.closing_time) && (
+                                                        <span className="text-[8px] font-normal text-slate-400">
+                                                            {dept.opening_time || '--'} – {dept.closing_time || '--'}
+                                                        </span>
+                                                    )}
+                                                    {dept.working_days_per_month && (
+                                                        <span className="text-[8px] font-normal text-amber-600">{dept.working_days_per_month}d/mo</span>
                                                     )}
                                                 </div>
                                             </td>
@@ -292,7 +312,7 @@ export default function Index({ departments = [] }) {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan="5" className="px-5 py-10 text-center">
+                                        <td colSpan="6" className="px-5 py-10 text-center">
                                             <div className="flex flex-col items-center gap-4 opacity-20">
                                                 <FaLayerGroup size={48} className="text-slate-900" />
                                                 <p className="text-[10px] font-normal text-slate-500 uppercase tracking-[0.3em]">No taxonomy records identified</p>

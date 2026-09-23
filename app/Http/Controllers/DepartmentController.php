@@ -57,6 +57,10 @@ class DepartmentController extends Controller
             'name' => 'required|string|max:255',
             'company_ids' => 'required|array',
             'company_ids.*' => 'exists:companies,id',
+            'standard_working_hours' => 'nullable|numeric|min:1|max:24',
+            'working_days_per_month' => 'nullable|integer|min:1|max:31',
+            'opening_time' => 'nullable|string|max:10',
+            'closing_time' => 'nullable|string|max:10',
         ]);
 
         // Multi-tenancy check: non-admins can only assign to their own company
@@ -68,7 +72,13 @@ class DepartmentController extends Controller
             }
         }
 
-        $department = Department::create(['name' => $validated['name']]);
+        $department = Department::create([
+            'name' => $validated['name'],
+            'standard_working_hours' => $validated['standard_working_hours'] ?? null,
+            'working_days_per_month' => $validated['working_days_per_month'] ?? null,
+            'opening_time' => $validated['opening_time'] ?? null,
+            'closing_time' => $validated['closing_time'] ?? null,
+        ]);
         $department->companies()->sync($validated['company_ids']);
 
         return redirect()->route('departments.index')->with('success', 'Department created successfully.');
@@ -140,6 +150,10 @@ class DepartmentController extends Controller
             'name' => 'required|string|max:255',
             'company_ids' => 'required|array',
             'company_ids.*' => 'exists:companies,id',
+            'standard_working_hours' => 'nullable|numeric|min:1|max:24',
+            'working_days_per_month' => 'nullable|integer|min:1|max:31',
+            'opening_time' => 'nullable|string|max:10',
+            'closing_time' => 'nullable|string|max:10',
         ]);
 
         // Multi-tenancy check for new companies
@@ -151,7 +165,13 @@ class DepartmentController extends Controller
             }
         }
 
-        $department->update(['name' => $validated['name']]);
+        $department->update([
+            'name' => $validated['name'],
+            'standard_working_hours' => $validated['standard_working_hours'] ?? null,
+            'working_days_per_month' => $validated['working_days_per_month'] ?? null,
+            'opening_time' => $validated['opening_time'] ?? null,
+            'closing_time' => $validated['closing_time'] ?? null,
+        ]);
         $department->companies()->sync($validated['company_ids']);
         
         return redirect()->route('departments.index')->with('success', 'Department updated successfully.');
