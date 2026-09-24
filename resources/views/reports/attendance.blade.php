@@ -120,12 +120,32 @@
                 <th>Employee ID</th>
                 <th>Employee Name</th>
                 <th>Status</th>
+                <th>Clock In</th>
+                <th>Clock Out</th>
+                <th>Break</th>
                 <th>Work Hours</th>
                 <th>OT Hours</th>
             </tr>
         </thead>
         <tbody>
             @foreach($attendances as $attendance)
+            @php
+                $breakMins = intval($attendance->total_break_minutes ?: 0);
+                if ($breakMins <= 0 && $attendance->from_time && $attendance->to_time && floatval($attendance->hours_worked ?: 0) > 0) {
+                    $fromParts = explode(':', $attendance->from_time);
+                    $toParts = explode(':', $attendance->to_time);
+                    if (count($fromParts) >= 2 && count($toParts) >= 2) {
+                        $fromM = intval($fromParts[0]) * 60 + intval($fromParts[1]);
+                        $toM = intval($toParts[0]) * 60 + intval($toParts[1]);
+                        $elapsed = $toM >= $fromM ? ($toM - $fromM) : (($toM + 1440) - $fromM);
+                        $workedM = round(floatval($attendance->hours_worked) * 60);
+                        if ($elapsed > $workedM) {
+                            $breakMins = $elapsed - $workedM;
+                        }
+                    }
+                }
+                $breakDisplay = $breakMins > 0 ? (floor($breakMins / 60) > 0 ? floor($breakMins / 60) . 'h ' . ($breakMins % 60) . 'm' : ($breakMins % 60) . 'm') : '-';
+            @endphp
             <tr>
                 <td>{{ \Carbon\Carbon::parse($attendance->date)->format('d M Y') }}</td>
                 <td>{{ $attendance->employee->employee_code ?? '-' }}</td>
@@ -135,8 +155,11 @@
                         {{ $attendance->attendance }}
                     </span>
                 </td>
-                <td class="text-right">{{ $attendance->hours_worked ?? 0 }}</td>
-                <td class="text-right">{{ $attendance->ot ?? 0 }}</td>
+                <td class="text-center">{{ $attendance->from_time ?: '-' }}</td>
+                <td class="text-center">{{ $attendance->to_time ?: '-' }}</td>
+                <td class="text-center">{{ $breakDisplay }}</td>
+                <td class="text-right">{{ number_format($attendance->hours_worked ?? 0, 2) }}</td>
+                <td class="text-right">{{ number_format($attendance->ot ?? 0, 2) }}</td>
             </tr>
             @endforeach
         </tbody>

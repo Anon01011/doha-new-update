@@ -71,10 +71,15 @@ class ReportController extends Controller
 
         $attendances = $query->orderBy('date')->get();
 
-        // Calculate summary (including weekly off)
+        // Calculate date range days
+        $daysCount = ($startDate && $endDate) ? (Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1) : 0;
+
+        // Calculate summary (including weekly off and leave)
         $summary = [
-            'total_days' => $attendances->count(),
+            'total_days' => $daysCount,
+            'total_records' => $attendances->count(),
             'present' => $attendances->whereIn('attendance', ['Present', 'Late'])->count(),
+            'late' => $attendances->where('attendance', 'Late')->count(),
             'absent' => $attendances->where('attendance', 'Absent')->count(),
             'leave' => $attendances->whereIn('attendance', ['Leave', 'Sick Leave', 'Annual Leave'])->count(),
             'weekly_off' => $attendances->where('attendance', 'Weekly Off')->count(),
@@ -519,9 +524,13 @@ class ReportController extends Controller
 
         $attendances = $query->orderBy('date')->get();
 
+        $daysCount = ($startDate && $endDate) ? (Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1) : 0;
+
         $summary = [
-            'total_days' => $attendances->count(),
+            'total_days' => $daysCount,
+            'total_records' => $attendances->count(),
             'present' => $attendances->whereIn('attendance', ['Present', 'Late'])->count(),
+            'late' => $attendances->where('attendance', 'Late')->count(),
             'absent' => $attendances->where('attendance', 'Absent')->count(),
             'leave' => $attendances->whereIn('attendance', ['Leave', 'Sick Leave', 'Annual Leave'])->count(),
             'weekly_off' => $attendances->where('attendance', 'Weekly Off')->count(),

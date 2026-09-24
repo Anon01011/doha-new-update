@@ -113,15 +113,36 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
 
     // Status badge
     const statusBadge = (status) => {
-        const map = {
-            'Present': 'bg-emerald-50 text-emerald-600 border-emerald-100',
-            'Late': 'bg-amber-50 text-amber-600 border-amber-100',
-            'Absent': 'bg-rose-50 text-rose-600 border-rose-100',
-            'Weekly Off': 'bg-indigo-50 text-indigo-600 border-indigo-100',
-            'Half Day': 'bg-orange-50 text-orange-600 border-orange-100',
-        };
-        const cls = map[status] || 'bg-blue-50 text-blue-600 border-blue-100';
+        const raw = (status || '').toLowerCase();
+        let cls = 'bg-blue-50 text-blue-600 border-blue-100';
+        if (raw === 'present') cls = 'bg-emerald-50 text-emerald-600 border-emerald-100';
+        else if (raw === 'late') cls = 'bg-amber-50 text-amber-600 border-amber-100';
+        else if (raw === 'absent') cls = 'bg-rose-50 text-rose-600 border-rose-100';
+        else if (raw.includes('off') || raw.includes('weekly')) cls = 'bg-indigo-50 text-indigo-600 border-indigo-100';
+        else if (raw.includes('half')) cls = 'bg-orange-50 text-orange-600 border-orange-100';
+        else if (raw.includes('leave')) cls = 'bg-sky-50 text-sky-600 border-sky-100';
         return <span className={`px-2.5 py-1 text-[10px] font-normal rounded-lg uppercase tracking-normal border ${cls}`}>{status || 'N/A'}</span>;
+    };
+
+    const formatBreak = (att) => {
+        let breakMins = parseInt(att.total_break_minutes || 0);
+        if (breakMins <= 0 && att.from_time && att.to_time && parseFloat(att.hours_worked || 0) > 0) {
+            const fromParts = att.from_time.split(':');
+            const toParts = att.to_time.split(':');
+            if (fromParts.length >= 2 && toParts.length >= 2) {
+                const fromM = parseInt(fromParts[0]) * 60 + parseInt(fromParts[1]);
+                const toM = parseInt(toParts[0]) * 60 + parseInt(toParts[1]);
+                const elapsed = toM >= fromM ? (toM - fromM) : ((toM + 1440) - fromM);
+                const workedM = Math.round(parseFloat(att.hours_worked) * 60);
+                if (elapsed > workedM) {
+                    breakMins = elapsed - workedM;
+                }
+            }
+        }
+        if (breakMins <= 0) return <span className="text-slate-300">—</span>;
+        const h = Math.floor(breakMins / 60);
+        const m = breakMins % 60;
+        return <span className="text-slate-600 text-xs font-medium">{h > 0 ? `${h}h ${m}m` : `${m}m`}</span>;
     };
 
     return (
@@ -193,13 +214,16 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
 
                 {/* Summary Cards */}
                 {summary && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col gap-2 group hover:shadow-md transition-all">
                             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
                                 <FiCalendar size={18} />
                             </div>
                             <div className="text-xs font-normal text-slate-400 uppercase tracking-normal">Total Days</div>
                             <div className="text-2xl font-normal text-slate-800">{summary.total_days || 0}</div>
+                            {attendances && attendances.length > 0 && (
+                                <div className="text-[10px] text-slate-400 font-normal">{attendances.length} log records</div>
+                            )}
                         </div>
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col gap-2 group hover:shadow-md transition-all">
                             <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
@@ -217,10 +241,17 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                         </div>
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col gap-2 group hover:shadow-md transition-all">
                             <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                                <FiCalendar size={18} />
+                            </div>
+                            <div className="text-xs font-normal text-slate-400 uppercase tracking-normal">Leave</div>
+                            <div className="text-2xl font-normal text-sky-600">{summary.leave || 0}</div>
+                        </div>
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col gap-2 group hover:shadow-md transition-all">
+                            <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
                                 <FiClock size={18} />
                             </div>
                             <div className="text-xs font-normal text-slate-400 uppercase tracking-normal">Total Hours</div>
-                            <div className="text-2xl font-normal text-sky-600">{parseFloat(summary.total_hours || 0).toFixed(1)}h</div>
+                            <div className="text-2xl font-normal text-cyan-600">{parseFloat(summary.total_hours || 0).toFixed(1)}h</div>
                         </div>
                         <div className="bg-white rounded-2xl shadow-sm border border-orange-200 p-5 flex flex-col gap-2 group hover:shadow-md transition-all">
                             <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
@@ -283,6 +314,7 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                         <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal">Status</th>
                                         <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal text-center">Clock In</th>
                                         <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal text-center">Clock Out</th>
+                                        <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal text-center">Break</th>
                                         <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal text-right">Worked</th>
                                         <th className="px-6 py-4 text-xs font-normal text-orange-500 uppercase tracking-normal text-right">OT Hours</th>
                                     </tr>
@@ -291,7 +323,9 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                     {attendances && attendances.length > 0 ? (
                                         attendances.map((att) => {
                                             const worked = parseFloat(att.hours_worked || 0);
-                                            const otH = parseFloat(att.ot || 0);
+                                            const otStored = parseFloat(att.ot || 0);
+                                            const otComputed = worked > stdHours ? parseFloat((worked - stdHours).toFixed(3)) : 0;
+                                            const otDisplay = (otStored > 0 && Math.abs(otStored - worked) < 0.01) ? otComputed : (otStored > 0 ? otStored : otComputed);
                                             const colorClass = getHoursColorClass(worked, stdHours);
                                             return (
                                                 <tr key={att.id} className="hover:bg-slate-50/80 transition-colors">
@@ -318,39 +352,35 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                                     <td className="px-6 py-4 whitespace-nowrap text-center text-xs font-normal">
                                                         {att.to_time ? <span className="text-rose-500 font-medium">{att.to_time}</span> : <span className="text-slate-300">--:--</span>}
                                                     </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-xs font-normal">
+                                                        {formatBreak(att)}
+                                                    </td>
                                                     <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${colorClass}`}>
                                                         {worked > 0 ? (
                                                             <div className="flex flex-col items-end">
                                                                 <span>{worked.toFixed(2)}h</span>
-                                                                {worked > stdHours && (
-                                                                    <span className="text-[9px] text-orange-400 font-normal">(+{(worked - stdHours).toFixed(2)}h OT)</span>
+                                                                {otDisplay > 0 && (
+                                                                    <span className="text-[9px] text-orange-400 font-normal">(+{otDisplay.toFixed(2)}h OT)</span>
                                                                 )}
                                                             </div>
                                                         ) : <span className="text-slate-300">—</span>}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                        {(() => {
-                                                            // Use stored ot, but cap it: if att.ot equals hours_worked (bug in old data), recalculate
-                                                            const otStored = parseFloat(att.ot || 0);
-                                                            const otComputed = worked > stdHours ? parseFloat((worked - stdHours).toFixed(3)) : 0;
-                                                            // If stored OT equals full hours worked (bad data), use computed instead
-                                                            const otDisplay = (otStored > 0 && Math.abs(otStored - worked) < 0.01) ? otComputed : otStored;
-                                                            return otDisplay > 0 ? (
-                                                                <div className="flex flex-col items-end">
-                                                                    <span className="text-sm font-bold text-orange-500">{otDisplay.toFixed(2)}h</span>
-                                                                    <span className="text-[9px] text-orange-400 font-normal">overtime</span>
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-sm text-slate-300">—</span>
-                                                            );
-                                                        })()}
+                                                        {otDisplay > 0 ? (
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="text-sm font-bold text-orange-500">{otDisplay.toFixed(2)}h</span>
+                                                                <span className="text-[9px] text-orange-400 font-normal">overtime</span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-sm text-slate-300">—</span>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             );
                                         })
                                     ) : (
                                         <tr>
-                                            <td colSpan="7" className="px-6 py-20 text-center">
+                                            <td colSpan="9" className="px-6 py-20 text-center">
                                                 <div className="flex flex-col items-center justify-center">
                                                     <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-200 border border-slate-100 shadow-inner">
                                                         <FiCalendar size={24} />
