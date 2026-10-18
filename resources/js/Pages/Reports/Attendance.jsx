@@ -11,6 +11,17 @@ function getHoursColorClass(worked, std) {
     return 'text-emerald-600';
 }
 
+// Helper: decimal hours → "9h 30m" readable format
+function fmtHours(decimalHours) {
+    if (!decimalHours || decimalHours <= 0) return '—';
+    const totalMins = Math.round(parseFloat(decimalHours) * 60);
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
+}
+
 export default function Attendance({ attendances, summary, startDate, endDate, companyId, employeeId, companies, employees, settings }) {
     const { appSettings } = usePage().props;
     const currency = appSettings?.currency || 'INR';
@@ -268,14 +279,14 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                 <FiClock size={18} />
                             </div>
                             <div className="text-xs font-normal text-slate-400 uppercase tracking-normal">Total Hours</div>
-                            <div className="text-2xl font-normal text-cyan-600">{parseFloat(summary.total_hours || 0).toFixed(1)}h</div>
+                            <div className="text-xl font-normal text-cyan-600">{fmtHours(summary.total_hours)}</div>
                         </div>
                         <div className="bg-white rounded-2xl shadow-sm border border-orange-200 p-5 flex flex-col gap-2 group hover:shadow-md transition-all">
                             <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
                                 <FiTrendingUp size={18} />
                             </div>
                             <div className="text-xs font-normal text-orange-400 uppercase tracking-normal">OT Hours</div>
-                            <div className="text-2xl font-normal text-orange-500">{parseFloat(totalOtHours).toFixed(1)}h</div>
+                            <div className="text-xl font-normal text-orange-500">{fmtHours(totalOtHours)}</div>
                             <div className="text-[10px] text-orange-300 font-normal">{overtimeAttendances.length} OT session{overtimeAttendances.length !== 1 ? 's' : ''}</div>
                         </div>
                         <div className="bg-white rounded-2xl shadow-sm border border-indigo-200 p-5 flex flex-col gap-2 group hover:shadow-md transition-all">
@@ -373,13 +384,13 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                                     </td>
                                                     <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${colorClass}`}>
                                                         {worked > 0 ? (
-                                                            <span>{worked.toFixed(2)}h</span>
+                                                            <span>{fmtHours(worked)}</span>
                                                         ) : <span className="text-slate-300">—</span>}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right">
                                                         {otDisplay > 0 ? (
                                                             <div className="flex flex-col items-end">
-                                                                <span className="text-sm font-bold text-orange-500">{otDisplay.toFixed(2)}h</span>
+                                                                <span className="text-sm font-bold text-orange-500">{fmtHours(otDisplay)}</span>
                                                                 <span className="text-[9px] text-orange-400 font-normal">overtime</span>
                                                             </div>
                                                         ) : (
@@ -437,12 +448,12 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-normal text-blue-600 text-center">{item.leave}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-normal text-amber-600 text-center">{item.weekly_off}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                    <span className="text-sm font-bold text-slate-700">{item.hours_worked.toFixed(2)}h</span>
+                                                    <span className="text-sm font-bold text-slate-700">{fmtHours(item.hours_worked)}</span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
                                                     {item.ot > 0 ? (
                                                         <div className="flex flex-col items-end">
-                                                            <span className="text-sm font-bold text-orange-500">{item.ot.toFixed(2)}h</span>
+                                                            <span className="text-sm font-bold text-orange-500">{fmtHours(item.ot)}</span>
                                                             <span className="text-[9px] text-orange-400">overtime</span>
                                                         </div>
                                                     ) : <span className="text-slate-300 text-sm">—</span>}
@@ -518,7 +529,7 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right">
                                                         <div className="flex flex-col items-end">
-                                                            <span className="text-sm font-bold text-orange-500">{otH.toFixed(2)}h</span>
+                                                            <span className="text-sm font-bold text-orange-500">{fmtHours(otH)}</span>
                                                             <span className="text-[9px] text-orange-400">{((otH / normal) * 100).toFixed(0)}% extra</span>
                                                         </div>
                                                     </td>
@@ -546,7 +557,7 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                         <tr>
                                             <td colSpan="5" className="px-6 py-3 text-xs font-normal text-slate-500 uppercase tracking-normal">Totals</td>
                                             <td className="px-6 py-3 text-right">
-                                                <span className="text-sm font-bold text-orange-500">{parseFloat(totalOtHours).toFixed(2)}h</span>
+                                                <span className="text-sm font-bold text-orange-500">{fmtHours(totalOtHours)}</span>
                                             </td>
                                             <td className="px-6 py-3 text-right">
                                                 <span className="text-sm font-bold text-indigo-600">

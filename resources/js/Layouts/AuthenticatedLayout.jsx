@@ -151,19 +151,6 @@ export default function AuthenticatedLayout({ header, children }) {
                     current: route().current('dashboard') || route().current('employee.dashboard')
                 },
                 {
-                    name: 'Reports',
-                    href: route('reports.index'),
-                    icon: <FiPieChart className="h-4 w-4" />,
-                    current: route().current('reports.*'),
-                    permissions: ['view-reports'],
-                    roles: ['admin', 'hr', 'manager']
-                }
-            ]
-        },
-        {
-            title: 'HUMAN RESOURCES',
-            items: [
-                {
                     name: 'Employees',
                     href: route('employees.index'),
                     icon: <FiUsers className="h-4 w-4" />,
@@ -175,14 +162,11 @@ export default function AuthenticatedLayout({ header, children }) {
                         { name: 'Configurations', href: route('settings.dropdown-options.index'), current: route().current('settings.dropdown-options.*'), permissions: ['manage-dropdowns'], roles: ['admin', 'hr'] }
                     ]
                 },
-                {
-                    name: 'Evaluations',
-                    href: route('evaluations.index'),
-                    icon: <FiAward className="h-4 w-4" />,
-                    current: route().current('evaluations.*'),
-                    permissions: ['view-evaluations'],
-                    roles: ['admin', 'hr', 'manager']
-                },
+            ]
+        },
+        {
+            title: 'TIME & ATTENDANCE',
+            items: [
                 {
                     name: 'Attendance',
                     href: route('employee-attendances.index'),
@@ -210,6 +194,59 @@ export default function AuthenticatedLayout({ header, children }) {
                         { name: 'Types', href: route('leave-types.index'), current: route().current('leave-types.*'), permissions: ['manage-leave-types'], roles: ['admin', 'hr'] },
                         { name: 'Holidays', href: route('holidays.index'), current: route().current('holidays.*'), permissions: ['view-holidays'] }
                     ]
+                },
+            ]
+        },
+        {
+            title: 'PAYROLL & FINANCE',
+            items: [
+                {
+                    name: userRole === 'employee' ? 'My Payslips' : 'Payroll',
+                    href: route('salary-postings.index'),
+                    icon: <FiDollarSign className="h-4 w-4" />,
+                    current: route().current('salary-postings.*') || route().current('salary-components.*'),
+                    permissions: ['view-salary-postings'],
+                    subMenu: [
+                        { name: userRole === 'employee' ? 'My Payslips' : 'Salary Postings', href: route('salary-postings.index'), current: route().current('salary-postings.*'), permissions: ['view-salary-postings'] },
+                        { name: 'Components', href: route('salary-components.index'), current: route().current('salary-components.*'), permissions: ['manage-salary-components'], roles: ['admin', 'hr'] }
+                    ]
+                },
+                {
+                    name: 'Expenses',
+                    href: route('expenses.index'),
+                    icon: <FiFileText className="h-4 w-4" />,
+                    current: route().current('expenses.*') || route().current('expense-categories.*'),
+                    permissions: ['view-expenses'],
+                    roles: ['admin', 'hr', 'finance', 'manager', 'employee'],
+                    subMenu: [
+                        { name: 'Claims', href: route('expenses.index'), current: route().current('expenses.*'), permissions: ['view-expenses'], roles: ['admin', 'hr', 'finance', 'manager', 'employee'] },
+                        { name: 'Categories & Policy', href: route('expense-categories.index'), current: route().current('expense-categories.*'), permissions: ['manage-expense-categories'], roles: ['admin', 'hr', 'finance'] }
+                    ]
+                },
+                {
+                    name: 'Financials',
+                    href: route('loans.index'),
+                    icon: <FiCreditCard className="h-4 w-4" />,
+                    current: route().current('loans.*') || route().current('advances.*'),
+                    permissions: ['view-loans', 'view-advances'],
+                    roles: ['admin', 'hr', 'finance', 'manager', 'employee'],
+                    subMenu: [
+                        { name: 'Loans', href: route('loans.index'), current: route().current('loans.*'), permissions: ['view-loans'], roles: ['admin', 'hr', 'finance', 'manager', 'employee'] },
+                        { name: 'Advances', href: route('advances.index'), current: route().current('advances.*'), permissions: ['view-advances'], roles: ['admin', 'hr', 'finance', 'manager', 'employee'] }
+                    ]
+                },
+            ]
+        },
+        {
+            title: 'HR MANAGEMENT',
+            items: [
+                {
+                    name: 'Evaluations',
+                    href: route('evaluations.index'),
+                    icon: <FiAward className="h-4 w-4" />,
+                    current: route().current('evaluations.*'),
+                    permissions: ['view-evaluations'],
+                    roles: ['admin', 'hr', 'manager']
                 },
                 {
                     name: 'Training',
@@ -248,43 +285,8 @@ export default function AuthenticatedLayout({ header, children }) {
             ]
         },
         {
-            title: 'OPERATIONS',
+            title: 'WORK',
             items: [
-                {
-                    name: userRole === 'employee' ? 'My Payslips' : 'Payroll',
-                    href: route('salary-postings.index'),
-                    icon: <FiDollarSign className="h-4 w-4" />,
-                    current: route().current('salary-postings.*') || route().current('salary-components.*'),
-                    permissions: ['view-salary-postings'],
-                    subMenu: [
-                        { name: userRole === 'employee' ? 'My Payslips' : 'Salary Postings', href: route('salary-postings.index'), current: route().current('salary-postings.*'), permissions: ['view-salary-postings'] },
-                        { name: 'Components', href: route('salary-components.index'), current: route().current('salary-components.*'), permissions: ['manage-salary-components'], roles: ['admin', 'hr'] }
-                    ]
-                },
-                {
-                    name: 'Financials',
-                    href: route('loans.index'),
-                    icon: <FiCreditCard className="h-4 w-4" />,
-                    current: route().current('loans.*') || route().current('advances.*'),
-                    permissions: ['view-loans', 'view-advances'],
-                    roles: ['admin', 'hr', 'finance', 'manager', 'employee'],
-                    subMenu: [
-                        { name: 'Loans', href: route('loans.index'), current: route().current('loans.*'), permissions: ['view-loans'], roles: ['admin', 'hr', 'finance', 'manager', 'employee'] },
-                        { name: 'Advances', href: route('advances.index'), current: route().current('advances.*'), permissions: ['view-advances'], roles: ['admin', 'hr', 'finance', 'manager', 'employee'] }
-                    ]
-                },
-                {
-                    name: 'Expenses',
-                    href: route('expenses.index'),
-                    icon: <FiFileText className="h-4 w-4" />,
-                    current: route().current('expenses.*') || route().current('expense-categories.*'),
-                    permissions: ['view-expenses'],
-                    roles: ['admin', 'hr', 'finance', 'manager', 'employee'],
-                    subMenu: [
-                        { name: 'Claims', href: route('expenses.index'), current: route().current('expenses.*'), permissions: ['view-expenses'], roles: ['admin', 'hr', 'finance', 'manager', 'employee'] },
-                        { name: 'Categories & Policy', href: route('expense-categories.index'), current: route().current('expense-categories.*'), permissions: ['manage-expense-categories'], roles: ['admin', 'hr', 'finance'] }
-                    ]
-                },
                 {
                     name: 'Tasks & Projects',
                     href: route('tasks.index'),
@@ -295,6 +297,19 @@ export default function AuthenticatedLayout({ header, children }) {
                         { name: 'Projects', href: route('projects.index'), current: route().current('projects.*'), permissions: ['view-projects'] },
                         { name: 'Tasks', href: route('tasks.index'), current: route().current('tasks.index'), permissions: ['view-tasks'] }
                     ]
+                }
+            ]
+        },
+        {
+            title: 'INSIGHTS',
+            items: [
+                {
+                    name: 'Reports',
+                    href: route('reports.index'),
+                    icon: <FiPieChart className="h-4 w-4" />,
+                    current: route().current('reports.*'),
+                    permissions: ['view-reports'],
+                    roles: ['admin', 'hr', 'manager']
                 }
             ]
         },
@@ -314,6 +329,17 @@ export default function AuthenticatedLayout({ header, children }) {
                     ]
                 },
                 {
+                    name: 'Documents',
+                    icon: <FiFile className="h-4 w-4" />,
+                    current: route().current('document-types.*') || route().current('documents.expiring'),
+                    permissions: ['view-documents'],
+                    roles: ['admin', 'hr'],
+                    subMenu: [
+                        { name: 'Types', href: route('document-types.index'), current: route().current('document-types.*'), permissions: ['manage-document-types'], roles: ['admin', 'hr'] },
+                        { name: 'Expiring', href: route('documents.expiring'), current: route().current('documents.expiring'), permissions: ['view-expiring-documents'], roles: ['admin', 'hr'] }
+                    ]
+                },
+                {
                     name: 'Security',
                     href: '#',
                     icon: <FiShield className="h-4 w-4" />,
@@ -323,17 +349,6 @@ export default function AuthenticatedLayout({ header, children }) {
                     subMenu: [
                         { name: 'Roles', href: route('roles.index'), current: route().current('roles.*'), permissions: ['manage-roles'], roles: ['admin'] },
                         { name: 'Permissions', href: route('permissions.index'), current: route().current('permissions.*'), permissions: ['manage-permissions'], roles: ['admin'] }
-                    ]
-                },
-                {
-                    name: 'Documents',
-                    icon: <FiFile className="h-4 w-4" />,
-                    current: route().current('document-types.*') || route().current('documents.expiring'),
-                    permissions: ['view-documents'],
-                    roles: ['admin', 'hr'],
-                    subMenu: [
-                        { name: 'Types', href: route('document-types.index'), current: route().current('document-types.*'), permissions: ['manage-document-types'], roles: ['admin', 'hr'] },
-                        { name: 'Expiring', href: route('documents.expiring'), current: route().current('documents.expiring'), permissions: ['view-expiring-documents'], roles: ['admin', 'hr'] }
                     ]
                 },
                 {
