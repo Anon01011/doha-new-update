@@ -293,7 +293,6 @@ class RolePermissionSeeder extends Seeder
         // Assign Employee permissions (limited)
         $employeePermissions = collect($permissionModels)->filter(function ($p) {
             return in_array($p->slug, [
-                'view-employees', // Only their own
                 'view-attendance', // Only their own
                 'view-leave-requests', // Only their own
                 'create-leave-requests',

@@ -108,25 +108,33 @@ export default function AuthenticatedLayout({ header, children }) {
         // If neither roles nor permissions are specified, by default visible (e.g. Dashboard)
         if (!hasSpecificRoles && !hasSpecificPermissions) return true;
 
-        let roleAllowed = true;
+        // If permissions are specified, user MUST have at least one of the required permissions
+        if (hasSpecificPermissions && !userHasAnyPermission(permissions)) {
+            return false;
+        }
+
+        // If roles are specified, check role restrictions
         if (hasSpecificRoles) {
-            roleAllowed = hasRole(user, roles);
+            const roleAllowed = hasRole(user, roles);
+
+            // If user's role is in the allowed list, permit access
+            if (roleAllowed) return true;
+
+            // If user is a standard employee and 'employee' is NOT in allowed roles, strictly DENY
+            if (userRole === 'employee' || user.role === 'employee' || hasRole(user, 'employee')) {
+                return false;
+            }
+
+            // For custom staff roles (e.g. shift-manager, supervisor), if they have the required permission, permit
+            if (hasSpecificPermissions && userHasAnyPermission(permissions)) {
+                return true;
+            }
+
+            return false;
         }
 
-        let permissionAllowed = true;
-        if (hasSpecificPermissions) {
-            permissionAllowed = userHasAnyPermission(permissions);
-        }
-
-        // If both are specified, either having the required permission OR matching role grants access
-        if (hasSpecificRoles && hasSpecificPermissions) {
-            return roleAllowed || permissionAllowed;
-        }
-
-        if (hasSpecificRoles) return roleAllowed;
-        if (hasSpecificPermissions) return permissionAllowed;
-
-        return false;
+        // If only permissions were specified, user has permission (verified above)
+        return true;
     };
 
     // Helper function to check if user has permission
