@@ -267,9 +267,10 @@ export default function AuthenticatedLayout({ header, children }) {
                     icon: <FiCreditCard className="h-4 w-4" />,
                     current: route().current('loans.*') || route().current('advances.*'),
                     permissions: ['view-loans', 'view-advances'],
+                    roles: ['admin', 'hr', 'finance', 'manager', 'employee'],
                     subMenu: [
-                        { name: 'Loans', href: route('loans.index'), current: route().current('loans.*'), permissions: ['view-loans'] },
-                        { name: 'Advances', href: route('advances.index'), current: route().current('advances.*'), permissions: ['view-advances'] }
+                        { name: 'Loans', href: route('loans.index'), current: route().current('loans.*'), permissions: ['view-loans'], roles: ['admin', 'hr', 'finance', 'manager', 'employee'] },
+                        { name: 'Advances', href: route('advances.index'), current: route().current('advances.*'), permissions: ['view-advances'], roles: ['admin', 'hr', 'finance', 'manager', 'employee'] }
                     ]
                 },
                 {
@@ -278,8 +279,9 @@ export default function AuthenticatedLayout({ header, children }) {
                     icon: <FiFileText className="h-4 w-4" />,
                     current: route().current('expenses.*') || route().current('expense-categories.*'),
                     permissions: ['view-expenses'],
+                    roles: ['admin', 'hr', 'finance', 'manager', 'employee'],
                     subMenu: [
-                        { name: 'Claims', href: route('expenses.index'), current: route().current('expenses.*'), permissions: ['view-expenses'] },
+                        { name: 'Claims', href: route('expenses.index'), current: route().current('expenses.*'), permissions: ['view-expenses'], roles: ['admin', 'hr', 'finance', 'manager', 'employee'] },
                         { name: 'Categories & Policy', href: route('expense-categories.index'), current: route().current('expense-categories.*'), permissions: ['manage-expense-categories'], roles: ['admin', 'hr', 'finance'] }
                     ]
                 },

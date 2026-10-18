@@ -49,6 +49,18 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
         }
     }, [filters.company_id, employees]);
 
+    // Helper to accurately get overtime hours for an attendance record
+    const getRecordOt = (att) => {
+        const worked = parseFloat(att.hours_worked || 0);
+        const normal = parseFloat(att.normal_hours || stdHours);
+        const otStored = parseFloat(att.ot || 0);
+        const otComputed = worked > normal ? parseFloat((worked - normal).toFixed(3)) : 0;
+        if ((otStored > 0 && Math.abs(otStored - worked) < 0.01) || (otStored === 0 && otComputed > 0)) {
+            return otComputed;
+        }
+        return otStored > 0 ? otStored : otComputed;
+    };
+
     // Build employee summaries for summary tab
     const employeeSummaries = (() => {
         const map = {};
@@ -76,7 +88,7 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                 else if (att.attendance === 'Weekly Off') item.weekly_off++;
                 else if (att.attendance && att.attendance.toLowerCase().includes('leave')) item.leave++;
                 item.hours_worked += parseFloat(att.hours_worked || 0);
-                item.ot += parseFloat(att.ot || 0);
+                item.ot += getRecordOt(att);
                 item.ot_amt += parseFloat(att.ot_amt || 0);
             });
         }
@@ -84,10 +96,12 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
     })();
 
     const overtimeAttendances = Array.isArray(attendances)
-        ? attendances.filter(att => parseFloat(att.ot || 0) > 0)
+        ? attendances.filter(att => getRecordOt(att) > 0)
         : [];
 
-    const totalOtHours = summary?.total_ot_hours || 0;
+    const totalOtHours = summary?.total_ot_hours ?? (
+        Array.isArray(attendances) ? attendances.reduce((acc, att) => acc + getRecordOt(att), 0) : 0
+    );
     const totalOtAmount = summary?.total_ot_amount || 0;
 
     const handleFilter = () => {
@@ -323,10 +337,9 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                     {attendances && attendances.length > 0 ? (
                                         attendances.map((att) => {
                                             const worked = parseFloat(att.hours_worked || 0);
-                                            const otStored = parseFloat(att.ot || 0);
-                                            const otComputed = worked > stdHours ? parseFloat((worked - stdHours).toFixed(3)) : 0;
-                                            const otDisplay = (otStored > 0 && Math.abs(otStored - worked) < 0.01) ? otComputed : (otStored > 0 ? otStored : otComputed);
-                                            const colorClass = getHoursColorClass(worked, stdHours);
+                                            const normal = parseFloat(att.normal_hours || stdHours);
+                                            const otDisplay = getRecordOt(att);
+                                            const colorClass = getHoursColorClass(worked, normal);
                                             return (
                                                 <tr key={att.id} className="hover:bg-slate-50/80 transition-colors">
                                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -426,12 +439,12 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-normal text-blue-600 text-center">{item.leave}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-normal text-amber-600 text-center">{item.weekly_off}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                    <span className="text-sm font-bold text-slate-700">{(() => { const n = parseFloat(item.hours_worked || 0); const h = Math.floor(n); const m = Math.round((n - h) * 60); return `${h}:${String(m).padStart(2,'0')}`; })()}h</span>
+                                                    <span className="text-sm font-bold text-slate-700">{item.hours_worked.toFixed(2)}h</span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
                                                     {item.ot > 0 ? (
                                                         <div className="flex flex-col items-end">
-                                                            <span className="text-sm font-bold text-orange-500">{(() => { const n = parseFloat(item.ot || 0); const h = Math.floor(n); const m = Math.round((n - h) * 60); return `${h}:${String(m).padStart(2,'0')}`; })()}h</span>
+                                                            <span className="text-sm font-bold text-orange-500">{item.ot.toFixed(2)}h</span>
                                                             <span className="text-[9px] text-orange-400">overtime</span>
                                                         </div>
                                                     ) : <span className="text-slate-300 text-sm">—</span>}
@@ -480,7 +493,7 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                         overtimeAttendances.map((att) => {
                                             const worked = parseFloat(att.hours_worked || 0);
                                             const normal = parseFloat(att.normal_hours || stdHours);
-                                            const otH = parseFloat(att.ot || 0);
+                                            const otH = getRecordOt(att);
                                             return (
                                                 <tr key={att.id} className="hover:bg-slate-50/80 transition-colors">
                                                     <td className="px-6 py-4 whitespace-nowrap">

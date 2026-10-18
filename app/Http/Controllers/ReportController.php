@@ -69,7 +69,7 @@ class ReportController extends Controller
             }
         }
 
-        $attendances = $query->orderBy('date')->get();
+        $attendances = $this->normalizeAttendanceCollection($query->orderBy('date')->get(), !empty($companyIds) ? reset($companyIds) : null);
 
         // Calculate date range days
         $daysCount = ($startDate && $endDate) ? (Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1) : 0;
@@ -84,9 +84,9 @@ class ReportController extends Controller
             'leave' => $attendances->whereIn('attendance', ['Leave', 'Sick Leave', 'Annual Leave'])->count(),
             'weekly_off' => $attendances->where('attendance', 'Weekly Off')->count(),
             'half_day' => $attendances->where('attendance', 'Half Day')->count(),
-            'total_hours' => $attendances->sum('hours_worked'),
-            'total_ot_hours' => $attendances->sum('ot'),
-            'total_ot_amount' => $attendances->sum('ot_amt'),
+            'total_hours' => round($attendances->sum('hours_worked'), 2),
+            'total_ot_hours' => round($attendances->sum('ot'), 2),
+            'total_ot_amount' => round($attendances->sum('ot_amt'), 2),
         ];
 
         return Inertia::render('Reports/Attendance', [
@@ -487,6 +487,83 @@ class ReportController extends Controller
 
     // --- Export Methods ---
 
+    /**
+     * Normalize attendance records ensuring work hours, normal hours, OT hours, and OT amount are accurately computed.
+     */
+    protected function normalizeAttendanceCollection($attendances, $defaultCompanyId = null)
+    {
+        $payrollService = app(\App\Services\PayrollService::class);
+        $cachedOtRates = [];
+        $cachedStdHours = [];
+
+        foreach ($attendances as $attendance) {
+            $emp = $attendance->employee;
+            $companyId = $attendance->company_id ?: $defaultCompanyId;
+
+            // Determine normal standard hours for this record
+            if (!empty($attendance->normal_hours) && floatval($attendance->normal_hours) > 0) {
+                $stdHours = floatval($attendance->normal_hours);
+            } else {
+                $cacheKey = ($companyId ?: 0) . '_' . ($emp && $emp->department_id ? $emp->department_id : 0);
+                if (!isset($cachedStdHours[$cacheKey])) {
+                    $cachedStdHours[$cacheKey] = floatval(
+                        $emp && $emp->department
+                            ? $emp->department->getWorkingHours($companyId)
+                            : Setting::get('standard_working_hours', 9, $companyId, $emp ? $emp->department_id : null)
+                    );
+                }
+                $stdHours = $cachedStdHours[$cacheKey];
+                $attendance->normal_hours = $stdHours;
+            }
+
+            // Calculate / verify hours worked
+            $workedHours = floatval($attendance->hours_worked ?: 0);
+            if (($workedHours == 0 || empty($attendance->hours_worked)) && $attendance->from_time && $attendance->to_time && $attendance->attendance !== 'Absent') {
+                $fromParts = explode(':', $attendance->from_time);
+                $toParts = explode(':', $attendance->to_time);
+                if (count($fromParts) >= 2 && count($toParts) >= 2) {
+                    $fromM = intval($fromParts[0]) * 60 + intval($fromParts[1]);
+                    $toM = intval($toParts[0]) * 60 + intval($toParts[1]);
+                    $elapsedMins = $toM >= $fromM ? ($toM - $fromM) : (($toM + 1440) - $fromM);
+                    $breakMins = intval($attendance->total_break_minutes ?: 0);
+                    $netMins = max(0, $elapsedMins - $breakMins);
+                    $workedHours = round($netMins / 60, 2);
+                    $attendance->hours_worked = $workedHours;
+                }
+            }
+
+            // Calculate Overtime (OT)
+            $storedOt = floatval($attendance->ot ?: 0);
+            $calculatedOt = ($workedHours > $stdHours) ? round($workedHours - $stdHours, 3) : 0;
+
+            // If stored OT is 0 but worked > stdHours, or if stored OT equals full workedHours (legacy bug), use calculated OT
+            if (($storedOt == 0 && $calculatedOt > 0) || ($storedOt > 0 && abs($storedOt - $workedHours) < 0.01)) {
+                $attendance->ot = $calculatedOt;
+            } elseif ($workedHours == 0) {
+                $attendance->ot = 0;
+            } else {
+                $attendance->ot = $storedOt;
+            }
+
+            // Calculate Overtime Amount
+            $otHours = floatval($attendance->ot ?: 0);
+            $storedOtAmt = floatval($attendance->ot_amt ?: 0);
+            if ($otHours > 0 && $storedOtAmt == 0 && $emp) {
+                if (!isset($cachedOtRates[$emp->id])) {
+                    $cachedOtRates[$emp->id] = $payrollService->getOvertimeRate($emp);
+                }
+                $otRate = $cachedOtRates[$emp->id];
+                if ($otRate > 0) {
+                    $attendance->ot_amt = round($otHours * $otRate, 2);
+                }
+            } elseif ($otHours == 0) {
+                $attendance->ot_amt = 0;
+            }
+        }
+
+        return $attendances;
+    }
+
     private function getReportSettings()
     {
         return Setting::pluck('value', 'key')->toArray();
@@ -522,7 +599,7 @@ class ReportController extends Controller
             }
         }
 
-        $attendances = $query->orderBy('date')->get();
+        $attendances = $this->normalizeAttendanceCollection($query->orderBy('date')->get(), !empty($companyIds) ? reset($companyIds) : null);
 
         $daysCount = ($startDate && $endDate) ? (Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1) : 0;
 
@@ -535,9 +612,9 @@ class ReportController extends Controller
             'leave' => $attendances->whereIn('attendance', ['Leave', 'Sick Leave', 'Annual Leave'])->count(),
             'weekly_off' => $attendances->where('attendance', 'Weekly Off')->count(),
             'half_day' => $attendances->where('attendance', 'Half Day')->count(),
-            'total_hours' => $attendances->sum('hours_worked'),
-            'total_ot_hours' => $attendances->sum('ot'),
-            'total_ot_amount' => $attendances->sum('ot_amt'),
+            'total_hours' => round($attendances->sum('hours_worked'), 2),
+            'total_ot_hours' => round($attendances->sum('ot'), 2),
+            'total_ot_amount' => round($attendances->sum('ot_amt'), 2),
         ];
 
         $pdf = Pdf::loadView('reports.attendance', [
@@ -582,7 +659,7 @@ class ReportController extends Controller
             }
         }
 
-        $attendances = $query->orderBy('date')->get();
+        $attendances = $this->normalizeAttendanceCollection($query->orderBy('date')->get(), !empty($companyIds) ? reset($companyIds) : null);
 
         $spreadsheet = new Spreadsheet();
 

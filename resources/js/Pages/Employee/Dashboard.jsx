@@ -619,12 +619,20 @@ export default function Dashboard({
                             title="Expense Claims"
                             icon={FiDollarSign}
                             action={
-                                <Link
-                                    href={route('expenses.create')}
-                                    className="text-xs font-semibold text-rose-600 hover:text-rose-800 flex items-center gap-1"
-                                >
-                                    <FiPlus className="w-3.5 h-3.5" /> Claim
-                                </Link>
+                                <div className="flex items-center gap-2">
+                                    <Link
+                                        href={route('expenses.index')}
+                                        className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                                    >
+                                        View All
+                                    </Link>
+                                    <Link
+                                        href={route('expenses.create')}
+                                        className="text-xs font-semibold text-rose-600 hover:text-rose-800 flex items-center gap-1"
+                                    >
+                                        <FiPlus className="w-3.5 h-3.5" /> Claim
+                                    </Link>
+                                </div>
                             }
                         >
                             <div className="space-y-2.5">

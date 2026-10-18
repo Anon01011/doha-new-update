@@ -1175,6 +1175,42 @@ class EmployeeAttendanceController extends Controller
             $validated['ot_amt'] = 0;
             $validated['from_time'] = null;
             $validated['to_time'] = null;
+        } else {
+            // Calculate hours worked if missing but times exist
+            if ((empty($validated['hours_worked']) || floatval($validated['hours_worked']) == 0) && !empty($validated['from_time']) && !empty($validated['to_time']) && ($validated['attendance'] ?? '') !== 'Absent') {
+                $fromParts = explode(':', $validated['from_time']);
+                $toParts = explode(':', $validated['to_time']);
+                if (count($fromParts) >= 2 && count($toParts) >= 2) {
+                    $fromM = intval($fromParts[0]) * 60 + intval($fromParts[1]);
+                    $toM = intval($toParts[0]) * 60 + intval($toParts[1]);
+                    $elapsedMins = $toM >= $fromM ? ($toM - $fromM) : (($toM + 1440) - $fromM);
+                    $validated['hours_worked'] = round($elapsedMins / 60, 2);
+                }
+            }
+
+            // Determine normal standard hours
+            if (empty($validated['normal_hours']) || floatval($validated['normal_hours']) == 0) {
+                $stdHours = $employee->department
+                    ? $employee->department->getWorkingHours($validated['company_id'])
+                    : Setting::get('standard_working_hours', 9, $validated['company_id'], $employee->department_id);
+                $validated['normal_hours'] = floatval($stdHours);
+            }
+
+            // Calculate overtime
+            $workedHours = floatval($validated['hours_worked'] ?? 0);
+            $normalHours = floatval($validated['normal_hours'] ?? 9);
+            if (!isset($validated['ot']) || $validated['ot'] === '' || $validated['ot'] === null) {
+                $validated['ot'] = $workedHours > $normalHours ? round($workedHours - $normalHours, 3) : 0;
+            }
+
+            // Calculate overtime amount
+            $otHours = floatval($validated['ot'] ?? 0);
+            if ($otHours > 0 && (empty($validated['ot_amt']) || floatval($validated['ot_amt']) == 0)) {
+                $calculatedOtRate = app(\App\Services\PayrollService::class)->getOvertimeRate($employee);
+                if ($calculatedOtRate > 0) {
+                    $validated['ot_amt'] = round($otHours * $calculatedOtRate, 2);
+                }
+            }
         }
 
         EmployeeAttendance::create($validated);
@@ -1311,6 +1347,47 @@ class EmployeeAttendanceController extends Controller
                 $validated['ot_amt'] = 0;
                 $validated['from_time'] = null;
                 $validated['to_time'] = null;
+            } elseif (!$isWeeklyOff && !$isLeave) {
+                // Calculate hours worked if missing but times exist
+                $fromTime = $validated['from_time'] ?? $attendance->from_time;
+                $toTime = $validated['to_time'] ?? $attendance->to_time;
+                if ((empty($validated['hours_worked']) || floatval($validated['hours_worked']) == 0) && !empty($fromTime) && !empty($toTime) && ($validated['attendance'] ?? $attendance->attendance) !== 'Absent') {
+                    $fromParts = explode(':', $fromTime);
+                    $toParts = explode(':', $toTime);
+                    if (count($fromParts) >= 2 && count($toParts) >= 2) {
+                        $fromM = intval($fromParts[0]) * 60 + intval($fromParts[1]);
+                        $toM = intval($toParts[0]) * 60 + intval($toParts[1]);
+                        $elapsedMins = $toM >= $fromM ? ($toM - $fromM) : (($toM + 1440) - $fromM);
+                        $validated['hours_worked'] = round($elapsedMins / 60, 2);
+                    }
+                }
+
+                // Determine normal standard hours
+                $companyId = $validated['company_id'] ?? $attendance->company_id;
+                if (empty($validated['normal_hours']) || floatval($validated['normal_hours']) == 0) {
+                    $emp = $attendance->employee ?: Employee::find($validated['employee_id'] ?? $attendance->employee_id);
+                    $stdHours = $emp && $emp->department
+                        ? $emp->department->getWorkingHours($companyId)
+                        : Setting::get('standard_working_hours', 9, $companyId, $emp ? $emp->department_id : null);
+                    $validated['normal_hours'] = floatval($attendance->normal_hours ?: $stdHours);
+                }
+
+                // Calculate overtime
+                $workedHours = floatval($validated['hours_worked'] ?? $attendance->hours_worked ?? 0);
+                $normalHours = floatval($validated['normal_hours'] ?? $attendance->normal_hours ?? 9);
+                if (!isset($validated['ot']) || $validated['ot'] === '' || $validated['ot'] === null) {
+                    $validated['ot'] = $workedHours > $normalHours ? round($workedHours - $normalHours, 3) : 0;
+                }
+
+                // Calculate overtime amount
+                $otHours = floatval($validated['ot'] ?? 0);
+                if ($otHours > 0 && (empty($validated['ot_amt']) || floatval($validated['ot_amt']) == 0)) {
+                    $emp = $attendance->employee ?: Employee::find($validated['employee_id'] ?? $attendance->employee_id);
+                    $calculatedOtRate = $emp ? app(\App\Services\PayrollService::class)->getOvertimeRate($emp) : 0;
+                    if ($calculatedOtRate > 0) {
+                        $validated['ot_amt'] = round($otHours * $calculatedOtRate, 2);
+                    }
+                }
             }
         }
 
