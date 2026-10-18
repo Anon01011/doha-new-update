@@ -149,7 +149,10 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                 const elapsed = toM >= fromM ? (toM - fromM) : ((toM + 1440) - fromM);
                 const workedM = Math.round(parseFloat(att.hours_worked) * 60);
                 if (elapsed > workedM) {
-                    breakMins = elapsed - workedM;
+                    const diff = elapsed - workedM;
+                    if (diff > 2) {
+                        breakMins = diff;
+                    }
                 }
             }
         }
@@ -370,12 +373,7 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                                     </td>
                                                     <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${colorClass}`}>
                                                         {worked > 0 ? (
-                                                            <div className="flex flex-col items-end">
-                                                                <span>{worked.toFixed(2)}h</span>
-                                                                {otDisplay > 0 && (
-                                                                    <span className="text-[9px] text-orange-400 font-normal">(+{otDisplay.toFixed(2)}h OT)</span>
-                                                                )}
-                                                            </div>
+                                                            <span>{worked.toFixed(2)}h</span>
                                                         ) : <span className="text-slate-300">—</span>}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right">

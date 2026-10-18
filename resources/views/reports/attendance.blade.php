@@ -139,7 +139,7 @@
                         $toM = intval($toParts[0]) * 60 + intval($toParts[1]);
                         $elapsed = $toM >= $fromM ? ($toM - $fromM) : (($toM + 1440) - $fromM);
                         $workedM = round(floatval($attendance->hours_worked) * 60);
-                        if ($elapsed > $workedM) {
+                        if ($elapsed > $workedM && ($elapsed - $workedM) > 2) {
                             $breakMins = $elapsed - $workedM;
                         }
                     }

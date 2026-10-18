@@ -813,7 +813,8 @@ class ReportController extends Controller
                 }
 
                 $workedMins = round($workedHours * 60);
-                $breakMins = max(intval($attendance->total_break_minutes ?: 0), $elapsedMins > $workedMins ? ($elapsedMins - $workedMins) : 0);
+                $diffMins = $elapsedMins > $workedMins ? ($elapsedMins - $workedMins) : 0;
+                $breakMins = max(intval($attendance->total_break_minutes ?: 0), $diffMins > 2 ? $diffMins : 0);
                 $breakHours = round($breakMins / 60, 2);
                 $incompleteHours = $workedHours < $stdHours ? round($stdHours - $workedHours, 2) : 0;
 
@@ -1014,7 +1015,8 @@ class ReportController extends Controller
                         }
 
                         $workedMins = round($workedHours * 60);
-                        $breakMins = max(intval($attendance->total_break_minutes ?: 0), $elapsedMins > $workedMins ? ($elapsedMins - $workedMins) : 0);
+                        $diffMins = $elapsedMins > $workedMins ? ($elapsedMins - $workedMins) : 0;
+                        $breakMins = max(intval($attendance->total_break_minutes ?: 0), $diffMins > 2 ? $diffMins : 0);
                         $breakHours = round($breakMins / 60, 2);
                         $incompleteHours = $workedHours < $stdHours ? round($stdHours - $workedHours, 2) : 0;
 
