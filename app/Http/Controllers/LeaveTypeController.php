@@ -43,7 +43,7 @@ class LeaveTypeController extends Controller
         }
 
         $companyId = $user->company_id ?: ($user->employee_id && $user->employee ? $user->employee->company_id : null);
-        $enableAttachment = (bool) Setting::get('enable_leave_attachment', true, $companyId);
+        $enableAttachment = (bool) Setting::get('enable_leave_attachment', false, $companyId);
 
         return Inertia::render('LeaveType/Create', [
             'enableAttachment' => $enableAttachment,
@@ -101,8 +101,11 @@ class LeaveTypeController extends Controller
             }
         }
 
+        $enableAttachment = (bool) Setting::get('enable_leave_attachment', false, $companyId);
+
         return Inertia::render('LeaveType/Show', [
-            'leaveType' => $leaveType,
+            'leaveType'        => $leaveType,
+            'enableAttachment' => $enableAttachment,
         ]);
     }
 
@@ -126,7 +129,7 @@ class LeaveTypeController extends Controller
         }
 
         $companyId = $user->company_id ?: ($user->employee_id && $user->employee ? $user->employee->company_id : null);
-        $enableAttachment = (bool) Setting::get('enable_leave_attachment', true, $companyId);
+        $enableAttachment = (bool) Setting::get('enable_leave_attachment', false, $companyId);
 
         return Inertia::render('LeaveType/Edit', [
             'leaveType' => $leaveType,

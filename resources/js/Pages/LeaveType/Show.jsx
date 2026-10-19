@@ -1,8 +1,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
-import { FaClipboardList, FaArrowLeft, FaEdit, FaCheckCircle, FaTimesCircle, FaCode, FaCalendarAlt, FaShieldAlt, FaHandHoldingUsd, FaClock, FaInfoCircle } from 'react-icons/fa';
+import { FaClipboardList, FaArrowLeft, FaEdit, FaCheckCircle, FaTimesCircle, FaCode, FaCalendarAlt, FaShieldAlt, FaHandHoldingUsd, FaClock, FaInfoCircle, FaPaperclip } from 'react-icons/fa';
 
-export default function Show({ leaveType }) {
+export default function Show({ leaveType, enableAttachment }) {
     const formatDate = (date) => {
         if (!date) return 'N/A';
         return new Date(date).toLocaleDateString('en-US', {
@@ -116,17 +116,40 @@ export default function Show({ leaveType }) {
                                                     <span className="text-[10px] font-normal text-slate-900">{leaveType.carry_forward_allowed ? 'Yes' : 'No'}</span>
                                                 </div>
                                             </div>
-                                            {leaveType.requires_attachment !== undefined && (
-                                                <div className={`p-4 col-span-2 rounded-xl shadow-sm border ${leaveType.requires_attachment ? 'bg-indigo-50/60 border-indigo-100' : 'bg-white border-slate-100'}`}>
-                                                    <p className="text-[9px] font-normal text-slate-400 mb-2">Attachment Requirement</p>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className={`w-1.5 h-1.5 rounded-full ${leaveType.requires_attachment ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
-                                                        <span className={`text-[10px] font-normal ${leaveType.requires_attachment ? 'text-indigo-700' : 'text-slate-900'}`}>
-                                                            {leaveType.requires_attachment ? 'Document upload required' : 'No attachment required'}
-                                                        </span>
+
+                                            {/* Attachment badge — only shown when attachment feature is enabled in settings */}
+                                            {Boolean(enableAttachment) && (() => {
+                                                const isAttachmentRequired = Boolean(leaveType.requires_attachment) && leaveType.requires_attachment !== '0' && leaveType.requires_attachment !== 0 && leaveType.requires_attachment !== 'false';
+                                                return (
+                                                    <div className={`p-4 col-span-2 rounded-xl shadow-sm border flex items-center gap-3 ${
+                                                        isAttachmentRequired
+                                                            ? 'bg-indigo-50/60 border-indigo-200'
+                                                            : 'bg-slate-50 border-slate-100'
+                                                    }`}>
+                                                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                                                            isAttachmentRequired ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'
+                                                        }`}>
+                                                            <FaPaperclip size={13} />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[9px] font-normal text-slate-400 mb-0.5">Document Attachment</p>
+                                                            <div className="flex items-center gap-1.5">
+                                                                {isAttachmentRequired ? (
+                                                                    <>
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+                                                                        <span className="text-[10px] font-normal text-indigo-700">Required — employees must upload a document</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                                                        <span className="text-[10px] font-normal text-slate-500">Not required for this leave type</span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 </div>

@@ -21,7 +21,8 @@ export default function Edit({ leaveRequest, employees, leaveTypes, userRole = '
 
     // Detect if selected leave type requires attachment
     const selectedLeaveType = leaveTypes?.find(t => String(t.id) === String(data.leave_type_id));
-    const requiresAttachment = Boolean(settings?.enable_leave_attachment) && Boolean(selectedLeaveType?.requires_attachment);
+    const isAttachmentRequired = (val) => Boolean(val) && val !== '0' && val !== 0 && val !== 'false';
+    const requiresAttachment = Boolean(settings?.enable_leave_attachment) && isAttachmentRequired(selectedLeaveType?.requires_attachment);
     const acceptTypes = (settings?.attachment_allowed_types || 'pdf,jpg,jpeg,png,doc,docx')
         .split(',').map(e => `.${e.trim()}`).join(',');
 

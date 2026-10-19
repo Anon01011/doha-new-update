@@ -80,7 +80,9 @@ class LeaveRequestController extends Controller
             // Employees can usually create for themselves, so we check permission or role
         }
 
-        $leaveTypes = LeaveType::where('is_active', true)->orderBy('name')->get();
+        $leaveTypes = LeaveType::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'max_days_per_year', 'requires_approval', 'requires_attachment', 'is_paid', 'carry_forward_allowed']);
 
         // Role-based employee selection (Global scope handles branch isolation)
         if ($user->isEmployee() && $user->employee_id) {
@@ -370,7 +372,9 @@ class LeaveRequestController extends Controller
 
         $leaveRequest->load('employee');
         $employees = Employee::orderBy('name')->get(['id', 'name', 'employee_code']);
-        $leaveTypes = LeaveType::where('is_active', true)->orderBy('name')->get();
+        $leaveTypes = LeaveType::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'max_days_per_year', 'requires_approval', 'requires_attachment', 'is_paid', 'carry_forward_allowed']);
 
         $companyId = $user->company_id ?: ($user->employee_id && $user->employee ? $user->employee->company_id : null);
         $settings = [

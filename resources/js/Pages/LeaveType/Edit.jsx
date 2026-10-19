@@ -10,7 +10,7 @@ export default function Edit({ leaveType, enableAttachment }) {
         carry_forward_allowed: leaveType.carry_forward_allowed || false,
         carry_forward_max_days: leaveType.carry_forward_max_days || null,
         requires_approval: leaveType.requires_approval !== false,
-        requires_attachment: leaveType.requires_attachment || false,
+        requires_attachment: Boolean(leaveType.requires_attachment) && leaveType.requires_attachment !== '0' && leaveType.requires_attachment !== 0 && leaveType.requires_attachment !== 'false',
         is_paid: Boolean(leaveType.is_paid),
         description: leaveType.description || '',
         is_active: leaveType.is_active !== false,
