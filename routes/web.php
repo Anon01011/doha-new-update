@@ -218,6 +218,9 @@ Route::middleware('auth')->group(function () {
     Route::post('shift-rosters/send-emails-selected', [\App\Http\Controllers\ShiftRosterController::class, 'sendRosterEmailsToSelected'])->name('shift-rosters.sendEmailsSelected');
     Route::post('shift-rosters/send-email-single', [\App\Http\Controllers\ShiftRosterController::class, 'sendRosterEmailToSingle'])->name('shift-rosters.sendEmailSingle');
     Route::get('shift-rosters/{companySlug}/{employeeSlug}', [\App\Http\Controllers\ShiftRosterController::class, 'showEmployeeRoster'])->name('shift-rosters.showEmployeeRoster');
+    Route::post('shift-rosters/approve-roster', [\App\Http\Controllers\ShiftRosterController::class, 'approveRoster'])->name('shift-rosters.approve');
+    Route::post('shift-rosters/reject-roster', [\App\Http\Controllers\ShiftRosterController::class, 'rejectRoster'])->name('shift-rosters.reject');
+    Route::post('shift-rosters/reset-to-pending', [\App\Http\Controllers\ShiftRosterController::class, 'resetToPending'])->name('shift-rosters.resetToPending');
     Route::resource('shift-rosters', \App\Http\Controllers\ShiftRosterController::class);
     Route::post('leave-requests/bulk-approve', [\App\Http\Controllers\LeaveRequestController::class, 'bulkApprove'])->name('leave-requests.bulk-approve');
     Route::post('leave-requests/bulk-reject', [\App\Http\Controllers\LeaveRequestController::class, 'bulkReject'])->name('leave-requests.bulk-reject');

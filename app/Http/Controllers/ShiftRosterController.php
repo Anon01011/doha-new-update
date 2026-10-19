@@ -90,17 +90,55 @@ class ShiftRosterController extends Controller
                 ->orderBy('sort_order')
                 ->pluck('value');
 
+            $canApprove = $user->isAdmin() || $user->isHR() || $user->isManager()
+                || $user->hasPermission('approve-shift-rosters');
+
+            // Compute week-level approval status (for the currently-viewed week/filter)
+            $weekApprovalStatus = null;
+            $currentWeekStart = $request->input('week_start', now()->startOfWeek()->toDateString());
+            if ($company_id && !$user->isEmployee()) {
+                $weekRosters = \App\Models\ShiftRoster::where('company_id', $company_id)
+                    ->where('week_start', $currentWeekStart);
+                if ($department_id) {
+                    $deptEmployeeIds = \App\Models\Employee::where('department_id', $department_id)->pluck('id');
+                    $weekRosters->whereIn('employee_id', $deptEmployeeIds);
+                }
+                $weekRosters = $weekRosters->with('approvedByUser:id,name')->get();
+                $total    = $weekRosters->count();
+                $approved = $weekRosters->where('status', 'approved')->count();
+                $pending  = $weekRosters->where('status', 'pending')->count();
+                $rejected = $weekRosters->where('status', 'rejected')->count();
+                $lastApproved = $weekRosters->whereNotNull('approved_by')->first();
+                $lastRejected = $weekRosters->where('status', 'rejected')->whereNotNull('rejection_reason')->first();
+
+                $weekApprovalStatus = [
+                    'total'            => $total,
+                    'approved'         => $approved,
+                    'pending'          => $pending,
+                    'rejected'         => $rejected,
+                    'all_approved'     => $total > 0 && $approved === $total,
+                    'has_pending'      => $pending > 0,
+                    'has_rejected'     => $rejected > 0,
+                    'status'           => ($total === 0) ? 'empty' : ($rejected > 0 ? 'rejected' : ($pending > 0 ? 'pending' : 'approved')),
+                    'approved_by_name' => $lastApproved?->approvedByUser?->name,
+                    'approved_at'      => $lastApproved?->approved_at?->format('M d, Y h:i A'),
+                    'rejection_reason' => $lastRejected?->rejection_reason,
+                ];
+            }
+
             return Inertia::render('ShiftRoster/Index', [
-                'companies' => $companies,
-                'departments' => $departments,
-                'employees' => $employees,
-                'rosters' => $rosters instanceof \Illuminate\Support\Collection ? $rosters->values() : $rosters,
-                'week_start' => $request->input('week_start', now()->startOfWeek()->toDateString()),
-                'company_id' => $company_id,
-                'department_id' => $department_id,
-                'shiftTemplates' => $this->shiftTemplates,
-                'shiftTypes' => $shiftTypes,
-                'userRole' => $user->role,
+                'companies'          => $companies,
+                'departments'        => $departments,
+                'employees'          => $employees,
+                'rosters'            => $rosters instanceof \Illuminate\Support\Collection ? $rosters->values() : $rosters,
+                'week_start'         => $currentWeekStart,
+                'company_id'         => $company_id,
+                'department_id'      => $department_id,
+                'shiftTemplates'     => $this->shiftTemplates,
+                'shiftTypes'         => $shiftTypes,
+                'userRole'           => $user->role,
+                'canApprove'         => $canApprove,
+                'weekApprovalStatus' => $weekApprovalStatus,
             ]);
         } catch (\Exception $e) {
             Log::error('ShiftRoster index error: ' . $e->getMessage());
@@ -349,6 +387,172 @@ class ShiftRosterController extends Controller
         }
     }
 
+    // =========================================================================
+    //  Approval Workflow
+    // =========================================================================
+
+    /**
+     * Check if the current user can approve rosters.
+     */
+    private function canApproveRosters(): bool
+    {
+        $user = auth()->user();
+        return $user->isAdmin() || $user->isHR() || $user->isManager()
+            || $user->hasPermission('approve-shift-rosters');
+    }
+
+    /**
+     * Approve all roster entries for a given company + week_start (optionally dept).
+     */
+    public function approveRoster(Request $request)
+    {
+        try {
+            if (!$this->canApproveRosters()) {
+                return back()->with('error', 'Unauthorized: You do not have permission to approve rosters.');
+            }
+
+            $data = $request->validate([
+                'company_id' => 'required|exists:companies,id',
+                'week_start' => 'required|date',
+                'department_id' => 'nullable|exists:departments,id',
+            ]);
+
+            $user = auth()->user();
+
+            // Multi-tenancy check
+            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+                if ($data['company_id'] != $user->employee->company_id) {
+                    abort(403, 'Unauthorized access to another branch.');
+                }
+            }
+
+            $query = ShiftRoster::where('company_id', $data['company_id'])
+                ->where('week_start', $data['week_start'])
+                ->where('status', 'pending');
+
+            if (!empty($data['department_id'])) {
+                $deptEmployeeIds = Employee::where('department_id', $data['department_id'])->pluck('id');
+                $query->whereIn('employee_id', $deptEmployeeIds);
+            }
+
+            $count = $query->update([
+                'status'      => 'approved',
+                'approved_by' => $user->id,
+                'approved_at' => now(),
+                'rejection_reason' => null,
+            ]);
+
+            Log::info('ShiftRoster approved', [
+                'approved_by' => $user->id,
+                'company_id'  => $data['company_id'],
+                'week_start'  => $data['week_start'],
+                'count'       => $count,
+            ]);
+
+            return back()->with('success', "✅ {$count} roster entries approved successfully! You can now broadcast to employees.");
+
+        } catch (\Exception $e) {
+            Log::error('ShiftRoster approve error: ' . $e->getMessage());
+            return back()->with('error', 'Error approving roster: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Reject all pending roster entries for a given company + week_start.
+     */
+    public function rejectRoster(Request $request)
+    {
+        try {
+            if (!$this->canApproveRosters()) {
+                return back()->with('error', 'Unauthorized: You do not have permission to reject rosters.');
+            }
+
+            $data = $request->validate([
+                'company_id'       => 'required|exists:companies,id',
+                'week_start'       => 'required|date',
+                'department_id'    => 'nullable|exists:departments,id',
+                'rejection_reason' => 'nullable|string|max:500',
+            ]);
+
+            $user = auth()->user();
+
+            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+                if ($data['company_id'] != $user->employee->company_id) {
+                    abort(403, 'Unauthorized access to another branch.');
+                }
+            }
+
+            $query = ShiftRoster::where('company_id', $data['company_id'])
+                ->where('week_start', $data['week_start'])
+                ->whereIn('status', ['pending', 'approved']);
+
+            if (!empty($data['department_id'])) {
+                $deptEmployeeIds = Employee::where('department_id', $data['department_id'])->pluck('id');
+                $query->whereIn('employee_id', $deptEmployeeIds);
+            }
+
+            $count = $query->update([
+                'status'           => 'rejected',
+                'approved_by'      => $user->id,
+                'approved_at'      => now(),
+                'rejection_reason' => $data['rejection_reason'] ?? null,
+            ]);
+
+            Log::info('ShiftRoster rejected', [
+                'rejected_by' => $user->id,
+                'company_id'  => $data['company_id'],
+                'week_start'  => $data['week_start'],
+                'count'       => $count,
+            ]);
+
+            return back()->with('success', "❌ {$count} roster entries rejected. Creator can revise and resubmit.");
+
+        } catch (\Exception $e) {
+            Log::error('ShiftRoster reject error: ' . $e->getMessage());
+            return back()->with('error', 'Error rejecting roster: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Reset rejected/approved rosters back to pending (for re-editing).
+     */
+    public function resetToPending(Request $request)
+    {
+        try {
+            $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+                return back()->with('error', 'Unauthorized.');
+            }
+
+            $data = $request->validate([
+                'company_id'    => 'required|exists:companies,id',
+                'week_start'    => 'required|date',
+                'department_id' => 'nullable|exists:departments,id',
+            ]);
+
+            $query = ShiftRoster::where('company_id', $data['company_id'])
+                ->where('week_start', $data['week_start']);
+
+            if (!empty($data['department_id'])) {
+                $deptEmployeeIds = Employee::where('department_id', $data['department_id'])->pluck('id');
+                $query->whereIn('employee_id', $deptEmployeeIds);
+            }
+
+            $count = $query->update([
+                'status'           => 'pending',
+                'approved_by'      => null,
+                'approved_at'      => null,
+                'rejection_reason' => null,
+            ]);
+
+            return back()->with('success', "{$count} roster entries reset to pending.");
+
+        } catch (\Exception $e) {
+            Log::error('ShiftRoster reset error: ' . $e->getMessage());
+            return back()->with('error', 'Error resetting roster: ' . $e->getMessage());
+        }
+    }
+
     public function destroy(ShiftRoster $shiftRoster)
     {
         try {
@@ -417,6 +621,12 @@ class ShiftRosterController extends Controller
                     $data['notes'] = 'Auto: Weekly Off Day';
                 }
             }
+
+            // Created or edited shift starts as pending approval
+            $data['status'] = 'pending';
+            $data['approved_by'] = null;
+            $data['approved_at'] = null;
+            $data['rejection_reason'] = null;
 
             $shiftRoster = ShiftRoster::updateOrCreate(
                 [
@@ -536,6 +746,10 @@ class ShiftRosterController extends Controller
                         'shift_type' => $roster->shift_type,
                         'designation' => $roster->designation,
                         'notes' => $roster->notes,
+                        'status' => 'pending',
+                        'approved_by' => null,
+                        'approved_at' => null,
+                        'rejection_reason' => null,
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];
@@ -545,7 +759,7 @@ class ShiftRosterController extends Controller
                     ShiftRoster::upsert(
                         $upsertData,
                         ['employee_id', 'week_start', 'day'],
-                        ['shift_time', 'shift_type', 'designation', 'notes', 'company_id', 'updated_at']
+                        ['shift_time', 'shift_type', 'designation', 'notes', 'company_id', 'status', 'approved_by', 'approved_at', 'rejection_reason', 'updated_at']
                     );
                     $duplicatedCount = count($upsertData);
                 }
@@ -849,6 +1063,38 @@ class ShiftRosterController extends Controller
 
             $company_id = $request->input('company_id');
             $week_start = $request->input('week_start');
+
+            // ----------------------------------------------------------------
+            // APPROVAL GATE: Only allow broadcast if roster is approved
+            // ----------------------------------------------------------------
+            if ($week_start && $company_id) {
+                $pendingCount = ShiftRoster::where('company_id', $company_id)
+                    ->where('week_start', $week_start)
+                    ->where('status', 'pending')
+                    ->count();
+
+                if ($pendingCount > 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Roster broadcast blocked: {$pendingCount} roster entries are still pending approval. Please have HR or a Manager approve the roster before broadcasting to employees.",
+                        'blocked_reason' => 'pending_approval',
+                    ], 422);
+                }
+
+                $rejectedCount = ShiftRoster::where('company_id', $company_id)
+                    ->where('week_start', $week_start)
+                    ->where('status', 'rejected')
+                    ->count();
+
+                if ($rejectedCount > 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Roster broadcast blocked: {$rejectedCount} roster entries have been rejected. Please revise and resubmit for approval.",
+                        'blocked_reason' => 'rejected',
+                    ], 422);
+                }
+            }
+
             $month = $request->input('month');
             $year = $request->input('year');
             $start_date = $request->input('start_date');
@@ -1206,6 +1452,35 @@ class ShiftRosterController extends Controller
             $dateRange = '';
 
             if ($week_start) {
+                // APPROVAL GATE: Selected employees
+                $pendingCount = ShiftRoster::where('company_id', $company_id)
+                    ->where('week_start', $week_start)
+                    ->whereIn('employee_id', $employee_ids)
+                    ->where('status', 'pending')
+                    ->count();
+
+                if ($pendingCount > 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Roster broadcast blocked: {$pendingCount} selected roster entries are still pending approval. Please have HR or a Manager approve the roster before broadcasting.",
+                        'blocked_reason' => 'pending_approval',
+                    ], 422);
+                }
+
+                $rejectedCount = ShiftRoster::where('company_id', $company_id)
+                    ->where('week_start', $week_start)
+                    ->whereIn('employee_id', $employee_ids)
+                    ->where('status', 'rejected')
+                    ->count();
+
+                if ($rejectedCount > 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Roster broadcast blocked: {$rejectedCount} selected roster entries are marked as rejected. Please revise and approve before broadcasting.",
+                        'blocked_reason' => 'rejected',
+                    ], 422);
+                }
+
                 $startDate = Carbon::parse($week_start);
                 $endDate = $startDate->copy()->addDays(6);
                 $dateRange = $startDate->format('M d, Y') . ' - ' . $endDate->format('M d, Y');
@@ -1388,6 +1663,35 @@ class ShiftRosterController extends Controller
             $dateRange = '';
 
             if ($week_start) {
+                // APPROVAL GATE: Single employee
+                $pendingCount = ShiftRoster::where('company_id', $company_id)
+                    ->where('employee_id', $employee_id)
+                    ->where('week_start', $week_start)
+                    ->where('status', 'pending')
+                    ->count();
+
+                if ($pendingCount > 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Roster broadcast blocked: Roster for this employee is still pending approval. Please have HR or a Manager approve the roster first.",
+                        'blocked_reason' => 'pending_approval',
+                    ], 422);
+                }
+
+                $rejectedCount = ShiftRoster::where('company_id', $company_id)
+                    ->where('employee_id', $employee_id)
+                    ->where('week_start', $week_start)
+                    ->where('status', 'rejected')
+                    ->count();
+
+                if ($rejectedCount > 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Roster broadcast blocked: Roster for this employee has been rejected.",
+                        'blocked_reason' => 'rejected',
+                    ], 422);
+                }
+
                 $startDate = Carbon::parse($week_start);
                 $endDate = $startDate->copy()->addDays(6);
                 $dateRange = $startDate->format('M d, Y') . ' - ' . $endDate->format('M d, Y');
@@ -1512,6 +1816,12 @@ class ShiftRosterController extends Controller
 
     private function sendAutomaticNotification(ShiftRoster $shiftRoster)
     {
+        // Broadcast ONLY once the roster is approved
+        if ($shiftRoster->status !== 'approved') {
+            Log::info("sendAutomaticNotification: Shift {$shiftRoster->id} is pending approval, skipping auto-notification.");
+            return;
+        }
+
         $shiftRoster->load(['employee', 'company']);
 
         $sendWhatsapp = \App\Models\Setting::get('roster_send_whatsapp', false, $shiftRoster->company_id);
@@ -1598,8 +1908,11 @@ class ShiftRosterController extends Controller
                 ->orderBy('employee_id')
                 ->get();
 
+            // Broadcast ONLY once approved
+            $rosters = $rosters->filter(fn($r) => $r->status === 'approved');
+
             if ($rosters->isEmpty()) {
-                Log::warning('sendBulkAutomaticNotifications: No rosters found for weeks: ' . $weekStarts->implode(', '));
+                Log::info('sendBulkAutomaticNotifications: Roster entries are pending approval — notifications deferred until approved.');
                 return;
             }
 
@@ -1843,7 +2156,7 @@ class ShiftRosterController extends Controller
             $query->whereIn('employee_id', $employeeIds);
         }
 
-        // Fetch roster rows with necessary columns
+        // Fetch roster rows with necessary columns including approval metadata
         $rosters = $query->select([
             'id',
             'employee_id',
@@ -1853,7 +2166,11 @@ class ShiftRosterController extends Controller
             'shift_time',
             'shift_type',
             'designation',
-            'notes'
+            'notes',
+            'status',
+            'approved_by',
+            'approved_at',
+            'rejection_reason',
         ])->get();
 
         // Build weekly off map for all unique employees in this roster result (bulk, efficient)
@@ -2013,6 +2330,10 @@ class ShiftRosterController extends Controller
                     'shift_type' => $shiftType,
                     'designation' => !empty($entry['designation']) ? trim($entry['designation']) : null,
                     'notes' => $notes,
+                    'status' => 'pending',
+                    'approved_by' => null,
+                    'approved_at' => null,
+                    'rejection_reason' => null,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
@@ -2024,7 +2345,7 @@ class ShiftRosterController extends Controller
                 $affected = ShiftRoster::upsert(
                     $upsertData,
                     ['employee_id', 'week_start', 'day'],
-                    ['shift_time', 'shift_type', 'designation', 'notes', 'company_id', 'updated_at']
+                    ['shift_time', 'shift_type', 'designation', 'notes', 'company_id', 'status', 'approved_by', 'approved_at', 'rejection_reason', 'updated_at']
                 );
 
                 // For upsert, specific created/updated counts are hard to determine precisely

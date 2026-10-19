@@ -19,6 +19,10 @@ class ShiftRoster extends Model
         'shift_type',
         'designation',
         'notes',
+        'status',
+        'approved_by',
+        'approved_at',
+        'rejection_reason',
     ];
 
     protected $appends = [
@@ -26,9 +30,10 @@ class ShiftRoster extends Model
     ];
 
     protected $casts = [
-        'week_start' => 'date',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'week_start'  => 'date',
+        'approved_at' => 'datetime',
+        'created_at'  => 'datetime',
+        'updated_at'  => 'datetime',
     ];
 
     /**
@@ -45,6 +50,14 @@ class ShiftRoster extends Model
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
+    }
+
+    /**
+     * Get the user who approved this roster entry.
+     */
+    public function approvedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     /**
@@ -85,6 +98,37 @@ class ShiftRoster extends Model
     public function scopeForDay($query, $day)
     {
         return $query->where('day', $day);
+    }
+
+    /**
+     * Scope to filter by approval status.
+     */
+    public function scopePending($query)
+    {
+        return $query->where('status', 'pending');
+    }
+
+    public function scopeApproved($query)
+    {
+        return $query->where('status', 'approved');
+    }
+
+    public function scopeRejected($query)
+    {
+        return $query->where('status', 'rejected');
+    }
+
+    /**
+     * Check if this roster entry is approved.
+     */
+    public function isApproved(): bool
+    {
+        return $this->status === 'approved';
+    }
+
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
     }
 
     /**

@@ -88,7 +88,9 @@ export default function Index({
     department_id,
     shiftTemplates = {},
     shiftTypes = [],
-    userRole = 'admin'
+    userRole = 'admin',
+    canApprove = false,
+    weekApprovalStatus = null,
 }) {
     const isEmployee = userRole === 'employee';
     const [viewMode, setViewMode] = useState('week');
@@ -131,6 +133,12 @@ export default function Index({
         processing: false,
         hideCancel: false,
         confirmText: 'Confirm'
+    });
+
+    const [rejectionModal, setRejectionModal] = useState({
+        show: false,
+        reason: '',
+        processing: false
     });
 
     const copyToClipboard = (text) => {
@@ -405,10 +413,26 @@ export default function Index({
     };
 
     const handleSendEmails = () => {
+        // Block broadcast if the roster is not fully approved
+        if (weekApprovalStatus && !weekApprovalStatus.all_approved) {
+            setConfirmingAction({
+                show: true,
+                title: 'Broadcast Blocked: Approval Required',
+                message: weekApprovalStatus.has_pending
+                    ? `This roster has ${weekApprovalStatus.pending} pending shift entries. It must be approved by HR or a Manager before broadcasting to employees.`
+                    : 'This roster has rejected entries or is not yet approved. Please revise and approve the roster before broadcasting.',
+                type: 'warning',
+                hideCancel: true,
+                confirmText: 'Understood',
+                onConfirm: () => setConfirmingAction(prev => ({ ...prev, show: false }))
+            });
+            return;
+        }
+
         setConfirmingAction({
             show: true,
             title: 'Send Notifications',
-            message: 'Are you sure you want to send shift notifications to all assigned employees?',
+            message: 'Are you sure you want to broadcast shift notifications to all assigned employees?',
             type: 'info',
             onConfirm: () => {
                 setConfirmingAction(prev => ({ ...prev, processing: true }));
@@ -455,6 +479,84 @@ export default function Index({
                         }
                     })
                     .finally(() => setConfirmingAction(prev => ({ ...prev, processing: false })));
+            }
+        });
+    };
+
+    const handleApproveRoster = () => {
+        setConfirmingAction({
+            show: true,
+            title: 'Approve Shift Roster',
+            message: `Are you sure you want to approve this shift roster (${weekApprovalStatus?.total || 0} shifts)? Once approved, you or your managers can broadcast alerts to employees.`,
+            type: 'info',
+            confirmText: 'Approve Roster',
+            onConfirm: () => {
+                setConfirmingAction(prev => ({ ...prev, processing: true }));
+                router.post(route('shift-rosters.approve'), {
+                    company_id: selectedCompany,
+                    week_start: weekStart,
+                    department_id: selectedDepartment || null
+                }, {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        setConfirmingAction(prev => ({ ...prev, show: false, processing: false }));
+                    },
+                    onError: () => {
+                        setConfirmingAction(prev => ({ ...prev, processing: false }));
+                    }
+                });
+            }
+        });
+    };
+
+    const handleRejectRoster = () => {
+        setRejectionModal({
+            show: true,
+            reason: '',
+            processing: false
+        });
+    };
+
+    const submitRejection = () => {
+        setRejectionModal(prev => ({ ...prev, processing: true }));
+        router.post(route('shift-rosters.reject'), {
+            company_id: selectedCompany,
+            week_start: weekStart,
+            department_id: selectedDepartment || null,
+            rejection_reason: rejectionModal.reason || null
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setRejectionModal({ show: false, reason: '', processing: false });
+            },
+            onError: () => {
+                setRejectionModal(prev => ({ ...prev, processing: false }));
+            }
+        });
+    };
+
+    const handleResetToPending = () => {
+        setConfirmingAction({
+            show: true,
+            title: 'Reset Roster to Pending',
+            message: 'Are you sure you want to reset this roster back to pending? This will allow edits and require re-approval before broadcasting.',
+            type: 'warning',
+            confirmText: 'Reset to Pending',
+            onConfirm: () => {
+                setConfirmingAction(prev => ({ ...prev, processing: true }));
+                router.post(route('shift-rosters.resetToPending'), {
+                    company_id: selectedCompany,
+                    week_start: weekStart,
+                    department_id: selectedDepartment || null
+                }, {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        setConfirmingAction(prev => ({ ...prev, show: false, processing: false }));
+                    },
+                    onError: () => {
+                        setConfirmingAction(prev => ({ ...prev, processing: false }));
+                    }
+                });
             }
         });
     };
@@ -537,8 +639,119 @@ export default function Index({
                         </div>
                     )}
 
-                    {/* 2. Modern Glassmorphism Control Bar */}
-                    <div className="relative z-30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white/90 backdrop-blur-2xl p-3 sm:p-4 rounded-xl shadow-lg shadow-gray-200/50 border border-white/60">
+                    {/* 2. Approval Status Banner */}
+                    {!isEmployee && weekApprovalStatus && weekApprovalStatus.total > 0 && (
+                        <div className={`p-4 rounded-xl border transition-all duration-300 relative z-40 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md ${
+                            weekApprovalStatus.all_approved
+                                ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-emerald-200 shadow-emerald-100/40'
+                                : weekApprovalStatus.has_rejected
+                                ? 'bg-gradient-to-r from-rose-50 via-red-50 to-white border-rose-200 shadow-rose-100/40'
+                                : 'bg-gradient-to-r from-amber-50 via-yellow-50 to-white border-amber-200 shadow-amber-100/40'
+                        }`}>
+                            <div className="flex items-start md:items-center gap-3">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                    weekApprovalStatus.all_approved
+                                        ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
+                                        : weekApprovalStatus.has_rejected
+                                        ? 'bg-rose-500 text-white shadow-lg shadow-rose-200'
+                                        : 'bg-amber-500 text-white shadow-lg shadow-amber-200'
+                                }`}>
+                                    {weekApprovalStatus.all_approved ? (
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                                    ) : weekApprovalStatus.has_rejected ? (
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                                    ) : (
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    )}
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                            weekApprovalStatus.all_approved
+                                                ? 'bg-emerald-100 text-emerald-800'
+                                                : weekApprovalStatus.has_rejected
+                                                ? 'bg-rose-100 text-rose-800'
+                                                : 'bg-amber-100 text-amber-800'
+                                        }`}>
+                                            {weekApprovalStatus.all_approved
+                                                ? 'Roster Approved'
+                                                : weekApprovalStatus.has_rejected
+                                                ? 'Roster Rejected'
+                                                : 'Pending Approval'}
+                                        </span>
+                                        <span className="text-xs font-semibold text-gray-800">
+                                            {weekApprovalStatus.approved} / {weekApprovalStatus.total} Shifts Approved
+                                        </span>
+                                        {weekApprovalStatus.pending > 0 && (
+                                            <span className="text-[10px] text-amber-700 font-medium bg-amber-100/70 px-2 py-0.5 rounded">
+                                                {weekApprovalStatus.pending} pending
+                                            </span>
+                                        )}
+                                        {weekApprovalStatus.rejected > 0 && (
+                                            <span className="text-[10px] text-rose-700 font-medium bg-rose-100/70 px-2 py-0.5 rounded">
+                                                {weekApprovalStatus.rejected} rejected
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-gray-600 mt-1">
+                                        {weekApprovalStatus.all_approved ? (
+                                            <>Approved {weekApprovalStatus.approved_by_name ? `by ${weekApprovalStatus.approved_by_name}` : ''} {weekApprovalStatus.approved_at ? `on ${weekApprovalStatus.approved_at}` : ''}. Broadcast to employees is unlocked.</>
+                                        ) : weekApprovalStatus.has_rejected ? (
+                                            <>Roster was rejected: <span className="font-medium text-rose-700">{weekApprovalStatus.rejection_reason || 'Revisions required'}</span>. Please adjust schedule and resubmit.</>
+                                        ) : (
+                                            <>Roster is pending sign-off by HR or Manager. Broadcasting to employees is blocked until approved.</>
+                                        )}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Approval Action Buttons */}
+                            <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                                {canApprove && (weekApprovalStatus.has_pending || weekApprovalStatus.has_rejected) && (
+                                    <button
+                                        onClick={handleApproveRoster}
+                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium shadow-md shadow-emerald-200 hover:shadow-lg transition-all flex items-center gap-1.5 active:scale-95"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                                        Approve Roster
+                                    </button>
+                                )}
+
+                                {canApprove && weekApprovalStatus.has_pending && (
+                                    <button
+                                        onClick={handleRejectRoster}
+                                        className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 active:scale-95"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                        Reject
+                                    </button>
+                                )}
+
+                                {weekApprovalStatus.all_approved && (
+                                    <button
+                                        onClick={handleSendEmails}
+                                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium shadow-md shadow-indigo-200 hover:shadow-lg transition-all flex items-center gap-1.5 active:scale-95"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                        Broadcast Alerts
+                                    </button>
+                                )}
+
+                                {canApprove && (weekApprovalStatus.all_approved || weekApprovalStatus.has_rejected) && (
+                                    <button
+                                        onClick={handleResetToPending}
+                                        className="px-3 py-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg text-xs font-medium transition-colors"
+                                        title="Reset back to pending if revisions are needed"
+                                    >
+                                        Reset
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 3. Modern Glassmorphism Control Bar */}
+                    <div className="relative z-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white/95 backdrop-blur-2xl p-3 sm:p-4 rounded-xl shadow-lg shadow-gray-200/50 border border-white/60">
                         <div className="flex items-center justify-between sm:justify-start gap-3 sm:gap-5 flex-wrap">
                             <div className="flex items-center bg-gray-100/80 p-1 rounded-lg border border-gray-100 ring-1 ring-black/5">
                                 <button onClick={() => viewMode === 'week' ? handleWeekChange(-1) : handleMonthChange(-1)} className="p-1.5 sm:p-2 hover:bg-white rounded-lg transition-all text-gray-500 hover:text-indigo-600 shadow-sm hover:shadow-md">
@@ -555,7 +768,7 @@ export default function Index({
                             )}
 
                             {!isEmployee && (
-                                <div className="relative group" ref={toolkitRef}>
+                                <div className="relative z-50 group" ref={toolkitRef}>
                                     <button
                                         onClick={() => setShowAdvancedActions(!showAdvancedActions)}
                                         className="px-5 py-2.5 bg-gray-50 text-gray-600 rounded-lg font-normal text-[10px] uppercase tracking-normal hover:bg-white border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all flex items-center gap-2 group"
@@ -563,17 +776,57 @@ export default function Index({
                                         <svg className={`w-4 h-4 transition-transform duration-300 ${showAdvancedActions ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m10 4a2 2 0 100-4m0 4a2 2 0 110-4m-4 1V12m0 8v-2m-2-5h4" /></svg>
                                         Toolkit
                                     </button>
-                                    <div className={`absolute left-0 top-full mt-2 w-64 bg-white/95 backdrop-blur-xl rounded-lg shadow-2xl border border-gray-100 p-2 z-[110] transition-all transform origin-top-left ring-1 ring-black/5 ${showAdvancedActions ? 'scale-100 opacity-100' : 'scale-95 opacity-0 pointer-events-none'}`}>
-                                        <div className="px-3 py-2 mb-1">
+                                    <div className={`absolute left-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 p-2 z-[100] transition-all transform origin-top-left ring-1 ring-black/5 ${showAdvancedActions ? 'scale-100 opacity-100 pointer-events-auto' : 'scale-95 opacity-0 pointer-events-none'}`}>
+                                        <div className="px-3 py-2 mb-1 flex items-center justify-between">
                                             <p className="text-[10px] font-normal text-indigo-500 uppercase tracking-normal leading-none">Management Power-ups</p>
+                                            {weekApprovalStatus && (
+                                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase ${
+                                                    weekApprovalStatus.all_approved ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                                                }`}>
+                                                    {weekApprovalStatus.all_approved ? 'Approved' : 'Pending'}
+                                                </span>
+                                            )}
                                         </div>
+
+                                        {canApprove && weekApprovalStatus?.has_pending && (
+                                            <button
+                                                onClick={() => {
+                                                    setShowAdvancedActions(false);
+                                                    handleApproveRoster();
+                                                }}
+                                                disabled={!selectedCompany}
+                                                className="w-full text-left px-3 py-2.5 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all text-emerald-700 hover:bg-emerald-600 hover:text-white group/item"
+                                            >
+                                                <div className="p-1.5 bg-emerald-50 group-hover/item:bg-white/20 rounded-md transition-colors">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                                                </div>
+                                                Approve Roster
+                                            </button>
+                                        )}
+
+                                        {canApprove && weekApprovalStatus?.has_pending && (
+                                            <button
+                                                onClick={() => {
+                                                    setShowAdvancedActions(false);
+                                                    handleRejectRoster();
+                                                }}
+                                                disabled={!selectedCompany}
+                                                className="w-full text-left px-3 py-2.5 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all text-rose-700 hover:bg-rose-600 hover:text-white group/item"
+                                            >
+                                                <div className="p-1.5 bg-rose-50 group-hover/item:bg-white/20 rounded-md transition-colors">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                </div>
+                                                Reject Roster
+                                            </button>
+                                        )}
+
                                         <button
                                             onClick={() => {
                                                 setShowAdvancedActions(false);
                                                 handleDuplicateWeek();
                                             }}
                                             disabled={!selectedCompany}
-                                            className={`w-full text-left px-3 py-3 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all group/item ${!selectedCompany ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:bg-primary hover:text-white'}`}
+                                            className={`w-full text-left px-3 py-2.5 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all group/item ${!selectedCompany ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:bg-primary hover:text-white'}`}
                                         >
                                             <div className="p-1.5 bg-indigo-50 group-hover/item:bg-white/20 rounded-md transition-colors">
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
@@ -586,7 +839,7 @@ export default function Index({
                                                 handleExport();
                                             }}
                                             disabled={!selectedCompany}
-                                            className={`w-full text-left px-3 py-3 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all group/item ${!selectedCompany ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:bg-emerald-600 hover:text-white'}`}
+                                            className={`w-full text-left px-3 py-2.5 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all group/item ${!selectedCompany ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:bg-emerald-600 hover:text-white'}`}
                                         >
                                             <div className="p-1.5 bg-emerald-50 group-hover/item:bg-white/20 rounded-md transition-colors">
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -599,19 +852,22 @@ export default function Index({
                                                 handleSendEmails();
                                             }}
                                             disabled={!selectedCompany}
-                                            className={`w-full text-left px-3 py-3 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all group/item ${!selectedCompany ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:bg-primary hover:text-white'}`}
+                                            className={`w-full text-left px-3 py-2.5 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all group/item ${!selectedCompany ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:bg-primary hover:text-white'}`}
                                         >
                                             <div className="p-1.5 bg-blue-50 group-hover/item:bg-white/20 rounded-md transition-colors">
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                                             </div>
-                                            Broadcast Alerts
+                                            <span>Broadcast Alerts</span>
+                                            {weekApprovalStatus && !weekApprovalStatus.all_approved && (
+                                                <span className="ml-auto text-[8px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded">Needs Approval</span>
+                                            )}
                                         </button>
                                         <button
                                             onClick={() => {
                                                 setShowAdvancedActions(false);
                                                 setShowTemplateModal(true);
                                             }}
-                                            className="w-full text-left px-3 py-3 text-[11px] font-normal text-gray-600 uppercase hover:bg-purple-600 hover:text-white rounded-lg flex items-center gap-3 transition-all group/item"
+                                            className="w-full text-left px-3 py-2.5 text-[11px] font-normal text-gray-600 uppercase hover:bg-purple-600 hover:text-white rounded-lg flex items-center gap-3 transition-all group/item"
                                         >
                                             <div className="p-1.5 bg-purple-50 group-hover/item:bg-white/20 rounded-md transition-colors">
                                                 <FiInfo className="w-4 h-4" />
@@ -654,8 +910,8 @@ export default function Index({
                         </div>
                     </div>
 
-                    {/* 3. Main Roster Content Area */}
-                    <div className="flex flex-col lg:flex-row gap-4 relative z-10">
+                    {/* 4. Main Roster Content Area */}
+                    <div className="flex flex-col lg:flex-row gap-4 relative z-0">
                         {/* Management Sidebar */}
                         {!isEmployee && (
                             <div className="lg:w-[280px] flex flex-col gap-4 h-full shrink-0">
@@ -871,10 +1127,24 @@ export default function Index({
                                                                                     }`}>
                                                                                     <div className="flex items-center justify-between">
                                                                                         <span className={`text-xs font-normal tracking-normal leading-none ${isSelf ? 'text-indigo-700' : 'text-gray-800'}`}>{roster.shift_time}</span>
-                                                                                        <div className={`w-1.5 h-1.5 rounded-full ${roster.shift_type === 'Evening' ? 'bg-amber-400' : (roster.shift_type === 'Morning' ? 'bg-cyan-400' : 'bg-emerald-400')}`}></div>
+                                                                                        <div className="flex items-center gap-1">
+                                                                                            {roster.status === 'pending' && (
+                                                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" title="Pending Approval"></span>
+                                                                                            )}
+                                                                                            {roster.status === 'rejected' && (
+                                                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" title="Rejected"></span>
+                                                                                            )}
+                                                                                            <div className={`w-1.5 h-1.5 rounded-full ${roster.shift_type === 'Evening' ? 'bg-amber-400' : (roster.shift_type === 'Morning' ? 'bg-cyan-400' : 'bg-emerald-400')}`}></div>
+                                                                                        </div>
                                                                                     </div>
-                                                                                    <div className="flex items-center gap-2">
-                                                                                        <span className="text-[8px] font-normal text-gray-400 uppercase tracking-normal truncate max-w-[100px]">{roster.shift_type || 'General'}</span>
+                                                                                    <div className="flex items-center justify-between gap-1">
+                                                                                        <span className="text-[8px] font-normal text-gray-400 uppercase tracking-normal truncate max-w-[90px]">{roster.shift_type || 'General'}</span>
+                                                                                        {roster.status === 'pending' && (
+                                                                                            <span className="text-[7px] font-semibold text-amber-700 bg-amber-50 px-1 py-0.5 rounded leading-none">pending</span>
+                                                                                        )}
+                                                                                        {roster.status === 'rejected' && (
+                                                                                            <span className="text-[7px] font-semibold text-rose-700 bg-rose-50 px-1 py-0.5 rounded leading-none">rejected</span>
+                                                                                        )}
                                                                                     </div>
 
                                                                                     {!isEmployee && (
@@ -1106,6 +1376,48 @@ export default function Index({
                 .animate-in { animation: fadeIn 0.2s ease-out; }
                 .slide-in-from-bottom-8 { animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
             `}} />
+                {/* Reject Roster Modal */}
+                <Modal show={rejectionModal.show} onClose={() => setRejectionModal({ show: false, reason: '', processing: false })} maxWidth="md">
+                    <div className="p-6">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-9 h-9 rounded-full bg-rose-50 flex items-center justify-center text-rose-600">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                            </div>
+                            <h3 className="text-base font-semibold text-gray-900">Reject Shift Roster</h3>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+                            Please provide feedback or a reason for rejecting this schedule. The creator will be able to review your notes, update shifts, and resubmit for approval.
+                        </p>
+                        <div className="mb-4">
+                            <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Rejection Reason / Notes</label>
+                            <textarea
+                                value={rejectionModal.reason}
+                                onChange={(e) => setRejectionModal(prev => ({ ...prev, reason: e.target.value }))}
+                                placeholder="e.g. Please re-assign Friday evening shift to ensure adequate coverage..."
+                                rows={3}
+                                className="w-full text-xs rounded-lg border-gray-200 focus:ring-rose-500 focus:border-rose-500 p-2.5"
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setRejectionModal({ show: false, reason: '', processing: false })}
+                                className="px-4 py-2 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                disabled={rejectionModal.processing}
+                                onClick={submitRejection}
+                                className="px-4 py-2 text-xs font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm disabled:opacity-50 transition-colors"
+                            >
+                                {rejectionModal.processing ? 'Rejecting...' : 'Confirm Rejection'}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+
                 <ConfirmationModal
                     show={confirmingAction.show}
                     title={confirmingAction.title}
@@ -1120,4 +1432,4 @@ export default function Index({
             </>
         </AuthenticatedLayout>
     );
-};
+}
