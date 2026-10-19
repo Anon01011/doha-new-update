@@ -29,6 +29,7 @@ export default function CreateEmployee(props) {
         constants = {},
         salaryComponents = [],
         availableRoles = [],
+        defaultRole = 'employee',
         leadershipEmployees = [],
         managerEmployees = []
     } = props;
@@ -98,7 +99,7 @@ export default function CreateEmployee(props) {
         qid_number: '',
         qid_expiry_date: '',
         qid_file: null,
-        role: '',
+        role: defaultRole || 'employee',
         salary_structures: [],
         food_handler_file: null,
         food_handler_expiry_date: '',
@@ -981,7 +982,7 @@ export default function CreateEmployee(props) {
                                                 value={data.role}
                                                 options={roleOptions}
                                                 onChange={e => setData('role', e.target.value)}
-                                                placeholder="No System Access (Staff Only)"
+                                                placeholder="Select System Role (Default: Employee)"
                                             />
                                             {data.role && (
                                                 <p className="text-[11px] text-amber-600 font-medium">

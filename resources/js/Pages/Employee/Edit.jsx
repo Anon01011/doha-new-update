@@ -106,7 +106,7 @@ export default function EditEmployee(props) {
         qid_number: employee.qid_number || '',
         qid_expiry_date: formatDate(employee.qid_expiry_date),
         qid_file: null,
-        role: employee_role || '',
+        role: employee_role || 'employee',
         password: '',
         password_confirmation: '',
         salary_structures: (employee.salary_structures || employee.salaryStructures || []).map(s => ({
@@ -935,7 +935,7 @@ export default function EditEmployee(props) {
                                                 value={data.role}
                                                 options={roleOptions}
                                                 onChange={e => setData('role', e.target.value)}
-                                                placeholder="No System Role (Staff Only)"
+                                                placeholder="Select System Role (Default: Employee)"
                                             />
                                         </div>
 

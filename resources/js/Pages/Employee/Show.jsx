@@ -552,7 +552,7 @@ export default function ShowEmployee({ employee }) {
                                     <InfoField label="Primary Department" value={employee.department?.name || employee.department_name || (assignedDepartments[0]?.name)} icon={<FiLayers />} />
                                     <InfoField label="Designation" value={employee.designation} icon={<FiBriefcase />} />
                                     <InfoField label="Reporting Supervisor" value={employee.reported_to} icon={<FiUser />} />
-                                    <InfoField label="System Access Role" value={employee.role_name || 'Staff Member'} icon={<FiShield />} />
+                                    <InfoField label="System Access Role" value={employee.role_name || 'Employee'} icon={<FiShield />} />
                                     <InfoField label="Joined Date" value={formatDate(employee.joined_date)} icon={<FiCalendar />} />
                                     <InfoField label="Rejoined Date" value={formatDate(employee.rejoined_date)} icon={<FiCalendar />} />
                                     <InfoField label="Staff Category" value={employee.employee_category} icon={<FiLayers />} />
