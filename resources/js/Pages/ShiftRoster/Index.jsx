@@ -272,11 +272,22 @@ export default function Index({
         if (!editingRoster) return;
         setIsSaving(true);
 
+        const targetDate = editingRoster.date;
+        let calculatedWeekStart = editingRoster.week_start || weekStart;
+        if (targetDate) {
+            const d = new Date(targetDate + 'T00:00:00');
+            const dayOfWeek = d.getDay();
+            const diff = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+            const mon = new Date(d);
+            mon.setDate(diff);
+            calculatedWeekStart = formatDate(mon);
+        }
+
         const data = {
             ...editForm,
             employee_id: editingRoster.employee_id || editingRoster.employee.id,
             company_id: selectedCompany || editingRoster.employee.company_id,
-            week_start: editingRoster.week_start || weekStart,
+            week_start: calculatedWeekStart,
             day: editingRoster.day
         };
 

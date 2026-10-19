@@ -142,6 +142,34 @@ export default function Create({
 
     const isAllSelected = filteredEmployees.length > 0 && filteredEmployees.every(emp => selectedEmployees.includes(emp.id));
 
+    // Pre-calculate weekly off map for all employees across all days in the current view (O(1) lookup)
+    const weeklyOffLookup = useMemo(() => {
+        const lookup = {};
+        employees.forEach(emp => {
+            lookup[emp.id] = {};
+            const staffOffs = (emp.weekly_offs || emp.weeklyOffs || [])
+                .filter(w => w.effective_date)
+                .sort((a, b) => b.effective_date.localeCompare(a.effective_date));
+            const branchOffs = emp.company?.weekly_off_days || [];
+
+            days.forEach(day => {
+                let isOff = false;
+                if (staffOffs.length > 0) {
+                    const match = staffOffs.find(w => w.effective_date.slice(0, 10) <= day.date);
+                    if (match) {
+                        isOff = match.weekly_off_day === day.day;
+                    } else {
+                        isOff = branchOffs.includes(day.day);
+                    }
+                } else {
+                    isOff = branchOffs.includes(day.day);
+                }
+                lookup[emp.id][day.date] = isOff;
+            });
+        });
+        return lookup;
+    }, [employees, days]);
+
     // Handlers
     const toggleSelectAll = () => {
         if (isAllSelected) {
@@ -227,7 +255,8 @@ export default function Create({
                     const entryDate = new Date(day.date + 'T00:00:00');
                     const dayOfWeek = entryDate.getDay();
                     const diff = entryDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-                    const monday = new Date(entryDate.setDate(diff));
+                    const monday = new Date(entryDate);
+                    monday.setDate(diff);
                     const entryWeekStart = formatDate(monday);
 
                     entries.push({
@@ -481,7 +510,7 @@ export default function Create({
                                                         </td>
                                                         {days.map(day => {
                                                             const entry = rosterEntries[empId]?.[day.date] || {};
-                                                            const isWeeklyOff = isEmployeeWeeklyOff(employee, day.date);
+                                                            const isWeeklyOff = weeklyOffLookup[empId]?.[day.date] || false;
                                                             return (
                                                                 <td key={day.date} className={`p-1 border-r border-gray-50 last:border-r-0 ${isWeeklyOff ? 'bg-amber-50/20' : ''}`}>
                                                                     <div className="flex flex-col gap-1">

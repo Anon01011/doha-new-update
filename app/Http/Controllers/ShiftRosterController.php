@@ -930,6 +930,9 @@ class ShiftRosterController extends Controller
                 }
             }
 
+            // Ensure week_start is normalized to Monday
+            $data['week_start'] = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY)->toDateString();
+
             $employee = Employee::with(['weeklyOffs', 'company'])->find($data['employee_id']);
             if ($employee) {
                 $dayMap = [
@@ -1037,6 +1040,10 @@ class ShiftRosterController extends Controller
                 'company_id' => 'required|exists:companies,id',
             ]);
 
+            // Snap weeks to Monday
+            $data['source_week'] = Carbon::parse($data['source_week'])->startOfWeek(Carbon::MONDAY)->toDateString();
+            $data['target_week'] = Carbon::parse($data['target_week'])->startOfWeek(Carbon::MONDAY)->toDateString();
+
             // Multi-tenancy check
             if (!$user->isAdmin() && $user->employee_id && $user->employee) {
                 if ($data['company_id'] != $user->employee->company_id) {
@@ -1055,22 +1062,50 @@ class ShiftRosterController extends Controller
 
             $sourceRosters = $query->get();
 
+            if ($sourceRosters->isEmpty()) {
+                return back()->with('error', 'No shifts found in the source week to duplicate.');
+            }
+
             $duplicatedCount = 0;
             DB::beginTransaction();
 
             try {
                 $now = now();
+                $targetWeekCarbon = Carbon::parse($data['target_week']);
+                $weeklyOffService = app(WeeklyOffService::class);
+
+                // Pre-fetch employees for weekly off resolution in target week
+                $empIds = $sourceRosters->pluck('employee_id')->unique();
+                $employeesCollection = Employee::with(['weeklyOffs', 'company'])
+                    ->whereIn('id', $empIds)
+                    ->get()
+                    ->keyBy('id');
+                $weeklyOffMap = $weeklyOffService->buildWeeklyOffMap($employeesCollection, $targetWeekCarbon);
+
+                $dayOffsets = [
+                    'Monday' => 0, 'Tuesday' => 1, 'Wednesday' => 2, 'Thursday' => 3,
+                    'Friday' => 4, 'Saturday' => 5, 'Sunday' => 6
+                ];
+
                 $upsertData = [];
                 foreach ($sourceRosters as $roster) {
+                    $dayOffset = $dayOffsets[$roster->day] ?? 0;
+                    $targetDate = $targetWeekCarbon->copy()->addDays($dayOffset);
+
+                    $isWeeklyOff = $weeklyOffService->isWeeklyOffFromMap($roster->employee_id, $targetDate, $weeklyOffMap);
+                    $shiftTime = $isWeeklyOff ? 'Weekly Off' : $roster->shift_time;
+                    $shiftType = $isWeeklyOff ? 'Weekly Off' : $roster->shift_type;
+                    $notes = $isWeeklyOff ? 'Auto: Weekly Off Day' : $roster->notes;
+
                     $upsertData[] = [
                         'employee_id' => $roster->employee_id,
                         'company_id' => $roster->company_id,
                         'week_start' => $data['target_week'],
                         'day' => $roster->day,
-                        'shift_time' => $roster->shift_time,
-                        'shift_type' => $roster->shift_type,
+                        'shift_time' => $shiftTime,
+                        'shift_type' => $shiftType,
                         'designation' => $roster->designation,
-                        'notes' => $roster->notes,
+                        'notes' => $notes,
                         'status' => 'pending',
                         'approved_by' => null,
                         'approved_at' => null,
@@ -1081,22 +1116,23 @@ class ShiftRosterController extends Controller
                 }
 
                 if (!empty($upsertData)) {
-                    ShiftRoster::upsert(
-                        $upsertData,
-                        ['employee_id', 'week_start', 'day'],
-                        ['shift_time', 'shift_type', 'designation', 'notes', 'company_id', 'status', 'approved_by', 'approved_at', 'rejection_reason', 'updated_at']
-                    );
+                    collect($upsertData)->chunk(500)->each(function ($chunk) {
+                        ShiftRoster::upsert(
+                            $chunk->all(),
+                            ['employee_id', 'week_start', 'day'],
+                            ['shift_time', 'shift_type', 'designation', 'notes', 'company_id', 'status', 'approved_by', 'approved_at', 'rejection_reason', 'updated_at']
+                        );
+                    });
                     $duplicatedCount = count($upsertData);
                 }
 
                 DB::commit();
-                return back()->with('success', "Successfully duplicated {$duplicatedCount} roster entries");
+                return back()->with('success', "Successfully duplicated {$duplicatedCount} roster entries to week starting {$data['target_week']}");
 
             } catch (\Exception $e) {
                 DB::rollBack();
                 throw $e;
             }
-
         } catch (\Exception $e) {
             Log::error('ShiftRoster duplicate week error: ' . $e->getMessage());
             return back()->with('error', 'Error duplicating week: ' . $e->getMessage());
@@ -2458,16 +2494,20 @@ class ShiftRosterController extends Controller
 
         // Build the query based on view mode
         if ($request->has('month') && $request->has('year')) {
-            $month = $request->input('month');
-            $year = $request->input('year');
-            $start_date = Carbon::create($year, $month + 1, 1)->startOfMonth()->toDateString();
-            $end_date = Carbon::create($year, $month + 1, 1)->endOfMonth()->toDateString();
+            $month = (int) $request->input('month');
+            $year = (int) $request->input('year');
+            $start_week = Carbon::create($year, $month + 1, 1)->startOfWeek(Carbon::MONDAY)->toDateString();
+            $end_week = Carbon::create($year, $month + 1, 1)->endOfMonth()->startOfWeek(Carbon::MONDAY)->toDateString();
 
-            $query->whereBetween('week_start', [$start_date, $end_date]);
+            $query->whereBetween('week_start', [$start_week, $end_week]);
         } elseif ($request->has('start_date') && $request->has('end_date')) {
-            $query->whereBetween('week_start', [$request->input('start_date'), $request->input('end_date')]);
+            $start_week = Carbon::parse($request->input('start_date'))->startOfWeek(Carbon::MONDAY)->toDateString();
+            $end_week = Carbon::parse($request->input('end_date'))->startOfWeek(Carbon::MONDAY)->toDateString();
+
+            $query->whereBetween('week_start', [$start_week, $end_week]);
         } else {
-            $query->where('week_start', $week);
+            $normalizedWeek = Carbon::parse($week)->startOfWeek(Carbon::MONDAY)->toDateString();
+            $query->where('week_start', $normalizedWeek);
         }
 
         if ($company_id) {
@@ -2555,7 +2595,7 @@ class ShiftRosterController extends Controller
             'week_start' => 'nullable|date',
             'company_id' => 'required|exists:companies,id',
             'entries' => 'required|array|min:1',
-            'entries.*.employee_id' => 'required|exists:employees,id',
+            'entries.*.employee_id' => 'required|integer',
             'entries.*.day' => 'required|in:Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
             'entries.*.shift_time' => 'required|string|max:255',
             'entries.*.shift_type' => 'nullable|string|max:255',
@@ -2597,10 +2637,8 @@ class ShiftRosterController extends Controller
             $weeklyOffService = app(WeeklyOffService::class);
 
             // Build weekly off map — derive reference date from top-level week_start or first entry
-            // (top-level week_start is null in month/range view; each entry carries its own)
             $topLevelWs = $data['week_start'] ?? null;
             if (empty($topLevelWs)) {
-                // Use the first entry's week_start as the reference
                 $topLevelWs = $entries->first()['week_start'] ?? null;
             }
             $referenceDate = Carbon::parse($topLevelWs ?? now());
@@ -2609,6 +2647,9 @@ class ShiftRosterController extends Controller
             // Day-offset map for computing actual dates
             $dayOffsets = ['Monday' => 0, 'Tuesday' => 1, 'Wednesday' => 2, 'Thursday' => 3,
                            'Friday' => 4, 'Saturday' => 5, 'Sunday' => 6];
+
+            // Cache Carbon instances for distinct week_starts to avoid thousands of Carbon::parse() calls
+            $wsCarbonCache = [];
 
             foreach ($entries as $index => $entry) {
                 // Verification: Employee MUST belong to the company
@@ -2628,10 +2669,13 @@ class ShiftRosterController extends Controller
                     continue;
                 }
 
-                // Compute the actual date for this entry
-                $weekStartDate = Carbon::parse($ws);
+                if (!isset($wsCarbonCache[$ws])) {
+                    $wsCarbonCache[$ws] = Carbon::parse($ws)->startOfWeek(Carbon::MONDAY);
+                }
+                $normalizedWs = $wsCarbonCache[$ws]->toDateString();
+
                 $dayOffset = $dayOffsets[$entry['day']] ?? 0;
-                $actualDate = $weekStartDate->copy()->addDays($dayOffset);
+                $actualDate = $wsCarbonCache[$ws]->copy()->addDays($dayOffset);
 
                 // Check if this day is a weekly off for the employee
                 $isWeeklyOff = $weeklyOffService->isWeeklyOffFromMap($entry['employee_id'], $actualDate, $weeklyOffMap);
@@ -2649,7 +2693,7 @@ class ShiftRosterController extends Controller
                 $upsertData[] = [
                     'employee_id' => $entry['employee_id'],
                     'company_id' => $data['company_id'],
-                    'week_start' => $ws,
+                    'week_start' => $normalizedWs,
                     'day' => $entry['day'],
                     'shift_time' => $time,
                     'shift_type' => $shiftType,
@@ -2665,22 +2709,20 @@ class ShiftRosterController extends Controller
             }
 
             if (!empty($upsertData)) {
-                // Use upsert for bulk processing
-                // Unique index is ['employee_id', 'week_start', 'day']
-                $affected = ShiftRoster::upsert(
-                    $upsertData,
-                    ['employee_id', 'week_start', 'day'],
-                    ['shift_time', 'shift_type', 'designation', 'notes', 'company_id', 'status', 'approved_by', 'approved_at', 'rejection_reason', 'updated_at']
-                );
+                // Chunk in batches of 500 to prevent MySQL parameter limits, packet drops, and memory pressure
+                collect($upsertData)->chunk(500)->each(function ($chunk) {
+                    ShiftRoster::upsert(
+                        $chunk->all(),
+                        ['employee_id', 'week_start', 'day'],
+                        ['shift_time', 'shift_type', 'designation', 'notes', 'company_id', 'status', 'approved_by', 'approved_at', 'rejection_reason', 'updated_at']
+                    );
+                });
 
-                // For upsert, specific created/updated counts are hard to determine precisely
-                // We'll report the total processed count
                 $updatedCount = count($upsertData);
             }
 
             DB::commit();
 
-            // Return updatedCount as total processed to satisfy frontend expectation safely
             return ['created' => 0, 'updated' => $updatedCount, 'errors' => $errors];
 
         } catch (\Exception $e) {
