@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\LeaveType;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -41,7 +42,12 @@ class LeaveTypeController extends Controller
             abort(403, 'Unauthorized. You do not have permission to create leave types.');
         }
 
-        return Inertia::render('LeaveType/Create');
+        $companyId = $user->company_id ?: ($user->employee_id && $user->employee ? $user->employee->company_id : null);
+        $enableAttachment = (bool) Setting::get('enable_leave_attachment', true, $companyId);
+
+        return Inertia::render('LeaveType/Create', [
+            'enableAttachment' => $enableAttachment,
+        ]);
     }
 
     public function store(Request $request)
@@ -60,6 +66,7 @@ class LeaveTypeController extends Controller
             'carry_forward_allowed' => 'boolean',
             'carry_forward_max_days' => 'nullable|integer|min:0',
             'requires_approval' => 'boolean',
+            'requires_attachment' => 'boolean',
             'is_paid' => 'boolean',
             'description' => 'nullable|string|max:1000',
             'is_active' => 'boolean',
@@ -118,8 +125,12 @@ class LeaveTypeController extends Controller
             }
         }
 
+        $companyId = $user->company_id ?: ($user->employee_id && $user->employee ? $user->employee->company_id : null);
+        $enableAttachment = (bool) Setting::get('enable_leave_attachment', true, $companyId);
+
         return Inertia::render('LeaveType/Edit', [
             'leaveType' => $leaveType,
+            'enableAttachment' => $enableAttachment,
         ]);
     }
 
@@ -150,6 +161,7 @@ class LeaveTypeController extends Controller
             'carry_forward_allowed' => 'boolean',
             'carry_forward_max_days' => 'nullable|integer|min:0',
             'requires_approval' => 'boolean',
+            'requires_attachment' => 'boolean',
             'is_paid' => 'boolean',
             'description' => 'nullable|string|max:1000',
             'is_active' => 'boolean',

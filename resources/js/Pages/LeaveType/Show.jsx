@@ -116,6 +116,17 @@ export default function Show({ leaveType }) {
                                                     <span className="text-[10px] font-normal text-slate-900">{leaveType.carry_forward_allowed ? 'Yes' : 'No'}</span>
                                                 </div>
                                             </div>
+                                            {leaveType.requires_attachment !== undefined && (
+                                                <div className={`p-4 col-span-2 rounded-xl shadow-sm border ${leaveType.requires_attachment ? 'bg-indigo-50/60 border-indigo-100' : 'bg-white border-slate-100'}`}>
+                                                    <p className="text-[9px] font-normal text-slate-400 mb-2">Attachment Requirement</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`w-1.5 h-1.5 rounded-full ${leaveType.requires_attachment ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
+                                                        <span className={`text-[10px] font-normal ${leaveType.requires_attachment ? 'text-indigo-700' : 'text-slate-900'}`}>
+                                                            {leaveType.requires_attachment ? 'Document upload required' : 'No attachment required'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

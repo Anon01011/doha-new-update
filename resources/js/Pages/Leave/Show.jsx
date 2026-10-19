@@ -1,7 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { FaCalendarAlt, FaUser, FaClipboardList, FaArrowLeft, FaEdit, FaCheck, FaTimes, FaClock, FaCheckCircle, FaTimesCircle, FaInfoCircle } from 'react-icons/fa';
+import { FaCalendarAlt, FaUser, FaClipboardList, FaArrowLeft, FaEdit, FaCheck, FaTimes, FaClock, FaCheckCircle, FaTimesCircle, FaInfoCircle, FaPaperclip, FaDownload, FaFileAlt } from 'react-icons/fa';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Modal from '@/Components/Modal';
@@ -200,6 +200,35 @@ export default function Show({ leaveRequest, userRole = 'employee' }) {
                                                 <p className="text-sm font-normal text-rose-600 leading-relaxed">
                                                     {leaveRequest.rejection_reason}
                                                 </p>
+                                            </div>
+                                        )}
+
+                                        {/* Attachment Section */}
+                                        {leaveRequest.attachment && (
+                                            <div className="p-5 bg-indigo-50/60 rounded-xl border border-indigo-100">
+                                                <p className="text-[10px] font-normal text-indigo-500 mb-3 flex items-center gap-2">
+                                                    <FaPaperclip /> Supporting Document
+                                                </p>
+                                                <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-indigo-100 shadow-sm">
+                                                    <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                                        <FaFileAlt className="text-indigo-500" size={18} />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[11px] font-normal text-slate-900 truncate">
+                                                            {leaveRequest.attachment_original_name || 'Attachment'}
+                                                        </p>
+                                                        <p className="text-[9px] text-slate-400 font-normal">Click to download</p>
+                                                    </div>
+                                                    <a
+                                                        href={`/storage/${leaveRequest.attachment}`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        download={leaveRequest.attachment_original_name || 'attachment'}
+                                                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-normal hover:bg-indigo-700 transition-all active:scale-95 shadow-md shadow-indigo-200"
+                                                    >
+                                                        <FaDownload size={10} /> Download
+                                                    </a>
+                                                </div>
                                             </div>
                                         )}
                                     </div>

@@ -11,6 +11,9 @@ export default function LeaveSettings({ settings }) {
         max_consecutive_days: settings.max_consecutive_days || 15,
         negative_balance_allowed: settings.negative_balance_allowed || false,
         probation_leave_eligibility: settings.probation_leave_eligibility || false,
+        enable_leave_attachment: settings.enable_leave_attachment !== undefined ? Boolean(settings.enable_leave_attachment) : false,
+        attachment_max_size_mb: settings.attachment_max_size_mb || 5,
+        attachment_allowed_types: settings.attachment_allowed_types || 'pdf,jpg,jpeg,png,doc,docx',
     });
 
     const handleSubmit = (e) => {
@@ -150,6 +153,61 @@ export default function LeaveSettings({ settings }) {
                                             <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${data.probation_leave_eligibility ? 'translate-x-4' : 'translate-x-1'}`} />
                                         </button>
                                     </div>
+
+                                    <div className="p-3 bg-indigo-50/60 rounded-lg border border-indigo-100 flex items-center justify-between">
+                                        <div>
+                                            <label className="text-xs font-normal text-indigo-700 block">Enable Leave Attachment</label>
+                                            <span className="text-[10px] text-indigo-400 font-normal">Allow document attachments on leave requests</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setData('enable_leave_attachment', !data.enable_leave_attachment)}
+                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${data.enable_leave_attachment ? 'bg-indigo-600' : 'bg-gray-200'
+                                                }`}
+                                        >
+                                            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${data.enable_leave_attachment ? 'translate-x-4' : 'translate-x-1'}`} />
+                                        </button>
+                                    </div>
+
+                                    {/* Attachment Configuration — shown when enabled */}
+                                    {data.enable_leave_attachment && (
+                                        <div className="p-4 bg-indigo-50/40 rounded-lg border border-indigo-100 space-y-4">
+                                            <p className="text-[10px] font-normal text-indigo-600 uppercase tracking-wider">Attachment Configuration</p>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="space-y-1">
+                                                    <label className="text-xs font-normal text-gray-700 ml-1">Max File Size (MB)</label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max="100"
+                                                        value={data.attachment_max_size_mb}
+                                                        onChange={(e) => setData('attachment_max_size_mb', parseInt(e.target.value) || 5)}
+                                                        className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-normal"
+                                                    />
+                                                    <p className="text-[10px] text-gray-400 ml-1">Maximum single file size allowed</p>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <label className="text-xs font-normal text-gray-700 ml-1">Allowed File Types</label>
+                                                    <input
+                                                        type="text"
+                                                        value={data.attachment_allowed_types}
+                                                        onChange={(e) => setData('attachment_allowed_types', e.target.value)}
+                                                        className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-normal"
+                                                        placeholder="pdf,jpg,jpeg,png,doc,docx"
+                                                    />
+                                                    <p className="text-[10px] text-gray-400 ml-1">Comma-separated extensions (e.g. pdf,jpg,png)</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-wrap gap-2">
+                                                {data.attachment_allowed_types.split(',').map(ext => ext.trim()).filter(Boolean).map(ext => (
+                                                    <span key={ext} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-normal uppercase">.{ext}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

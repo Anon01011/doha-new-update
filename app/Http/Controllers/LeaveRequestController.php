@@ -91,29 +91,35 @@ class LeaveRequestController extends Controller
 
         $companyId = $user->company_id ?: ($user->employee_id ? $user->employee->company_id : null);
         $settings = [
-            'min_notice_period' => Setting::get('minimum_notice_period', 0, $companyId),
+            'min_notice_period'       => Setting::get('minimum_notice_period', 0, $companyId),
+            'enable_leave_attachment' => (bool) Setting::get('enable_leave_attachment', false, $companyId),
+            'attachment_max_size_mb'  => (int) Setting::get('attachment_max_size_mb', 5, $companyId),
+            'attachment_allowed_types'=> Setting::get('attachment_allowed_types', 'pdf,jpg,jpeg,png,doc,docx', $companyId),
         ];
 
         return Inertia::render('Leave/Create', [
-            'employees' => $employees,
+            'employees'  => $employees,
             'leaveTypes' => $leaveTypes,
-            'userRole' => $user->role,
-            'settings' => $settings,
+            'userRole'   => $user->role,
+            'settings'   => $settings,
         ]);
     }
 
     public function store(Request $request)
     {
         $user = auth()->user();
+        $companyId = null;
 
+        // Determine company for settings lookup (done after we know which employee)
         $validated = $request->validate([
-            'employee_id' => 'nullable|exists:employees,id',
+            'employee_id'  => 'nullable|exists:employees,id',
             'employee_ids' => 'nullable|array',
             'employee_ids.*' => 'exists:employees,id',
             'leave_type_id' => 'required|exists:leave_types,id',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
-            'reason' => 'required|string|max:2000',
+            'start_date'   => 'required|date',
+            'end_date'     => 'required|date|after_or_equal:start_date',
+            'reason'       => 'required|string|max:2000',
+            'attachment'   => 'nullable|file|max:51200', // validated more precisely per-company below
         ]);
 
         $employeeIds = [];
@@ -245,18 +251,45 @@ class LeaveRequestController extends Controller
                     throw new \Exception("Insufficient leave balance for {$employee->name}. Available: {$availableDays} days, Requested: {$daysRequested} days.");
                 }
 
+                // Check attachment requirement
+                $leaveType = LeaveType::find($validated['leave_type_id']);
+                $enableAttachment = (bool) Setting::get('enable_leave_attachment', false, $companyId);
+                if ($enableAttachment && $leaveType && $leaveType->requires_attachment && !$request->hasFile('attachment')) {
+                    throw new \Exception("A supporting document is required for {$employee->name}'s {$leaveType->name} leave request.");
+                }
+
                 // Prepare request data
                 $requestData = [
-                    'employee_id' => $empId,
-                    'leave_type_id' => $validated['leave_type_id'],
-                    'start_date' => $validated['start_date'],
-                    'end_date' => $validated['end_date'],
-                    'reason' => $validated['reason'],
-                    'days_requested' => $daysRequested,
-                    'company_id' => $companyId,
-                    'status' => $isAdminOrHR ? 'approved' : 'pending',
-                    'hr_approval_status' => $isAdminOrHR ? 'approved' : 'pending',
+                    'employee_id'          => $empId,
+                    'leave_type_id'        => $validated['leave_type_id'],
+                    'start_date'           => $validated['start_date'],
+                    'end_date'             => $validated['end_date'],
+                    'reason'               => $validated['reason'],
+                    'days_requested'       => $daysRequested,
+                    'company_id'           => $companyId,
+                    'status'               => $isAdminOrHR ? 'approved' : 'pending',
+                    'hr_approval_status'   => $isAdminOrHR ? 'approved' : 'pending',
                 ];
+
+                // Handle file upload
+                if ($enableAttachment && $request->hasFile('attachment')) {
+                    $maxSizeMb  = (int) Setting::get('attachment_max_size_mb', 5, $companyId);
+                    $allowedRaw = Setting::get('attachment_allowed_types', 'pdf,jpg,jpeg,png,doc,docx', $companyId);
+                    $allowedExt = array_map('trim', explode(',', strtolower($allowedRaw)));
+                    $file       = $request->file('attachment');
+                    $ext        = strtolower($file->getClientOriginalExtension());
+
+                    if ($file->getSize() > $maxSizeMb * 1024 * 1024) {
+                        throw new \Exception("Attachment exceeds the maximum allowed size of {$maxSizeMb}MB.");
+                    }
+                    if (!in_array($ext, $allowedExt)) {
+                        throw new \Exception("Attachment type '.{$ext}' is not allowed. Allowed: " . implode(', ', $allowedExt));
+                    }
+
+                    $path = $file->store('leave-attachments', 'public');
+                    $requestData['attachment']               = $path;
+                    $requestData['attachment_original_name'] = $file->getClientOriginalName();
+                }
 
                 if ($isAdminOrHR) {
                     $requestData['approved_by'] = auth()->id();
@@ -339,11 +372,19 @@ class LeaveRequestController extends Controller
         $employees = Employee::orderBy('name')->get(['id', 'name', 'employee_code']);
         $leaveTypes = LeaveType::where('is_active', true)->orderBy('name')->get();
 
+        $companyId = $user->company_id ?: ($user->employee_id && $user->employee ? $user->employee->company_id : null);
+        $settings = [
+            'enable_leave_attachment' => (bool) Setting::get('enable_leave_attachment', false, $companyId),
+            'attachment_max_size_mb'  => (int) Setting::get('attachment_max_size_mb', 5, $companyId),
+            'attachment_allowed_types'=> Setting::get('attachment_allowed_types', 'pdf,jpg,jpeg,png,doc,docx', $companyId),
+        ];
+
         return Inertia::render('Leave/Edit', [
             'leaveRequest' => $leaveRequest,
-            'employees' => $employees,
-            'leaveTypes' => $leaveTypes,
-            'userRole' => $user->role,
+            'employees'    => $employees,
+            'leaveTypes'   => $leaveTypes,
+            'userRole'     => $user->role,
+            'settings'     => $settings,
         ]);
     }
 
@@ -360,11 +401,12 @@ class LeaveRequestController extends Controller
         }
 
         $validated = $request->validate([
-            'employee_id' => 'required|exists:employees,id',
+            'employee_id'   => 'required|exists:employees,id',
             'leave_type_id' => 'required|exists:leave_types,id',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
-            'reason' => 'required|string|max:2000',
+            'start_date'    => 'required|date',
+            'end_date'      => 'required|date|after_or_equal:start_date',
+            'reason'        => 'required|string|max:2000',
+            'attachment'    => 'nullable|file|max:51200',
         ]);
 
         $startDate = Carbon::parse($validated['start_date']);
@@ -403,6 +445,34 @@ class LeaveRequestController extends Controller
         }
 
         $validated['days_requested'] = $daysRequested;
+
+        // Handle attachment update
+        $employee = Employee::find($validated['employee_id']);
+        $companyId = $employee ? $employee->company_id : null;
+        $enableAttachment = (bool) Setting::get('enable_leave_attachment', false, $companyId);
+        if ($enableAttachment && $request->hasFile('attachment')) {
+            $maxSizeMb  = (int) Setting::get('attachment_max_size_mb', 5, $companyId);
+            $allowedRaw = Setting::get('attachment_allowed_types', 'pdf,jpg,jpeg,png,doc,docx', $companyId);
+            $allowedExt = array_map('trim', explode(',', strtolower($allowedRaw)));
+            $file       = $request->file('attachment');
+            $ext        = strtolower($file->getClientOriginalExtension());
+
+            if ($file->getSize() > $maxSizeMb * 1024 * 1024) {
+                return back()->withErrors(['attachment' => "File exceeds the maximum allowed size of {$maxSizeMb}MB."])->withInput();
+            }
+            if (!in_array($ext, $allowedExt)) {
+                return back()->withErrors(['attachment' => "File type '.{$ext}' not allowed. Allowed: " . implode(', ', $allowedExt)])->withInput();
+            }
+
+            // Delete old attachment
+            if ($leaveRequest->attachment) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($leaveRequest->attachment);
+            }
+
+            $path = $file->store('leave-attachments', 'public');
+            $validated['attachment']               = $path;
+            $validated['attachment_original_name'] = $file->getClientOriginalName();
+        }
 
         $leaveRequest->update($validated);
 

@@ -1,8 +1,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link } from '@inertiajs/react';
-import { FaClipboardList, FaArrowLeft, FaSave, FaCode, FaCalendarAlt, FaInfoCircle, FaShieldAlt, FaHandHoldingUsd, FaPowerOff, FaEdit } from 'react-icons/fa';
+import { FaClipboardList, FaArrowLeft, FaSave, FaCode, FaCalendarAlt, FaInfoCircle, FaShieldAlt, FaHandHoldingUsd, FaPowerOff, FaEdit, FaPaperclip } from 'react-icons/fa';
 
-export default function Edit({ leaveType }) {
+export default function Edit({ leaveType, enableAttachment }) {
     const { data, setData, put, processing, errors } = useForm({
         name: leaveType.name || '',
         code: leaveType.code || '',
@@ -10,6 +10,7 @@ export default function Edit({ leaveType }) {
         carry_forward_allowed: leaveType.carry_forward_allowed || false,
         carry_forward_max_days: leaveType.carry_forward_max_days || null,
         requires_approval: leaveType.requires_approval !== false,
+        requires_attachment: leaveType.requires_attachment || false,
         is_paid: Boolean(leaveType.is_paid),
         description: leaveType.description || '',
         is_active: leaveType.is_active !== false,
@@ -176,6 +177,22 @@ export default function Edit({ leaveType }) {
                                             </div>
                                             <div className={`w-4 h-4 rounded-full border-2 transition-all ${data.is_active ? 'bg-white border-white/20' : 'bg-white border-slate-100'}`}></div>
                                         </div>
+
+                                        {enableAttachment && (
+                                            <div className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-4 col-span-1 md:col-span-2 ${data.requires_attachment ? 'bg-indigo-900 text-white border-indigo-900 shadow-lg shadow-indigo-200' : 'bg-white border-indigo-100'}`} onClick={() => setData('requires_attachment', !data.requires_attachment)}>
+                                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${data.requires_attachment ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-400'}`}>
+                                                    <FaPaperclip size={14} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className={`text-[10px] font-normal ${data.requires_attachment ? 'text-white' : 'text-indigo-900'}`}>
+                                                        Requires Attachment
+                                                        <span className="ml-2 text-[9px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">Optional</span>
+                                                    </p>
+                                                    <p className={`text-[9px] font-normal ${data.requires_attachment ? 'text-white/60' : 'text-indigo-400'}`}>Employees must upload a document when applying for this leave</p>
+                                                </div>
+                                                <div className={`w-4 h-4 rounded-full border-2 transition-all ${data.requires_attachment ? 'bg-white border-white/20' : 'bg-white border-indigo-100'}`}></div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Description */}

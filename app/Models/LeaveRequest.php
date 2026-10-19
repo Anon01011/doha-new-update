@@ -31,9 +31,11 @@ class LeaveRequest extends Model
         'rejected_by',
         'rejected_at',
         'approval_remarks',
+        'attachment',
+        'attachment_original_name',
     ];
 
-    protected $appends = ['number_of_days'];
+    protected $appends = ['number_of_days', 'attachment_url'];
 
     protected $casts = [
         'start_date' => 'date',
@@ -42,6 +44,11 @@ class LeaveRequest extends Model
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
     ];
+
+    public function getAttachmentUrlAttribute()
+    {
+        return $this->attachment ? asset('storage/' . $this->attachment) : null;
+    }
 
     public function getNumberOfDaysAttribute()
     {

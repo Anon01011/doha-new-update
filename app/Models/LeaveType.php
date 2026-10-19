@@ -14,6 +14,7 @@ class LeaveType extends Model
         'carry_forward_allowed',
         'carry_forward_max_days',
         'requires_approval',
+        'requires_attachment',
         'is_paid',
         'description',
         'is_active',
@@ -24,6 +25,7 @@ class LeaveType extends Model
         'carry_forward_allowed' => 'boolean',
         'carry_forward_max_days' => 'integer',
         'requires_approval' => 'boolean',
+        'requires_attachment' => 'boolean',
         'is_paid' => 'boolean',
         'is_active' => 'boolean',
     ];

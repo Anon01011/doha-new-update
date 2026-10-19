@@ -444,14 +444,17 @@ class SettingsController extends Controller
     public function updateLeaveSettings(Request $request)
     {
         $validated = $request->validate([
-            'leave_accrual_method' => 'nullable|in:monthly,yearly,custom',
-            'carry_forward_enabled' => 'nullable|boolean',
-            'max_carry_forward_days' => 'nullable|integer|min:0',
-            'leave_approval_workflow' => 'nullable|in:single,multi',
-            'minimum_notice_period' => 'nullable|integer|min:0',
-            'max_consecutive_days' => 'nullable|integer|min:0',
-            'negative_balance_allowed' => 'nullable|boolean',
-            'probation_leave_eligibility' => 'nullable|boolean',
+            'leave_accrual_method'       => 'nullable|in:monthly,yearly,custom',
+            'carry_forward_enabled'      => 'nullable|boolean',
+            'max_carry_forward_days'     => 'nullable|integer|min:0',
+            'leave_approval_workflow'    => 'nullable|in:single,multi',
+            'minimum_notice_period'      => 'nullable|integer|min:0',
+            'max_consecutive_days'       => 'nullable|integer|min:0',
+            'negative_balance_allowed'   => 'nullable|boolean',
+            'probation_leave_eligibility'=> 'nullable|boolean',
+            'enable_leave_attachment'    => 'nullable|boolean',
+            'attachment_max_size_mb'     => 'nullable|integer|min:1|max:100',
+            'attachment_allowed_types'   => 'nullable|string|max:500',
         ]);
 
         $user = auth()->user();

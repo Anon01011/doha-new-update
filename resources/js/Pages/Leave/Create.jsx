@@ -1,8 +1,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link, usePage } from '@inertiajs/react';
-import { FaCalendarAlt, FaUser, FaClipboardList, FaArrowLeft, FaPaperPlane, FaInfoCircle, FaCalendarCheck } from 'react-icons/fa';
+import { FaCalendarAlt, FaUser, FaClipboardList, FaArrowLeft, FaPaperPlane, FaInfoCircle, FaCalendarCheck, FaPaperclip } from 'react-icons/fa';
 import SearchableSelect from '@/Components/SearchableSelect';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function Create({ employees, leaveTypes, userRole = 'employee', settings }) {
     const minDate = (userRole === 'employee' && settings?.min_notice_period)
@@ -18,7 +18,12 @@ export default function Create({ employees, leaveTypes, userRole = 'employee', s
         start_date: '',
         end_date: '',
         reason: '',
+        attachment: null,
     });
+
+    // Detect if selected leave type requires attachment
+    const selectedLeaveType = leaveTypes?.find(t => String(t.id) === String(data.leave_type_id));
+    const requiresAttachment = settings?.enable_leave_attachment && selectedLeaveType?.requires_attachment;
 
     useEffect(() => {
         transform((data) => ({
@@ -29,7 +34,7 @@ export default function Create({ employees, leaveTypes, userRole = 'employee', s
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        post(route('leave-requests.store'));
+        post(route('leave-requests.store'), { forceFormData: true });
     };
 
     return (
@@ -169,6 +174,45 @@ export default function Create({ employees, leaveTypes, userRole = 'employee', s
                                         ></textarea>
                                         {errors.reason && <p className="text-[10px] font-normal text-rose-500 mt-2 ml-1 flex items-center gap-1"><FaInfoCircle size={10} /> {errors.reason}</p>}
                                     </div>
+
+                                    {/* Attachment */}
+                                    {settings?.enable_leave_attachment && (
+                                        <div className={`space-y-3 p-5 rounded-xl border-2 transition-all ${
+                                            requiresAttachment
+                                                ? 'bg-indigo-50/50 border-indigo-200'
+                                                : 'bg-slate-50/50 border-slate-100'
+                                        }`}>
+                                            <label className="text-[10px] font-normal flex items-center gap-2 ml-1">
+                                                <FaPaperclip className={requiresAttachment ? 'text-indigo-500' : 'text-slate-400'} />
+                                                <span className={requiresAttachment ? 'text-indigo-700' : 'text-slate-500'}>
+                                                    Supporting Document
+                                                </span>
+                                                {requiresAttachment && (
+                                                    <span className="text-rose-500 font-bold text-xs" title="Required">*</span>
+                                                )}
+                                                {!requiresAttachment && (
+                                                    <span className="text-[9px] text-slate-400 font-normal">(Optional)</span>
+                                                )}
+                                            </label>
+                                            <div className="relative">
+                                                <input
+                                                    type="file"
+                                                    id="attachment"
+                                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                                    required={requiresAttachment}
+                                                    onChange={(e) => setData('attachment', e.target.files[0])}
+                                                    className="w-full px-4 py-3 bg-white border-2 border-dashed rounded-xl outline-none text-[11px] font-normal text-slate-500 cursor-pointer file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-[10px] file:font-normal file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 transition-all"
+                                                />
+                                            </div>
+                                            {requiresAttachment && (
+                                                <p className="text-[9px] text-indigo-500 font-normal ml-1">This leave type requires a supporting document (PDF, JPG, PNG, DOC)</p>
+                                            )}
+                                            {!requiresAttachment && (
+                                                <p className="text-[9px] text-slate-400 font-normal ml-1">Accepted formats: PDF, JPG, PNG, DOC, DOCX (max 5MB)</p>
+                                            )}
+                                            {errors.attachment && <p className="text-[10px] font-normal text-rose-500 mt-1 ml-1 flex items-center gap-1"><FaInfoCircle size={10} /> {errors.attachment}</p>}
+                                        </div>
+                                    )}
 
                                     {/* Actions */}
                                     <div className="pt-6 flex flex-col md:flex-row items-center gap-4">
