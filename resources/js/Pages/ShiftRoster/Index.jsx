@@ -96,7 +96,18 @@ export default function Index({
     const [selectedDepartment, setSelectedDepartment] = useState(department_id || '');
     const [isLoading, setIsLoading] = useState(false);
     const [showAdvancedActions, setShowAdvancedActions] = useState(false);
+    const toolkitRef = useRef(null);
     const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (toolkitRef.current && !toolkitRef.current.contains(e.target)) {
+                setShowAdvancedActions(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // Modal State
     const [showEditModal, setShowEditModal] = useState(false);
@@ -527,7 +538,7 @@ export default function Index({
                     )}
 
                     {/* 2. Modern Glassmorphism Control Bar */}
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white/90 backdrop-blur-2xl p-3 sm:p-4 rounded-xl shadow-lg shadow-gray-200/50 border border-white/60">
+                    <div className="relative z-30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white/90 backdrop-blur-2xl p-3 sm:p-4 rounded-xl shadow-lg shadow-gray-200/50 border border-white/60">
                         <div className="flex items-center justify-between sm:justify-start gap-3 sm:gap-5 flex-wrap">
                             <div className="flex items-center bg-gray-100/80 p-1 rounded-lg border border-gray-100 ring-1 ring-black/5">
                                 <button onClick={() => viewMode === 'week' ? handleWeekChange(-1) : handleMonthChange(-1)} className="p-1.5 sm:p-2 hover:bg-white rounded-lg transition-all text-gray-500 hover:text-indigo-600 shadow-sm hover:shadow-md">
@@ -544,7 +555,7 @@ export default function Index({
                             )}
 
                             {!isEmployee && (
-                                <div className="relative group">
+                                <div className="relative group" ref={toolkitRef}>
                                     <button
                                         onClick={() => setShowAdvancedActions(!showAdvancedActions)}
                                         className="px-5 py-2.5 bg-gray-50 text-gray-600 rounded-lg font-normal text-[10px] uppercase tracking-normal hover:bg-white border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all flex items-center gap-2 group"
@@ -557,7 +568,10 @@ export default function Index({
                                             <p className="text-[10px] font-normal text-indigo-500 uppercase tracking-normal leading-none">Management Power-ups</p>
                                         </div>
                                         <button
-                                            onClick={handleDuplicateWeek}
+                                            onClick={() => {
+                                                setShowAdvancedActions(false);
+                                                handleDuplicateWeek();
+                                            }}
                                             disabled={!selectedCompany}
                                             className={`w-full text-left px-3 py-3 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all group/item ${!selectedCompany ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:bg-primary hover:text-white'}`}
                                         >
@@ -567,7 +581,10 @@ export default function Index({
                                             Clone Schedule
                                         </button>
                                         <button
-                                            onClick={handleExport}
+                                            onClick={() => {
+                                                setShowAdvancedActions(false);
+                                                handleExport();
+                                            }}
                                             disabled={!selectedCompany}
                                             className={`w-full text-left px-3 py-3 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all group/item ${!selectedCompany ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:bg-emerald-600 hover:text-white'}`}
                                         >
@@ -577,7 +594,10 @@ export default function Index({
                                             Export Roster
                                         </button>
                                         <button
-                                            onClick={handleSendEmails}
+                                            onClick={() => {
+                                                setShowAdvancedActions(false);
+                                                handleSendEmails();
+                                            }}
                                             disabled={!selectedCompany}
                                             className={`w-full text-left px-3 py-3 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all group/item ${!selectedCompany ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:bg-primary hover:text-white'}`}
                                         >
@@ -586,7 +606,13 @@ export default function Index({
                                             </div>
                                             Broadcast Alerts
                                         </button>
-                                        <button onClick={() => setShowTemplateModal(true)} className="w-full text-left px-3 py-3 text-[11px] font-normal text-gray-600 uppercase hover:bg-purple-600 hover:text-white rounded-lg flex items-center gap-3 transition-all group/item">
+                                        <button
+                                            onClick={() => {
+                                                setShowAdvancedActions(false);
+                                                setShowTemplateModal(true);
+                                            }}
+                                            className="w-full text-left px-3 py-3 text-[11px] font-normal text-gray-600 uppercase hover:bg-purple-600 hover:text-white rounded-lg flex items-center gap-3 transition-all group/item"
+                                        >
                                             <div className="p-1.5 bg-purple-50 group-hover/item:bg-white/20 rounded-md transition-colors">
                                                 <FiInfo className="w-4 h-4" />
                                             </div>
@@ -629,7 +655,7 @@ export default function Index({
                     </div>
 
                     {/* 3. Main Roster Content Area */}
-                    <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="flex flex-col lg:flex-row gap-4 relative z-10">
                         {/* Management Sidebar */}
                         {!isEmployee && (
                             <div className="lg:w-[280px] flex flex-col gap-4 h-full shrink-0">
