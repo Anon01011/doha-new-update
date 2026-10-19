@@ -327,7 +327,7 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
                                             </td>
                                             <td className="px-6 py-4 text-center">
                                                 <span className="inline-flex items-center px-2.5 py-1 bg-slate-50 text-slate-900 rounded-xl text-[10px] font-normal border border-slate-100">
-                                                    {request.number_of_days} Days
+                                                    {parseFloat(request.days_requested ?? request.number_of_days ?? 0)} Days
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">

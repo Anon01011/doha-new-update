@@ -29,7 +29,7 @@ export default function SearchableSelect({
         selectedOption = flatOptions.filter(opt => opt && values.includes(String(opt.value))) || [];
     } else {
         selectedOption = (value !== null && value !== undefined && value !== '')
-            ? flatOptions.find(opt => opt && String(opt.value) === String(value)) || null
+            ? flatOptions.find(opt => opt && String(opt.value).toLowerCase() === String(value).toLowerCase()) || null
             : null;
     }
 

@@ -810,38 +810,52 @@ class EmployeeController extends Controller
                 $roleSlug = $defaultRole ? $defaultRole->slug : 'employee';
             }
 
+            // Find matching role in database flexibly
+            $role = Role::where('slug', $roleSlug)
+                ->orWhere('id', $roleSlug)
+                ->orWhere('name', $roleSlug)
+                ->first();
+            if ($role) {
+                $roleSlug = $role->slug;
+            }
+
             $userEmail = !empty($employee->email) ? $employee->email : (!empty($validated['email']) ? $validated['email'] : null);
 
-            if (!empty($userEmail)) {
-                $employeeUser = $employee->user ?: User::where('employee_id', $employee->id)
-                    ->orWhere('email', $userEmail)
-                    ->first();
+            // Always locate existing user by relation, employee_id, or email
+            $employeeUser = $employee->user ?: User::where('employee_id', $employee->id)->first();
+            if (!$employeeUser && !empty($userEmail)) {
+                $employeeUser = User::where('email', $userEmail)->first();
+            }
 
-                if (!$employeeUser) {
-                    $employeeUser = User::create([
-                        'name' => $employee->name,
-                        'email' => $userEmail,
-                        'password' => !empty($validated['password'])
-                            ? \Illuminate\Support\Facades\Hash::make($validated['password'])
-                            : \Illuminate\Support\Facades\Hash::make('password123'),
-                        'role' => $roleSlug,
-                        'employee_id' => $employee->id,
-                        'company_id' => $employee->company_id,
-                    ]);
-                } else {
-                    $updatePayload = [
-                        'employee_id' => $employee->id,
-                        'role' => $roleSlug,
-                        'email' => $userEmail,
-                        'company_id' => $employee->company_id,
-                    ];
-                    if (!empty($validated['password'])) {
-                        $updatePayload['password'] = \Illuminate\Support\Facades\Hash::make($validated['password']);
-                    }
-                    $employeeUser->update($updatePayload);
+            if ($employeeUser) {
+                $updatePayload = [
+                    'employee_id' => $employee->id,
+                    'role' => $roleSlug,
+                    'company_id' => $employee->company_id,
+                ];
+                if (!empty($userEmail)) {
+                    $updatePayload['email'] = $userEmail;
                 }
+                if (!empty($validated['password'])) {
+                    $updatePayload['password'] = \Illuminate\Support\Facades\Hash::make($validated['password']);
+                }
+                $employeeUser->update($updatePayload);
 
-                $role = Role::where('slug', $roleSlug)->first();
+                if ($role) {
+                    $employeeUser->roles()->sync([$role->id]);
+                }
+            } elseif (!empty($userEmail)) {
+                $employeeUser = User::create([
+                    'name' => $employee->name,
+                    'email' => $userEmail,
+                    'password' => !empty($validated['password'])
+                        ? \Illuminate\Support\Facades\Hash::make($validated['password'])
+                        : \Illuminate\Support\Facades\Hash::make('password123'),
+                    'role' => $roleSlug,
+                    'employee_id' => $employee->id,
+                    'company_id' => $employee->company_id,
+                ]);
+
                 if ($role) {
                     $employeeUser->roles()->sync([$role->id]);
                 }

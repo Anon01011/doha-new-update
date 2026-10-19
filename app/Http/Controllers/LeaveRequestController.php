@@ -501,11 +501,14 @@ class LeaveRequestController extends Controller
 
         $employee = $leaveRequest->employee;
 
+        $remarks = $request->input('remarks') ?? $request->input('approval_remarks');
+
         // If current user is the manager (and request is pending manager approval)
         if ($user->employee_id == $leaveRequest->manager_id && $leaveRequest->manager_approval_status === 'pending') {
             $leaveRequest->update([
                 'manager_approval_status' => 'approved',
                 'manager_approved_at' => now(),
+                'approval_remarks' => $remarks,
             ]);
 
             // If now approved by manager, it goes to HR (status remains pending overall, but HR status is pending)
@@ -521,6 +524,7 @@ class LeaveRequestController extends Controller
                 'hr_approval_status' => 'approved',
                 'approved_by' => auth()->id(),
                 'approved_at' => now(),
+                'approval_remarks' => $remarks,
             ]);
 
             // Update leave balance

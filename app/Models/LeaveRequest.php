@@ -30,7 +30,10 @@ class LeaveRequest extends Model
         'rejection_reason_hr',
         'rejected_by',
         'rejected_at',
+        'approval_remarks',
     ];
+
+    protected $appends = ['number_of_days'];
 
     protected $casts = [
         'start_date' => 'date',
@@ -39,6 +42,21 @@ class LeaveRequest extends Model
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
     ];
+
+    public function getNumberOfDaysAttribute()
+    {
+        if (!is_null($this->days_requested) && (float)$this->days_requested > 0) {
+            return (float) $this->days_requested;
+        }
+
+        if ($this->start_date && $this->end_date) {
+            $start = Carbon::parse($this->start_date);
+            $end = Carbon::parse($this->end_date);
+            return $start->diffInDays($end) + 1;
+        }
+
+        return 0;
+    }
 
     public function employee()
     {

@@ -225,14 +225,14 @@ export default function Edit({ leaveRequest, employees, leaveTypes, userRole = '
                             <div className="space-y-4">
                                  <div className="flex justify-between items-center py-3 border-b border-slate-50">
                                     <span className="text-[10px] font-normal text-slate-400">Original Days</span>
-                                    <span className="text-[11px] font-normal text-slate-900">{leaveRequest.number_of_days} Days</span>
+                                    <span className="text-[11px] font-normal text-slate-900">{parseFloat(leaveRequest.days_requested ?? leaveRequest.number_of_days ?? 0)} Days</span>
                                 </div>
                                 <div className="flex justify-between items-center py-3 border-b border-slate-50">
                                     <span className="text-[10px] font-normal text-slate-400">New Days</span>
                                     <span className="text-[11px] font-normal text-slate-900">
                                         {data.start_date && data.end_date ? 
                                             Math.max(1, Math.ceil((new Date(data.end_date) - new Date(data.start_date)) / (1000 * 60 * 60 * 24)) + 1) + ' Days' 
-                                            : leaveRequest.number_of_days + ' Days'}
+                                            : parseFloat(leaveRequest.days_requested ?? leaveRequest.number_of_days ?? 0) + ' Days'}
                                     </span>
                                 </div>
                             </div>

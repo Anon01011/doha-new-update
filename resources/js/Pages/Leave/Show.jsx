@@ -10,6 +10,7 @@ import SecondaryButton from '@/Components/SecondaryButton';
 export default function Show({ leaveRequest, userRole = 'employee' }) {
     const [showApproveModal, setShowApproveModal] = useState(false);
     const [showRejectModal, setShowRejectModal] = useState(false);
+    const [approvalRemarks, setApprovalRemarks] = useState('');
     const [rejectionReason, setRejectionReason] = useState('');
     const [processing, setProcessing] = useState(false);
 
@@ -52,12 +53,16 @@ export default function Show({ leaveRequest, userRole = 'employee' }) {
 
     const statusStyle = getStatusStyles(leaveRequest.status);
 
-    const handleApprove = () => {
+    const handleApprove = (e) => {
+        if (e && e.preventDefault) e.preventDefault();
         setProcessing(true);
-        router.post(route('leave-requests.approve', leaveRequest.id), {}, {
+        router.post(route('leave-requests.approve', leaveRequest.id), {
+            remarks: approvalRemarks
+        }, {
             onFinish: () => {
                 setProcessing(false);
                 setShowApproveModal(false);
+                setApprovalRemarks('');
             }
         });
     };
@@ -154,7 +159,7 @@ export default function Show({ leaveRequest, userRole = 'employee' }) {
                                                     {formatDate(leaveRequest.start_date)} — {formatDate(leaveRequest.end_date)}
                                                 </h3>
                                                 <div className="mt-2 inline-flex items-center px-3 py-1 bg-slate-100 text-slate-600 rounded-xl text-[9px] font-normal border border-slate-200">
-                                                    {leaveRequest.number_of_days} Days
+                                                    {parseFloat(leaveRequest.days_requested ?? leaveRequest.number_of_days ?? 0)} Days
                                                 </div>
                                             </div>
                                         </div>
@@ -297,7 +302,7 @@ export default function Show({ leaveRequest, userRole = 'employee' }) {
                                 </div>
                                 <div className="flex justify-between items-center py-3 border-b border-slate-50">
                                     <span className="text-[10px] font-normal text-slate-400">Total Days</span>
-                                    <span className="text-[10px] font-normal text-slate-900">{leaveRequest.number_of_days} Days</span>
+                                    <span className="text-[10px] font-semibold text-slate-900">{parseFloat(leaveRequest.days_requested ?? leaveRequest.number_of_days ?? 0)} Days</span>
                                 </div>
                                  <div className="flex justify-between items-center py-3">
                                     <span className="text-[10px] font-normal text-slate-400">Priority</span>
@@ -309,42 +314,109 @@ export default function Show({ leaveRequest, userRole = 'employee' }) {
                 </div>
             </div>
 
-            <ConfirmationModal
-                show={showApproveModal}
-                onClose={() => setShowApproveModal(false)}
-                onConfirm={handleApprove}
-                 title="Approve Leave"
-                message="Confirm you want to approve this leave request. This will update the schedule and notify the employee."
-                confirmText="Approve"
-                processing={processing}
-                type="success"
-            />
+            {/* Modal for Approval with Remarks */}
+            <Modal show={showApproveModal} onClose={() => setShowApproveModal(false)} maxWidth="md">
+                <form onSubmit={handleApprove} className="p-6 sm:p-8">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <FaCheckCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-900">Approve Leave Request</h2>
+                            <p className="text-xs text-slate-500">Confirm approval and add remarks</p>
+                        </div>
+                    </div>
 
-            <Modal show={showRejectModal} onClose={() => setShowRejectModal(false)} maxWidth="md">
-                <form onSubmit={handleReject} className="p-8">
-                      <h2 className="text-xl font-normal text-slate-900 mb-4 flex items-center gap-3">
-                        <FaTimesCircle className="text-rose-500" /> Reject Leave
-                    </h2>
-                    <p className="text-[11px] font-normal text-slate-500 leading-relaxed mb-6">
-                        Provide a reason for rejecting this request. This will be sent to the employee.
-                    </p>
-                     <textarea
-                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:border-rose-500 focus:ring-0 transition-all outline-none text-sm font-normal resize-none mb-8"
-                        placeholder="Reason for rejection..."
-                        rows="4"
-                        value={rejectionReason}
-                        onChange={(e) => setRejectionReason(e.target.value)}
-                        required
-                    ></textarea>
-                    <div className="flex items-center gap-4">
-                         <button
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 mb-5 text-xs text-slate-600 space-y-1.5">
+                        <div className="flex justify-between">
+                            <span className="text-slate-400">Employee:</span>
+                            <span className="font-semibold text-slate-800">{leaveRequest.employee?.name}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-slate-400">Duration:</span>
+                            <span className="font-semibold text-emerald-700">
+                                {parseFloat(leaveRequest.days_requested ?? leaveRequest.number_of_days ?? 0)} Days ({formatDate(leaveRequest.start_date)} - {formatDate(leaveRequest.end_date)})
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5 mb-6">
+                        <label className="text-xs font-semibold text-slate-700">
+                            Approval Remarks / Notes <span className="text-slate-400 font-normal">(Optional)</span>
+                        </label>
+                        <textarea
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all outline-none text-xs resize-none"
+                            placeholder="Add any remarks or notes for employee..."
+                            rows="3"
+                            value={approvalRemarks}
+                            onChange={(e) => setApprovalRemarks(e.target.value)}
+                        ></textarea>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <button
                             type="submit"
                             disabled={processing}
-                            className="flex-1 bg-rose-600 text-white px-8 py-4 rounded-xl text-[11px] font-normal hover:bg-rose-700 shadow-xl shadow-rose-200 transition-all active:scale-95 disabled:opacity-50"
+                            className="flex-1 bg-emerald-600 text-white px-6 py-3 rounded-xl text-xs font-semibold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all active:scale-95 disabled:opacity-50"
                         >
-                            Reject Request
+                            {processing ? 'Approving...' : 'Confirm & Approve'}
                         </button>
-                        <SecondaryButton onClick={() => setShowRejectModal(false)} className="px-8 py-4 rounded-xl border-2 text-[11px] font-normal h-[52px]">
+                        <SecondaryButton onClick={() => setShowApproveModal(false)} className="px-6 py-3 rounded-xl border text-xs">
+                            Cancel
+                        </SecondaryButton>
+                    </div>
+                </form>
+            </Modal>
+
+            {/* Modal for Rejection with Reason */}
+            <Modal show={showRejectModal} onClose={() => setShowRejectModal(false)} maxWidth="md">
+                <form onSubmit={handleReject} className="p-6 sm:p-8">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                            <FaTimesCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-900">Reject Leave Request</h2>
+                            <p className="text-xs text-slate-500">Provide rejection reason</p>
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 mb-5 text-xs text-slate-600 space-y-1.5">
+                        <div className="flex justify-between">
+                            <span className="text-slate-400">Employee:</span>
+                            <span className="font-semibold text-slate-800">{leaveRequest.employee?.name}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-slate-400">Duration:</span>
+                            <span className="font-semibold text-rose-700">
+                                {parseFloat(leaveRequest.days_requested ?? leaveRequest.number_of_days ?? 0)} Days ({formatDate(leaveRequest.start_date)} - {formatDate(leaveRequest.end_date)})
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5 mb-6">
+                        <label className="text-xs font-semibold text-slate-700">
+                            Reason for Rejection <span className="text-rose-500">*</span>
+                        </label>
+                        <textarea
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 transition-all outline-none text-xs resize-none"
+                            placeholder="Reason for rejecting this request (Required)..."
+                            rows="3"
+                            value={rejectionReason}
+                            onChange={(e) => setRejectionReason(e.target.value)}
+                            required
+                        ></textarea>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="submit"
+                            disabled={processing || !rejectionReason.trim()}
+                            className="flex-1 bg-rose-600 text-white px-6 py-3 rounded-xl text-xs font-semibold hover:bg-rose-700 shadow-lg shadow-rose-200 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                            {processing ? 'Rejecting...' : 'Confirm & Reject'}
+                        </button>
+                        <SecondaryButton onClick={() => setShowRejectModal(false)} className="px-6 py-3 rounded-xl border text-xs">
                             Cancel
                         </SecondaryButton>
                     </div>
