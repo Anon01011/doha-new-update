@@ -1,11 +1,12 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { FaCalendarAlt, FaUser, FaClipboardList, FaArrowLeft, FaEdit, FaCheck, FaTimes, FaClock, FaCheckCircle, FaTimesCircle, FaInfoCircle, FaPaperclip, FaDownload, FaFileAlt } from 'react-icons/fa';
+import { FaCalendarAlt, FaUser, FaClipboardList, FaArrowLeft, FaEdit, FaCheck, FaTimes, FaClock, FaCheckCircle, FaTimesCircle, FaInfoCircle, FaPaperclip, FaDownload, FaFileAlt, FaEye } from 'react-icons/fa';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Modal from '@/Components/Modal';
 import SecondaryButton from '@/Components/SecondaryButton';
+import Lightbox from '@/Components/Lightbox';
 
 export default function Show({ leaveRequest, userRole = 'employee' }) {
     const [showApproveModal, setShowApproveModal] = useState(false);
@@ -13,6 +14,25 @@ export default function Show({ leaveRequest, userRole = 'employee' }) {
     const [approvalRemarks, setApprovalRemarks] = useState('');
     const [rejectionReason, setRejectionReason] = useState('');
     const [processing, setProcessing] = useState(false);
+    const [lightbox, setLightbox] = useState({ isOpen: false, src: '', title: '', type: 'auto' });
+
+    const openLightbox = (attachmentPath, title) => {
+        if (!attachmentPath) return;
+        const fullUrl = attachmentPath.startsWith('http') || attachmentPath.startsWith('/storage')
+            ? attachmentPath
+            : `/storage/${attachmentPath}`;
+        const ext = attachmentPath.split('.').pop()?.toLowerCase();
+        const isPdf = ext === 'pdf';
+        const isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
+        const type = isPdf ? 'application/pdf' : (isImg ? 'image' : 'auto');
+
+        setLightbox({
+            isOpen: true,
+            src: fullUrl,
+            title: title || 'Supporting Document',
+            type
+        });
+    };
 
     const formatDate = (date) => {
         if (!date) return 'N/A';
@@ -209,25 +229,39 @@ export default function Show({ leaveRequest, userRole = 'employee' }) {
                                                 <p className="text-[10px] font-normal text-indigo-500 mb-3 flex items-center gap-2">
                                                     <FaPaperclip /> Supporting Document
                                                 </p>
-                                                <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-indigo-100 shadow-sm">
-                                                    <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                                                        <FaFileAlt className="text-indigo-500" size={18} />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-[11px] font-normal text-slate-900 truncate">
-                                                            {leaveRequest.attachment_original_name || 'Attachment'}
-                                                        </p>
-                                                        <p className="text-[9px] text-slate-400 font-normal">Click to download</p>
-                                                    </div>
-                                                    <a
-                                                        href={`/storage/${leaveRequest.attachment}`}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        download={leaveRequest.attachment_original_name || 'attachment'}
-                                                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-normal hover:bg-indigo-700 transition-all active:scale-95 shadow-md shadow-indigo-200"
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white rounded-xl border border-indigo-100 shadow-sm">
+                                                    <div
+                                                        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer group/doc"
+                                                        onClick={() => openLightbox(leaveRequest.attachment, leaveRequest.attachment_original_name)}
                                                     >
-                                                        <FaDownload size={10} /> Download
-                                                    </a>
+                                                        <div className="w-10 h-10 bg-indigo-100 group-hover/doc:bg-indigo-200 text-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors">
+                                                            <FaFileAlt size={18} />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-[11px] font-normal text-slate-900 group-hover/doc:text-indigo-600 transition-colors truncate">
+                                                                {leaveRequest.attachment_original_name || 'Attachment'}
+                                                            </p>
+                                                            <p className="text-[9px] text-slate-400 font-normal">Click to preview in lightbox</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openLightbox(leaveRequest.attachment, leaveRequest.attachment_original_name)}
+                                                            className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-xl text-[10px] font-normal transition-all active:scale-95 shadow-sm"
+                                                        >
+                                                            <FaEye size={11} /> View
+                                                        </button>
+                                                        <a
+                                                            href={`/storage/${leaveRequest.attachment}`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            download={leaveRequest.attachment_original_name || 'attachment'}
+                                                            className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-normal hover:bg-indigo-700 transition-all active:scale-95 shadow-md shadow-indigo-200"
+                                                        >
+                                                            <FaDownload size={10} /> Download
+                                                        </a>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}
@@ -451,6 +485,15 @@ export default function Show({ leaveRequest, userRole = 'employee' }) {
                     </div>
                 </form>
             </Modal>
+
+            {/* Lightbox / Document Preview Modal */}
+            <Lightbox
+                isOpen={lightbox.isOpen}
+                onClose={() => setLightbox(prev => ({ ...prev, isOpen: false }))}
+                src={lightbox.src}
+                type={lightbox.type}
+                title={lightbox.title}
+            />
         </AuthenticatedLayout>
     );
 }

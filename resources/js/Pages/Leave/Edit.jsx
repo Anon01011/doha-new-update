@@ -1,8 +1,10 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link } from '@inertiajs/react';
-import { FaCalendarAlt, FaUser, FaClipboardList, FaArrowLeft, FaSave, FaInfoCircle, FaPaperPlane, FaPaperclip } from 'react-icons/fa';
+import { useState } from 'react';
+import { FaCalendarAlt, FaUser, FaClipboardList, FaArrowLeft, FaSave, FaInfoCircle, FaPaperPlane, FaPaperclip, FaEye } from 'react-icons/fa';
 import Avatar from '@/Components/Avatar';
 import SearchableSelect from '@/Components/SearchableSelect';
+import Lightbox from '@/Components/Lightbox';
 
 export default function Edit({ leaveRequest, employees, leaveTypes, userRole = 'employee', settings }) {
     const formatDate = (dateString) => {
@@ -25,6 +27,26 @@ export default function Edit({ leaveRequest, employees, leaveTypes, userRole = '
     const requiresAttachment = Boolean(settings?.enable_leave_attachment) && isAttachmentRequired(selectedLeaveType?.requires_attachment);
     const acceptTypes = (settings?.attachment_allowed_types || 'pdf,jpg,jpeg,png,doc,docx')
         .split(',').map(e => `.${e.trim()}`).join(',');
+
+    const [lightbox, setLightbox] = useState({ isOpen: false, src: '', title: '', type: 'auto' });
+
+    const openLightbox = (attachmentPath, title) => {
+        if (!attachmentPath) return;
+        const fullUrl = attachmentPath.startsWith('http') || attachmentPath.startsWith('/storage')
+            ? attachmentPath
+            : `/storage/${attachmentPath}`;
+        const ext = attachmentPath.split('.').pop()?.toLowerCase();
+        const isPdf = ext === 'pdf';
+        const isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
+        const type = isPdf ? 'application/pdf' : (isImg ? 'image' : 'auto');
+
+        setLightbox({
+            isOpen: true,
+            src: fullUrl,
+            title: title || 'Supporting Document',
+            type
+        });
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -210,15 +232,37 @@ export default function Edit({ leaveRequest, employees, leaveTypes, userRole = '
 
                                             {/* Show existing attachment */}
                                             {leaveRequest.attachment && (
-                                                <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-indigo-100 shadow-sm">
-                                                    <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
-                                                        <FaPaperclip className="text-indigo-500" size={12} />
+                                                <div className="flex items-center justify-between gap-3 p-3 bg-white rounded-xl border border-indigo-100 shadow-sm">
+                                                    <div
+                                                        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer group/doc"
+                                                        onClick={() => openLightbox(leaveRequest.attachment, leaveRequest.attachment_original_name)}
+                                                    >
+                                                        <div className="w-8 h-8 bg-indigo-100 group-hover/doc:bg-indigo-200 text-indigo-600 rounded-lg flex items-center justify-center transition-colors">
+                                                            <FaPaperclip size={12} />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-[10px] font-normal text-slate-900 group-hover/doc:text-indigo-600 transition-colors truncate">{leaveRequest.attachment_original_name || 'Current attachment'}</p>
+                                                            <p className="text-[9px] text-slate-400">Click to preview in lightbox</p>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-[10px] font-normal text-slate-900 truncate">{leaveRequest.attachment_original_name || 'Current attachment'}</p>
-                                                        <p className="text-[9px] text-slate-400">Existing file</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openLightbox(leaveRequest.attachment, leaveRequest.attachment_original_name)}
+                                                            className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-lg text-[10px] transition-all"
+                                                        >
+                                                            <FaEye size={10} /> View
+                                                        </button>
+                                                        <a
+                                                            href={`/storage/${leaveRequest.attachment}`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            download={leaveRequest.attachment_original_name || 'attachment'}
+                                                            className="text-[10px] text-slate-500 hover:text-slate-800 underline"
+                                                        >
+                                                            Download
+                                                        </a>
                                                     </div>
-                                                    <a href={`/storage/${leaveRequest.attachment}`} target="_blank" rel="noreferrer" className="text-[9px] text-indigo-600 hover:underline">View</a>
                                                 </div>
                                             )}
 
@@ -305,6 +349,15 @@ export default function Edit({ leaveRequest, employees, leaveTypes, userRole = '
                     </div>
                 </div>
             </div>
+
+            {/* Lightbox / Document Preview Modal */}
+            <Lightbox
+                isOpen={lightbox.isOpen}
+                onClose={() => setLightbox(prev => ({ ...prev, isOpen: false }))}
+                src={lightbox.src}
+                type={lightbox.type}
+                title={lightbox.title}
+            />
         </AuthenticatedLayout>
     );
 }
