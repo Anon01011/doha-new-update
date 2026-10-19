@@ -379,6 +379,10 @@ class EmployeeController extends Controller
                 }
             }
 
+            // Always persist role directly on employee
+            $employee->role = $roleSlug;
+            $employee->saveQuietly();
+
             // Sync image to user if created
             if ($employee->employee_image && $employee->user) {
                 $employee->user->update(['image' => $employee->employee_image]);
@@ -439,31 +443,33 @@ class EmployeeController extends Controller
             ? $employee->departments->map(fn($d) => ['id' => $d->id, 'name' => $d->name])->values()->all()
             : ($employee->department && is_object($employee->department) ? [['id' => $employee->department->id, 'name' => $employee->department->name]] : []);
 
-        $linkedUser = $employee->user ?: User::where('employee_id', $employee->id)->orWhere(function($q) use ($employee) {
-            if (!empty($employee->email)) {
-                $q->where('email', $employee->email);
-            }
-        })->first();
+        $linkedUser = $employee->user ?: User::where('employee_id', $employee->id)->first();
+        if (!$linkedUser && !empty($employee->email)) {
+            $linkedUser = User::where('email', $employee->email)->first();
+        }
 
+        $roleSlug = $employee->role;
         $roleName = null;
-        $roleSlug = null;
+
         if ($linkedUser) {
             $linkedUser->loadMissing('roles');
             $firstRole = $linkedUser->roles->first();
             if ($firstRole) {
-                $roleName = $firstRole->name;
                 $roleSlug = $firstRole->slug;
+                $roleName = $firstRole->name;
             } elseif (!empty($linkedUser->role)) {
-                $matchedRole = Role::where('slug', $linkedUser->role)->first();
-                $roleName = $matchedRole ? $matchedRole->name : ucfirst($linkedUser->role);
                 $roleSlug = $linkedUser->role;
             }
         }
 
+        if (empty($roleSlug)) {
+            $roleSlug = 'employee';
+        }
+
         if (empty($roleName)) {
-            $defaultRole = Role::where('slug', 'employee')->where('is_active', true)->first();
-            $roleName = $defaultRole ? $defaultRole->name : 'Employee';
-            $roleSlug = $defaultRole ? $defaultRole->slug : 'employee';
+            $matchedRole = Role::where('slug', $roleSlug)->orWhere('name', $roleSlug)->first();
+            $roleName = $matchedRole ? $matchedRole->name : ucfirst($roleSlug);
+            $roleSlug = $matchedRole ? $matchedRole->slug : $roleSlug;
         }
 
         return Inertia::render('Employee/Show', [
@@ -505,13 +511,12 @@ class EmployeeController extends Controller
         $salaryComponents = \App\Models\SalaryComponent::where('is_active', true)->get();
         $availableRoles = Role::where('is_active', true)->get(['id', 'name', 'slug']);
 
-        $employeeRole = null;
-        $linkedUser = $employee->user ?: User::where('employee_id', $employee->id)->orWhere(function($q) use ($employee) {
-            if (!empty($employee->email)) {
-                $q->where('email', $employee->email);
-            }
-        })->first();
+        $linkedUser = $employee->user ?: User::where('employee_id', $employee->id)->first();
+        if (!$linkedUser && !empty($employee->email)) {
+            $linkedUser = User::where('email', $employee->email)->first();
+        }
 
+        $employeeRole = $employee->role;
         if ($linkedUser) {
             $linkedUser->loadMissing('roles');
             $firstRole = $linkedUser->roles->first();
@@ -818,6 +823,10 @@ class EmployeeController extends Controller
             if ($role) {
                 $roleSlug = $role->slug;
             }
+
+            // Always persist role directly on employee
+            $employee->role = $roleSlug;
+            $employee->saveQuietly();
 
             $userEmail = !empty($employee->email) ? $employee->email : (!empty($validated['email']) ? $validated['email'] : null);
 

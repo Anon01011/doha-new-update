@@ -106,7 +106,7 @@ export default function EditEmployee(props) {
         qid_number: employee.qid_number || '',
         qid_expiry_date: formatDate(employee.qid_expiry_date),
         qid_file: null,
-        role: employee_role || 'employee',
+        role: employee.role || employee_role || 'employee',
         password: '',
         password_confirmation: '',
         salary_structures: (employee.salary_structures || employee.salaryStructures || []).map(s => ({

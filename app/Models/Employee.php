@@ -24,6 +24,7 @@ class Employee extends Model
         'dob',
         'mobile',
         'email',
+        'role',
         'designation',
         'nationality',
         'sponsor',
