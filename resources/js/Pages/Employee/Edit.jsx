@@ -89,12 +89,6 @@ export default function EditEmployee(props) {
         password_confirmation: 'security',
     };
 
-    useEffect(() => {
-        if (Object.keys(errors).length > 0) {
-            setShowErrorNotification(true);
-        }
-    }, [errors]);
-
     const formatDate = (dateString) => {
         if (!dateString) return '';
         return dateString.split('T')[0];
@@ -174,6 +168,12 @@ export default function EditEmployee(props) {
             effective_date: formatDate(w.effective_date)
         })),
     });
+
+    useEffect(() => {
+        if (errors && Object.keys(errors).length > 0) {
+            setShowErrorNotification(true);
+        }
+    }, [errors]);
 
     const [isInitialLoad, setIsInitialLoad] = useState(true);
 

@@ -91,12 +91,6 @@ export default function CreateEmployee(props) {
         leave_status: 'schedule',
     };
 
-    useEffect(() => {
-        if (Object.keys(errors).length > 0) {
-            setShowErrorNotification(true);
-        }
-    }, [errors]);
-
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         employee_code: '',
@@ -158,6 +152,12 @@ export default function CreateEmployee(props) {
         contract_expiry_date: '',
         weekly_offs: [],
     });
+
+    useEffect(() => {
+        if (errors && Object.keys(errors).length > 0) {
+            setShowErrorNotification(true);
+        }
+    }, [errors]);
 
     // Fetch branches departments for multi-branch selection
     useEffect(() => {
