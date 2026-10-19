@@ -7,6 +7,7 @@ import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import SearchableSelect from '@/Components/SearchableSelect';
 import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
+import FormErrorNotification from '@/Components/FormErrorNotification';
 import {
     FiUser, FiCreditCard, FiMapPin, FiBriefcase, FiClock, FiDollarSign,
     FiFileText, FiPlus, FiTrash2, FiArrowRight, FiArrowLeft, FiEye,
@@ -47,6 +48,54 @@ export default function CreateEmployee(props) {
 
     // File name and preview tracking for enhanced dropzones
     const [fileDetails, setFileDetails] = useState({});
+    const [showErrorNotification, setShowErrorNotification] = useState(false);
+
+    const FIELD_TAB_MAP = {
+        name: 'personal',
+        employee_code: 'personal',
+        gender: 'personal',
+        dob: 'personal',
+        mobile: 'personal',
+        email: 'personal',
+        location: 'personal',
+        nationality: 'personal',
+        sponsor: 'personal',
+        company_id: 'work',
+        company_ids: 'work',
+        department_id: 'work',
+        department_ids: 'work',
+        designation: 'work',
+        role: 'work',
+        reported_to: 'work',
+        joined_date: 'work',
+        rejoined_date: 'work',
+        shift: 'work',
+        employee_category: 'work',
+        basic_salary: 'salary',
+        payment_type: 'salary',
+        bank_name: 'salary',
+        bank_account_number: 'salary',
+        iban: 'salary',
+        upi_id: 'salary',
+        passport_file: 'documents',
+        passport_number: 'documents',
+        qid_file: 'documents',
+        qid_number: 'documents',
+        aadhar_file: 'documents',
+        aadhar_number: 'documents',
+        pan_file: 'documents',
+        contract_duration: 'schedule',
+        contract_issue_date: 'schedule',
+        contract_expiry_date: 'schedule',
+        manual_status: 'schedule',
+        leave_status: 'schedule',
+    };
+
+    useEffect(() => {
+        if (Object.keys(errors).length > 0) {
+            setShowErrorNotification(true);
+        }
+    }, [errors]);
 
     const { data, setData, post, processing, errors } = useForm({
         name: '',
@@ -501,14 +550,15 @@ export default function CreateEmployee(props) {
 
         post(route('employees.store'), {
             forceFormData: true,
-            onError: () => {
+            onError: (errs) => {
+                setShowErrorNotification(true);
                 // If there are errors, automatically navigate to the first tab that has an error
-                const errorKeys = Object.keys(errors);
+                const errorKeys = Object.keys(errs || errors);
                 if (errorKeys.some(k => ['name', 'employee_code', 'gender', 'dob', 'mobile', 'email', 'location', 'nationality'].includes(k))) {
                     setActiveTab('personal');
-                } else if (errorKeys.some(k => ['company_id', 'department_id', 'designation', 'role', 'joined_date'].includes(k))) {
+                } else if (errorKeys.some(k => ['company_id', 'company_ids', 'department_id', 'department_ids', 'designation', 'role', 'joined_date', 'shift', 'employee_category'].includes(k))) {
                     setActiveTab('work');
-                } else if (errorKeys.some(k => ['basic_salary', 'payment_type', 'bank_name', 'bank_account_number', 'upi_id'].includes(k))) {
+                } else if (errorKeys.some(k => ['basic_salary', 'payment_type', 'bank_name', 'bank_account_number', 'upi_id', 'iban'].includes(k))) {
                     setActiveTab('salary');
                 } else if (errorKeys.some(k => ['aadhar_file', 'pan_file', 'passport_file', 'qid_file'].includes(k))) {
                     setActiveTab('documents');
@@ -833,6 +883,7 @@ export default function CreateEmployee(props) {
                                             <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
                                                 <FiPhone className="w-3.5 h-3.5 text-emerald-500" />
                                                 <span>Mobile Number</span>
+                                                <span className="text-rose-500 font-bold ml-1">*</span>
                                             </label>
                                             <input
                                                 type="tel"
@@ -849,7 +900,7 @@ export default function CreateEmployee(props) {
                                             <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
                                                 <FiMail className="w-3.5 h-3.5 text-emerald-500" />
                                                 <span>Work / Personal Email</span>
-                                                {data.role && <span className="text-rose-500" title="Required for system login">*</span>}
+                                                <span className="text-rose-500 font-bold ml-1">*</span>
                                             </label>
                                             <input
                                                 type="email"
@@ -935,6 +986,7 @@ export default function CreateEmployee(props) {
                                                 placeholder={(data.company_ids && data.company_ids.length > 0) ? "Select departments..." : "Select branch first"}
                                                 searchPlaceholder="Search departments..."
                                                 disabled={!data.company_ids || data.company_ids.length === 0}
+                                                required={true}
                                                 error={errors.department_ids || errors.department_id}
                                             />
                                         </div>
@@ -944,6 +996,7 @@ export default function CreateEmployee(props) {
                                             <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
                                                 <FiBriefcase className="w-3.5 h-3.5 text-blue-500" />
                                                 <span>Designation</span>
+                                                <span className="text-rose-500 font-bold ml-1">*</span>
                                             </label>
                                             <SearchableSelect
                                                 name="designation"
@@ -996,6 +1049,7 @@ export default function CreateEmployee(props) {
                                             <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
                                                 <FiCalendar className="w-3.5 h-3.5 text-blue-500" />
                                                 <span>Joining Date</span>
+                                                <span className="text-rose-500 font-bold ml-1">*</span>
                                             </label>
                                             <input
                                                 type="date"
@@ -1152,7 +1206,10 @@ export default function CreateEmployee(props) {
                                         {(data.payment_type.toLowerCase().includes('bank') || data.payment_type.toLowerCase().includes('wps') || data.payment_type.toLowerCase().includes('wire') || data.payment_type.toLowerCase().includes('direct')) && (
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-4 rounded-xl bg-slate-50/60 border border-slate-100">
                                                 <div className="space-y-1.5">
-                                                    <label className="text-xs font-semibold text-slate-700">Bank Name</label>
+                                                    <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                                                        <span>Bank Name</span>
+                                                        <span className="text-rose-500 font-bold">*</span>
+                                                    </label>
                                                     <input
                                                         type="text"
                                                         className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-sm focus:ring-2 focus:ring-indigo-500/20"
@@ -1163,7 +1220,10 @@ export default function CreateEmployee(props) {
                                                 </div>
 
                                                 <div className="space-y-1.5">
-                                                    <label className="text-xs font-semibold text-slate-700">Account Number</label>
+                                                    <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                                                        <span>Account Number</span>
+                                                        <span className="text-rose-500 font-bold">*</span>
+                                                    </label>
                                                     <input
                                                         type="text"
                                                         className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-sm font-mono focus:ring-2 focus:ring-indigo-500/20"
@@ -1807,6 +1867,31 @@ export default function CreateEmployee(props) {
                 type={confirmingAction.type}
                 hideCancel={confirmingAction.hideCancel}
             />
+
+            {/* Form Error Notification Toggle */}
+            <FormErrorNotification
+                errors={errors}
+                isOpen={showErrorNotification}
+                onClose={() => setShowErrorNotification(false)}
+                onNavigateTab={(tab) => {
+                    setActiveTab(tab);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                fieldTabMap={FIELD_TAB_MAP}
+            />
+
+            {/* Minimized floating button to re-open error notifications */}
+            {Object.keys(errors).length > 0 && !showErrorNotification && (
+                <button
+                    type="button"
+                    onClick={() => setShowErrorNotification(true)}
+                    className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full shadow-2xl shadow-rose-600/40 text-xs font-bold transition-all active:scale-95 animate-bounce"
+                    title="View form errors"
+                >
+                    <FiAlertCircle className="w-4 h-4" />
+                    <span>{Object.keys(errors).length} Form Error{Object.keys(errors).length > 1 ? 's' : ''} (Click to View)</span>
+                </button>
+            )}
         </AuthenticatedLayout>
     );
 
