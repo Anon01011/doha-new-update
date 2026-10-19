@@ -1,26 +1,36 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link } from '@inertiajs/react';
-import { FaCalendarAlt, FaUser, FaClipboardList, FaArrowLeft, FaSave, FaInfoCircle, FaPaperPlane } from 'react-icons/fa';
+import { FaCalendarAlt, FaUser, FaClipboardList, FaArrowLeft, FaSave, FaInfoCircle, FaPaperPlane, FaPaperclip } from 'react-icons/fa';
 import Avatar from '@/Components/Avatar';
 import SearchableSelect from '@/Components/SearchableSelect';
 
-export default function Edit({ leaveRequest, employees, leaveTypes, userRole = 'employee' }) {
+export default function Edit({ leaveRequest, employees, leaveTypes, userRole = 'employee', settings }) {
     const formatDate = (dateString) => {
         if (!dateString) return '';
         return dateString.split('T')[0];
     };
 
-    const { data, setData, put, processing, errors } = useForm({
+    const { data, setData, post, processing, errors } = useForm({
         employee_id: leaveRequest.employee_id || '',
         leave_type_id: leaveRequest.leave_type_id || '',
         start_date: formatDate(leaveRequest.start_date),
         end_date: formatDate(leaveRequest.end_date),
         reason: leaveRequest.reason || '',
+        attachment: null,
     });
+
+    // Detect if selected leave type requires attachment
+    const selectedLeaveType = leaveTypes?.find(t => String(t.id) === String(data.leave_type_id));
+    const requiresAttachment = Boolean(settings?.enable_leave_attachment) && Boolean(selectedLeaveType?.requires_attachment);
+    const acceptTypes = (settings?.attachment_allowed_types || 'pdf,jpg,jpeg,png,doc,docx')
+        .split(',').map(e => `.${e.trim()}`).join(',');
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        put(route('leave-requests.update', leaveRequest.id));
+        post(route('leave-requests.update', leaveRequest.id), {
+            forceFormData: true,
+            _method: 'PUT',
+        });
     };
 
     return (
@@ -181,6 +191,52 @@ export default function Edit({ leaveRequest, employees, leaveTypes, userRole = '
                                         ></textarea>
                                         {errors.reason && <p className="text-[10px] font-normal text-rose-500 mt-2 ml-1 flex items-center gap-1"><FaInfoCircle size={10} /> {errors.reason}</p>}
                                     </div>
+
+                                    {/* Attachment — only shows when selected leave type requires it */}
+                                    {requiresAttachment && (
+                                        <div className="space-y-3 p-5 rounded-xl border-2 bg-indigo-50/50 border-indigo-200 transition-all">
+                                            <label className="text-[10px] font-normal flex items-center gap-2 ml-1">
+                                                <FaPaperclip className="text-indigo-500" />
+                                                <span className="text-indigo-700">Supporting Document</span>
+                                                <span className="text-rose-500 font-bold text-xs" title="Required">*</span>
+                                                {leaveRequest.attachment && (
+                                                    <span className="text-[9px] px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 font-normal">Already uploaded — upload new to replace</span>
+                                                )}
+                                                {!leaveRequest.attachment && (
+                                                    <span className="text-[9px] px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full font-normal">Required for this leave type</span>
+                                                )}
+                                            </label>
+
+                                            {/* Show existing attachment */}
+                                            {leaveRequest.attachment && (
+                                                <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-indigo-100 shadow-sm">
+                                                    <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                                                        <FaPaperclip className="text-indigo-500" size={12} />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[10px] font-normal text-slate-900 truncate">{leaveRequest.attachment_original_name || 'Current attachment'}</p>
+                                                        <p className="text-[9px] text-slate-400">Existing file</p>
+                                                    </div>
+                                                    <a href={`/storage/${leaveRequest.attachment}`} target="_blank" rel="noreferrer" className="text-[9px] text-indigo-600 hover:underline">View</a>
+                                                </div>
+                                            )}
+
+                                            <div className="relative">
+                                                <input
+                                                    type="file"
+                                                    id="attachment"
+                                                    accept={acceptTypes}
+                                                    required={!leaveRequest.attachment}
+                                                    onChange={(e) => setData('attachment', e.target.files[0])}
+                                                    className="w-full px-4 py-3 bg-white border-2 border-dashed border-indigo-200 rounded-xl outline-none text-[11px] font-normal text-slate-500 cursor-pointer file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-[10px] file:font-normal file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 hover:border-indigo-300 transition-all"
+                                                />
+                                            </div>
+                                            <p className="text-[9px] text-indigo-500 font-normal ml-1">
+                                                Accepted: {settings?.attachment_allowed_types || 'pdf, jpg, png, doc, docx'} · Max: {settings?.attachment_max_size_mb || 5}MB
+                                            </p>
+                                            {errors.attachment && <p className="text-[10px] font-normal text-rose-500 mt-1 ml-1 flex items-center gap-1"><FaInfoCircle size={10} /> {errors.attachment}</p>}
+                                        </div>
+                                    )}
                                 </form>
                             </div>
                         </div>
