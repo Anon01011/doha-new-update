@@ -20,7 +20,14 @@ import {
     FiAlertTriangle,
     FiInfo,
     FiCheck,
-    FiX
+    FiX,
+    FiUsers,
+    FiLayers,
+    FiShield,
+    FiSun,
+    FiMoon,
+    FiExternalLink,
+    FiBriefcase
 } from 'react-icons/fi';
 
 export default function Management({
@@ -45,13 +52,15 @@ export default function Management({
     const [fromDate, setFromDate] = useState(filters.from_date || '');
     const [toDate, setToDate] = useState(filters.to_date || '');
 
-    // Details Modal State
+    // Details Modal State & In-Modal Filters
     const [detailsModal, setDetailsModal] = useState({
         show: false,
         loading: false,
         data: null,
         error: null
     });
+    const [modalSearchTerm, setModalSearchTerm] = useState('');
+    const [modalShiftFilter, setModalShiftFilter] = useState('all');
 
     // Rejection Modal State
     const [rejectionModal, setRejectionModal] = useState({
@@ -111,6 +120,8 @@ export default function Management({
 
     // View Details Handler
     const handleViewDetails = (batch) => {
+        setModalSearchTerm('');
+        setModalShiftFilter('all');
         setDetailsModal({
             show: true,
             loading: true,
@@ -299,6 +310,147 @@ export default function Management({
                 .finally(() => setConfirmingAction(prev => ({ ...prev, processing: false })));
             }
         });
+    };
+
+    // Day definitions for 7-day schedule
+    const dayColumns = [
+        { key: 'Monday', short: 'Mon', index: 0 },
+        { key: 'Tuesday', short: 'Tue', index: 1 },
+        { key: 'Wednesday', short: 'Wed', index: 2 },
+        { key: 'Thursday', short: 'Thu', index: 3 },
+        { key: 'Friday', short: 'Fri', index: 4 },
+        { key: 'Saturday', short: 'Sat', index: 5 },
+        { key: 'Sunday', short: 'Sun', index: 6 },
+    ];
+
+    const getDayDateLabel = (weekStart, dayIndex) => {
+        if (!weekStart) return '';
+        try {
+            const parts = weekStart.split('-');
+            if (parts.length === 3) {
+                const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                d.setDate(d.getDate() + dayIndex);
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }
+        } catch {
+            return '';
+        }
+        return '';
+    };
+
+    // Calculate shift counts inside the active modal
+    const modalShiftMetrics = useMemo(() => {
+        if (!detailsModal.data?.employees) {
+            return { morning: 0, evening: 0, night: 0, off: 0, total: 0 };
+        }
+        let morning = 0, evening = 0, night = 0, off = 0, total = 0;
+        detailsModal.data.employees.forEach(emp => {
+            Object.values(emp.days || {}).forEach(d => {
+                const text = ((d.shift_time || '') + ' ' + (d.shift_type || '')).toLowerCase();
+                if (!d.shift_time || d.shift_time === 'Off' || d.shift_time === 'Weekly Off') {
+                    off++;
+                } else {
+                    total++;
+                    if (text.includes('night') || text.includes('10:00 pm') || text.includes('11:00 pm')) {
+                        night++;
+                    } else if (text.includes('evening') || text.includes('02:00 pm') || text.includes('03:00 pm')) {
+                        evening++;
+                    } else if (text.includes('morning') || text.includes('06:00 am') || text.includes('07:00 am') || text.includes('08:00 am')) {
+                        morning++;
+                    }
+                }
+            });
+        });
+        return { morning, evening, night, off, total };
+    }, [detailsModal.data]);
+
+    // Filter employees in the active modal by search term & shift filter
+    const filteredModalEmployees = useMemo(() => {
+        if (!detailsModal.data?.employees) return [];
+        let list = detailsModal.data.employees;
+
+        if (modalSearchTerm.trim()) {
+            const term = modalSearchTerm.toLowerCase();
+            list = list.filter(emp =>
+                emp.employee_name?.toLowerCase().includes(term) ||
+                emp.designation?.toLowerCase().includes(term) ||
+                emp.department_name?.toLowerCase().includes(term)
+            );
+        }
+
+        if (modalShiftFilter !== 'all') {
+            list = list.filter(emp => {
+                const daysValues = Object.values(emp.days || {});
+                if (modalShiftFilter === 'morning') {
+                    return daysValues.some(d => ((d.shift_type || '') + ' ' + (d.shift_time || '')).toLowerCase().includes('morning') || (d.shift_time || '').includes('06:') || (d.shift_time || '').includes('07:') || (d.shift_time || '').includes('08:'));
+                }
+                if (modalShiftFilter === 'evening') {
+                    return daysValues.some(d => ((d.shift_type || '') + ' ' + (d.shift_time || '')).toLowerCase().includes('evening') || (d.shift_time || '').includes('02:') || (d.shift_time || '').includes('03:'));
+                }
+                if (modalShiftFilter === 'night') {
+                    return daysValues.some(d => ((d.shift_type || '') + ' ' + (d.shift_time || '')).toLowerCase().includes('night') || (d.shift_time || '').includes('10:') || (d.shift_time || '').includes('11:'));
+                }
+                if (modalShiftFilter === 'has_off') {
+                    return daysValues.some(d => !d.shift_time || d.shift_time === 'Off' || d.shift_time === 'Weekly Off');
+                }
+                return true;
+            });
+        }
+
+        return list;
+    }, [detailsModal.data?.employees, modalSearchTerm, modalShiftFilter]);
+
+    const renderModalShiftCell = (shift) => {
+        if (!shift || shift.shift_time === 'Off' || shift.shift_time === 'Weekly Off') {
+            return (
+                <div className="py-2 px-1.5 rounded-xl bg-gray-50/80 border border-gray-100 flex flex-col items-center justify-center min-h-[54px]">
+                    <span className="text-[11px] font-semibold text-gray-400">Off</span>
+                    <span className="text-[9px] text-gray-400/80">Weekly Off</span>
+                </div>
+            );
+        }
+
+        const t = ((shift.shift_time || '') + ' ' + (shift.shift_type || '')).toLowerCase();
+        let cardClass = "bg-slate-50/70 border-slate-200/80 text-slate-800";
+        let badgeClass = "bg-slate-100 text-slate-700 border-slate-200";
+        let icon = "🕒";
+        let typeName = shift.shift_type || 'Shift';
+
+        if (t.includes('night') || t.includes('10:00 pm') || t.includes('11:00 pm') || t.includes('12:00 am')) {
+            cardClass = "bg-indigo-50/60 border-indigo-200/90 text-indigo-950";
+            badgeClass = "bg-indigo-100 text-indigo-700 border-indigo-200";
+            icon = "🌙";
+            typeName = shift.shift_type || 'Night';
+        } else if (t.includes('evening') || t.includes('02:00 pm') || t.includes('03:00 pm') || t.includes('04:00 pm')) {
+            cardClass = "bg-amber-50/60 border-amber-200/90 text-amber-950";
+            badgeClass = "bg-amber-100 text-amber-800 border-amber-200";
+            icon = "⛅";
+            typeName = shift.shift_type || 'Evening';
+        } else if (t.includes('morning') || t.includes('06:00 am') || t.includes('07:00 am') || t.includes('08:00 am')) {
+            cardClass = "bg-sky-50/60 border-sky-200/90 text-sky-950";
+            badgeClass = "bg-sky-100 text-sky-800 border-sky-200";
+            icon = "☀️";
+            typeName = shift.shift_type || 'Morning';
+        }
+
+        return (
+            <div className={`p-1.5 rounded-xl border ${cardClass} flex flex-col items-center justify-center min-h-[54px] transition-all hover:shadow-xs hover:scale-[1.02]`}>
+                <span className="font-bold text-[10.5px] leading-tight text-gray-900 whitespace-nowrap">
+                    {shift.shift_time}
+                </span>
+                <div className="mt-1 flex items-center gap-1">
+                    <span className={`text-[8.5px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md border ${badgeClass} flex items-center gap-0.5`}>
+                        <span>{icon}</span>
+                        <span>{typeName}</span>
+                    </span>
+                </div>
+                {shift.notes && (
+                    <span className="text-[8.5px] text-gray-400 truncate max-w-[110px] mt-0.5" title={shift.notes}>
+                        {shift.notes}
+                    </span>
+                )}
+            </div>
+        );
     };
 
     return (
@@ -762,217 +914,437 @@ export default function Management({
                 <Modal 
                     show={detailsModal.show} 
                     onClose={() => setDetailsModal(prev => ({ ...prev, show: false }))} 
-                    maxWidth="5xl"
+                    maxWidth="full"
                 >
-                    <div className="p-6 space-y-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
+                    <div className="p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto custom-scrollbar">
                         {detailsModal.loading ? (
-                            <div className="py-16 text-center">
-                                <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                                <p className="text-xs text-gray-500 font-medium">Loading schedule details and audit breakdown...</p>
+                            <div className="py-20 text-center">
+                                <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                <h4 className="text-sm font-bold text-gray-800">Loading Schedule Details</h4>
+                                <p className="text-xs text-gray-500 mt-1">Retrieving weekly shift breakdown, audit logs, and employee rosters...</p>
                             </div>
                         ) : detailsModal.error ? (
-                            <div className="py-12 text-center">
-                                <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-3">
-                                    <FiAlertTriangle className="w-6 h-6" />
+                            <div className="py-14 text-center">
+                                <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-xs">
+                                    <FiAlertTriangle className="w-7 h-7" />
                                 </div>
-                                <h3 className="text-sm font-semibold text-gray-900">{detailsModal.error}</h3>
+                                <h3 className="text-base font-bold text-gray-900">{detailsModal.error}</h3>
+                                <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">An error occurred while fetching details for this roster schedule batch.</p>
                                 <button
                                     onClick={() => setDetailsModal(prev => ({ ...prev, show: false }))}
-                                    className="mt-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg"
+                                    className="mt-5 px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-xl transition-colors"
                                 >
-                                    Close
+                                    Close Window
                                 </button>
                             </div>
                         ) : detailsModal.data ? (
                             <>
-                                {/* Modal Header & Audit Card */}
+                                {/* Modal Header */}
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100">
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest">{detailsModal.data.company_name}</span>
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase tracking-wider flex items-center gap-1.5">
+                                                <FiBriefcase className="w-3.5 h-3.5" />
+                                                {detailsModal.data.company_name}
+                                            </span>
                                             <span className="text-gray-300">•</span>
-                                            <span className="text-xs font-medium text-gray-500">{detailsModal.data.week_label}</span>
+                                            <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 flex items-center gap-1.5">
+                                                <FiCalendar className="w-3.5 h-3.5 text-gray-500" />
+                                                {detailsModal.data.week_label}
+                                            </span>
+                                            <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-50 text-gray-600 border border-gray-200/60">
+                                                {detailsModal.data.total_shifts} Total Shifts
+                                            </span>
                                         </div>
-                                        <h2 className="text-lg font-bold text-gray-900 mt-1">Shift Schedule Audit & Details</h2>
+                                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
+                                            Shift Schedule Audit & Weekly Breakdown
+                                        </h2>
                                     </div>
 
-                                    {/* Status Badge in Modal */}
-                                    <div className="flex items-center gap-2">
+                                    {/* Right Status Badge & Close 'X' */}
+                                    <div className="flex items-center gap-3">
                                         {detailsModal.data.status === 'approved' && (
-                                            <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                                            <span className="px-4 py-2 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs flex items-center gap-2">
                                                 <FiCheckCircle className="w-4 h-4 text-emerald-600" />
                                                 <span>Schedule Approved</span>
                                             </span>
                                         )}
                                         {detailsModal.data.status === 'pending' && (
-                                            <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1.5">
-                                                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                                            <span className="px-4 py-2 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-xs flex items-center gap-2">
+                                                <span className="relative flex h-2.5 w-2.5">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                                                </span>
                                                 <span>Pending Approval</span>
                                             </span>
                                         )}
                                         {detailsModal.data.status === 'rejected' && (
-                                            <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1.5">
+                                            <span className="px-4 py-2 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-xs flex items-center gap-2">
                                                 <FiXCircle className="w-4 h-4 text-rose-600" />
-                                                <span>Schedule Rejected</span>
+                                                <span>Revisions Required</span>
                                             </span>
                                         )}
-                                    </div>
-                                </div>
 
-                                {/* Audit Summary Banner */}
-                                <div className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-3 ${
-                                    detailsModal.data.status === 'approved'
-                                        ? 'bg-emerald-50/50 border-emerald-200 text-emerald-900'
-                                        : detailsModal.data.status === 'rejected'
-                                        ? 'bg-rose-50/50 border-rose-200 text-rose-900'
-                                        : 'bg-amber-50/50 border-amber-200 text-amber-900'
-                                }`}>
-                                    <div className="flex items-start gap-3">
-                                        <div className={`p-2 rounded-lg shrink-0 ${
-                                            detailsModal.data.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : (detailsModal.data.status === 'rejected' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700')
-                                        }`}>
-                                            <FiUserCheck className="w-5 h-5" />
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="text-xs font-bold uppercase tracking-wide">
-                                                    {detailsModal.data.status === 'approved' ? 'Approval Verified' : (detailsModal.data.status === 'rejected' ? 'Rejection Feedback' : 'Approval In Review')}
-                                                </span>
-                                                <span className="text-[11px] opacity-80">
-                                                    ({detailsModal.data.total_shifts} shifts across {detailsModal.data.total_employees} staff)
-                                                </span>
-                                            </div>
-                                            <p className="text-xs mt-1">
-                                                {detailsModal.data.status === 'approved' ? (
-                                                    <>Approved by <span className="font-semibold">{detailsModal.data.approved_by_name || 'HR / Manager'}</span> on <span className="font-semibold">{detailsModal.data.approved_at}</span>. Broadasting unlocked.</>
-                                                ) : detailsModal.data.status === 'rejected' ? (
-                                                    <>Reason: <span className="font-semibold">{detailsModal.data.rejection_reason || 'Revisions required.'}</span></>
-                                                ) : (
-                                                    <>This roster has {detailsModal.data.pending_count} pending shifts. Broadcasting to employees is locked until HR or Manager approves.</>
-                                                )}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {/* Modal Actions */}
-                                    <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                                        {canApprove && (detailsModal.data.status === 'pending' || detailsModal.data.status === 'rejected') && (
-                                            <button
-                                                onClick={() => handleApprove(detailsModal.data)}
-                                                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium shadow-sm transition-all flex items-center gap-1.5"
-                                            >
-                                                <FiCheck className="w-3.5 h-3.5" />
-                                                Approve
-                                            </button>
-                                        )}
-                                        {canApprove && detailsModal.data.status === 'pending' && (
-                                            <button
-                                                onClick={() => handleOpenReject(detailsModal.data)}
-                                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
-                                            >
-                                                <FiX className="w-3.5 h-3.5" />
-                                                Reject
-                                            </button>
-                                        )}
-                                        {detailsModal.data.status === 'approved' && (
-                                            <button
-                                                onClick={() => handleBroadcast(detailsModal.data)}
-                                                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium shadow-sm transition-all flex items-center gap-1.5"
-                                            >
-                                                <FiSend className="w-3.5 h-3.5" />
-                                                Broadcast Alerts
-                                            </button>
-                                        )}
-                                        {canApprove && (detailsModal.data.status === 'approved' || detailsModal.data.status === 'rejected') && (
-                                            <button
-                                                onClick={() => handleReset(detailsModal.data)}
-                                                className="px-3 py-1.5 text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors"
-                                            >
-                                                Reset to Pending
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Weekly Shifts Breakdown Table */}
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Employee Weekly Schedule Breakdown</h3>
-                                        <Link
-                                            href={route('shift-rosters.index', {
-                                                company_id: detailsModal.data.company_id,
-                                                week_start: detailsModal.data.week_start
-                                            })}
-                                            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+                                        <button
+                                            onClick={() => setDetailsModal(prev => ({ ...prev, show: false }))}
+                                            className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center transition-colors"
+                                            title="Close modal"
                                         >
-                                            <span>Open in Calendar Grid</span>
-                                            <FiArrowRight className="w-3 h-3" />
-                                        </Link>
+                                            <FiX className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Audit Status & Action Banner */}
+                                <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${
+                                    detailsModal.data.status === 'approved'
+                                        ? 'bg-gradient-to-r from-emerald-50/80 via-emerald-50/30 to-white border-emerald-200 shadow-sm'
+                                        : detailsModal.data.status === 'rejected'
+                                        ? 'bg-gradient-to-r from-rose-50/80 via-rose-50/30 to-white border-rose-200 shadow-sm'
+                                        : 'bg-gradient-to-r from-amber-50/80 via-amber-50/30 to-white border-amber-200 shadow-sm'
+                                }`}>
+                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                                        <div className="flex items-start gap-3.5">
+                                            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
+                                                detailsModal.data.status === 'approved'
+                                                    ? 'bg-emerald-600 text-white'
+                                                    : detailsModal.data.status === 'rejected'
+                                                    ? 'bg-rose-600 text-white'
+                                                    : 'bg-amber-500 text-white'
+                                            }`}>
+                                                {detailsModal.data.status === 'approved' ? (
+                                                    <FiShield className="w-5 h-5" />
+                                                ) : detailsModal.data.status === 'rejected' ? (
+                                                    <FiAlertTriangle className="w-5 h-5" />
+                                                ) : (
+                                                    <FiUserCheck className="w-5 h-5" />
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className={`text-xs font-bold uppercase tracking-wider ${
+                                                        detailsModal.data.status === 'approved'
+                                                            ? 'text-emerald-800'
+                                                            : detailsModal.data.status === 'rejected'
+                                                            ? 'text-rose-800'
+                                                            : 'text-amber-800'
+                                                    }`}>
+                                                        {detailsModal.data.status === 'approved' 
+                                                            ? 'Approval Verified & Signed Off' 
+                                                            : detailsModal.data.status === 'rejected' 
+                                                            ? 'Schedule Rejected — Revisions Required' 
+                                                            : 'Approval in Review'}
+                                                    </span>
+                                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/80 border border-gray-200/80 text-gray-700 shadow-xs">
+                                                        {detailsModal.data.total_shifts} shifts across {detailsModal.data.total_employees} staff
+                                                    </span>
+                                                </div>
+
+                                                <div className="text-xs text-gray-600 leading-relaxed">
+                                                    {detailsModal.data.status === 'approved' ? (
+                                                        <>
+                                                            Verified & approved by <span className="font-bold text-gray-900">{detailsModal.data.approved_by_name || 'HR / Manager'}</span> on <span className="font-semibold text-gray-900">{detailsModal.data.approved_at}</span>. All shifts are authorized and broadcasting to employees is unlocked.
+                                                        </>
+                                                    ) : detailsModal.data.status === 'rejected' ? (
+                                                        <div className="mt-1">
+                                                            <span className="font-medium text-rose-700">Rejection Feedback: </span>
+                                                            <span className="font-semibold text-rose-950 bg-white/80 px-2 py-0.5 rounded-md border border-rose-200">
+                                                                {detailsModal.data.rejection_reason || 'Please review shift assignments and revise.'}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            This roster currently has <span className="font-bold text-amber-900">{detailsModal.data.pending_count} pending shifts</span>. Broadcasting to employees is locked until HR or a Manager reviews and approves the schedule.
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Action Buttons */}
+                                        <div className="flex items-center gap-2.5 shrink-0 flex-wrap lg:justify-end">
+                                            {canApprove && (detailsModal.data.status === 'pending' || detailsModal.data.status === 'rejected') && (
+                                                <button
+                                                    onClick={() => handleApprove(detailsModal.data)}
+                                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm hover:shadow transition-all flex items-center gap-2 active:scale-95"
+                                                >
+                                                    <FiCheck className="w-4 h-4" />
+                                                    <span>Approve Schedule</span>
+                                                </button>
+                                            )}
+
+                                            {canApprove && detailsModal.data.status === 'pending' && (
+                                                <button
+                                                    onClick={() => handleOpenReject(detailsModal.data)}
+                                                    className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 active:scale-95"
+                                                >
+                                                    <FiX className="w-4 h-4" />
+                                                    <span>Reject Roster</span>
+                                                </button>
+                                            )}
+
+                                            {detailsModal.data.status === 'approved' && (
+                                                <button
+                                                    onClick={() => handleBroadcast(detailsModal.data)}
+                                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm hover:shadow transition-all flex items-center gap-2 active:scale-95"
+                                                >
+                                                    <FiSend className="w-4 h-4" />
+                                                    <span>Broadcast to Employees</span>
+                                                </button>
+                                            )}
+
+                                            {canApprove && (detailsModal.data.status === 'approved' || detailsModal.data.status === 'rejected') && (
+                                                <button
+                                                    onClick={() => handleReset(detailsModal.data)}
+                                                    className="px-3.5 py-2 text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium transition-colors"
+                                                >
+                                                    Reset to Pending
+                                                </button>
+                                            )}
+
+                                            <Link
+                                                href={route('shift-rosters.index', {
+                                                    company_id: detailsModal.data.company_id,
+                                                    week_start: detailsModal.data.week_start
+                                                })}
+                                                className="px-3.5 py-2 text-indigo-700 hover:text-indigo-900 bg-indigo-50/70 hover:bg-indigo-100/70 border border-indigo-200/80 rounded-xl text-xs font-medium transition-colors flex items-center gap-1.5"
+                                            >
+                                                <FiExternalLink className="w-3.5 h-3.5" />
+                                                <span>Open Calendar</span>
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Shift Breakdown Ribbon & In-Modal Filter Bar */}
+                                <div className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/70 space-y-3">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                        {/* Quick Shift Summary Badges */}
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mr-1">Shifts Breakdown:</span>
+                                            <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-gray-200 text-gray-700 shadow-xs flex items-center gap-1.5">
+                                                <FiUsers className="w-3.5 h-3.5 text-indigo-600" />
+                                                <span>{detailsModal.data.total_employees} Staff</span>
+                                            </span>
+                                            <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-50 border border-sky-200 text-sky-800 flex items-center gap-1.5">
+                                                <span>☀️</span>
+                                                <span>{modalShiftMetrics.morning} Morning</span>
+                                            </span>
+                                            <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 border border-amber-200 text-amber-800 flex items-center gap-1.5">
+                                                <span>⛅</span>
+                                                <span>{modalShiftMetrics.evening} Evening</span>
+                                            </span>
+                                            <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 border border-indigo-200 text-indigo-800 flex items-center gap-1.5">
+                                                <span>🌙</span>
+                                                <span>{modalShiftMetrics.night} Night</span>
+                                            </span>
+                                            <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-100 border border-gray-200 text-gray-600 flex items-center gap-1.5">
+                                                <span>💤</span>
+                                                <span>{modalShiftMetrics.off} Weekly Offs</span>
+                                            </span>
+                                        </div>
+
+                                        {/* Total Match Counter */}
+                                        <span className="text-xs text-gray-500 font-medium">
+                                            Showing <span className="font-bold text-gray-900">{filteredModalEmployees.length}</span> of {detailsModal.data.total_employees} staff
+                                        </span>
                                     </div>
 
-                                    <div className="border border-gray-200 rounded-xl overflow-x-auto shadow-sm">
+                                    {/* Search & Shift Filter Controls */}
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-200/60">
+                                        {/* Search */}
+                                        <div className="relative flex-1 max-w-md">
+                                            <input
+                                                type="text"
+                                                placeholder="Search staff by name, role, department..."
+                                                value={modalSearchTerm}
+                                                onChange={e => setModalSearchTerm(e.target.value)}
+                                                className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border-gray-200 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-xs"
+                                            />
+                                            <FiSearch className="absolute left-3 top-2.5 text-gray-400 w-3.5 h-3.5" />
+                                            {modalSearchTerm && (
+                                                <button
+                                                    onClick={() => setModalSearchTerm('')}
+                                                    className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
+                                                >
+                                                    <FiX className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Shift Filter Pills */}
+                                        <div className="flex items-center gap-1 p-1 bg-white border border-gray-200 rounded-xl overflow-x-auto shadow-xs">
+                                            {[
+                                                { key: 'all', label: 'All Shifts' },
+                                                { key: 'morning', label: '☀️ Morning' },
+                                                { key: 'evening', label: '⛅ Evening' },
+                                                { key: 'night', label: '🌙 Night' },
+                                                { key: 'has_off', label: 'Has Off' }
+                                            ].map(f => (
+                                                <button
+                                                    key={f.key}
+                                                    onClick={() => setModalShiftFilter(f.key)}
+                                                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                                                        modalShiftFilter === f.key
+                                                            ? 'bg-indigo-600 text-white font-semibold shadow-xs'
+                                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                                    }`}
+                                                >
+                                                    {f.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 7-Day Weekly Schedule Breakdown Table */}
+                                <div className="border border-gray-200/90 rounded-2xl overflow-hidden shadow-sm bg-white">
+                                    <div className="overflow-x-auto max-h-[58vh] overflow-y-auto custom-scrollbar">
                                         <table className="w-full text-left border-collapse text-xs">
                                             <thead>
-                                                <tr className="bg-gray-50 border-b border-gray-200 text-[10px] uppercase font-bold text-gray-500 tracking-wider">
-                                                    <th className="py-2.5 px-3 min-w-[180px] sticky left-0 bg-gray-50 z-10 border-r border-gray-200">Employee</th>
-                                                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
-                                                        <th key={day} className="py-2.5 px-2 text-center min-w-[110px]">
-                                                            {day}
-                                                        </th>
-                                                    ))}
+                                                <tr className="bg-slate-100/90 border-b border-gray-200 sticky top-0 z-30">
+                                                    {/* Employee sticky column */}
+                                                    <th className="py-3 px-4 min-w-[240px] sticky left-0 top-0 bg-slate-100 z-40 border-r border-gray-200 font-bold text-[10px] uppercase tracking-wider text-slate-600 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                                        <div className="flex items-center justify-between">
+                                                            <span>Employee & Role</span>
+                                                            <span className="text-[9px] font-semibold text-slate-400 lowercase">({filteredModalEmployees.length})</span>
+                                                        </div>
+                                                    </th>
+
+                                                    {/* 7 Day Columns with date labels */}
+                                                    {dayColumns.map(day => {
+                                                        const dateLabel = getDayDateLabel(detailsModal.data.week_start, day.index);
+                                                        const isWeekend = day.key === 'Saturday' || day.key === 'Sunday';
+                                                        return (
+                                                            <th 
+                                                                key={day.key} 
+                                                                className={`py-3 px-2.5 text-center min-w-[130px] border-r border-gray-200/60 last:border-r-0 ${
+                                                                    isWeekend ? 'bg-slate-200/40' : ''
+                                                                }`}
+                                                            >
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className="font-bold text-[11px] text-slate-800 tracking-wider">
+                                                                        {day.short}
+                                                                    </span>
+                                                                    {dateLabel && (
+                                                                        <span className="text-[10px] font-medium text-slate-500 mt-0.5">
+                                                                            {dateLabel}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </th>
+                                                        );
+                                                    })}
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-100">
-                                                {detailsModal.data.employees?.map(emp => (
-                                                    <tr key={emp.employee_id} className="hover:bg-gray-50/50">
-                                                        {/* Employee Name */}
-                                                        <td className="py-2.5 px-3 sticky left-0 bg-white border-r border-gray-100 z-10">
-                                                            <div className="flex items-center gap-2">
-                                                                <Avatar src={emp.employee_image} name={emp.employee_name} size="sm" />
-                                                                <div className="flex flex-col">
-                                                                    <span className="font-semibold text-gray-900 leading-tight">{emp.employee_name}</span>
-                                                                    <span className="text-[10px] text-gray-400">{emp.designation || emp.department_name}</span>
-                                                                </div>
+                                                {filteredModalEmployees.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={8} className="py-14 text-center text-gray-500">
+                                                            <div className="w-12 h-12 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-2">
+                                                                <FiSearch className="w-5 h-5" />
                                                             </div>
+                                                            <p className="text-xs font-semibold text-gray-700">No employees match your search criteria</p>
+                                                            <p className="text-[11px] text-gray-400 mt-0.5">Try clearing your search term or shift filter</p>
+                                                            <button
+                                                                onClick={() => { setModalSearchTerm(''); setModalShiftFilter('all'); }}
+                                                                className="mt-3 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors"
+                                                            >
+                                                                Reset In-Modal Filters
+                                                            </button>
                                                         </td>
-
-                                                        {/* 7 Days */}
-                                                        {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
-                                                            const shift = emp.days[day];
-                                                            const isOff = !shift || shift.shift_time === 'Off' || shift.shift_time === 'Weekly Off';
-                                                            return (
-                                                                <td key={day} className="py-2.5 px-2 text-center">
-                                                                    {isOff ? (
-                                                                        <span className="inline-block px-2 py-1 text-[9px] font-medium text-gray-400 bg-gray-50 rounded border border-gray-100">
-                                                                            Off
-                                                                        </span>
-                                                                    ) : (
-                                                                        <div className="p-1.5 rounded-lg border border-gray-100 bg-white shadow-xs flex flex-col items-center">
-                                                                            <span className="font-semibold text-gray-900 text-[10px] leading-tight">{shift.shift_time}</span>
-                                                                            <span className="text-[8px] text-gray-400 uppercase mt-0.5">{shift.shift_type || 'General'}</span>
-                                                                        </div>
-                                                                    )}
-                                                                </td>
-                                                            );
-                                                        })}
                                                     </tr>
-                                                ))}
+                                                ) : (
+                                                    filteredModalEmployees.map(emp => {
+                                                        // Count offs and shifts for this employee
+                                                        let empShifts = 0, empOffs = 0;
+                                                        dayColumns.forEach(d => {
+                                                            const s = emp.days[d.key];
+                                                            if (!s || s.shift_time === 'Off' || s.shift_time === 'Weekly Off') {
+                                                                empOffs++;
+                                                            } else {
+                                                                empShifts++;
+                                                            }
+                                                        });
+
+                                                        return (
+                                                            <tr key={emp.employee_id} className="hover:bg-indigo-50/20 transition-colors group">
+                                                                {/* Employee sticky cell */}
+                                                                <td className="py-2.5 px-4 sticky left-0 bg-white group-hover:bg-[#f7f8fe] border-r border-gray-100 z-20 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)] transition-colors">
+                                                                    <div className="flex items-center gap-2.5">
+                                                                        <Avatar src={emp.employee_image} name={emp.employee_name} size="sm" />
+                                                                        <div className="flex flex-col min-w-0">
+                                                                            <span className="font-bold text-gray-900 text-xs truncate leading-tight group-hover:text-indigo-600 transition-colors">
+                                                                                {emp.employee_name}
+                                                                            </span>
+                                                                            <span className="text-[10px] text-gray-400 truncate mt-0.5">
+                                                                                {emp.designation || emp.department_name || 'Staff'}
+                                                                            </span>
+                                                                            <div className="flex items-center gap-1.5 mt-1">
+                                                                                <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                                                                    {empShifts} shifts
+                                                                                </span>
+                                                                                <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-gray-100 text-gray-500">
+                                                                                    {empOffs} off
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+
+                                                                {/* 7 Days Cells */}
+                                                                {dayColumns.map(day => {
+                                                                    const shift = emp.days[day.key];
+                                                                    const isWeekend = day.key === 'Saturday' || day.key === 'Sunday';
+                                                                    return (
+                                                                        <td 
+                                                                            key={day.key} 
+                                                                            className={`py-2 px-2 text-center border-r border-gray-100/70 last:border-r-0 ${
+                                                                                isWeekend ? 'bg-slate-50/30' : ''
+                                                                            }`}
+                                                                        >
+                                                                            {renderModalShiftCell(shift)}
+                                                                        </td>
+                                                                    );
+                                                                })}
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
                                             </tbody>
                                         </table>
                                     </div>
                                 </div>
 
                                 {/* Modal Close Footer */}
-                                <div className="flex justify-between items-center pt-4 border-t border-gray-100">
-                                    <div className="text-[11px] text-gray-400">
-                                        Shift Schedule ID: {detailsModal.data.company_slug}_{detailsModal.data.week_start}
+                                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-100">
+                                    <div className="text-xs text-gray-400 flex items-center gap-2">
+                                        <span className="font-mono text-[11px] bg-gray-100 px-2 py-0.5 rounded text-gray-600">
+                                            {detailsModal.data.company_slug}_{detailsModal.data.week_start}
+                                        </span>
+                                        <span>•</span>
+                                        <span>{filteredModalEmployees.length} staff records listed</span>
                                     </div>
-                                    <button
-                                        onClick={() => setDetailsModal(prev => ({ ...prev, show: false }))}
-                                        className="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white text-xs font-medium rounded-xl transition-colors"
-                                    >
-                                        Close
-                                    </button>
+
+                                    <div className="flex items-center gap-2.5">
+                                        <Link
+                                            href={route('shift-rosters.index', {
+                                                company_id: detailsModal.data.company_id,
+                                                week_start: detailsModal.data.week_start
+                                            })}
+                                            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5"
+                                        >
+                                            <FiCalendar className="w-3.5 h-3.5 text-indigo-600" />
+                                            <span>Open in Calendar Grid</span>
+                                        </Link>
+                                        <button
+                                            onClick={() => setDetailsModal(prev => ({ ...prev, show: false }))}
+                                            className="px-5 py-2 bg-gray-900 hover:bg-black text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
+                                        >
+                                            Close
+                                        </button>
+                                    </div>
                                 </div>
                             </>
                         ) : null}
