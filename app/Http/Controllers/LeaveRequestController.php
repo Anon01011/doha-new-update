@@ -154,16 +154,26 @@ class LeaveRequestController extends Controller
                 $employee = Employee::findOrFail($empId);
                 $companyId = $employee->company_id;
 
+
                 // 1. Check Minimum Notice Period (Bypass for HR/Admin)
                 if (!$isAdminOrHR) {
-                    $minNoticeDays = Setting::get('minimum_notice_period', 0, $companyId);
+                    $minNoticeDays = (int) Setting::get(
+                        'minimum_notice_period',
+                        0,
+                        $companyId
+                    );
+
                     if ($minNoticeDays > 0) {
                         $noticeDate = now()->addDays($minNoticeDays);
+
                         if ($startDate->lt($noticeDate)) {
-                            throw new \Exception("Leave must be requested at least {$minNoticeDays} days in advance for {$employee->name}.");
+                            throw new \Exception(
+                                "Leave must be requested at least {$minNoticeDays} days in advance for {$employee->name}."
+                            );
                         }
                     }
                 }
+
 
                 // 2. Check Probation Eligibility (Bypass for HR/Admin)
                 if (!$isAdminOrHR) {
