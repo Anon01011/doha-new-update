@@ -1,12 +1,13 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link } from '@inertiajs/react';
-import { FaClipboardList, FaArrowLeft, FaSave, FaCode, FaCalendarAlt, FaInfoCircle, FaShieldAlt, FaHandHoldingUsd, FaPowerOff, FaEdit, FaPaperclip } from 'react-icons/fa';
+import { FaClipboardList, FaArrowLeft, FaSave, FaCode, FaCalendarAlt, FaInfoCircle, FaShieldAlt, FaHandHoldingUsd, FaPowerOff, FaEdit, FaPaperclip, FaClock } from 'react-icons/fa';
 
-export default function Edit({ leaveType, enableAttachment }) {
+export default function Edit({ leaveType, enableAttachment, defaultNoticeDays = 0 }) {
     const { data, setData, put, processing, errors } = useForm({
         name: leaveType.name || '',
         code: leaveType.code || '',
         max_days_per_year: leaveType.max_days_per_year || 0,
+        min_notice_days: leaveType.min_notice_days ?? '',
         carry_forward_allowed: leaveType.carry_forward_allowed || false,
         carry_forward_max_days: leaveType.carry_forward_max_days || null,
         requires_approval: leaveType.requires_approval !== false,
@@ -102,7 +103,7 @@ export default function Edit({ leaveType, enableAttachment }) {
                                     </div>
 
                                     {/* Days */}
-                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
+                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
                                         <div className="space-y-3">
                                             <label className="text-[10px] font-normal text-slate-500 flex items-center gap-2 ml-1">
                                                 <FaCalendarAlt className="text-slate-400" /> Max Days Per Year
@@ -115,6 +116,24 @@ export default function Edit({ leaveType, enableAttachment }) {
                                                 required
                                                 min="0"
                                             />
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-normal text-slate-500 flex items-center gap-2 ml-1">
+                                                <FaClock className="text-slate-400" /> Min Notice (Days Before)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                className={`w-full px-5 py-3 bg-white border ${errors.min_notice_days ? 'border-rose-200 focus:border-rose-300' : 'border-slate-200 focus:border-slate-300'} rounded-xl focus:ring-0 transition-all outline-none text-[11px] font-normal`}
+                                                value={data.min_notice_days}
+                                                onChange={(e) => setData('min_notice_days', e.target.value)}
+                                                min="0"
+                                                max="365"
+                                                placeholder={String(defaultNoticeDays ?? 0)}
+                                            />
+                                            <p className="text-[9px] font-normal text-slate-400 ml-1">
+                                                Days in advance this leave must be applied for. Leave empty to use the global setting{defaultNoticeDays ? ` (${defaultNoticeDays} days)` : ''}.
+                                            </p>
                                         </div>
 
                                          <div className="space-y-3">

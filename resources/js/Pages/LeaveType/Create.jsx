@@ -1,12 +1,13 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link } from '@inertiajs/react';
-import { FaClipboardList, FaArrowLeft, FaSave, FaCode, FaCalendarAlt, FaInfoCircle, FaShieldAlt, FaHandHoldingUsd, FaPowerOff, FaPaperclip } from 'react-icons/fa';
+import { FaClipboardList, FaArrowLeft, FaSave, FaCode, FaCalendarAlt, FaInfoCircle, FaShieldAlt, FaHandHoldingUsd, FaPowerOff, FaPaperclip, FaClock } from 'react-icons/fa';
 
-export default function Create({ enableAttachment }) {
+export default function Create({ enableAttachment, defaultNoticeDays = 0 }) {
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         code: '',
         max_days_per_year: 0,
+        min_notice_days: '',
         carry_forward_allowed: false,
         carry_forward_max_days: null,
         requires_approval: true,
@@ -87,7 +88,7 @@ export default function Create({ enableAttachment }) {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <div className="space-y-3">
                                             <label className="text-[10px] font-normal text-slate-500 flex items-center gap-2 ml-1">
-                                                Name
+                                                Name <span className="text-rose-500">*</span>
                                             </label>
                                              <input
                                                 type="text"
@@ -120,10 +121,10 @@ export default function Create({ enableAttachment }) {
                                     </div>
 
                                      {/* Days */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-slate-50/50 rounded-xl border border-slate-100">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-6 bg-slate-50/50 rounded-xl border border-slate-100">
                                         <div className="space-y-3">
                                             <label className="text-[10px] font-normal text-slate-500 flex items-center gap-2 ml-1">
-                                                <FaCalendarAlt className="text-slate-400" /> Max Days Per Year
+                                                <FaCalendarAlt className="text-slate-400" /> Max Days Per Year <span className="text-rose-500">*</span>
                                             </label>
                                              <input
                                                 type="number"
@@ -133,6 +134,24 @@ export default function Create({ enableAttachment }) {
                                                 required
                                                 min="0"
                                             />
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-normal text-slate-500 flex items-center gap-2 ml-1">
+                                                <FaClock className="text-slate-400" /> Min Notice (Days Before)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                className={`w-full px-5 py-3.5 bg-white border-2 ${errors.min_notice_days ? 'border-rose-100 focus:border-rose-200' : 'border-slate-100 focus:border-slate-300'} rounded-xl focus:ring-0 transition-all outline-none text-[11px] font-normal`}
+                                                value={data.min_notice_days}
+                                                onChange={(e) => setData('min_notice_days', e.target.value)}
+                                                min="0"
+                                                max="365"
+                                                placeholder={String(defaultNoticeDays ?? 0)}
+                                            />
+                                            <p className="text-[9px] font-normal text-slate-400 ml-1">
+                                                How many days in advance this leave must be applied for. Leave empty to use the global setting{defaultNoticeDays ? ` (${defaultNoticeDays} days)` : ''}.
+                                            </p>
                                         </div>
 
                                          <div className="space-y-3">

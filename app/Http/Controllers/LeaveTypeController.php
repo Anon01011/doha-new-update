@@ -44,9 +44,11 @@ class LeaveTypeController extends Controller
 
         $companyId = $user->company_id ?: ($user->employee_id && $user->employee ? $user->employee->company_id : null);
         $enableAttachment = (bool) Setting::get('enable_leave_attachment', false, $companyId);
+        $defaultNoticeDays = (int) Setting::get('minimum_notice_period', 0, $companyId);
 
         return Inertia::render('LeaveType/Create', [
             'enableAttachment' => $enableAttachment,
+            'defaultNoticeDays' => $defaultNoticeDays,
         ]);
     }
 
@@ -63,6 +65,7 @@ class LeaveTypeController extends Controller
             'code' => 'required|string|max:255|unique:leave_types,code',
             'company_id' => 'required_if:user_role,admin|exists:companies,id',
             'max_days_per_year' => 'required|integer|min:0',
+            'min_notice_days' => 'nullable|integer|min:0|max:365',
             'carry_forward_allowed' => 'boolean',
             'carry_forward_max_days' => 'nullable|integer|min:0',
             'requires_approval' => 'boolean',
@@ -130,10 +133,12 @@ class LeaveTypeController extends Controller
 
         $companyId = $user->company_id ?: ($user->employee_id && $user->employee ? $user->employee->company_id : null);
         $enableAttachment = (bool) Setting::get('enable_leave_attachment', false, $companyId);
+        $defaultNoticeDays = (int) Setting::get('minimum_notice_period', 0, $companyId);
 
         return Inertia::render('LeaveType/Edit', [
             'leaveType' => $leaveType,
             'enableAttachment' => $enableAttachment,
+            'defaultNoticeDays' => $defaultNoticeDays,
         ]);
     }
 
@@ -161,6 +166,7 @@ class LeaveTypeController extends Controller
             'code' => 'required|string|max:255|unique:leave_types,code,' . $leaveType->id,
             'company_id' => 'required_if:user_role,admin|exists:companies,id',
             'max_days_per_year' => 'required|integer|min:0',
+            'min_notice_days' => 'nullable|integer|min:0|max:365',
             'carry_forward_allowed' => 'boolean',
             'carry_forward_max_days' => 'nullable|integer|min:0',
             'requires_approval' => 'boolean',

@@ -82,7 +82,7 @@ class LeaveRequestController extends Controller
 
         $leaveTypes = LeaveType::where('is_active', true)
             ->orderBy('name')
-            ->get(['id', 'name', 'code', 'max_days_per_year', 'requires_approval', 'requires_attachment', 'is_paid', 'carry_forward_allowed']);
+            ->get(['id', 'name', 'code', 'max_days_per_year', 'min_notice_days', 'requires_approval', 'requires_attachment', 'is_paid', 'carry_forward_allowed']);
 
         // Role-based employee selection (Global scope handles branch isolation)
         if ($user->isEmployee() && $user->employee_id) {
@@ -150,6 +150,13 @@ class LeaveRequestController extends Controller
         try {
             $createdRequestsCount = 0;
 
+            // Resolve the notice period once for this leave type.
+            // A non-null `min_notice_days` on the leave type overrides the
+            // global company `minimum_notice_period` setting.
+            $selectedLeaveType = LeaveType::find($validated['leave_type_id']);
+            $leaveTypeNoticeDays = $selectedLeaveType?->min_notice_days;
+            $leaveTypeName = $selectedLeaveType?->name;
+
             foreach ($employeeIds as $empId) {
                 $employee = Employee::findOrFail($empId);
                 $companyId = $employee->company_id;
@@ -157,18 +164,21 @@ class LeaveRequestController extends Controller
 
                 // 1. Check Minimum Notice Period (Bypass for HR/Admin)
                 if (!$isAdminOrHR) {
-                    $minNoticeDays = (int) Setting::get(
-                        'minimum_notice_period',
-                        0,
-                        $companyId
-                    );
+                    $minNoticeDays = $leaveTypeNoticeDays !== null
+                        ? (int) $leaveTypeNoticeDays
+                        : (int) Setting::get(
+                            'minimum_notice_period',
+                            0,
+                            $companyId
+                        );
 
                     if ($minNoticeDays > 0) {
                         $noticeDate = now()->addDays($minNoticeDays);
 
                         if ($startDate->lt($noticeDate)) {
+                            $typeLabel = $leaveTypeName ? " for {$leaveTypeName}" : '';
                             throw new \Exception(
-                                "Leave must be requested at least {$minNoticeDays} days in advance for {$employee->name}."
+                                "Leave{$typeLabel} must be requested at least {$minNoticeDays} day(s) in advance for {$employee->name}."
                             );
                         }
                     }
@@ -384,10 +394,11 @@ class LeaveRequestController extends Controller
         $employees = Employee::orderBy('name')->get(['id', 'name', 'employee_code']);
         $leaveTypes = LeaveType::where('is_active', true)
             ->orderBy('name')
-            ->get(['id', 'name', 'code', 'max_days_per_year', 'requires_approval', 'requires_attachment', 'is_paid', 'carry_forward_allowed']);
+            ->get(['id', 'name', 'code', 'max_days_per_year', 'min_notice_days', 'requires_approval', 'requires_attachment', 'is_paid', 'carry_forward_allowed']);
 
         $companyId = $user->company_id ?: ($user->employee_id && $user->employee ? $user->employee->company_id : null);
         $settings = [
+            'min_notice_period'       => (int) Setting::get('minimum_notice_period', 0, $companyId),
             'enable_leave_attachment' => (bool) Setting::get('enable_leave_attachment', false, $companyId),
             'attachment_max_size_mb'  => (int) Setting::get('attachment_max_size_mb', 5, $companyId),
             'attachment_allowed_types'=> Setting::get('attachment_allowed_types', 'pdf,jpg,jpeg,png,doc,docx', $companyId),
@@ -425,6 +436,28 @@ class LeaveRequestController extends Controller
 
         $startDate = Carbon::parse($validated['start_date']);
         $endDate = Carbon::parse($validated['end_date']);
+
+        // Minimum notice period check (Bypass for HR/Admin).
+        // A non-null `min_notice_days` on the leave type overrides the global setting.
+        // Only enforced when the start date is changed, so editing the reason or
+        // attachment of an already-valid request is never retroactively blocked.
+        $originalStartDate = Carbon::parse($leaveRequest->start_date)->toDateString();
+        if (!$user->isAdmin() && !$user->isHR() && $startDate->toDateString() !== $originalStartDate) {
+            $selectedLeaveType = LeaveType::find($validated['leave_type_id']);
+            $employee = Employee::find($validated['employee_id']);
+            $empCompanyId = $employee?->company_id;
+
+            $minNoticeDays = $selectedLeaveType && $selectedLeaveType->min_notice_days !== null
+                ? (int) $selectedLeaveType->min_notice_days
+                : (int) Setting::get('minimum_notice_period', 0, $empCompanyId);
+
+            if ($minNoticeDays > 0 && $startDate->lt(now()->addDays($minNoticeDays))) {
+                $typeLabel = $selectedLeaveType?->name ? " for {$selectedLeaveType->name}" : '';
+                return back()->withErrors([
+                    'start_date' => "Leave{$typeLabel} must be requested at least {$minNoticeDays} day(s) in advance.",
+                ])->withInput();
+            }
+        }
 
         // Calculate days excluding holidays
         $daysRequested = 0;

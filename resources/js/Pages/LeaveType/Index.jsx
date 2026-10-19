@@ -63,6 +63,7 @@ export default function Index({ leaveTypes }) {
                                     <th className="px-5 py-3 text-left text-xs font-normal text-slate-500 border-b border-slate-100">Code</th>
                                     <th className="px-5 py-3 text-left text-xs font-normal text-slate-500 border-b border-slate-100">Branch</th>
                                     <th className="px-5 py-3 text-center text-xs font-normal text-slate-500 border-b border-slate-100">Days Per Year</th>
+                                    <th className="px-5 py-3 text-center text-xs font-normal text-slate-500 border-b border-slate-100">Min Notice</th>
                                     <th className="px-5 py-3 text-center text-xs font-normal text-slate-500 border-b border-slate-100">Carry Forward</th>
                                     <th className="px-5 py-3 text-left text-xs font-normal text-slate-500 border-b border-slate-100">Status</th>
                                     <th className="px-5 py-3 text-right text-xs font-normal text-slate-500 border-b border-slate-100">Actions</th>
@@ -102,6 +103,18 @@ export default function Index({ leaveTypes }) {
                                             <td className="px-5 py-3 text-center">
                                                 <span className="text-sm font-normal text-slate-900 leading-none">{type.max_days_per_year}</span>
                                                 <p className="text-xs font-normal text-slate-400 mt-1">Days</p>
+                                            </td>
+                                            <td className="px-5 py-3 text-center">
+                                                {type.min_notice_days !== null && type.min_notice_days !== undefined ? (
+                                                    <>
+                                                        <span className="text-sm font-normal text-slate-900 leading-none">{type.min_notice_days}</span>
+                                                        <p className="text-xs font-normal text-slate-400 mt-1">Days before</p>
+                                                    </>
+                                                ) : (
+                                                    <span className="inline-flex items-center px-2 py-0.5 bg-slate-50 text-slate-400 rounded-xl text-xs font-normal border border-slate-100">
+                                                        Global
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-5 py-3 text-center">
                                                 {type.carry_forward_allowed ? (

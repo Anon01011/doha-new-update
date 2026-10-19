@@ -11,6 +11,7 @@ class LeaveType extends Model
         'code',
         'company_id',
         'max_days_per_year',
+        'min_notice_days',
         'carry_forward_allowed',
         'carry_forward_max_days',
         'requires_approval',
@@ -22,6 +23,7 @@ class LeaveType extends Model
 
     protected $casts = [
         'max_days_per_year' => 'integer',
+        'min_notice_days' => 'integer',
         'carry_forward_allowed' => 'boolean',
         'carry_forward_max_days' => 'integer',
         'requires_approval' => 'boolean',

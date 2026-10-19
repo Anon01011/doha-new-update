@@ -5,10 +5,6 @@ import SearchableSelect from '@/Components/SearchableSelect';
 import { useEffect, useState } from 'react';
 
 export default function Create({ employees, leaveTypes, userRole = 'employee', settings }) {
-    const minDate = (userRole === 'employee' && settings?.min_notice_period)
-        ? new Date(new Date().getTime() + settings.min_notice_period * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        : undefined;
-
     const { auth } = usePage().props;
 
     const { data, setData, post, processing, errors, transform } = useForm({
@@ -29,6 +25,21 @@ export default function Create({ employees, leaveTypes, userRole = 'employee', s
     // Build accept string from settings, e.g. ".pdf,.jpg,.jpeg"
     const acceptTypes = (settings?.attachment_allowed_types || 'pdf,jpg,jpeg,png,doc,docx')
         .split(',').map(e => `.${e.trim()}`).join(',');
+
+    // Effective notice period: leave-type value overrides the global setting.
+    // `min_notice_days` of 0 (or empty string) means "no advance notice needed"
+    // only when explicitly set; an empty string on the form means "not configured"
+    // and falls back to the global setting.
+    const leaveTypeNotice = selectedLeaveType?.min_notice_days;
+    const hasLeaveTypeNotice = leaveTypeNotice !== null && leaveTypeNotice !== undefined && leaveTypeNotice !== '';
+    const effectiveNoticeDays = hasLeaveTypeNotice
+        ? Number(leaveTypeNotice)
+        : Number(settings?.min_notice_period || 0);
+
+    // Earliest allowed start date for employees (based on effective notice period)
+    const minDate = (userRole === 'employee' && effectiveNoticeDays > 0)
+        ? new Date(new Date().getTime() + effectiveNoticeDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        : undefined;
 
     useEffect(() => {
         transform((data) => ({
@@ -255,7 +266,15 @@ export default function Create({ employees, leaveTypes, userRole = 'employee', s
                                 <li className="flex gap-4">
                                     <div className="w-7 h-7 bg-white/10 rounded-xl flex-shrink-0 flex items-center justify-center text-white font-normal text-[10px]">02</div>
                                     <p className="text-[10px] font-normal text-white leading-relaxed">
-                                        Minimum notice period of <span className="text-white font-normal">{settings?.min_notice_period || 2} days</span> is enforced by system logic.
+                                        {data.leave_type_id ? (
+                                            effectiveNoticeDays > 0 ? (
+                                                <>A minimum notice period of <span className="text-white font-normal">{effectiveNoticeDays} day{effectiveNoticeDays !== 1 ? 's' : ''}</span> applies to <span className="text-white font-normal">{selectedLeaveType?.name}</span>.</>
+                                            ) : (
+                                                <>No advance notice is required for <span className="text-white font-normal">{selectedLeaveType?.name}</span>.</>
+                                            )
+                                        ) : (
+                                            <>Minimum notice period of <span className="text-white font-normal">{effectiveNoticeDays || 0} day{effectiveNoticeDays !== 1 ? 's' : ''}</span> is enforced by system logic.</>
+                                        )}
                                     </p>
                                 </li>
                                 <li className="flex gap-4">

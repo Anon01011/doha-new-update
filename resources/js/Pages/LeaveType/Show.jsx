@@ -117,6 +117,18 @@ export default function Show({ leaveType, enableAttachment }) {
                                                 </div>
                                             </div>
 
+                                             <div className="p-4 bg-white border border-slate-100 rounded-xl shadow-sm">
+                                                <p className="text-[9px] font-normal text-slate-400 mb-2">Min Notice</p>
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${leaveType.min_notice_days !== null && leaveType.min_notice_days !== undefined ? 'bg-indigo-400' : 'bg-slate-300'}`}></div>
+                                                    <span className="text-[10px] font-normal text-slate-900">
+                                                        {leaveType.min_notice_days !== null && leaveType.min_notice_days !== undefined
+                                                            ? `${leaveType.min_notice_days} day${Number(leaveType.min_notice_days) !== 1 ? 's' : ''} before`
+                                                            : 'Global setting'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
                                             {/* Attachment badge — only shown when attachment feature is enabled in settings */}
                                             {Boolean(enableAttachment) && (() => {
                                                 const isAttachmentRequired = Boolean(leaveType.requires_attachment) && leaveType.requires_attachment !== '0' && leaveType.requires_attachment !== 0 && leaveType.requires_attachment !== 'false';
