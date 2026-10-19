@@ -189,7 +189,11 @@ export default function AuthenticatedLayout({ header, children }) {
                     icon: <FiCalendar className="h-4 w-4" />,
                     current: route().current('shift-rosters.*'),
                     permissions: ['view-shift-rosters'],
-                    roles: ['admin', 'hr', 'manager']
+                    roles: ['admin', 'hr', 'manager'],
+                    subMenu: [
+                        { name: 'Roster Schedule', href: route('shift-rosters.index'), current: route().current('shift-rosters.index') || route().current('shift-rosters.create'), permissions: ['view-shift-rosters'] },
+                        { name: 'Approvals & Schedules', href: route('shift-rosters.management'), current: route().current('shift-rosters.management'), permissions: ['view-shift-roster-management', 'approve-shift-rosters', 'manage-shift-rosters'], roles: ['admin', 'hr', 'manager'] }
+                    ]
                 },
                 {
                     name: 'Leave & Holidays',

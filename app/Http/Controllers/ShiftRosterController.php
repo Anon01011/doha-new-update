@@ -553,6 +553,331 @@ class ShiftRosterController extends Controller
         }
     }
 
+    /**
+     * Display all created rosters grouped by week/schedule batch with status & approval tracking.
+     */
+    public function managementIndex(Request $request)
+    {
+        try {
+            $user = auth()->user();
+
+            // Permission check: Admin, HR, Manager, or users with view-shift-roster-management / approve-shift-rosters / manage-shift-rosters
+            $canAccess = $user->isAdmin() || $user->isHR() || $user->isManager()
+                || $user->hasPermission('view-shift-roster-management')
+                || $user->hasPermission('approve-shift-rosters')
+                || $user->hasPermission('manage-shift-rosters')
+                || $user->hasPermission('view-shift-rosters');
+
+            if (!$canAccess) {
+                abort(403, 'Unauthorized access to Shift Roster Management.');
+            }
+
+            // Multi-tenancy scoping
+            $company_id = $request->input('company_id');
+            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
+                $company_id = $user->employee->company_id;
+            }
+
+            $companiesQuery = Company::orderBy('name');
+            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
+                $companiesQuery->where('id', $user->employee->company_id);
+            }
+            $companies = $companiesQuery->get(['id', 'name', 'slug']);
+
+            // Accessible departments
+            $departmentsQuery = \App\Models\Department::orderBy('name');
+            if ($company_id) {
+                $departmentsQuery->where(function ($q) use ($company_id) {
+                    $q->where('company_id', $company_id)
+                      ->orWhereHas('companies', fn($sub) => $sub->where('companies.id', $company_id));
+                });
+            }
+            $departments = $departmentsQuery->get(['id', 'name']);
+
+            // Base query for schedule batches
+            $query = ShiftRoster::query();
+
+            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
+                $query->where('company_id', $user->employee->company_id);
+            } elseif ($company_id) {
+                $query->where('company_id', $company_id);
+            }
+
+            if ($request->filled('department_id')) {
+                $deptEmployeeIds = Employee::where('department_id', $request->department_id)->pluck('id');
+                $query->whereIn('employee_id', $deptEmployeeIds);
+            }
+
+            if ($request->filled('from_date')) {
+                $query->where('week_start', '>=', $request->from_date);
+            }
+
+            if ($request->filled('to_date')) {
+                $query->where('week_start', '<=', $request->to_date);
+            }
+
+            // Aggregate by company_id and week_start
+            $rawBatches = $query->selectRaw("
+                company_id,
+                week_start,
+                COUNT(*) as total_shifts,
+                COUNT(DISTINCT employee_id) as total_employees,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+                SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_count,
+                SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_count,
+                MAX(approved_by) as approved_by,
+                MAX(approved_at) as approved_at,
+                MAX(rejection_reason) as rejection_reason,
+                MIN(created_at) as created_at,
+                MAX(updated_at) as updated_at
+            ")
+            ->groupBy('company_id', 'week_start')
+            ->orderBy('week_start', 'desc')
+            ->get();
+
+            // Collect IDs for bulk eager loading
+            $companyIds = $rawBatches->pluck('company_id')->unique()->filter()->values();
+            $approverIds = $rawBatches->pluck('approved_by')->unique()->filter()->values();
+
+            $companiesMap = Company::whereIn('id', $companyIds)->get(['id', 'name', 'slug'])->keyBy('id');
+            $approversMap = \App\Models\User::whereIn('id', $approverIds)->get(['id', 'name', 'email', 'role'])->keyBy('id');
+
+            $batches = $rawBatches->map(function ($row) use ($companiesMap, $approversMap) {
+                $company = $companiesMap[$row->company_id] ?? null;
+                $approver = $row->approved_by ? ($approversMap[$row->approved_by] ?? null) : null;
+
+                $weekStartCarbon = Carbon::parse($row->week_start);
+                $weekEndCarbon = $weekStartCarbon->copy()->addDays(6);
+
+                $status = 'pending';
+                if ($row->rejected_count > 0) {
+                    $status = 'rejected';
+                } elseif ($row->pending_count == 0 && $row->approved_count > 0) {
+                    $status = 'approved';
+                }
+
+                return [
+                    'company_id'       => $row->company_id,
+                    'company_name'     => $company ? $company->name : "Branch #{$row->company_id}",
+                    'company_slug'     => $company ? $company->slug : '',
+                    'week_start'       => $weekStartCarbon->toDateString(),
+                    'week_end'         => $weekEndCarbon->toDateString(),
+                    'week_label'       => $weekStartCarbon->format('M d') . ' - ' . $weekEndCarbon->format('M d, Y'),
+                    'total_shifts'     => (int) $row->total_shifts,
+                    'total_employees'  => (int) $row->total_employees,
+                    'pending_count'    => (int) $row->pending_count,
+                    'approved_count'   => (int) $row->approved_count,
+                    'rejected_count'   => (int) $row->rejected_count,
+                    'status'           => $status,
+                    'approved_by_name' => $approver ? $approver->name : null,
+                    'approved_by_role' => $approver ? $approver->role : null,
+                    'approved_at'      => $row->approved_at ? Carbon::parse($row->approved_at)->format('M d, Y h:i A') : null,
+                    'rejection_reason' => $row->rejection_reason,
+                    'created_at'       => $row->created_at ? Carbon::parse($row->created_at)->format('M d, Y') : null,
+                    'updated_at'       => $row->updated_at ? Carbon::parse($row->updated_at)->format('M d, Y h:i A') : null,
+                ];
+            });
+
+            // Global Metrics before filtering by status tab
+            $metrics = [
+                'total_schedules' => $batches->count(),
+                'pending'         => $batches->where('status', 'pending')->count(),
+                'approved'        => $batches->where('status', 'approved')->count(),
+                'rejected'        => $batches->where('status', 'rejected')->count(),
+                'total_shifts'    => $batches->sum('total_shifts'),
+            ];
+
+            // Apply status filter tab if specified
+            $statusFilter = $request->input('status', 'all');
+            if ($statusFilter !== 'all' && in_array($statusFilter, ['pending', 'approved', 'rejected'])) {
+                $batches = $batches->where('status', $statusFilter)->values();
+            }
+
+            // Apply search filter if specified
+            if ($request->filled('search')) {
+                $search = strtolower($request->search);
+                $batches = $batches->filter(function ($b) use ($search) {
+                    return str_contains(strtolower($b['company_name']), $search)
+                        || str_contains(strtolower($b['week_label']), $search)
+                        || str_contains(strtolower($b['week_start']), $search);
+                })->values();
+            }
+
+            $canApprove = $user->isAdmin() || $user->isHR() || $user->isManager()
+                || $user->hasPermission('approve-shift-rosters');
+
+            return Inertia::render('ShiftRoster/Management', [
+                'batches'      => $batches,
+                'metrics'      => $metrics,
+                'companies'    => $companies,
+                'departments'  => $departments,
+                'filters'      => [
+                    'company_id'    => $company_id,
+                    'department_id' => $request->department_id,
+                    'status'        => $statusFilter,
+                    'search'        => $request->search,
+                    'from_date'     => $request->from_date,
+                    'to_date'       => $request->to_date,
+                ],
+                'canApprove'   => $canApprove,
+                'userRole'     => $user->role,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('ShiftRoster managementIndex error: ' . $e->getMessage());
+            return back()->with('error', 'Error loading roster management: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get detailed roster breakdown for a specific company + week_start batch (used by Details Modal).
+     */
+    public function getBatchDetails(Request $request)
+    {
+        try {
+            $user = auth()->user();
+
+            $canAccess = $user->isAdmin() || $user->isHR() || $user->isManager()
+                || $user->hasPermission('view-shift-roster-management')
+                || $user->hasPermission('view-shift-rosters');
+
+            if (!$canAccess) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'company_id'    => 'required|exists:companies,id',
+                'week_start'    => 'required|date',
+                'department_id' => 'nullable|exists:departments,id',
+            ]);
+
+            $company_id = $request->company_id;
+            $week_start = $request->week_start;
+
+            // Multi-tenancy check
+            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
+                if ($company_id != $user->employee->company_id) {
+                    return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
+                }
+            }
+
+            $company = Company::findOrFail($company_id);
+
+            $rostersQuery = ShiftRoster::with([
+                'employee:id,name,employee_image,designation,department_id,email,mobile',
+                'employee.department:id,name',
+                'approvedByUser:id,name,email,role'
+            ])
+            ->where('company_id', $company_id)
+            ->where('week_start', $week_start);
+
+            if ($request->filled('department_id')) {
+                $deptEmployeeIds = Employee::where('department_id', $request->department_id)->pluck('id');
+                $rostersQuery->whereIn('employee_id', $deptEmployeeIds);
+            }
+
+            $rosters = $rostersQuery->get();
+
+            if ($rosters->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No roster records found for the selected schedule.'
+                ], 404);
+            }
+
+            $weekStartCarbon = Carbon::parse($week_start);
+            $weekEndCarbon = $weekStartCarbon->copy()->addDays(6);
+
+            $totalShifts = $rosters->count();
+            $approvedCount = $rosters->where('status', 'approved')->count();
+            $pendingCount = $rosters->where('status', 'pending')->count();
+            $rejectedCount = $rosters->where('status', 'rejected')->count();
+
+            $status = 'pending';
+            if ($rejectedCount > 0) {
+                $status = 'rejected';
+            } elseif ($pendingCount == 0 && $approvedCount > 0) {
+                $status = 'approved';
+            }
+
+            $lastApproved = $rosters->whereNotNull('approved_by')->first();
+            $lastRejected = $rosters->where('status', 'rejected')->whereNotNull('rejection_reason')->first();
+
+            // Group shifts by employee for a comprehensive weekly breakdown
+            $dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            $employeesGrouped = $rosters->groupBy('employee_id')->map(function ($empRosters) use ($dayNames, $weekStartCarbon) {
+                $employee = $empRosters->first()->employee;
+                $daysMap = [];
+
+                foreach ($dayNames as $index => $day) {
+                    $roster = $empRosters->firstWhere('day', $day);
+                    $actualDate = $weekStartCarbon->copy()->addDays($index)->format('M d');
+                    if ($roster) {
+                        $daysMap[$day] = [
+                            'date'             => $actualDate,
+                            'shift_time'       => $roster->shift_time,
+                            'shift_type'       => $roster->shift_type,
+                            'designation'      => $roster->designation,
+                            'notes'            => $roster->notes,
+                            'status'           => $roster->status,
+                            'rejection_reason' => $roster->rejection_reason,
+                        ];
+                    } else {
+                        $daysMap[$day] = [
+                            'date'       => $actualDate,
+                            'shift_time' => 'Off',
+                            'shift_type' => 'Weekly Off',
+                            'status'     => 'none'
+                        ];
+                    }
+                }
+
+                return [
+                    'employee_id'        => $employee ? $employee->id : null,
+                    'employee_name'      => $employee ? $employee->name : 'Unknown Employee',
+                    'employee_image'     => $employee ? $employee->employee_image : null,
+                    'designation'        => $employee ? $employee->designation : null,
+                    'department_name'    => $employee && $employee->department ? $employee->department->name : 'General',
+                    'email'              => $employee ? $employee->email : null,
+                    'mobile'             => $employee ? $employee->mobile : null,
+                    'days'               => $daysMap,
+                    'active_shifts_count'=> $empRosters->count(),
+                ];
+            })->values();
+
+            $canApprove = $user->isAdmin() || $user->isHR() || $user->isManager()
+                || $user->hasPermission('approve-shift-rosters');
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'company_id'       => $company->id,
+                    'company_name'     => $company->name,
+                    'company_slug'     => $company->slug,
+                    'week_start'       => $weekStartCarbon->toDateString(),
+                    'week_end'         => $weekEndCarbon->toDateString(),
+                    'week_label'       => $weekStartCarbon->format('M d') . ' - ' . $weekEndCarbon->format('M d, Y'),
+                    'status'           => $status,
+                    'total_shifts'     => $totalShifts,
+                    'total_employees'  => $employeesGrouped->count(),
+                    'pending_count'    => $pendingCount,
+                    'approved_count'   => $approvedCount,
+                    'rejected_count'   => $rejectedCount,
+                    'approved_by_name' => $lastApproved && $lastApproved->approvedByUser ? $lastApproved->approvedByUser->name : null,
+                    'approved_by_role' => $lastApproved && $lastApproved->approvedByUser ? $lastApproved->approvedByUser->role : null,
+                    'approved_at'      => $lastApproved && $lastApproved->approved_at ? $lastApproved->approved_at->format('M d, Y h:i A') : null,
+                    'rejection_reason' => $lastRejected ? $lastRejected->rejection_reason : null,
+                    'employees'        => $employeesGrouped,
+                    'can_approve'      => $canApprove,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('ShiftRoster getBatchDetails error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Error loading details: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function destroy(ShiftRoster $shiftRoster)
     {
         try {

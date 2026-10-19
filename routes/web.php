@@ -221,6 +221,8 @@ Route::middleware('auth')->group(function () {
     Route::post('shift-rosters/approve-roster', [\App\Http\Controllers\ShiftRosterController::class, 'approveRoster'])->name('shift-rosters.approve');
     Route::post('shift-rosters/reject-roster', [\App\Http\Controllers\ShiftRosterController::class, 'rejectRoster'])->name('shift-rosters.reject');
     Route::post('shift-rosters/reset-to-pending', [\App\Http\Controllers\ShiftRosterController::class, 'resetToPending'])->name('shift-rosters.resetToPending');
+    Route::get('shift-rosters/management', [\App\Http\Controllers\ShiftRosterController::class, 'managementIndex'])->name('shift-rosters.management');
+    Route::get('shift-rosters/batch-details', [\App\Http\Controllers\ShiftRosterController::class, 'getBatchDetails'])->name('shift-rosters.batchDetails');
     Route::resource('shift-rosters', \App\Http\Controllers\ShiftRosterController::class);
     Route::post('leave-requests/bulk-approve', [\App\Http\Controllers\LeaveRequestController::class, 'bulkApprove'])->name('leave-requests.bulk-approve');
     Route::post('leave-requests/bulk-reject', [\App\Http\Controllers\LeaveRequestController::class, 'bulkReject'])->name('leave-requests.bulk-reject');

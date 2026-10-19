@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
@@ -862,6 +862,15 @@ export default function Index({
                                                 <span className="ml-auto text-[8px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded">Needs Approval</span>
                                             )}
                                         </button>
+                                        <Link
+                                            href={route('shift-rosters.management')}
+                                            className="w-full text-left px-3 py-2.5 text-[11px] font-normal text-indigo-700 hover:bg-indigo-50 rounded-lg flex items-center gap-3 transition-all group/item"
+                                        >
+                                            <div className="p-1.5 bg-indigo-50 group-hover/item:bg-white/20 rounded-md transition-colors">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                                            </div>
+                                            All Schedules & Approvals
+                                        </Link>
                                         <button
                                             onClick={() => {
                                                 setShowAdvancedActions(false);
@@ -902,7 +911,18 @@ export default function Index({
                             </div>
 
                             {!isEmployee && (
-                                <button className="px-5 py-2.5 bg-primary text-white rounded-lg font-normal text-[10px] uppercase tracking-normal hover:brightness-110 shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center gap-2 ml-2" onClick={() => router.get(route('shift-rosters.create'))}>
+                                <Link
+                                    href={route('shift-rosters.management')}
+                                    className="px-4 py-2.5 bg-gray-50 text-gray-700 hover:bg-white border border-gray-200 hover:border-gray-300 rounded-lg font-normal text-[10px] uppercase tracking-normal transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+                                    title="View All Rosters, Approvals & Schedules"
+                                >
+                                    <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    Approvals Overview
+                                </Link>
+                            )}
+
+                            {!isEmployee && (
+                                <button className="px-5 py-2.5 bg-primary text-white rounded-lg font-normal text-[10px] uppercase tracking-normal hover:brightness-110 shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center gap-2" onClick={() => router.get(route('shift-rosters.create'))}>
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" /></svg>
                                     New Shift
                                 </button>

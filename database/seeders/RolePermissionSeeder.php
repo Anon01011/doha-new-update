@@ -81,6 +81,7 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'Delete Shift Rosters', 'slug' => 'delete-shift-rosters', 'module' => 'shift-roster', 'description' => 'Can delete shift rosters'],
             ['name' => 'Manage Shift Rosters', 'slug' => 'manage-shift-rosters', 'module' => 'shift-roster', 'description' => 'Can manage shift rosters (bulk operations, export, email)'],
             ['name' => 'Approve Shift Rosters', 'slug' => 'approve-shift-rosters', 'module' => 'shift-roster', 'description' => 'Can approve or reject shift rosters before broadcast to employees'],
+            ['name' => 'View Shift Roster Management', 'slug' => 'view-shift-roster-management', 'module' => 'shift-roster', 'description' => 'Can view shift roster management, approval status overview, and schedule audit details'],
 
             // Leave Module
             ['name' => 'View Leave Requests', 'slug' => 'view-leave-requests', 'module' => 'leave', 'description' => 'Can view leave requests'],
@@ -232,6 +233,7 @@ class RolePermissionSeeder extends Seeder
                 'edit-shift-rosters',
                 'manage-shift-rosters',
                 'approve-shift-rosters',
+                'view-shift-roster-management',
                 'view-tasks',
                 'create-tasks',
                 'edit-tasks',
