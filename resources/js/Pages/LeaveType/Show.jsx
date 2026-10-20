@@ -181,7 +181,7 @@ export default function Show({ leaveType, enableAttachment }) {
                     {canEdit && (
                         <Link
                             href={route('leave-types.edit', leaveType.id)}
-                            className="flex flex-shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95"
+                            className="flex flex-shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:scale-95"
                         >
                             <FaEdit size={11} />
                             Edit Leave Type
@@ -322,7 +322,7 @@ export default function Show({ leaveType, enableAttachment }) {
                         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                             <div className="flex items-center gap-2 border-b border-slate-100 px-6 py-4">
                                 <FaShieldAlt
-                                    className="text-slate-400"
+                                    className="text-primary"
                                     size={12}
                                 />
                                 <h2 className="text-xs font-semibold text-slate-900">

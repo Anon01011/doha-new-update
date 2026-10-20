@@ -16,7 +16,11 @@ export default {
                 sans: ['Inter', ...defaultTheme.fontFamily.sans],
             },
             colors: {
-                primary: 'var(--primary-color)',
+                // Exposed as an RGB channel triplet so Tailwind opacity modifiers
+                // (e.g. bg-primary/10, shadow-primary/20) compile and work.
+                // The layout sets --primary-rgb alongside --primary-color; the
+                // fallback keeps a sane value when it is unavailable.
+                primary: 'rgb(var(--primary-rgb, 9, 11, 78) / <alpha-value>)',
                 secondary: 'var(--secondary-color)',
                 accent: 'var(--accent-color)',
             },

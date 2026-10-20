@@ -82,7 +82,7 @@ export default function Edit({
                         form="leave-type-edit-form"
                         type="submit"
                         disabled={processing}
-                        className="flex w-full flex-shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95 disabled:opacity-50 sm:w-auto"
+                        className="flex w-full flex-shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:scale-95 disabled:opacity-50 sm:w-auto"
                     >
                         {processing ? (
                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />

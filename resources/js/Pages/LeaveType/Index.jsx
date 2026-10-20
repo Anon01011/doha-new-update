@@ -47,7 +47,7 @@ export default function Index({ leaveTypes }) {
                 {/* Header */}
                 <div className="flex flex-col items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:flex-row">
                     <div className="flex min-w-0 items-center gap-4">
-                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                             <FaClipboardList size={20} />
                         </div>
                         <div className="min-w-0">
@@ -65,7 +65,7 @@ export default function Index({ leaveTypes }) {
                     {canManage && (
                         <Link
                             href={route('leave-types.create')}
-                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95 md:w-auto"
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:scale-95 md:w-auto"
                         >
                             <FaPlus size={11} />
                             Add Leave Type
@@ -115,7 +115,7 @@ export default function Index({ leaveTypes }) {
                                         >
                                             <td className="px-5 py-3">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-xs font-semibold text-white">
+                                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-[10px] font-semibold text-primary">
                                                         {type.code?.substring(
                                                             0,
                                                             2,
@@ -276,7 +276,7 @@ export default function Index({ leaveTypes }) {
                                                         href={route(
                                                             'leave-types.create',
                                                         )}
-                                                        className="mt-8 flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95"
+                                                        className="mt-8 flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:scale-95"
                                                     >
                                                         <FaPlus size={10} />
                                                         Add First Leave Type
@@ -306,7 +306,7 @@ export default function Index({ leaveTypes }) {
                                         href={link.url || '#'}
                                         className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                                             link.active
-                                                ? 'bg-slate-900 text-white shadow-lg shadow-slate-200'
+                                                ? 'bg-primary text-white shadow-lg shadow-primary/20'
                                                 : !link.url
                                                   ? 'cursor-not-allowed text-slate-300'
                                                   : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
