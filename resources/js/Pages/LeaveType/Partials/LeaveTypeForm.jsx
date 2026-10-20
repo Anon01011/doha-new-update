@@ -9,7 +9,10 @@ import { FaExclamationCircle } from 'react-icons/fa';
 export function Field({ label, htmlFor, error, hint, required, children }) {
     return (
         <div className="space-y-2">
-            <label htmlFor={htmlFor} className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+            <label
+                htmlFor={htmlFor}
+                className="flex items-center gap-1.5 text-xs font-medium text-slate-600"
+            >
                 {label}
                 {required && <span className="text-rose-500">*</span>}
             </label>
@@ -22,7 +25,9 @@ export function Field({ label, htmlFor, error, hint, required, children }) {
                     <span>{error}</span>
                 </p>
             ) : hint ? (
-                <p className="text-[11px] leading-relaxed text-slate-400">{hint}</p>
+                <p className="text-[11px] leading-relaxed text-slate-400">
+                    {hint}
+                </p>
             ) : null}
         </div>
     );
@@ -65,7 +70,15 @@ export function ToggleSwitch({ id, checked, onChange, label }) {
 }
 
 /** A labelled switch row with an icon, title and supporting description. */
-export function SwitchRow({ id, icon, title, description, badge, checked, onChange }) {
+export function SwitchRow({
+    id,
+    icon,
+    title,
+    description,
+    badge,
+    checked,
+    onChange,
+}) {
     return (
         <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:shadow-sm">
             <div className="flex min-w-0 items-center gap-3.5">
@@ -77,19 +90,34 @@ export function SwitchRow({ id, icon, title, description, badge, checked, onChan
                         {title}
                         {badge}
                     </p>
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">{description}</p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">
+                        {description}
+                    </p>
                 </div>
             </div>
 
-            <ToggleSwitch id={id} checked={checked} onChange={onChange} label={title} />
+            <ToggleSwitch
+                id={id}
+                checked={checked}
+                onChange={onChange}
+                label={title}
+            />
         </div>
     );
 }
 
 /** Card shell used for each form section. */
-export function SectionCard({ icon, title, description, children, className = '' }) {
+export function SectionCard({
+    icon,
+    title,
+    description,
+    children,
+    className = '',
+}) {
     return (
-        <section className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`}>
+        <section
+            className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`}
+        >
             <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
                 {icon && (
                     <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
@@ -97,8 +125,14 @@ export function SectionCard({ icon, title, description, children, className = ''
                     </span>
                 )}
                 <div className="min-w-0">
-                    <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-                    {description && <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">{description}</p>}
+                    <h2 className="text-sm font-semibold text-slate-900">
+                        {title}
+                    </h2>
+                    {description && (
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">
+                            {description}
+                        </p>
+                    )}
                 </div>
             </div>
 
@@ -112,7 +146,11 @@ export function SummaryRow({ label, value, accent = false }) {
     return (
         <div className="flex items-center justify-between gap-4">
             <dt className="text-[11px] font-medium text-slate-400">{label}</dt>
-            <dd className={`truncate text-right text-xs font-semibold ${accent ? 'text-primary' : 'text-slate-900'}`}>{value}</dd>
+            <dd
+                className={`truncate text-right text-xs font-semibold ${accent ? 'text-primary' : 'text-slate-900'}`}
+            >
+                {value}
+            </dd>
         </div>
     );
 }

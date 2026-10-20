@@ -553,10 +553,16 @@ export default function AuthenticatedLayout({ header, children }) {
                     border-radius: 0.5rem !important;
                 }
 
-                /* Exceptions for inputs and small labels */
-                input, select, textarea, label, .text-xs, .text-sm {
-                    font-weight: 400 !important;
+                /* Exceptions for inputs and small labels.
+                   Uses :where() (zero specificity) so an explicit Tailwind font-weight
+                   utility (e.g. font-semibold) is no longer cancelled by this reset. */
+                :where(input, select, textarea, label, .text-xs, .text-sm) {
+                    font-weight: 400;
                 }
+                /* Preserve a visible emphasis when a small label/optgroup is bolded on purpose. */
+                :where(input, select, textarea, label).font-semibold { font-weight: 600; }
+                :where(input, select, textarea, label).font-medium { font-weight: 500; }
+                :where(input, select, textarea, label).font-bold { font-weight: 700; }
 
                 .bg-indigo-600, .bg-purple-600, .bg-blue-600, .bg-indigo-500, .bg-purple-500, .bg-blue-500, .bg-indigo-700, .bg-purple-700, .bg-blue-700, .bg-primary, .hover\:bg-primary:hover, .bg-slate-900, .bg-gray-900, .hover\:bg-slate-800:hover, .hover\:bg-gray-800:hover { background-color: var(--primary-color) !important; color: white !important; }
                 .text-indigo-600, .text-purple-600, .text-blue-600, .text-indigo-500, .text-purple-500, .text-blue-500, .text-indigo-700, .text-purple-700, .text-blue-700, .text-primary { color: var(--primary-color) !important; }
