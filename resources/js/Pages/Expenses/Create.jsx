@@ -4,9 +4,11 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
     FiArrowLeft, FiUploadCloud, FiFile, FiTrash2,
     FiAlertCircle, FiCheckCircle, FiInfo, FiTag, FiCalendar,
-    FiDollarSign, FiCreditCard, FiFolder, FiUser, FiBriefcase, FiLayers, FiSearch, FiCheck
+    FiDollarSign, FiCreditCard, FiFolder, FiUser, FiBriefcase, FiLayers, FiSearch, FiCheck, FiAlertTriangle
 } from 'react-icons/fi';
 import Avatar from '@/Components/Avatar';
+import { useCurrency } from '@/helpers/currency';
+import { useCurrencyLabel, CurrencyAmountInput } from '@/helpers/currency-ui';
 
 export default function Create({
     categories = [],
@@ -102,9 +104,8 @@ export default function Create({
         });
     };
 
-    const formatINR = (val) => {
-        return '₹' + Number(val || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
-    };
+    const { code: currencyCode, symbol: currencySymbol, format: formatCurrency } = useCurrency();
+    const { caption: currencyCaptionText } = useCurrencyLabel();
 
     const isExceedingLimit = selectedCategory?.policy_limit_amount && data.amount && Number(data.amount) > Number(selectedCategory.policy_limit_amount);
 
@@ -140,7 +141,7 @@ export default function Create({
                                 <p className="font-semibold">
                                     Policy guideline for {selectedCategory.name}:
                                     {selectedCategory.policy_limit_amount ? (
-                                        <span className="ml-1 text-slate-900 font-bold">Standard Limit: {formatINR(selectedCategory.policy_limit_amount)}</span>
+                                        <span className="ml-1 text-slate-900 font-bold">Standard Limit: {formatCurrency(selectedCategory.policy_limit_amount)}</span>
                                     ) : (
                                         <span className="ml-1 text-slate-500">No strict limit</span>
                                     )}
@@ -152,8 +153,7 @@ export default function Create({
                                     <p className="text-slate-500">{selectedCategory.description}</p>
                                 )}
                                 {isExceedingLimit && (
-                                    <p className="text-amber-700 font-medium">
-                                        ⚠ Note: Your claim of {formatINR(data.amount)} exceeds the standard policy limit. It will be flagged for Manager & Finance review.
+                                    <p className="text-amber-700 font-medium flex items-center gap-1.5"><FiAlertTriangle size={14} className="shrink-0" /> Note: Your claim of {formatCurrency(data.amount)} exceeds the standard policy limit. It will be flagged for Manager & Finance review.
                                     </p>
                                 )}
                             </div>
@@ -349,23 +349,19 @@ export default function Create({
                                         {errors.expense_date && <p className="text-[10px] text-rose-500 mt-1">{errors.expense_date}</p>}
                                     </div>
 
-                                    {/* Amount in INR */}
+                                    {/* Amount */}
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                            Total Claim Amount (INR ₹) <span className="text-rose-500">*</span>
+                                            Total Claim Amount <span className="font-normal text-slate-400">({currencyCaptionText})</span> <span className="text-rose-500">*</span>
                                         </label>
-                                        <div className="relative">
-                                            <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">₹</span>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                min="1"
-                                                placeholder="0.00"
-                                                value={data.amount}
-                                                onChange={(e) => setData('amount', e.target.value)}
-                                                className="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary focus:bg-white font-semibold"
-                                            />
-                                        </div>
+                                        <CurrencyAmountInput
+                                            value={data.amount}
+                                            onChange={(e) => setData('amount', e.target.value)}
+                                            symbol={currencySymbol}
+                                            code={currencyCode}
+                                            placeholder="0.00"
+                                            min="1"
+                                        />
                                         {errors.amount && <p className="text-[10px] text-rose-500 mt-1">{errors.amount}</p>}
                                     </div>
 
@@ -456,7 +452,7 @@ export default function Create({
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                            Tax Amount (GST ₹)
+                                            Tax Amount (GST {currencySymbol})
                                         </label>
                                         <input
                                             type="number"

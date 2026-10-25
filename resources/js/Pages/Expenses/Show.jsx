@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fi';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { useCurrency } from '@/helpers/currency';
 
 export default function Show({
     claim,
@@ -46,9 +47,7 @@ export default function Show({
         paid_at: new Date().toISOString().split('T')[0],
     });
 
-    const formatINR = (val) => {
-        return '₹' + Number(val || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
-    };
+    const { format: formatCurrency } = useCurrency();
 
     const handleManagerAction = (type) => {
         if (type === 'approve') {
@@ -205,9 +204,9 @@ export default function Show({
                             <div className="flex justify-between items-start pb-4 border-b border-slate-100">
                                 <div>
                                     <span className="text-[10px] font-normal uppercase tracking-normal text-slate-400">Claim Amount</span>
-                                    <h3 className="text-3xl font-semibold text-slate-900 tracking-tight">{formatINR(claim.amount)}</h3>
+                                    <h3 className="text-3xl font-semibold text-slate-900 tracking-tight">{formatCurrency(claim.amount)}</h3>
                                     {claim.tax_amount > 0 && (
-                                        <p className="text-xs text-slate-500 mt-0.5">Includes Tax / GST: {formatINR(claim.tax_amount)} ({claim.tax_rate || 0}%)</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">Includes Tax / GST: {formatCurrency(claim.tax_amount)} ({claim.tax_rate || 0}%)</p>
                                     )}
                                 </div>
                                 <div className="text-right">
@@ -216,7 +215,7 @@ export default function Show({
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                 <div className="p-3 bg-slate-50 rounded-lg">
                                     <span className="text-[9px] font-normal uppercase text-slate-400">Category</span>
                                     <p className="text-xs font-semibold text-slate-800 mt-0.5">{claim.category?.name || 'General'}</p>
@@ -622,7 +621,7 @@ export default function Show({
                     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                         <form onSubmit={handleProcessPayment} className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
                             <h3 className="text-base font-semibold text-slate-900">Record Reimbursement Payment</h3>
-                            <p className="text-xs text-slate-500">Record bank transfer reference / petty cash receipt for {formatINR(claim.amount)}.</p>
+                            <p className="text-xs text-slate-500">Record bank transfer reference / petty cash receipt for {formatCurrency(claim.amount)}.</p>
 
                             <div className="space-y-3">
                                 <div>

@@ -53,7 +53,7 @@ export default function ForgotPassword({ status, allowDirectReset }) {
                                 Don't worry, it happens to the best of us. We'll help you get back to managing your workforce in no time.
                             </p>
 
-                            <div className="grid grid-cols-2 gap-8">
+                            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
                                 <div className="space-y-2">
                                     <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center text-white">
                                         <FiCheckCircle className="w-6 h-6" />

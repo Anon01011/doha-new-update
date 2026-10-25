@@ -13,6 +13,7 @@ use App\Models\DocumentType;
 use App\Models\EmployeeDocument;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\RoleAssignmentService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -22,9 +23,60 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Reader\Xlsx as XlsxReader;
+use PhpOffice\PhpSpreadsheet\Reader\Xls as XlsReader;
+use PhpOffice\PhpSpreadsheet\Reader\Csv as CsvReader;
+use PhpOffice\PhpSpreadsheet\Reader\IReader;
 
 class EmployeeController extends Controller
 {
+    /**
+     * The maximum number of data rows accepted from a single import file.
+     *
+     * This is a resource-exhaustion guard, not a business limit: a workbook
+     * that expands to more rows than this is a spreadsheet bomb and is
+     * rejected before any row is persisted.
+     */
+    public const MAX_IMPORT_ROWS = 5000;
+
+    /**
+     * Build an explicit spreadsheet reader for an uploaded import file.
+     *
+     * SECURITY (CRIT-03): the reader is chosen from the file EXTENSION through
+     * a fixed allowlist. IOFactory::load() is deliberately NOT used, because
+     * it probes every registered reader - including the Xml, Html and Gnumeric
+     * readers, which resolve their input as a URL and therefore expose the
+     * server to SSRF and local file disclosure (CVE-2026-34084).
+     *
+     * The extension is taken from the ORIGINAL client filename only to pick a
+     * reader; the file content is then parsed by that specific reader, so a
+     * renamed `.xml` file can never reach the Xml reader.
+     *
+     * @return \PhpOffice\PhpSpreadsheet\Reader\IReader|null
+     */
+    private function makeSpreadsheetReader(\Illuminate\Http\UploadedFile $file): ?IReader
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+
+        switch ($extension) {
+            case 'xlsx':
+                return new XlsxReader();
+
+            case 'xls':
+                return new XlsReader();
+
+            case 'csv':
+            case 'txt':
+                $reader = new CsvReader();
+                $reader->setInputEncoding('UTF-8');
+                $reader->setOutputEncoding('UTF-8');
+
+                return $reader;
+
+            default:
+                return null;
+        }
+    }
     /**
      * Display a listing of the resource.
      */
@@ -58,14 +110,39 @@ class EmployeeController extends Controller
                 $q->where('companies.id', $companyId);
             });
         }
+        $now = now();
         $stats = [
-            'total' => $statsQuery->count(),
-            'active' => (clone $statsQuery)->active()->count(),
-            'waiting' => (clone $statsQuery)->where('manual_status', 'waiting')->count(),
-            'departments' => $deptCountQuery->count(),
-            'this_month' => (clone $statsQuery)->whereMonth('joined_date', now()->month)
-                ->whereYear('joined_date', now()->year)
+            'total'      => $statsQuery->count(),
+            'active'     => (clone $statsQuery)->active()->count(),
+            'pending_onboarding' => (clone $statsQuery)->pendingOnboarding()->count(),
+            'departments'=> $deptCountQuery->count(),
+            'this_month' => (clone $statsQuery)->whereMonth('joined_date', $now->month)
+                ->whereYear('joined_date', $now->year)->count(),
+            // Category counts
+            'cat_permanent' => (clone $statsQuery)->where('employee_category', 'Permanent')->count(),
+            'cat_contract'  => (clone $statsQuery)->where('employee_category', 'Contract')->count(),
+            'cat_probation' => (clone $statsQuery)->where('employee_category', 'Probation')->count(),
+            'cat_intern'    => (clone $statsQuery)->where('employee_category', 'Intern')->count(),
+            // Probation: on probation = active + category Probation + no confirmation_date
+            'on_probation'  => (clone $statsQuery)->active()
+                ->where('employee_category', 'Probation')
+                ->whereNull('confirmation_date')
                 ->count(),
+            // Probation ending soon (within 15 days)
+            'probation_ending_soon' => (clone $statsQuery)->active()
+                ->where('employee_category', 'Probation')
+                ->whereNull('confirmation_date')
+                ->whereNotNull('probation_end_date')
+                ->whereBetween('probation_end_date', [$now->toDateString(), $now->copy()->addDays(15)->toDateString()])
+                ->count(),
+            // Contract expiring within 30 days
+            'contract_expiring_soon' => (clone $statsQuery)->active()
+                ->where('employee_category', 'Contract')
+                ->whereNotNull('contract_expiry_date')
+                ->whereBetween('contract_expiry_date', [$now->toDateString(), $now->copy()->addDays(30)->toDateString()])
+                ->count(),
+            // Internship active
+            'on_internship' => (clone $statsQuery)->active()->where('employee_category', 'Intern')->count(),
         ];
 
         if ($status === 'active') {
@@ -73,11 +150,22 @@ class EmployeeController extends Controller
         } elseif ($status === 'inactive') {
             $query->inactive();
         } elseif ($status === 'waiting') {
-            $query->where('manual_status', 'waiting');
+            $query->pendingOnboarding();
         }
 
         if ($request->has('department_id') && $request->department_id) {
             $query->where('department_id', $request->department_id);
+        }
+
+        // Category filter
+        $categoryFilter = $request->query('category');
+        if ($categoryFilter && in_array($categoryFilter, ['Permanent', 'Contract', 'Probation', 'Intern'])) {
+            $query->where('employee_category', $categoryFilter);
+        }
+
+        // Company/branch filter
+        if ($request->has('company_id') && $request->company_id) {
+            $query->where('company_id', $request->company_id);
         }
 
         $employees = $query->with(['department', 'company', 'user.roles'])
@@ -97,12 +185,14 @@ class EmployeeController extends Controller
         $departments = $departmentsQuery->get(['departments.id', 'name', 'departments.company_id']);
 
         return Inertia::render('Employee/Index', [
-            'employees' => $employees,
-            'status' => $status,
-            'search' => $search,
-            'stats' => $stats,
-            'companies' => $companies,
+            'employees'   => $employees,
+            'status'      => $status,
+            'search'      => $search,
+            'category'    => $categoryFilter ?? null,
+            'stats'       => $stats,
+            'companies'   => $companies,
             'departments' => $departments,
+            'probation_duration_months' => \App\Models\Employee::defaultProbationMonths(),
         ]);
     }
 
@@ -129,6 +219,7 @@ class EmployeeController extends Controller
             });
         }
         $departments = $departmentsQuery->distinct()->get(['departments.id', 'name']);
+        $salaryComponents = \App\Models\SalaryComponent::where('is_active', true)->get();
         $availableRoles = Role::where('is_active', true)->get(['id', 'name', 'slug']);
         $defaultRole = Role::where('slug', 'employee')->where('is_active', true)->first()
             ?? Role::where('is_active', true)->first();
@@ -158,6 +249,10 @@ class EmployeeController extends Controller
 
         $validated = $request->validated();
 
+        // Resolve and authorize the requested role BEFORE any write happens, so a
+        // rejected request never leaves a partially-created employee behind.
+        $roleSlug = RoleAssignmentService::resolveRequestedRole($request, $user);
+
         // Multi-tenancy check: Force company_id for non-admins
         if (!$user->isAdmin() && $user->employee_id && $user->employee) {
             $validated['company_id'] = $user->employee->company_id;
@@ -174,6 +269,20 @@ class EmployeeController extends Controller
         if (empty($validated['employee_code'])) {
             $companyId = $validated['company_id'] ?? null;
             $validated['employee_code'] = Employee::generateCode($companyId);
+        } else {
+            // A manually entered code is stored in the same normalised form the
+            // generator produces, so both paths produce comparable values.
+            $validated['employee_code'] = strtoupper(trim($validated['employee_code']));
+        }
+
+        // Keep the legacy manager NAME in sync with the manager foreign key so
+        // the profile page, exports and reports keep working unchanged.
+        if (array_key_exists('reports_to_id', $validated)) {
+            $manager = $validated['reports_to_id']
+                ? Employee::withoutGlobalScopes()->find($validated['reports_to_id'])
+                : null;
+
+            $validated['reported_to'] = $manager ? $manager->name : null;
         }
 
         $newUploadedFiles = [];
@@ -224,6 +333,12 @@ class EmployeeController extends Controller
         if ($request->hasFile('aadhar_file')) {
             $path = $request->file('aadhar_file')->store('employee-docs', 'public');
             $validated['aadhar_file_path'] = $path;
+            $newUploadedFiles[] = $path;
+        }
+
+        if ($request->hasFile('health_card_file')) {
+            $path = $request->file('health_card_file')->store('employee-docs', 'public');
+            $validated['health_card_file_path'] = $path;
             $newUploadedFiles[] = $path;
         }
 
@@ -313,6 +428,11 @@ class EmployeeController extends Controller
                 $this->createIdentityDocument($employee, 'Food Handler', $validated['food_handler_file_path'], $validated['food_handler_expiry_date'] ?? null, 'Medical');
             }
 
+            // Handle Health Card Document Creation
+            if (isset($validated['health_card_file_path'])) {
+                $this->createIdentityDocument($employee, 'Health Card', $validated['health_card_file_path'], $validated['health_card_expiry_date'] ?? null, 'Medical');
+            }
+
             // Handle Aadhar Document Creation
             if (isset($validated['aadhar_file_path'])) {
                 $this->createIdentityDocument($employee, 'Aadhar Card', $validated['aadhar_file_path'], null, 'Identity');
@@ -338,12 +458,9 @@ class EmployeeController extends Controller
                 $this->createIdentityDocument($employee, 'Bank Details Document', $validated['bank_doc_path'], null, 'Financial');
             }
 
-            // Create or Sync User and Role (default to 'employee' role from role system if not provided)
-            $roleSlug = !empty($validated['role']) ? $validated['role'] : null;
-            if (empty($roleSlug)) {
-                $defaultRole = Role::where('slug', 'employee')->where('is_active', true)->first();
-                $roleSlug = $defaultRole ? $defaultRole->slug : 'employee';
-            }
+            // Create or Sync User and Role. The role was already resolved and
+            // authorized by RoleAssignmentService at the top of this method, so a
+            // user holding only `create-employees` cannot mint an `admin` account.
 
             $userEmail = !empty($employee->email) ? $employee->email : (!empty($validated['email']) ? $validated['email'] : null);
 
@@ -472,8 +589,41 @@ class EmployeeController extends Controller
             $roleSlug = $matchedRole ? $matchedRole->slug : $roleSlug;
         }
 
+        // Lifecycle data - computed server-side for consistency across show page and dashboard
+        $probationLifecycle  = $employee->getProbationLifecycle();
+        $internshipLifecycle = $employee->getInternshipLifecycle();
+        $contractLifecycle   = $employee->getContractLifecycle();
+
+        // Salary privacy: the employee viewing their own profile is the only
+        // role allowed to see pay data on this page. Admin / HR / manager use
+        // the payroll and salary-structure modules instead.
+        $canSeeSalary = $linkedUser !== null && (int) $linkedUser->id === (int) $user->id;
+
+
+        // Redact pay data at the source so it never reaches the browser for
+        // viewers who are not the employee themselves.
+        $employeePayload = $employee->toArray();
+        if (!$canSeeSalary) {
+            foreach ([
+                'basic_salary',
+                'salary_structures',
+                'salaryStructures',
+                'bank_account_number',
+                'iban',
+                'upi_id',
+                'pan_number',
+                'bank_name',
+                'bank_code',
+                'bank_branch',
+            ] as $privateField) {
+                unset($employeePayload[$privateField]);
+            }
+        }
         return Inertia::render('Employee/Show', [
-            'employee' => array_merge($employee->toArray(), [
+            'employee' => array_merge($employeePayload, [
+                // Explicit route key so the frontend can build slug URLs
+                // without depending on the serialised column list.
+                'slug' => $employee->slug ?: (string) $employee->id,
                 'company_name' => $employee->company ? $employee->company->name : null,
                 'department_name' => $departmentName,
                 'companies_list' => $companiesList,
@@ -481,6 +631,12 @@ class EmployeeController extends Controller
                 'role_name' => $roleName,
                 'role_slug' => $roleSlug,
             ]),
+            'probationLifecycle'  => $probationLifecycle,
+            'internshipLifecycle' => $internshipLifecycle,
+            'contractLifecycle'   => $contractLifecycle,
+            'probation_duration_months' => \App\Models\Employee::defaultProbationMonths(),
+            'can_see_salary' => $canSeeSalary,
+            'leaveBalances' => \App\Services\LeaveBalanceService::getOrSyncBalancesForEmployee($employee, (int) now()->year),
         ]);
     }
 
@@ -568,6 +724,13 @@ class EmployeeController extends Controller
 
         $validated = $request->validated();
 
+        // Resolve and authorize the requested role BEFORE any write happens.
+        // `resolveRequestedRole` also refuses to let a user change their own
+        // role, which closes the self-escalation path.
+        $targetUser = $employee->user ?: User::where('employee_id', $employee->id)->first();
+        $currentRoleSlug = $targetUser->role ?? $employee->role;
+        $roleSlug = RoleAssignmentService::resolveRequestedRole($request, $user, $targetUser, $currentRoleSlug);
+
         // Convert empty string unique fields to null
         foreach (['mobile', 'email', 'qid_number', 'passport_number', 'health_card_number'] as $field) {
             if (array_key_exists($field, $validated) && ($validated[$field] === '' || $validated[$field] === null)) {
@@ -601,8 +764,29 @@ class EmployeeController extends Controller
             unset($validated['company_id'], $validated['company_ids'], $validated['department_id'], $validated['department_ids'], $validated['manual_status']);
         }
 
+        // Offboarding fields and the payroll overtime switch are restricted to
+        // Admin and HR. A branch-level editor must not be able to offboard an
+        // employee or silently exclude them from overtime calculation.
+        if (!$user->isAdmin() && !$user->isHR()) {
+            unset($validated['exit_status'], $validated['exit_date'], $validated['exit_reason'], $validated['no_overtime']);
+        }
+
+        // Keep the legacy manager NAME in sync with the manager foreign key so
+        // the profile page, exports and reports keep working unchanged.
+        if (array_key_exists('reports_to_id', $validated)) {
+            $manager = $validated['reports_to_id']
+                ? Employee::withoutGlobalScopes()->find($validated['reports_to_id'])
+                : null;
+
+            if ($manager && (int) $manager->id === (int) $employee->id) {
+                return back()->withErrors(['reports_to_id' => 'An employee cannot report to themselves.']);
+            }
+
+            $validated['reported_to'] = $manager ? $manager->name : null;
+        }
+
         // Remove file fields from validated data so they don't overwrite with null if not uploaded
-        unset($validated['employee_image'], $validated['agreement_doc'], $validated['resume_doc'], $validated['other_docs'], $validated['passport_file'], $validated['qid_file'], $validated['food_handler_file']);
+        unset($validated['employee_image'], $validated['agreement_doc'], $validated['resume_doc'], $validated['other_docs'], $validated['passport_file'], $validated['qid_file'], $validated['food_handler_file'], $validated['health_card_file']);
 
         // Handle file upload if present
         $newUploadedFiles = [];
@@ -677,6 +861,15 @@ class EmployeeController extends Controller
             }
             $path = $request->file('aadhar_file')->store('employee-docs', 'public');
             $validated['aadhar_file_path'] = $path;
+            $newUploadedFiles[] = $path;
+        }
+
+        if ($request->hasFile('health_card_file')) {
+            if ($employee->health_card_file_path) {
+                $oldFilesToDelete[] = $employee->health_card_file_path;
+            }
+            $path = $request->file('health_card_file')->store('employee-docs', 'public');
+            $validated['health_card_file_path'] = $path;
             $newUploadedFiles[] = $path;
         }
 
@@ -808,14 +1001,8 @@ class EmployeeController extends Controller
                 $this->createIdentityDocument($employee, 'Bank Details Document', $validated['bank_doc_path'], null, 'Financial');
             }
 
-            // Create or Sync User and Role (default to 'employee' if not provided)
-            $roleSlug = !empty($validated['role']) ? $validated['role'] : null;
-            if (empty($roleSlug)) {
-                $defaultRole = Role::where('slug', 'employee')->where('is_active', true)->first();
-                $roleSlug = $defaultRole ? $defaultRole->slug : 'employee';
-            }
-
-            // Find matching role in database flexibly
+            // Create or Sync User and Role. The role was already resolved and
+            // authorized by RoleAssignmentService at the top of this method.
             $role = Role::where('slug', $roleSlug)
                 ->orWhere('id', $roleSlug)
                 ->orWhere('name', $roleSlug)
@@ -1145,6 +1332,7 @@ class EmployeeController extends Controller
 
         return [
             'genders' => !empty($options['Gender']) ? $options['Gender'] : ['Male', 'Female'],
+            'marital_statuses' => !empty($options['Marital Status']) ? $options['Marital Status'] : ['Single', 'Married', 'Divorced', 'Widowed', 'Separated'],
             'designations' => !empty($options['Designation']) ? $options['Designation'] : [
                 'Owner / Founder',
                 'Chief Operating Officer',
@@ -1170,6 +1358,11 @@ class EmployeeController extends Controller
             'payment_types' => !empty($options['Payment Type']) ? $options['Payment Type'] : ['Bank Transfer', 'Cash', 'Cheque'],
             'leave_statuses' => !empty($options['Leave Status']) ? $options['Leave Status'] : ['Available', 'On Leave', 'Unpaid Leave'],
             'shifts' => !empty($options['Shift']) ? $options['Shift'] : ['Morning', 'Evening', 'Night', 'General'],
+            // A non-persisted sample of the code that will be auto generated,
+            // so the form can show the real format (<PREFIX><8 digits>).
+            'employee_code_preview' => Employee::codePreview(),
+            'employee_code_prefix' => Employee::codePrefix(),
+            'probation_duration_months' => Employee::defaultProbationMonths(),
         ];
     }
 
@@ -1328,8 +1521,10 @@ class EmployeeController extends Controller
                 'Gender',
                 'DOB',
                 'Nationality',
+                'Marital Status',
                 'Sponsor',
                 'Basic Salary',
+                'Overtime Eligibility',
                 'Reported To',
                 'Joined Date',
                 'Rejoined Date',
@@ -1339,6 +1534,8 @@ class EmployeeController extends Controller
                 'Employee Category',
                 'Contract Duration',
                 'Exit Status',
+                'Exit Date',
+                'Exit Reason',
                 'Payment Type',
                 'Leave Status',
                 'Status',
@@ -1416,8 +1613,10 @@ class EmployeeController extends Controller
                     $emp->gender,
                     $fmtDate($emp->dob),
                     $emp->nationality,
+                    $emp->marital_status,
                     $emp->sponsor,
                     $emp->basic_salary ? (float)$emp->basic_salary : 0,
+                    $emp->no_overtime ? 'Excluded' : 'Eligible',
                     $emp->reported_to,
                     $fmtDate($emp->joined_date),
                     $fmtDate($emp->rejoined_date),
@@ -1427,6 +1626,8 @@ class EmployeeController extends Controller
                     $emp->employee_category,
                     $emp->contract_duration,
                     $emp->exit_status,
+                    $fmtDate($emp->exit_date),
+                    $emp->exit_reason,
                     $emp->payment_type,
                     $emp->leave_status,
                     $emp->manual_status ?: ($emp->is_active ? 'active' : 'inactive'),
@@ -1530,6 +1731,7 @@ class EmployeeController extends Controller
                 'Gender',
                 'DOB',
                 'Nationality',
+                'Marital Status',
                 'Sponsor',
                 'Basic Salary',
                 'Reported To',
@@ -1728,8 +1930,32 @@ class EmployeeController extends Controller
         $file = $request->file('file');
         $realPath = $file->getRealPath();
 
+        // SECURITY FIX (CRIT-03): never use IOFactory::load() on a user supplied
+        // file.
+        //
+        // IOFactory::load() auto-detects the reader by trying EVERY registered
+        // reader until one claims the file (IOFactory::createReaderForFile()).
+        // That set includes the Xml, Html and Gnumeric readers, and those
+        // readers resolve the "filename" as a URL - the Xml reader calls
+        // file_get_contents($filename) directly. A crafted upload can therefore
+        // make the server issue outbound HTTP requests (SSRF against internal
+        // services and cloud metadata) or read local files. This is
+        // CVE-2026-34084 (advisory PKSA-8cfg-tzhf-fr83), and the installed
+        // phpoffice/phpspreadsheet 5.4.0 is inside the affected range.
+        //
+        // The fix is structural: an explicit reader is instantiated here, so
+        // only the three intended formats can ever be parsed. The dangerous
+        // readers are not "filtered out" - they are never constructed.
+        $reader = $this->makeSpreadsheetReader($file);
+
+        if ($reader === null) {
+            return back()->withErrors([
+                'file' => 'Only Excel (.xlsx, .xls) or CSV (.csv) files are allowed for import.',
+            ]);
+        }
+
         try {
-            $spreadsheet = IOFactory::load($realPath);
+            $spreadsheet = $reader->load($realPath);
             $sheet = $spreadsheet->getActiveSheet();
             $allRows = $sheet->toArray(null, true, true, false);
         } catch (\Throwable $e) {
@@ -1739,6 +1965,24 @@ class EmployeeController extends Controller
 
         if (empty($allRows) || count($allRows) < 2) {
             return back()->withErrors(['file' => 'The uploaded file contains no data rows.']);
+        }
+
+        // SECURITY FIX (HIGH-06): bound the number of rows that are parsed.
+        //
+        // The 15 MB upload limit is NOT a bound on the decompressed / expanded
+        // size of a workbook. A crafted spreadsheet can declare millions of
+        // rows in its dimension metadata and make the reader allocate and
+        // serialise them (CVE-2026-40902, CVE-2026-40863), or contain a
+        // self-referencing sector chain that loops forever (CVE-2026-59933).
+        // Either way a single upload can exhaust the memory or the CPU of a
+        // PHP worker. The cap is applied immediately after the load, before a
+        // single row is written to the database.
+        if (count($allRows) > self::MAX_IMPORT_ROWS) {
+            \Log::warning('Employee import rejected: row count ' . count($allRows) . ' exceeds limit ' . self::MAX_IMPORT_ROWS);
+
+            return back()->withErrors([
+                'file' => 'The uploaded file contains too many rows. The maximum is ' . self::MAX_IMPORT_ROWS . ' data rows.',
+            ]);
         }
 
         // Header mapping
@@ -1767,6 +2011,7 @@ class EmployeeController extends Controller
             'gender' => $findCol(['gender', 'sex']),
             'dob' => $findCol(['dob', 'date of birth', 'birth date']),
             'nationality' => $findCol(['nationality', 'country']),
+            'marital_status' => $findCol(['marital status', 'marital_status', 'marital']),
             'sponsor' => $findCol(['sponsor', 'sponsorship']),
             'basic_salary' => $findCol(['basic salary', 'salary', 'basic_salary', 'basic']),
             'reported_to' => $findCol(['reported to', 'reporting manager', 'manager', 'reports to']),
@@ -1778,6 +2023,8 @@ class EmployeeController extends Controller
             'employee_category' => $findCol(['employee category', 'category', 'type']),
             'contract_duration' => $findCol(['contract duration', 'contract_duration', 'duration']),
             'exit_status' => $findCol(['exit status', 'exit_status']),
+            'exit_date' => $findCol(['exit date', 'exit_date', 'last working day']),
+            'exit_reason' => $findCol(['exit reason', 'exit_reason', 'reason for exit']),
             'payment_type' => $findCol(['payment type', 'payment_type', 'payment method']),
             'leave_status' => $findCol(['leave status', 'leave_status']),
             'status' => $findCol(['status', 'manual_status', 'active status']),
@@ -1876,6 +2123,7 @@ class EmployeeController extends Controller
                     'gender' => $getVal('gender'),
                     'dob' => $parseDate($getVal('dob')),
                     'nationality' => $getVal('nationality'),
+                    'marital_status' => $getVal('marital_status') ?: null,
                     'sponsor' => $getVal('sponsor'),
                     'basic_salary' => is_numeric($getVal('basic_salary')) ? $getVal('basic_salary') : 0,
                     'reported_to' => $getVal('reported_to'),
@@ -1887,6 +2135,8 @@ class EmployeeController extends Controller
                     'employee_category' => $getVal('employee_category') ?: 'Permanent',
                     'contract_duration' => $getVal('contract_duration') ?: '2 Years',
                     'exit_status' => $getVal('exit_status'),
+                    'exit_date' => $parseDate($getVal('exit_date')),
+                    'exit_reason' => $getVal('exit_reason') ?: null,
                     'payment_type' => $getVal('payment_type') ?: 'Bank Transfer',
                     'leave_status' => $getVal('leave_status') ?: 'Available',
                     'manual_status' => $getVal('status') ?: 'active',

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { FaFileAlt, FaCloudUploadAlt, FaDownload, FaTrash, FaCheckCircle, FaExclamationCircle, FaTimesCircle, FaCalendarAlt, FaFileContract, FaInfoCircle, FaEye } from 'react-icons/fa';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Lightbox from '@/Components/Lightbox';
+import { employeeRouteKey } from '@/helpers/employee-routes';
 
 export default function Documents({ employee, documents, documentTypes, userRole, settings }) {
     const { auth } = usePage().props;
@@ -44,7 +45,7 @@ export default function Documents({ employee, documents, documentTypes, userRole
 
     const handleUpload = (e) => {
         e.preventDefault();
-        post(route('employees.documents.store', employee.id), {
+        post(route('employees.documents.store', employeeRouteKey(employee)), {
             onSuccess: () => {
                 reset();
                 setShowUploadModal(false);

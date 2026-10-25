@@ -3,9 +3,12 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import React, { useState } from 'react';
 import {
     FiArrowLeft, FiPlus, FiEdit2, FiTrash2, FiTag,
-    FiCheck, FiX, FiInfo, FiDollarSign, FiBriefcase
+    FiCheck, FiInfo, FiDollarSign, FiBriefcase
 } from 'react-icons/fi';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import FormModal from '@/Components/FormModal';
+import { useCurrency } from '@/helpers/currency';
+import { useCurrencyLabel, CurrencyAmountInput } from '@/helpers/currency-ui';
 
 export default function Index({ categories = [], companies = [], filters = {} }) {
     const [modalOpen, setModalOpen] = useState(false);
@@ -74,8 +77,11 @@ export default function Index({ categories = [], companies = [], filters = {} })
         });
     };
 
+    const { code: currencyCode, symbol: currencySymbol, format: formatAmount } = useCurrency();
+    const { label: currencyLabelText, caption: currencyCaptionText } = useCurrencyLabel();
+
     const formatINR = (val) => {
-        return val ? '₹' + Number(val).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : 'No limit';
+        return val ? formatAmount(val) : 'No limit';
     };
 
     return (
@@ -97,7 +103,7 @@ export default function Index({ categories = [], companies = [], filters = {} })
                                 <FiTag className="text-rose-500 w-5 h-5" /> Expense Categories & Policy Limits
                             </h1>
                             <p className="text-xs text-slate-500 font-normal mt-0.5">
-                                Configure claimable business categories, spending limits in INR (₹), and receipt policies
+                                Configure claimable business categories, spending limits in {currencyCaptionText}, and receipt policies
                             </p>
                         </div>
                     </div>
@@ -123,7 +129,7 @@ export default function Index({ categories = [], companies = [], filters = {} })
                                     <th className="py-3.5 px-4">Code</th>
                                     <th className="py-3.5 px-4">Category Name</th>
                                     <th className="py-3.5 px-4">Scope / Company</th>
-                                    <th className="py-3.5 px-4">Policy Limit (INR ₹)</th>
+                                    <th className="py-3.5 px-4">Policy Limit ({currencyCaptionText})</th>
                                     <th className="py-3.5 px-4 text-center">Receipt Mandated</th>
                                     <th className="py-3.5 px-4 text-center">Tax Deductible</th>
                                     <th className="py-3.5 px-4 text-center">Status</th>
@@ -211,141 +217,171 @@ export default function Index({ categories = [], companies = [], filters = {} })
                 </div>
 
                 {/* Create / Edit Modal */}
-                {modalOpen && (
-                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-                        <form onSubmit={handleSubmit} className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200">
-                            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                                <h3 className="text-base font-bold text-slate-900">
-                                    {editingCategory ? 'Edit Expense Category' : 'Create Expense Category'}
-                                </h3>
-                                <button
-                                    type="button"
-                                    onClick={() => setModalOpen(false)}
-                                    className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
-                                >
-                                    <FiX className="w-5 h-5" />
-                                </button>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="col-span-2 sm:col-span-1">
-                                    <label className="block text-xs font-semibold text-slate-700 mb-1">Category Name *</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="e.g. Travel & Stay"
-                                        value={data.name}
-                                        onChange={(e) => setData('name', e.target.value)}
-                                        className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-medium"
-                                    />
-                                    {errors.name && <p className="text-[10px] text-rose-500 mt-1">{errors.name}</p>}
-                                </div>
-                                <div className="col-span-2 sm:col-span-1">
-                                    <label className="block text-xs font-semibold text-slate-700 mb-1">Code *</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="e.g. EXP-TRV"
-                                        value={data.code}
-                                        onChange={(e) => setData('code', e.target.value)}
-                                        className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 uppercase font-mono font-bold"
-                                    />
-                                    {errors.code && <p className="text-[10px] text-rose-500 mt-1">{errors.code}</p>}
-                                </div>
-                            </div>
-
-                            {companies.length > 0 && (
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-700 mb-1">Company / Branch Scope</label>
-                                    <select
-                                        value={data.company_id}
-                                        onChange={(e) => setData('company_id', e.target.value)}
-                                        className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-medium"
-                                    >
-                                        <option value="">Global (Available to All Companys)</option>
-                                        {companies.map((c) => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-
+                <FormModal
+                    show={modalOpen}
+                    onClose={() => setModalOpen(false)}
+                    icon={<FiTag className="w-5 h-5" />}
+                    iconClassName="bg-rose-500/10 text-rose-600"
+                    title={editingCategory ? 'Edit Expense Category' : 'Create Expense Category'}
+                    subtitle={
+                        editingCategory
+                            ? `Update the policy limit, scope and claim rules for ${data.name || 'this category'}.`
+                            : 'Define a claimable category with an optional spending cap and receipt policy.'
+                    }
+                    maxWidth="max-w-xl"
+                    footer={
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => setModalOpen(false)}
+                                className="px-4 py-2 text-xs font-medium text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                form="expense-category-form"
+                                disabled={processing}
+                                className="px-5 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-all shadow-sm shadow-rose-600/20 hover:shadow-md hover:shadow-rose-600/30 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1.5"
+                            >
+                                {processing ? (
+                                    <>
+                                        <span className="h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                                        Saving
+                                    </>
+                                ) : editingCategory ? (
+                                    'Update Category'
+                                ) : (
+                                    'Save Category'
+                                )}
+                            </button>
+                        </>
+                    }
+                >
+                    <form id="expense-category-form" onSubmit={handleSubmit} className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">Policy Limit Amount (INR ₹)</label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">₹</span>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        placeholder="Leave empty for unlimited"
-                                        value={data.policy_limit_amount}
-                                        onChange={(e) => setData('policy_limit_amount', e.target.value)}
-                                        className="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-semibold"
-                                    />
-                                </div>
-                                <p className="text-[10px] text-slate-400 mt-1">Claims exceeding this threshold will be flagged for review.</p>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">Description / Policy Guidance</label>
-                                <textarea
-                                    rows="2"
-                                    placeholder="Guidelines on what is eligible under this category..."
-                                    value={data.description}
-                                    onChange={(e) => setData('description', e.target.value)}
-                                    className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                                <label htmlFor="expense-category-name" className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                    Category Name <span className="text-rose-500">*</span>
+                                </label>
+                                <input
+                                    id="expense-category-name"
+                                    type="text"
+                                    required
+                                    placeholder="e.g. Travel & Stay"
+                                    value={data.name}
+                                    onChange={(e) => setData('name', e.target.value)}
+                                    className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 focus:bg-white transition-colors font-medium text-slate-800 placeholder:text-slate-400"
                                 />
+                                {errors.name && <p className="text-[10px] text-rose-500 mt-1">{errors.name}</p>}
                             </div>
+                            <div>
+                                <label htmlFor="expense-category-code" className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                    Code <span className="text-rose-500">*</span>
+                                </label>
+                                <input
+                                    id="expense-category-code"
+                                    type="text"
+                                    required
+                                    placeholder="e.g. EXP-TRV"
+                                    value={data.code}
+                                    onChange={(e) => setData('code', e.target.value)}
+                                    className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 focus:bg-white transition-colors uppercase font-mono font-bold text-slate-800 placeholder:text-slate-400 placeholder:font-normal placeholder:normal-case"
+                                />
+                                {errors.code && <p className="text-[10px] text-rose-500 mt-1">{errors.code}</p>}
+                            </div>
+                        </div>
 
-                            <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={data.requires_receipt}
-                                        onChange={(e) => setData('requires_receipt', e.target.checked)}
-                                        className="rounded text-rose-600 focus:ring-rose-400"
-                                    />
-                                    <span className="text-slate-700 font-medium">Receipt Attachment is Mandatory</span>
+                        {companies.length > 0 && (
+                            <div>
+                                <label htmlFor="expense-category-company" className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                    Company / Branch Scope
                                 </label>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={data.is_tax_deductible}
-                                        onChange={(e) => setData('is_tax_deductible', e.target.checked)}
-                                        className="rounded text-rose-600 focus:ring-rose-400"
-                                    />
-                                    <span className="text-slate-700 font-medium">Tax Deductible / Eligible for Input GST Credit</span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={data.is_active}
-                                        onChange={(e) => setData('is_active', e.target.checked)}
-                                        className="rounded text-rose-600 focus:ring-rose-400"
-                                    />
-                                    <span className="text-slate-700 font-medium">Active & Claimable</span>
-                                </label>
+                                <select
+                                    id="expense-category-company"
+                                    value={data.company_id}
+                                    onChange={(e) => setData('company_id', e.target.value)}
+                                    className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 focus:bg-white transition-colors font-medium text-slate-800"
+                                >
+                                    <option value="">Global (Available to All Companys)</option>
+                                    {companies.map((c) => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                                <p className="text-[10px] text-slate-400 mt-1.5">
+                                    Global categories can be claimed by every company and branch.
+                                </p>
                             </div>
+                        )}
 
-                            <div className="flex justify-end gap-2 pt-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setModalOpen(false)}
-                                    className="px-4 py-2 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={processing}
-                                    className="px-5 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-all shadow-sm cursor-pointer"
-                                >
-                                    {editingCategory ? 'Update Category' : 'Save Category'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                )}
+                        <div>
+                            <label htmlFor="expense-category-limit" className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Policy Limit Amount <span className="font-normal text-slate-400">({currencyCaptionText})</span>
+                            </label>
+                            <CurrencyAmountInput
+                                id="expense-category-limit"
+                                value={data.policy_limit_amount}
+                                onChange={(e) => setData('policy_limit_amount', e.target.value)}
+                                symbol={currencySymbol}
+                                code={currencyCode}
+                                placeholder="Leave empty for unlimited"
+                            />
+                            <p className="text-[10px] text-slate-400 mt-1.5">
+                                Claims exceeding this threshold will be flagged for review.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label htmlFor="expense-category-description" className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Description / Policy Guidance
+                            </label>
+                            <textarea
+                                id="expense-category-description"
+                                rows="2"
+                                placeholder="Guidelines on what is eligible under this category..."
+                                value={data.description}
+                                onChange={(e) => setData('description', e.target.value)}
+                                className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 focus:bg-white transition-colors text-slate-800 placeholder:text-slate-400"
+                            />
+                        </div>
+
+                        <div className="space-y-2 pt-3 border-t border-slate-100 text-xs">
+                            <label className="flex items-center gap-2.5 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={data.requires_receipt}
+                                    onChange={(e) => setData('requires_receipt', e.target.checked)}
+                                    className="rounded text-rose-600 focus:ring-rose-400"
+                                />
+                                <span className="text-slate-700 font-medium group-hover:text-slate-900 transition-colors">
+                                    Receipt Attachment is Mandatory
+                                </span>
+                            </label>
+                            <label className="flex items-center gap-2.5 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={data.is_tax_deductible}
+                                    onChange={(e) => setData('is_tax_deductible', e.target.checked)}
+                                    className="rounded text-rose-600 focus:ring-rose-400"
+                                />
+                                <span className="text-slate-700 font-medium group-hover:text-slate-900 transition-colors">
+                                    Tax Deductible / Eligible for Input GST Credit
+                                </span>
+                            </label>
+                            <label className="flex items-center gap-2.5 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={data.is_active}
+                                    onChange={(e) => setData('is_active', e.target.checked)}
+                                    className="rounded text-rose-600 focus:ring-rose-400"
+                                />
+                                <span className="text-slate-700 font-medium group-hover:text-slate-900 transition-colors">
+                                    Active &amp; Claimable
+                                </span>
+                            </label>
+                        </div>
+                    </form>
+                </FormModal>
 
                 {/* Confirmation Modal for Delete */}
                 <ConfirmationModal

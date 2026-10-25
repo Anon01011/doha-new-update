@@ -228,9 +228,9 @@ Route::middleware('auth')->group(function () {
     Route::post('leave-requests/bulk-reject', [\App\Http\Controllers\LeaveRequestController::class, 'bulkReject'])->name('leave-requests.bulk-reject');
     Route::resource('leave-requests', \App\Http\Controllers\LeaveRequestController::class);
     Route::resource('salary-postings', \App\Http\Controllers\SalaryPostingController::class);
-    Route::post('salary-postings/bulk-action', [\App\Http\Controllers\SalaryPostingController::class, 'bulkAction'])->name('salary-postings.bulk-action');
-    Route::post('salary-postings/bulk-generate', [\App\Http\Controllers\SalaryPostingController::class, 'bulkGenerate'])->name('salary-postings.bulk-generate');
-    Route::post('salary-postings/auto-update', [\App\Http\Controllers\SalaryPostingController::class, 'autoUpdate'])->name('salary-postings.auto-update');
+    Route::post('salary-postings/bulk-action', [\App\Http\Controllers\SalaryPostingController::class, 'bulkAction'])->name('salary-postings.bulk-action')->middleware('throttle:10,1');
+    Route::post('salary-postings/bulk-generate', [\App\Http\Controllers\SalaryPostingController::class, 'bulkGenerate'])->name('salary-postings.bulk-generate')->middleware('throttle:10,1');
+    Route::post('salary-postings/auto-update', [\App\Http\Controllers\SalaryPostingController::class, 'autoUpdate'])->name('salary-postings.auto-update')->middleware('throttle:10,1');
     Route::get('salary-postings/{salaryPosting}/slip', [\App\Http\Controllers\SalaryPostingController::class, 'generateSlip'])->name('salary-postings.slip');
     Route::resource('loans', \App\Http\Controllers\LoanController::class);
     Route::resource('advances', \App\Http\Controllers\AdvanceController::class);
@@ -257,16 +257,23 @@ Route::middleware('auth')->group(function () {
     Route::post('expenses/{expense}/process-payment', [\App\Http\Controllers\ExpenseClaimController::class, 'processPayment'])->name('expenses.process-payment');
 
     // Offboarding Module
-    Route::resource('offboarding', \App\Http\Controllers\OffboardingController::class);
-    Route::post('offboarding/{offboarding}/approve', [\App\Http\Controllers\OffboardingController::class, 'approve'])->name('offboarding.approve');
-    Route::post('offboarding/{offboarding}/reject', [\App\Http\Controllers\OffboardingController::class, 'reject'])->name('offboarding.reject');
-    Route::post('offboarding/{offboarding}/tasks/{task}', [\App\Http\Controllers\OffboardingController::class, 'updateTask'])->name('offboarding.tasks.update');
-    Route::get('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'exitInterview'])->name('offboarding.exit-interview');
-    Route::post('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'storeExitInterview'])->name('offboarding.exit-interview.store');
-    Route::post('offboarding/{offboarding}/settlement', [\App\Http\Controllers\OffboardingController::class, 'settlementPreview'])->name('offboarding.settlement');
-    Route::post('offboarding/{offboarding}/complete', [\App\Http\Controllers\OffboardingController::class, 'complete'])->name('offboarding.complete');
-    Route::post('offboarding/{offboarding}/unlock', [\App\Http\Controllers\OffboardingController::class, 'unlockProfile'])->name('offboarding.unlock');
-    Route::get('offboarding/{offboarding}/relieving-letter', [\App\Http\Controllers\OffboardingController::class, 'generateRelievingLetter'])->name('offboarding.relieving-letter');
+    // Security fix: the offboarding routes previously carried no role/permission
+    // middleware at all, so any authenticated employee could approve, cancel or
+    // delete another employee's offboarding request. The module is now restricted
+    // to the management roles, and the state-changing endpoints additionally
+    // enforce their own ownership / separation-of-duties checks in the controller.
+    Route::middleware('role:admin,hr,manager')->group(function () {
+        Route::resource('offboarding', \App\Http\Controllers\OffboardingController::class);
+        Route::post('offboarding/{offboarding}/approve', [\App\Http\Controllers\OffboardingController::class, 'approve'])->name('offboarding.approve');
+        Route::post('offboarding/{offboarding}/reject', [\App\Http\Controllers\OffboardingController::class, 'reject'])->name('offboarding.reject');
+        Route::post('offboarding/{offboarding}/tasks/{task}', [\App\Http\Controllers\OffboardingController::class, 'updateTask'])->name('offboarding.tasks.update');
+        Route::get('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'exitInterview'])->name('offboarding.exit-interview');
+        Route::post('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'storeExitInterview'])->name('offboarding.exit-interview.store');
+        Route::post('offboarding/{offboarding}/settlement', [\App\Http\Controllers\OffboardingController::class, 'settlementPreview'])->name('offboarding.settlement');
+        Route::post('offboarding/{offboarding}/complete', [\App\Http\Controllers\OffboardingController::class, 'complete'])->name('offboarding.complete');
+        Route::post('offboarding/{offboarding}/unlock', [\App\Http\Controllers\OffboardingController::class, 'unlockProfile'])->name('offboarding.unlock');
+        Route::get('offboarding/{offboarding}/relieving-letter', [\App\Http\Controllers\OffboardingController::class, 'generateRelievingLetter'])->name('offboarding.relieving-letter');
+    });
 
 
     // Training Sessions
@@ -349,61 +356,147 @@ Route::middleware('auth')->group(function () {
 // SECURITY FIX #9: Auth required + file extension allowlist to prevent:
 // 1. Unauthenticated access to employee documents (passports, QIDs, salary slips)
 // 2. Path traversal via crafted URLs serving .env / .php files
-Route::get('/storage/{path}', function ($path) {
-    // SECURITY: Only authenticated users can access uploaded files
-    if (!auth()->check()) {
-        abort(403, 'Authentication required to access this resource.');
-    }
+//
+// SECURITY FIX #12: the route is split into two tiers.
+//
+//  - `/storage/branding/*` may be PUBLIC. The logo, the favicon and the
+//    company stamp are rendered on the login and registration pages, which
+//    are reachable by guests, and by the <link rel="icon"> tag in the layout.
+//    Requiring a session for them produced a 403 and a broken favicon /
+//    logo for every anonymous visitor. A path is only public when it lives
+//    in the `branding` directory AND the exact value is referenced by a
+//    setting that carries the `is_public` flag, so a stamp (which is
+//    reproduced on salary slips) stays behind the session gate.
+//
+//  - every other `/storage/*` path stays AUTHENTICATED and additionally
+//    enforces TENANT ISOLATION: a user may only fetch a file that belongs to
+//    their own company. Employee documents, salary slips, receipts and leave
+//    attachments are confidential, so a low-privileged user must not be able
+//    to read another company's uploads by guessing a file name.
+Route::get('/storage/{path}', function (Request $request, $path) {
+    // Normalise the path and reject anything that tries to escape the root.
+    $path = ltrim(str_replace('\\', '/', (string) $path), '/');
 
-    // SECURITY: Allowlist of safe file extensions that can be served
-    $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ico', 'svg'];
-    $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-    if (!in_array($extension, $allowedExtensions)) {
-        abort(403, 'File type not allowed.');
-    }
-
-    // SECURITY: Prevent path traversal by resolving real path inside storage
-    $realBase = realpath(storage_path('app/public'));
-    $filePath = storage_path('app/public/' . $path);
-    $realFile = realpath($filePath);
-
-    if (!$realFile || !str_starts_with($realFile, $realBase)) {
+    if ($path === '' || str_contains($path, "\0")) {
         abort(404);
     }
 
-    if (!file_exists($realFile)) {
+    // SECURITY: Allowlist of safe file extensions that can be served.
+    // `svg` is deliberately excluded: an SVG is an active document that can
+    // carry <script>/onload payloads and would execute in the app's own origin
+    // (stored XSS -> session theft / privilege escalation).
+    $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ico'];
+    $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    if (!in_array($extension, $allowedExtensions, true)) {
+        abort(403, 'File type not allowed.');
+    }
+
+    // SECURITY: Prevent path traversal.
+    //
+    // The path is rejected on its own terms first (no .. segment, no
+    // absolute path, no NUL byte) so that the authorisation check below can
+    // run against a normalised path. The realpath() containment check is
+    // kept as defence in depth before the file is actually read.
+    foreach (explode('/', $path) as $segment) {
+        if ($segment === '..') {
+            abort(404);
+        }
+    }
+
+    $access = app(\App\Services\StoredFileAccessService::class);
+    $isPublic = $access->isPublicPath($path);
+
+    // SECURITY FIX #12: tenant isolation.
+    //
+    // This check runs BEFORE the file is looked up on disk on purpose. If the
+    // existence check came first, a user could tell a file that belongs to
+    // another tenant (403) apart from a file that does not exist at all
+    // (404) and use that as an oracle to confirm that a guessed file name is
+    // real. Authorisation is therefore decided first, and only a caller that
+    // is already allowed to see the file learns whether it exists.
+    //
+    // Administrators are trusted across tenants; every other user may only
+    // reach files that belong to their own company. A file whose owner cannot
+    // be determined is refused: an orphan file is not evidence of
+    // authorisation.
+    if (! $isPublic) {
+        if (! auth()->check()) {
+            abort(403, 'Authentication required to access this resource.');
+        }
+
+        $user = auth()->user();
+
+        if (! $user->isAdmin()) {
+            $companyId = $user->company_id ?: $user->employee?->company_id;
+
+            if ($companyId === null) {
+                abort(403, 'You are not authorized to access this file.');
+            }
+
+            $allowed = $access->allowedCompanyIds($path);
+
+            if (! in_array((int) $companyId, $allowed, true)) {
+                abort(403, 'You are not authorized to access this file.');
+            }
+        }
+    }
+
+    // SECURITY: resolve the real path and keep it inside the public disk.
+    //
+    // The path is resolved through the disk abstraction rather than through
+    // storage_path() so that the route honours the configured disk root
+    // and stays testable (Storage::fake('public') swaps that root).
+    $disk = \Illuminate\Support\Facades\Storage::disk('public');
+
+    $realBase = realpath($disk->path(''));
+    $realFile = realpath($disk->path($path));
+
+    if ($realBase === false || $realFile === false) {
+        abort(404);
+    }
+
+    // The containment check compares against the base directory WITH its
+    // trailing separator. A plain str_starts_with($file, $base) would also
+    // accept a sibling directory whose name merely starts with the base
+    // name (for example /storage/app/public-backup).
+    $basePrefix = rtrim($realBase, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+
+    if (! str_starts_with($realFile, $basePrefix)) {
+        abort(404);
+    }
+
+    if (! is_file($realFile)) {
         abort(404);
     }
 
     $mimeType = mime_content_type($realFile) ?: 'application/octet-stream';
+
     return response()->file($realFile, [
         'Content-Type' => $mimeType,
-        'Cache-Control' => 'private, max-age=3600',
+        'Cache-Control' => $isPublic ? 'public, max-age=86400' : 'private, max-age=3600',
+        // Defence in depth: never let the browser sniff a type that enables
+        // script execution, and never render an upload inline in the app origin.
+        'X-Content-Type-Options' => 'nosniff',
+        'Content-Security-Policy' => "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox",
     ]);
 })->where('path', '.*')->name('storage.fallback');
 
-// SECURITY FIX #4: Restricted to admin only — prevents employees from running artisan commands.
-Route::get('/fix-storage-link', function () {
-    if (!auth()->user()->isAdmin()) {
-        abort(403, 'Unauthorized. Only Super Admin can run this utility.');
-    }
-
-    try {
-        $shortcut = public_path('storage');
-
-        if (\Illuminate\Support\Facades\File::exists($shortcut)) {
-            if (is_link($shortcut)) {
-                \Illuminate\Support\Facades\File::delete($shortcut);
-            } else {
-                \Illuminate\Support\Facades\File::deleteDirectory($shortcut);
-            }
-        }
-
-        \Illuminate\Support\Facades\Artisan::call('storage:link');
-        return 'Storage link created successfully! Output: ' . \Illuminate\Support\Facades\Artisan::output();
-    } catch (\Exception $e) {
-        return 'Storage link result: Failed to create storage link.';
-    }
-})->middleware(['auth']);
+// SECURITY FIX #13: the /fix-storage-link utility was removed.
+//
+// It called artisan storage:link, which creates a public/storage shortcut
+// pointing at storage/app/public. Once that shortcut exists the web server
+// (PHP's built-in server, Apache with Options +FollowSymLinks, and nginx
+// with a matching 	ry_files) serves every file in that directory as a
+// STATIC file, so the request never reaches Laravel and the authentication
+// gate, the extension allowlist and the tenant isolation enforced by the
+// storage.fallback route are all bypassed.
+//
+// This was confirmed locally: with the shortcut in place an anonymous
+// visitor received HTTP 200 and the full image body for an employee photo
+// that lives in employee-images/, and removing the shortcut immediately
+// restored the 403.
+//
+// The public disk is now served exclusively by the storage.fallback route,
+// which enforces the session check and the tenant check in PHP.
 
 require __DIR__ . '/auth.php';

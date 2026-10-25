@@ -3,10 +3,11 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { FaPlus, FaEdit, FaTrash, FaMoneyBillWave, FaCoins, FaInfoCircle, FaTag, FaChevronRight, FaFilter, FaSearch, FaCogs } from 'react-icons/fa';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { resolveCurrency } from '@/helpers/currency';
 
 export default function Index({ components }) {
     const { appSettings } = usePage().props;
-    const currency = appSettings?.currency || 'QAR';
+    const { code: currency } = resolveCurrency({ appSettings });
 
     const [modal, setModal] = useState({
         show: false,

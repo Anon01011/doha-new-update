@@ -146,11 +146,11 @@
                     <div class="kpi-label">Total Claims</div>
                 </td>
                 <td class="kpi-cell">
-                    <div class="kpi-value">₹{{ number_format($summary['total_amount'] ?? 0, 2) }}</div>
-                    <div class="kpi-label">Total Claimed (INR)</div>
+                    <div class="kpi-value">{{ $currencySymbol }}{{ number_format($summary['total_amount'] ?? 0, 2) }}</div>
+                    <div class="kpi-label">Total Claimed ({{ $currencyCode }})</div>
                 </td>
                 <td class="kpi-cell">
-                    <div class="kpi-value">₹{{ number_format($summary['total_reimbursed'] ?? 0, 2) }}</div>
+                    <div class="kpi-value">{{ $currencySymbol }}{{ number_format($summary['total_reimbursed'] ?? 0, 2) }}</div>
                     <div class="kpi-label">Total Reimbursed</div>
                 </td>
                 <td class="kpi-cell">
@@ -170,7 +170,7 @@
                 <th>Date</th>
                 <th>Category</th>
                 <th>Purpose</th>
-                <th>Amount (INR)</th>
+                <th>Amount ({{ $currencyCode }})</th>
                 <th>Status</th>
                 <th>Reimbursement</th>
             </tr>
@@ -184,7 +184,7 @@
                     <td>{{ $claim->expense_date ? $claim->expense_date->format('d M Y') : '-' }}</td>
                     <td>{{ $claim->category?->name ?? 'General' }}</td>
                     <td>{{ Str::limit($claim->business_purpose, 35) }}</td>
-                    <td><strong>₹{{ number_format($claim->amount, 2) }}</strong></td>
+                    <td><strong>{{ $currencySymbol }}{{ number_format($claim->amount, 2) }}</strong></td>
                     <td>
                         @if(in_array($claim->status, ['finance_approved', 'paid']))
                             <span class="badge badge-approved">{{ $claim->status }}</span>

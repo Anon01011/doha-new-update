@@ -40,8 +40,26 @@ php artisan view:clear
 php artisan optimize:clear
 php artisan optimize
 php artisan view:cache
+    # SECURITY FIX (CRIT-04): do NOT run `php artisan storage:link`.
+    #
+    # The link (public/storage -> storage/app/public) makes Apache/nginx serve
+    # every file under storage/app/public as a STATIC file. The request then
+    # never reaches Laravel, so the session check, the extension allowlist and
+    # the tenant isolation enforced by the `storage.fallback` route are all
+    # bypassed, and confidential HR documents (passport, QID, Aadhaar, PAN,
+    # bank details, medical certificates) and expense receipts become readable
+    # to anyone who can name a file.
+    #
+    # This was confirmed locally: with the link present an anonymous visitor
+    # received HTTP 200 and the full body of an employee photo, and removing
+    # the link immediately restored the 403.
+    #
+    # Instead the link is actively REMOVED, so an existing server that was
+    # deployed with the old script is closed as soon as it is redeployed. All
+    # files are served exclusively through the hardened `storage.fallback`
+    # route, which enforces the session check and the tenant check in PHP.
 rm -rf public/storage
-php artisan storage:link || true
+mkdir -p public/storage
 
 # Fix ownership and permissions for Nginx/Apache web user (www for aaPanel/BT, www-data for Ubuntu/Nginx)
 chown -R www:www storage bootstrap/cache 2>/dev/null || chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true

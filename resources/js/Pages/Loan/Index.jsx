@@ -4,13 +4,14 @@ import { useState } from 'react';
 import { FaSearch, FaPlus, FaFilter, FaEye, FaEdit, FaTrash, FaMoneyBillWave, FaCalendarAlt, FaUser, FaCheckCircle, FaTimesCircle, FaClock, FaUniversity, FaChevronRight, FaArrowUp, FaArrowDown, FaChartLine, FaShieldAlt } from 'react-icons/fa';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { resolveCurrency } from '@/helpers/currency';
 
 export default function Index({ loans, status, userRole = 'employee', search: initialSearch = '' }) {
     const { auth, appSettings } = usePage().props;
     const permissions = auth.user?.permissions || [];
     const hasPermission = (slug) => permissions.includes(slug);
     const isAdmin = auth.user?.role === 'admin';
-    const currency = appSettings?.currency || 'QAR';
+    const { code: currency } = resolveCurrency({ appSettings });
 
     const [searchTerm, setSearchTerm] = useState(initialSearch || '');
     const [modal, setModal] = useState({

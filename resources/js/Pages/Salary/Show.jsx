@@ -5,6 +5,7 @@ import { useState } from 'react';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Modal from '@/Components/Modal';
 import { FaArrowLeft, FaEdit, FaCheckCircle, FaTimesCircle, FaMoneyBillWave, FaHistory, FaShieldAlt, FaPrint, FaClock, FaChartPie, FaChartLine, FaPlus, FaMinus, FaFileInvoiceDollar, FaInfoCircle, FaSun, FaMoon, FaCloudSun, FaStopwatch, FaDollarSign, FaGift } from 'react-icons/fa';
+import { resolveCurrency } from '@/helpers/currency';
 
 /** Reusable section header row for the salary detail modal */
 function SectionHeader({ icon, iconBg, iconColor, title, subtitle }) {
@@ -25,7 +26,7 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
     const { auth, appSettings } = usePage().props;
     const user = auth?.user || {};
     const canManagePayroll = user.role === 'admin' || (user.permissions && user.permissions.includes('manage-payroll'));
-    const currency = appSettings?.currency || 'QAR';
+    const { code: currency } = resolveCurrency({ appSettings });
 
     const [calculationDetails, setCalculationDetails] = useState(payrollDetails);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -429,7 +430,7 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                         </div>
 
                         {/* Quick stats bar */}
-                        <div className="grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-white/10">
+                        <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-white/10 sm:grid-cols-4">
                             {[
                                 { label: 'Basic', value: formatCurrency(calculationDetails?.basic_salary), color: 'text-slate-200' },
                                 { label: '+ Overtime', value: `+${formatCurrency(calculationDetails?.overtime_amount)}`, color: 'text-emerald-300' },
@@ -484,14 +485,15 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                                         </div>
                                     ) : (
                                         <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
-                                            <div className="grid grid-cols-4 bg-slate-50 px-4 py-2 border-b border-slate-200">
+                                            <div className="overflow-x-auto">
+                                            <div className="grid min-w-[560px] grid-cols-4 bg-slate-50 px-4 py-2 border-b border-slate-200">
                                                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Date</span>
                                                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Leave Type</span>
                                                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">Status</span>
                                                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Reason</span>
                                             </div>
                                             {leaves.map((leave, idx) => (
-                                                <div key={idx} className={`grid grid-cols-4 items-center px-4 py-2.5 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
+                                                <div key={idx} className={`grid min-w-[560px] grid-cols-4 items-center px-4 py-2.5 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
                                                     <span className="text-[11px] text-slate-600 font-medium">
                                                         {new Date(leave.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                                                     </span>
@@ -512,6 +514,7 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                                                     <span className="text-xs font-bold text-rose-700">-{formatCurrency(calculationDetails?.leave_deduction || 0)}</span>
                                                 </div>
                                             )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -522,7 +525,8 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                         <div className="px-6 py-5">
                             <SectionHeader icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>} iconBg="bg-violet-100" iconColor="text-violet-600" title="Shift Roster vs Attendance" subtitle="Compares rostered shifts against actual clock-in records and shift multipliers" />
                             <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
-                                <div className="grid grid-cols-4 bg-slate-50 px-4 py-2.5 border-b border-slate-200">
+                                <div className="overflow-x-auto">
+                                <div className="grid min-w-[560px] grid-cols-4 bg-slate-50 px-4 py-2.5 border-b border-slate-200">
                                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Shift</span>
                                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">Rostered Days</span>
                                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">Days Attended</span>
@@ -540,7 +544,7 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                                     const rawMult = effMult || calculationDetails?.overtime_breakdown?.[shift.otKey]?.multiplier;
                                     const mult = rawMult ? parseFloat(rawMult).toFixed(2) : shift.def;
                                     return (
-                                        <div key={shift.key} className={`grid grid-cols-4 items-center px-4 py-3 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
+                                        <div key={shift.key} className={`grid min-w-[560px] grid-cols-4 items-center px-4 py-3 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
                                             <div className="flex items-center gap-2">
                                                 <shift.Icon className={shift.iconColor} size={13} />
                                                 <span className="text-[11px] font-semibold text-slate-700">{shift.label} Shift</span>
@@ -559,6 +563,7 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                                         </div>
                                     );
                                 })}
+                                </div>
                             </div>
                             <p className="text-[9px] text-slate-400 mt-2 px-1">
                                 Applied Shift Multipliers: Morning ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Morning || 1.25).toFixed(2)}×), Day ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Day || 1.25).toFixed(2)}×), Evening ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Evening || 1.25).toFixed(2)}×), Night ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Night || 1.50).toFixed(2)}×), Holiday ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Holiday || 2.25).toFixed(2)}×).
@@ -620,7 +625,7 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                         {/* ── 5. Overtime Breakdown ── */}
                         <div className="px-6 py-5">
                             <SectionHeader icon={<FaChartLine />} iconBg="bg-indigo-100" iconColor="text-indigo-600" title="Overtime Breakdown" subtitle={`${parseFloat(calculationDetails?.overtime_hours || 0).toFixed(2)} total OT hours · Base rate: ${formatCurrency(calculationDetails?.overtime_base_rate)}/hr`} />
-                            <div className="grid grid-cols-3 gap-2 mt-3">
+                            <div className="grid grid-cols-1 gap-2 mt-3 sm:grid-cols-3">
                                 {[
                                     { label: 'OT Hours', value: `${parseFloat(calculationDetails?.overtime_hours || 0).toFixed(2)} hrs`, Icon: FaStopwatch, iconColor: 'text-indigo-600' },
                                     { label: 'Base Rate / Hr', value: formatCurrency(calculationDetails?.overtime_base_rate), Icon: FaDollarSign, iconColor: 'text-indigo-600' },

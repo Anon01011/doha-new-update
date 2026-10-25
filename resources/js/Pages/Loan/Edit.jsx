@@ -2,6 +2,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SearchableSelect from '@/Components/SearchableSelect';
 import { Head, useForm, router, usePage, Link } from '@inertiajs/react';
 import { useState, useMemo } from 'react';
+import { resolveCurrency } from '@/helpers/currency';
+import { CurrencyPrefixedInput } from '@/helpers/currency-ui';
 import { 
     FaArrowLeft, FaPlus, FaSave, FaCheckCircle, 
     FaInfoCircle, FaChartPie, FaCogs, FaUser, FaPercentage, FaMoneyBillWave, FaCalendarAlt, FaChevronDown, FaShieldAlt, FaClock, FaEdit, FaHistory, FaUniversity
@@ -9,7 +11,7 @@ import {
 
 export default function Edit({ loan, employees, loanTypes = [], userRole = 'employee' }) {
     const { appSettings } = usePage().props;
-    const currency_symbol = appSettings?.currency_symbol || 'QAR';
+    const { symbol: currency_symbol } = resolveCurrency({ appSettings });
 
     const [showNewTypeInput, setShowNewTypeInput] = useState(false);
     const [newLoanType, setNewLoanType] = useState('');
@@ -34,7 +36,7 @@ export default function Edit({ loan, employees, loanTypes = [], userRole = 'empl
 
     const formatCurrency = (amount) => new Intl.NumberFormat('en-US', { 
         style: 'currency', 
-        currency: appSettings?.currency || 'QAR' 
+        currency: resolveCurrency({ appSettings }).code 
     }).format(amount || 0);
 
     const calculation = useMemo(() => {
@@ -205,14 +207,17 @@ export default function Edit({ loan, employees, loanTypes = [], userRole = 'empl
                                 {/* Capital Quantum */}
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-normal text-slate-500 uppercase tracking-[0.2em] ml-1">Amount</label>
-                                    <div className="relative group">
-                                        <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[10px] font-normal text-slate-400">{currency_symbol}</div>
-                                        <input
-                                            type="number" step="0.01" value={data.amount}
-                                            className="w-full pl-16 pr-5 py-3.5 bg-slate-50/50 border-2 border-slate-100 rounded-lg focus:ring-8 focus:ring-primary/5 focus:border-primary/20 transition-all outline-none text-[11px] font-normal uppercase tracking-normal"
-                                            onChange={(e) => setData('amount', e.target.value)} placeholder="0.00" required
-                                        />
-                                    </div>
+                                    <CurrencyPrefixedInput
+                                        value={data.amount}
+                                        onChange={(e) => setData('amount', e.target.value)}
+                                        symbol={currency_symbol}
+                                        code={currency}
+                                        placeholder="0.00"
+                                        className="group bg-slate-50/50 border-2 border-slate-100 rounded-lg focus-within:ring-8 focus-within:ring-primary/5 focus-within:border-primary/20 transition-all"
+                                        prefixClassName="text-[10px] font-normal text-slate-400 pl-5 pr-1"
+                                        inputClassName="w-full pr-5 py-3.5 text-[11px] font-normal uppercase tracking-normal"
+                                        inputProps={{ required: true }}
+                                    />
                                     {errors.amount && <p className="text-[10px] font-normal text-rose-500 mt-2 ml-1 uppercase tracking-normal">{errors.amount}</p>}
                                 </div>
 
@@ -252,7 +257,7 @@ export default function Edit({ loan, employees, loanTypes = [], userRole = 'empl
                                 {/* Recoupment Protocol */}
                                 <div className="md:col-span-2 space-y-4 pt-4 border-t border-slate-50">
                                     <label className="text-[10px] font-normal text-slate-500 uppercase tracking-[0.2em] ml-1">Repayment Method</label>
-                                    <div className="grid grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                                         <button
                                             type="button"
                                             onClick={() => setData('repayment_method', 'salary_deduction')}

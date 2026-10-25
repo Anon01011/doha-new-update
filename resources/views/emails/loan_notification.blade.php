@@ -47,11 +47,11 @@
 
         @if($type === 'disbursed')
         <p class="message">
-            We are pleased to inform you that your loan of <strong>{{ number_format($loan->amount, 2) }}</strong> has been successfully <strong>disbursed</strong>. You will start repaying in monthly installments as per the schedule below.
+            We are pleased to inform you that your loan of <strong>{{ $currencySymbol }}{{ number_format($loan->amount, 2) }}</strong> has been successfully <strong>disbursed</strong>. You will start repaying in monthly installments as per the schedule below.
         </p>
         @elseif($type === 'installment_paid')
         <p class="message">
-            This is to confirm that your loan installment of <strong>{{ number_format($installmentAmount, 2) }}</strong> has been successfully marked as <strong>paid</strong>. Please keep this email for your records.
+            This is to confirm that your loan installment of <strong>{{ $currencySymbol }}{{ number_format($installmentAmount, 2) }}</strong> has been successfully marked as <strong>paid</strong>. Please keep this email for your records.
         </p>
         @elseif($type === 'completed')
         <p class="message">
@@ -66,12 +66,12 @@
                     <td>{{ $loan->loan_type }}</td>
                 </tr>
                 <tr>
-                    <td>Loan Amount</td>
-                    <td>{{ number_format($loan->amount, 2) }}</td>
+                    <td>Loan Amount ({{ $currencyCode }})</td>
+                    <td>{{ $currencySymbol }}{{ number_format($loan->amount, 2) }}</td>
                 </tr>
                 <tr>
-                    <td>Monthly Installment</td>
-                    <td>{{ number_format($loan->monthly_installment, 2) }}</td>
+                    <td>Monthly Installment ({{ $currencyCode }})</td>
+                    <td>{{ $currencySymbol }}{{ number_format($loan->monthly_installment, 2) }}</td>
                 </tr>
                 <tr>
                     <td>Tenure</td>
@@ -79,8 +79,8 @@
                 </tr>
                 @if($type === 'installment_paid')
                 <tr>
-                    <td>Amount Paid</td>
-                    <td>{{ number_format($installmentAmount, 2) }}</td>
+                    <td>Amount Paid ({{ $currencyCode }})</td>
+                    <td>{{ $currencySymbol }}{{ number_format($installmentAmount, 2) }}</td>
                 </tr>
                 <tr>
                     <td>Date Paid</td>

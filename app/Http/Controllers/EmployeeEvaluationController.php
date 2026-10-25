@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\Company;
 use App\Models\Department;
 use App\Models\Setting;
+use App\Services\CurrencyService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -286,6 +287,22 @@ class EmployeeEvaluationController extends Controller
     {
         $user = auth()->user();
 
+        // Ownership check: an employee may only edit their own appraisal.
+        // Without this, any authenticated employee could rewrite another
+        // employee's comments and increment percentage (IDOR).
+        if ($user->isEmployee() && $evaluation->employee_id !== $user->employee_id) {
+            abort(403, 'Unauthorized.');
+        }
+
+        // Branch check: a non-employee staff member may only edit appraisals
+        // that belong to their own company.
+        if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee && !$user->isEmployee()) {
+            $companyId = $user->employee->company_id;
+            if ($companyId && $evaluation->company_id && $evaluation->company_id != $companyId) {
+                abort(403, 'Unauthorized branch access.');
+            }
+        }
+
         if ($evaluation->is_locked) {
             return redirect()->back()->with('error', 'This evaluation is finalized and locked.');
         }
@@ -394,7 +411,7 @@ class EmployeeEvaluationController extends Controller
 
         // ---------------------------------------------------------------
         // Apply Salary Increment
-        // Priority: use increment_recommended (fixed ₹) if > 0,
+        // Priority: use increment_recommended (fixed amount) if > 0,
         // otherwise calculate from increment_percentage.
         // Both fields are mutually exclusive in the UI (only one is sent).
         // ---------------------------------------------------------------
@@ -453,7 +470,7 @@ class EmployeeEvaluationController extends Controller
 
         if ($sendEmailSetting && $employee && !empty($employee->email)) {
             try {
-                $currencySymbol = Setting::get('currency_symbol', '₹', $companyId);
+                $currencySymbol = CurrencyService::symbol($companyId);
                 $letterSettings = [
                     'appraisal_letter_header' => Setting::get('appraisal_letter_header', null, $companyId),
                     'appraisal_letter_signatory_name' => Setting::get('appraisal_letter_signatory_name', null, $companyId),
@@ -501,7 +518,7 @@ class EmployeeEvaluationController extends Controller
 
         $company = $employee->company;
         $companyId = $company ? $company->id : null;
-        $currencySymbol = Setting::get('currency_symbol', '₹', $companyId);
+        $currencySymbol = CurrencyService::symbol($companyId);
 
         $settings = [
             'appraisal_letter_header' => Setting::get('appraisal_letter_header', null, $companyId),

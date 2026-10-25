@@ -2,6 +2,7 @@ import { useForm, usePage, Head, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import SettingsLayout from './SettingsLayout';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { CURRENCY_CATALOG, CURRENCY_BY_CODE, defaultSymbolFor } from '@/helpers/currency';
 
 export default function SystemSettings({ systemSettings }) {
     const { flash } = usePage().props;
@@ -23,7 +24,7 @@ export default function SystemSettings({ systemSettings }) {
         app_url: systemSettings.app_url,
         app_timezone: systemSettings.app_timezone,
         app_locale: systemSettings.app_locale,
-        app_country: systemSettings.app_country || (systemSettings.currency === 'INR' ? 'IN' : 'QA'),
+        app_country: systemSettings.app_country || (CURRENCY_BY_CODE[systemSettings.currency]?.country ?? 'QA'),
         currency: systemSettings.currency || '',
         currency_symbol: systemSettings.currency_symbol || '',
         logo: null,
@@ -196,15 +197,21 @@ export default function SystemSettings({ systemSettings }) {
                                         value={data.app_country}
                                         onChange={(e) => {
                                             const country = e.target.value;
-                                            const countryMap = {
-                                                'QA': { currency: 'QAR', symbol: 'QAR', tz: 'Asia/Qatar' },
-                                                'IN': { currency: 'INR', symbol: '₹', tz: 'Asia/Kolkata' },
-                                                'AE': { currency: 'AED', symbol: 'AED', tz: 'Asia/Dubai' },
-                                                'SA': { currency: 'SAR', symbol: 'SAR', tz: 'Asia/Riyadh' },
-                                                'US': { currency: 'USD', symbol: '$', tz: 'America/New_York' },
-                                                'GB': { currency: 'GBP', symbol: '£', tz: 'Europe/London' },
-                                                'ALL': { currency: data.currency || 'USD', symbol: data.currency_symbol || '$', tz: data.app_timezone || 'UTC' },
-                                            };
+                                            // Derived from the shared catalog so the picker and the
+                                            // backend can never drift apart. The first currency for a
+                                            // country wins, mirroring CurrencyService::COUNTRY_MAP.
+                                            const countryMap = CURRENCY_CATALOG.reduce((acc, entry) => {
+                                                if (!acc[entry.country]) {
+                                                    acc[entry.country] = {
+                                                        currency: entry.code,
+                                                        symbol: entry.symbol,
+                                                        tz: entry.timezone,
+                                                    };
+                                                }
+                                                return acc;
+                                            }, {
+                                                ALL: { currency: data.currency || 'USD', symbol: data.currency_symbol || '$', tz: data.app_timezone || 'UTC' },
+                                            });
                                             const preset = countryMap[country];
                                             setData(prev => ({
                                                 ...prev,
@@ -276,30 +283,19 @@ export default function SystemSettings({ systemSettings }) {
                                         value={data.currency}
                                         onChange={(e) => {
                                             const code = e.target.value;
-                                            const symbols = {
-                                                'QAR': 'QAR',
-                                                'INR': '₹',
-                                                'AED': 'AED',
-                                                'SAR': 'SAR',
-                                                'USD': '$',
-                                                'GBP': '£',
-                                                'EUR': '€'
-                                            };
                                             setData(prev => ({
                                                 ...prev,
                                                 currency: code,
-                                                currency_symbol: symbols[code] || prev.currency_symbol
+                                                currency_symbol: defaultSymbolFor(code, prev.currency_symbol)
                                             }));
                                         }}
                                         className="w-full rounded-lg border-gray-200 bg-gray-50/50 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-normal"
                                     >
-                                        <option value="QAR">QAR (Qatari Riyal)</option>
-                                        <option value="INR">INR (Indian Rupee - ₹)</option>
-                                        <option value="AED">AED (UAE Dirham)</option>
-                                        <option value="SAR">SAR (Saudi Riyal)</option>
-                                        <option value="USD">USD (US Dollar - $)</option>
-                                        <option value="GBP">GBP (British Pound - £)</option>
-                                        <option value="EUR">EUR (Euro - €)</option>
+                                        {CURRENCY_CATALOG.map((entry) => (
+                                            <option key={entry.code} value={entry.code}>
+                                                {entry.code} ({entry.name} - {entry.symbol})
+                                            </option>
+                                        ))}
                                     </select>
                                     {errors.currency && (
                                         <p className="text-[10px] font-normal text-rose-500 ml-1">{errors.currency}</p>

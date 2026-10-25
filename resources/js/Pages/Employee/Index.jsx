@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useMemo } from 'react';
 import { hasPermission } from '@/helpers/permissions';
+import { employeeRouteKey, employeeRoute } from '@/helpers/employee-routes';
 import Avatar from '@/Components/Avatar';
 import Modal from '@/Components/Modal';
 import axios from 'axios';
@@ -30,6 +31,7 @@ export default function Index({ employees, status, search: initialSearch = '', s
     const [importCompanyId, setImportCompanyId] = useState('');
     const [isImporting, setIsImporting] = useState(false);
     const [importError, setImportError] = useState('');
+const [categoryFilter, setCategoryFilter] = useState('');
 
     const [confirmingAction, setConfirmingAction] = useState({
         show: false,
@@ -51,7 +53,7 @@ export default function Index({ employees, status, search: initialSearch = '', s
             type: 'danger',
             confirmText: 'Yes, Delete Employee',
             onConfirm: () => {
-                router.delete(route('employees.destroy', employee.id), {
+                router.delete(route('employees.destroy', employeeRouteKey(employee)), {
                     onFinish: () => closeModal(),
                 });
             },
@@ -297,29 +299,52 @@ export default function Index({ employees, status, search: initialSearch = '', s
                 <div className="flex flex-wrap gap-2">
                     <Link href={route('employees.index', { search: searchTerm })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${!status ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>All Staff</Link>
                     <Link href={route('employees.index', { status: 'active', search: searchTerm })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${status === 'active' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>Active</Link>
-                    <Link href={route('employees.index', { status: 'waiting', search: searchTerm })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${status === 'waiting' ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>Waiting</Link>
+                    <Link href={route('employees.index', { status: 'waiting', search: searchTerm })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${status === 'waiting' ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>Pending Onboarding</Link>
                     <Link href={route('employees.index', { status: 'inactive', search: searchTerm })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${status === 'inactive' ? 'bg-rose-600 text-white shadow-lg shadow-rose-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>Inactive</Link>
                 </div>
 
                 {/* Header Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     {[
-                        { label: 'Total Staff', value: stats.total, color: 'primary', icon: <FiUsers className="w-5 h-5" /> },
-                        { label: 'Active', value: stats.active, color: 'emerald', icon: <FiCheckCircle className="w-5 h-5" /> },
-                        { label: 'Pending', value: stats.waiting, color: 'amber', icon: <FiClock className="w-5 h-5" /> },
-                        { label: 'Depts', value: stats.departments, color: 'indigo', icon: <FiGrid className="w-5 h-5" /> },
-                        { label: 'New Hires', value: stats.this_month, color: 'rose', icon: <FiUserPlus className="w-5 h-5" /> }
+                        { label: 'Total Staff', value: stats.total, colorCls: 'bg-primary', icon: <FiUsers className="w-5 h-5" />, filter: null },
+                        { label: 'Active', value: stats.active, colorCls: 'bg-emerald-600', icon: <FiCheckCircle className="w-5 h-5" />, filter: { status: 'active' } },
+                        { label: 'Pending Onboarding', value: stats.pending_onboarding ?? stats.waiting ?? 0, colorCls: 'bg-amber-500', icon: <FiClock className="w-5 h-5" />, filter: { status: 'waiting' } },
+                        { label: 'Depts', value: stats.departments, colorCls: 'bg-indigo-600', icon: <FiGrid className="w-5 h-5" />, filter: null },
+                        { label: 'New Hires', value: stats.this_month, colorCls: 'bg-rose-600', icon: <FiUserPlus className="w-5 h-5" />, filter: null }
                     ].map((stat, i) => (
-                        <div key={i} className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm group hover:shadow-md transition-all">
+                        <div key={i}
+                            onClick={() => stat.filter && router.get(route('employees.index'), { ...stat.filter, search: searchTerm })}
+                            className={"bg-white rounded-lg border border-slate-200 p-4 shadow-sm group hover:shadow-md transition-all " + (stat.filter ? 'cursor-pointer' : '')}>
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-xs font-normal text-slate-500 mb-1">{stat.label}</p>
                                     <p className="text-2xl font-normal text-slate-900 group-hover:text-primary transition-colors">{stat.value || 0}</p>
                                 </div>
-                                <div className={`p-2 ${stat.color === 'primary' ? 'bg-primary' : `bg-${stat.color}-600`} rounded-lg text-white shadow-md transition-all`}>
+                                <div className={"p-2 " + stat.colorCls + " rounded-lg text-white shadow-md transition-all"}>
                                     {stat.icon}
                                 </div>
                             </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Category & Lifecycle Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                        { label: 'Permanent', value: stats.cat_permanent || 0, cat: 'Permanent', colorCls: 'bg-violet-600', badge: null },
+                        { label: 'Contract', value: stats.cat_contract || 0, cat: 'Contract', colorCls: 'bg-blue-600', badge: (stats.contract_expiring_soon > 0) ? (stats.contract_expiring_soon + ' expiring') : null },
+                        { label: 'On Probation', value: stats.on_probation || 0, cat: 'Probation', colorCls: 'bg-amber-500', badge: (stats.probation_ending_soon > 0) ? (stats.probation_ending_soon + ' ending soon') : null },
+                        { label: 'Interns', value: stats.on_internship || 0, cat: 'Intern', colorCls: 'bg-cyan-600', badge: null },
+                    ].map((s, i) => (
+                        <div key={i}
+                            onClick={() => { const next = categoryFilter === s.cat ? "" : s.cat; setCategoryFilter(next); router.get(route("employees.index"), { search: searchTerm, status, category: next }, { preserveState: true, replace: true }); }}
+                            className={"bg-white rounded-lg border p-3 shadow-sm cursor-pointer transition-all hover:shadow-md " + (categoryFilter === s.cat ? 'border-primary ring-2 ring-primary/20' : 'border-slate-200')}>
+                            <div className="flex items-center justify-between mb-1">
+                                <span className={"text-[10px] font-normal text-white px-2 py-0.5 rounded-full " + s.colorCls}>{s.label}</span>
+                                {s.badge && <span className="text-[9px] font-normal text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">{s.badge}</span>}
+                            </div>
+                            <p className={"text-xl font-normal " + (categoryFilter === s.cat ? 'text-primary' : 'text-slate-800')}>{s.value}</p>
+                            <p className="text-[9px] text-slate-400 mt-0.5">Click to filter</p>
                         </div>
                     ))}
                 </div>
@@ -457,7 +482,7 @@ export default function Index({ employees, status, search: initialSearch = '', s
                                             {!isSelectionMode && (
                                                 <div className="flex space-x-1 shrink-0">
                                                     <Link
-                                                        href={route('employees.show', employee.id)}
+                                                        href={employeeRoute('employees.show', employee)}
                                                         className="text-slate-400 hover:text-primary p-1 transition-colors"
                                                         title="View Details"
                                                     >
@@ -465,7 +490,7 @@ export default function Index({ employees, status, search: initialSearch = '', s
                                                     </Link>
                                                     {hasPermission(user, 'edit-employees') && (
                                                         <Link
-                                                            href={route('employees.edit', employee.id)}
+                                                            href={employeeRoute('employees.edit', employee)}
                                                             className="text-slate-400 hover:text-emerald-600 p-1.5 transition-colors"
                                                             title="Edit"
                                                         >
@@ -505,7 +530,7 @@ export default function Index({ employees, status, search: initialSearch = '', s
                                                     employee.is_active ? 'bg-emerald-50 text-emerald-600' :
                                                         'bg-rose-50 text-rose-600'
                                                     }`}>
-                                                    {employee.manual_status === 'waiting' ? 'Pending' : (employee.is_active ? 'Active' : 'Inactive')}
+                                                    {employee.manual_status === 'waiting' ? 'Pending Onboarding' : (employee.is_active ? 'Active' : 'Inactive')}
                                                 </span>
                                                 <span className="text-[10px] font-normal text-slate-400">{formatDate(employee.joined_date)}</span>
                                             </div>

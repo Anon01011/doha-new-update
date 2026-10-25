@@ -94,7 +94,7 @@
                 <th>Actual Hours</th>
                 <th>OT Hours</th>
                 <th>OT Rate</th>
-                <th>OT Amount</th>
+                <th>OT Amount ({{ $currencyCode }})</th>
             </tr>
         </thead>
         <tbody>
@@ -107,7 +107,7 @@
                 <td>{{ $attendance->hours_worked }}</td>
                 <td>{{ $attendance->ot }}</td>
                 <td>{{ \App\Models\Setting::get('overtime_rate_multiplier', 1.5, $attendance->company_id) }}</td>
-                <td>{{ number_format($attendance->ot_amt, 2) }}</td>
+                <td>{{ $currencySymbol }}{{ number_format($attendance->ot_amt, 2) }}</td>
             </tr>
             @endforeach
         </tbody>

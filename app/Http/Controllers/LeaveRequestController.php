@@ -7,6 +7,7 @@ use App\Models\LeaveType;
 use App\Models\Employee;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Carbon\Carbon;
 
@@ -57,11 +58,12 @@ class LeaveRequestController extends Controller
 
         // Get leave balances for employee
         $leaveBalances = [];
-        if ($user->role === 'employee' && $user->employee_id) {
-            $leaveBalances = \App\Models\LeaveBalance::with('leaveType')
-                ->where('employee_id', $user->employee_id)
-                ->where('year', now()->year)
-                ->get();
+        $empId = $user->employee_id ?: ($user->employee ? $user->employee->id : null);
+        if ($empId) {
+            $employee = $user->employee ?: \App\Models\Employee::withoutGlobalScopes()->find($empId);
+            if ($employee) {
+                $leaveBalances = \App\Services\LeaveBalanceService::getOrSyncBalancesForEmployee($employee, (int) now()->year);
+            }
         }
 
         return Inertia::render('Leave/Index', [
@@ -107,6 +109,66 @@ class LeaveRequestController extends Controller
         ]);
     }
 
+    /**
+     * A tenant scoped `exists` rule for employee references.
+     *
+     * SECURITY (MED-07): the built-in `exists:employees,id` rule queries the
+     * table directly and therefore IGNORES the BelongsToCompany global scope.
+     * A forged id of an employee belonging to another tenant passed validation
+     * and was then written into the new leave request. This rule adds the
+     * `company_id` predicate so a foreign employee id fails validation.
+     *
+     * @param  \App\Models\User  $user
+     * @return \Illuminate\Validation\Rules\Exists
+     */
+    private function employeeExistsRule($user): \Illuminate\Validation\Rules\Exists
+    {
+        return Rule::exists('employees', 'id')->where(function ($query) use ($user) {
+            // Admins are superusers across tenants - no restriction, exactly
+            // like the BelongsToCompany scope.
+            if ($user->isAdmin()) {
+                return;
+            }
+
+            $companyId = $this->companyIdFor($user);
+
+            if ($companyId === null) {
+                // A non-admin without any tenant context may not reference any
+                // employee. Deny by default rather than allow everything.
+                $query->whereRaw('1 = 0');
+
+                return;
+            }
+
+            $query->where('company_id', $companyId);
+        });
+    }
+
+    /**
+     * The company the authenticated user acts for.
+     *
+     * `company_id` is read from the user row first; the employee profile is
+     * only consulted as a fallback. The lookup uses a raw DB query on purpose:
+     * resolving the employee through the model would trigger the
+     * BelongsToCompany scope, which is exactly what is being determined here.
+     */
+    private function companyIdFor($user): ?int
+    {
+        if (! empty($user->company_id)) {
+            return (int) $user->company_id;
+        }
+
+        if (! empty($user->employee_id)) {
+            $companyId = \Illuminate\Support\Facades\DB::table('employees')
+                ->where('id', $user->employee_id)
+                ->value('company_id');
+
+            return $companyId === null ? null : (int) $companyId;
+        }
+
+        return null;
+    }
+
     public function store(Request $request)
     {
         $user = auth()->user();
@@ -114,9 +176,14 @@ class LeaveRequestController extends Controller
 
         // Determine company for settings lookup (done after we know which employee)
         $validated = $request->validate([
-            'employee_id'  => 'nullable|exists:employees,id',
+            // SECURITY (MED-07): the plain `exists:employees,id` rule does NOT
+            // honour the BelongsToCompany global scope, so it happily accepted
+            // the id of an employee belonging to another tenant. The rule is
+            // now tenant scoped, so a foreign employee id is rejected during
+            // validation, before anything is written.
+            'employee_id'  => ['nullable', $this->employeeExistsRule($user)],
             'employee_ids' => 'nullable|array',
-            'employee_ids.*' => 'exists:employees,id',
+            'employee_ids.*' => [$this->employeeExistsRule($user)],
             'leave_type_id' => 'required|exists:leave_types,id',
             'start_date'   => 'required|date',
             'end_date'     => 'required|date|after_or_equal:start_date',
@@ -131,6 +198,14 @@ class LeaveRequestController extends Controller
             $employeeIds = [$validated['employee_id']];
         }
 
+        // If user is employee, automatically use their own employee_id
+        if (empty($employeeIds) && ($user->isEmployee() || (!$isAdminOrHR && !$canCreateForOthers))) {
+            $empId = $user->employee_id ?: ($user->employee ? $user->employee->id : null);
+            if ($empId) {
+                $employeeIds = [$empId];
+            }
+        }
+
         if (empty($employeeIds)) {
             return back()->withErrors(['employee_id' => 'The employee field is required.'])->withInput();
         }
@@ -139,9 +214,22 @@ class LeaveRequestController extends Controller
         $endDate = Carbon::parse($validated['end_date']);
         $isAdminOrHR = $user->isAdmin() || $user->isHR();
 
-        // If employee is trying to request leave, enforce single employee to be themselves
-        if (!$isAdminOrHR) {
-            if (count($employeeIds) > 1 || $employeeIds[0] != $user->employee_id) {
+        // BUG FIX: the previous check rejected EVERY non-HR user, including
+        // managers who legitimately create leave requests on behalf of their
+        // team. The frontend already renders a multi-employee picker for
+        // non-employees, so the backend and the UI disagreed and managers
+        // always received a 403.
+        //
+        // The rule is now:
+        //   * employees may only request for themselves;
+        //   * managers (and anyone holding `create-leave-requests`) may request
+        //     for other employees, but ONLY within their own tenant.
+        // Tenant isolation itself is enforced by the scoped validation rule
+        // above and by the scoped Employee lookup further down.
+        $canCreateForOthers = $user->isManager() || $user->hasPermission('create-leave-requests');
+
+        if (!$isAdminOrHR && !$canCreateForOthers) {
+            if (count($employeeIds) > 1 || (int) $employeeIds[0] !== (int) $user->employee_id) {
                 abort(403, 'You can only create leave requests for yourself.');
             }
         }
@@ -158,7 +246,14 @@ class LeaveRequestController extends Controller
             $leaveTypeName = $selectedLeaveType?->name;
 
             foreach ($employeeIds as $empId) {
-                $employee = Employee::findOrFail($empId);
+                // SECURITY (MED-07): resolve the employee through the SCOPED
+                // model. An employee of another tenant resolves to null and is
+                // rejected here, so a forged id can never reach the write path.
+                $employee = Employee::find($empId);
+
+                if ($employee === null) {
+                    throw new \Exception('The selected employee could not be found in your company.');
+                }
                 $companyId = $employee->company_id;
 
 
@@ -257,15 +352,11 @@ class LeaveRequestController extends Controller
                     throw new \Exception("There is an overlapping leave request for {$employee->name} during this period.");
                 }
 
-                // Check leave balance
+                // Check and sync leave balance
                 $year = $startDate->year;
-                $balance = \App\Models\LeaveBalance::where('employee_id', $empId)
-                    ->where('leave_type_id', $validated['leave_type_id'])
-                    ->where('year', $year)
-                    ->first();
-
-                $leaveType = LeaveType::find($validated['leave_type_id']);
-                $availableDays = $balance ? $balance->remaining_days : ($leaveType->max_days_per_year ?? 0);
+                $leaveType = LeaveType::withoutGlobalScopes()->find($validated['leave_type_id']);
+                $balance = \App\Services\LeaveBalanceService::syncBalanceForType($employee, $leaveType, $year);
+                $availableDays = $balance ? (float) $balance->remaining_days : (float) ($leaveType->max_days_per_year ?? 0);
 
                 // 3. Check Negative Balance Allowed (Bypass for HR/Admin)
                 $negativeAllowed = Setting::get('negative_balance_allowed', false, $companyId);
@@ -353,9 +444,9 @@ class LeaveRequestController extends Controller
 
             return redirect()->route('leave-requests.index')->with('success', $msg);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             \Illuminate\Support\Facades\DB::rollBack();
-            return back()->with('error', $e->getMessage())->withInput();
+            return back()->withErrors(['general' => $e->getMessage(), 'error' => $e->getMessage()])->with('error', $e->getMessage())->withInput();
         }
     }
 
@@ -833,25 +924,9 @@ class LeaveRequestController extends Controller
 
     public function updateLeaveBalance(LeaveRequest $leaveRequest)
     {
-        // Update leave balance when leave is approved
-        if ($leaveRequest->status === 'approved') {
+        if ($leaveRequest->employee && $leaveRequest->leaveType) {
             $year = Carbon::parse($leaveRequest->start_date)->year;
-
-            $balance = \App\Models\LeaveBalance::firstOrCreate([
-                'employee_id' => $leaveRequest->employee_id,
-                'leave_type_id' => $leaveRequest->leave_type_id,
-                'year' => $year,
-            ], [
-                'total_days' => $leaveRequest->leaveType->max_days_per_year ?? 0,
-                'used_days' => 0,
-                'remaining_days' => $leaveRequest->leaveType->max_days_per_year ?? 0,
-                'carry_forward_days' => 0,
-            ]);
-
-            // Update used days and remaining days
-            $balance->used_days += $leaveRequest->days_requested;
-            $balance->remaining_days = max(0, $balance->total_days - $balance->used_days);
-            $balance->save();
+            \App\Services\LeaveBalanceService::syncBalanceForType($leaveRequest->employee, $leaveRequest->leaveType, $year);
         }
     }
 

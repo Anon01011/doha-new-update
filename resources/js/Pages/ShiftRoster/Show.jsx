@@ -7,7 +7,8 @@ export default function Show({ employee, company, week_start, rosters, days }) {
             <Head title="Employee Roster" />
             <div className="max-w mx-auto bg-white rounded-lg shadow p-8 mt-10">
                 <h1 className="text-2xl font-normal mb-4">{employee.name} - {company.name}</h1>
-                <table className="min-w-full border-separate border-spacing-y-1">
+                <div className="overflow-x-auto">
+                    <table className="min-w-full border-separate border-spacing-y-1">
                     <thead>
                         <tr>
                             {days.map(day => (
@@ -36,7 +37,8 @@ export default function Show({ employee, company, week_start, rosters, days }) {
                             })}
                         </tr>
                     </tbody>
-                </table>
+                    </table>
+                </div>
             </div>
         </AuthenticatedLayout>
     );

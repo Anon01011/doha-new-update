@@ -1,4 +1,4 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+﻿import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useForm, Head, Link, usePage } from '@inertiajs/react';
 import { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
@@ -8,6 +8,7 @@ import ConfirmationModal from '@/Components/ConfirmationModal';
 import SearchableSelect from '@/Components/SearchableSelect';
 import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
 import FormErrorNotification from '@/Components/FormErrorNotification';
+import { resolveCurrency, resolveCountry } from '@/helpers/currency';
 import {
     FiUser, FiCreditCard, FiMapPin, FiBriefcase, FiClock, FiDollarSign,
     FiFileText, FiPlus, FiTrash2, FiArrowRight, FiArrowLeft, FiEye,
@@ -18,8 +19,8 @@ import {
 
 export default function CreateEmployee(props) {
     const { appSettings } = usePage().props;
-    const currency = appSettings?.currency || 'QAR';
-    const appCountry = appSettings?.app_country || (currency === 'INR' ? 'IN' : 'QA');
+    const { code: currency } = resolveCurrency({ appSettings });
+    const appCountry = resolveCountry({ appSettings });
     const isIndiaMode = appCountry === 'IN';
     const isQatarMode = appCountry === 'QA';
     const isAllMode = appCountry === 'ALL';
@@ -35,11 +36,16 @@ export default function CreateEmployee(props) {
         managerEmployees = []
     } = props;
 
+    // A live sample of the code the server will auto generate, so the user can
+    // see the exact format (<PREFIX><8 digits>) before saving.
+    const codePrefix = constants.employee_code_prefix || 'EMP';
+    const codePreview = constants.employee_code_preview || `${codePrefix}••••••••`;
+
     // Active Navigation Tab: 1: Personal, 2: Work, 3: Salary, 4: Documents, 5: Schedule
     const [activeTab, setActiveTab] = useState('personal');
 
     const [filteredDepartments, setFilteredDepartments] = useState([]);
-    const [autoGenerate, setAutoGenerate] = useState(false);
+    const [autoGenerate, setAutoGenerate] = useState(true);
     const [departmentEmployees, setDepartmentEmployees] = useState([]);
     const [branchManagers, setBranchManagers] = useState([]);
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -59,6 +65,7 @@ export default function CreateEmployee(props) {
         email: 'personal',
         location: 'personal',
         nationality: 'personal',
+        marital_status: 'personal',
         sponsor: 'personal',
         company_id: 'work',
         company_ids: 'work',
@@ -100,6 +107,7 @@ export default function CreateEmployee(props) {
         email: '',
         designation: '',
         nationality: '',
+        marital_status: '',
         sponsor: '',
         company_id: '',
         company_ids: [],
@@ -148,8 +156,17 @@ export default function CreateEmployee(props) {
         food_handler_expiry_date: '',
         health_card_number: '',
         health_card_expiry_date: '',
+        health_card_file: null,
+        no_overtime: false,
         contract_issue_date: '',
         contract_expiry_date: '',
+        probation_start_date: '',
+        probation_end_date: '',
+        probation_status: '',
+        confirmation_date: '',
+        internship_start_date: '',
+        internship_end_date: '',
+        internship_status: '',
         weekly_offs: [],
     });
 
@@ -321,6 +338,11 @@ export default function CreateEmployee(props) {
     const shiftOptions = useMemo(() => {
         return (constants.shifts || ['Morning', 'Evening', 'General', 'Rotational']).map(s => ({ value: s, label: s }));
     }, [constants.shifts]);
+
+    const maritalStatusOptions = useMemo(() => {
+        return (constants.marital_statuses || ['Single', 'Married', 'Divorced', 'Widowed', 'Separated'])
+            .map(m => ({ value: m, label: m }));
+    }, [constants.marital_statuses]);
 
     const categoryOptions = useMemo(() => {
         return (constants.employee_categories || ['Permanent', 'Contract', 'Probation', 'Intern']).map(c => ({ value: c, label: c }));
@@ -525,7 +547,8 @@ export default function CreateEmployee(props) {
     const uploadedDocsCount = useMemo(() => {
         const docFields = [
             'aadhar_file', 'pan_file', 'education_doc', 'relieving_doc', 'bank_doc',
-            'passport_file', 'qid_file', 'food_handler_file', 'agreement_doc', 'resume_doc', 'other_docs'
+            'passport_file', 'qid_file', 'food_handler_file', 'health_card_file',
+            'agreement_doc', 'resume_doc', 'other_docs'
         ];
         return docFields.filter(f => data[f]).length;
     }, [data]);
@@ -790,12 +813,17 @@ export default function CreateEmployee(props) {
                                                 type="text"
                                                 className={`w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all ${autoGenerate ? 'bg-slate-100 text-slate-400 cursor-not-allowed font-mono' : 'bg-slate-50/50 focus:bg-white'
                                                     }`}
-                                                value={autoGenerate ? 'AUTO-GENERATED' : data.employee_code}
+                                                value={autoGenerate ? codePreview : data.employee_code}
                                                 onChange={e => !autoGenerate && setData('employee_code', e.target.value)}
                                                 readOnly={autoGenerate}
-                                                placeholder="e.g. EMP-0012"
+                                                placeholder="e.g. EMP48392017"
                                             />
                                             {errors.employee_code && <p className="text-xs font-medium text-rose-500">{errors.employee_code}</p>}
+                                            <p className="text-[11px] text-slate-400">
+                                                {autoGenerate
+                                                    ? `Auto-generated code (${codePreview}).`
+                                                    : 'Letters and digits only, up to 20 characters.'}
+                                            </p>
                                         </div>
 
                                         {/* Gender */}
@@ -844,6 +872,23 @@ export default function CreateEmployee(props) {
                                                 placeholder={isIndiaMode ? "Indian" : (isQatarMode ? "Qatari / Expat" : "e.g. Indian, Qatari")}
                                             />
                                             {errors.nationality && <p className="text-xs font-medium text-rose-500">{errors.nationality}</p>}
+                                        </div>
+
+                                        {/* Marital Status */}
+                                        <div className="space-y-1.5">
+                                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                                                <FiUser className="w-3.5 h-3.5 text-indigo-500" />
+                                                <span>Marital Status</span>
+                                            </label>
+                                            <SearchableSelect
+                                                name="marital_status"
+                                                value={data.marital_status}
+                                                options={maritalStatusOptions}
+                                                onChange={e => setData('marital_status', e.target.value)}
+                                                placeholder="Select Marital Status"
+                                                error={errors.marital_status}
+                                            />
+                                            {errors.marital_status && <p className="text-xs font-medium text-rose-500">{errors.marital_status}</p>}
                                         </div>
 
                                         {/* Sponsor (for Qatar) */}
@@ -1092,7 +1137,42 @@ export default function CreateEmployee(props) {
                                 </div>
                             </div>
                         )}
+                                        {/* Category-specific lifecycle fields */}
+                                        {data.employee_category === 'Probation' && (
+                                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+                                            <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5"><FiCalendar className="w-3.5 h-3.5" /> Probation Period</p>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-semibold text-slate-600 uppercase">Probation Start Date</label>
+                                                    <input type="date" className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white text-sm focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition-all"
+                                                        value={data.probation_start_date} onChange={e => setData('probation_start_date', e.target.value)} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-semibold text-slate-600 uppercase">Probation End Date <span className="text-amber-500">(default: {probation_duration_months || 3}m)</span></label>
+                                                    <input type="date" className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white text-sm focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition-all"
+                                                        value={data.probation_end_date} onChange={e => setData('probation_end_date', e.target.value)} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        )}
 
+                                        {data.employee_category === 'Intern' && (
+                                        <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-4 space-y-3">
+                                            <p className="text-xs font-semibold text-cyan-700 flex items-center gap-1.5"><FiCalendar className="w-3.5 h-3.5" /> Internship Period</p>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-semibold text-slate-600 uppercase">Internship Start Date</label>
+                                                    <input type="date" className="w-full px-3 py-2 rounded-lg border border-cyan-200 bg-white text-sm focus:ring-2 focus:ring-cyan-300 focus:border-cyan-400 transition-all"
+                                                        value={data.internship_start_date} onChange={e => setData('internship_start_date', e.target.value)} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-semibold text-slate-600 uppercase">Internship End Date</label>
+                                                    <input type="date" className="w-full px-3 py-2 rounded-lg border border-cyan-200 bg-white text-sm focus:ring-2 focus:ring-cyan-300 focus:border-cyan-400 transition-all"
+                                                        value={data.internship_end_date} onChange={e => setData('internship_end_date', e.target.value)} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        )}
                         {/* ============================================================== */}
                         {/* TAB 3: SALARY & PAYMENT MODE DETAILS */}
                         {/* ============================================================== */}
@@ -1193,6 +1273,24 @@ export default function CreateEmployee(props) {
                                                 <option value="WPS / Exchange">WPS / Exchange Transfer</option>
                                             </select>
                                         </div>
+                                    </div>
+
+                                    {/* Overtime Eligibility */}
+                                    <div className="mt-6">
+                                        <label className="flex items-start gap-3 p-4 rounded-xl bg-amber-50/60 border border-amber-100 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={!!data.no_overtime}
+                                                onChange={e => setData('no_overtime', e.target.checked)}
+                                                className="mt-0.5 w-4 h-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                            />
+                                            <span>
+                                                <span className="block text-xs font-semibold text-slate-800">Exclude from Overtime</span>
+                                                <span className="block text-[11px] text-slate-500 mt-0.5">
+                                                    When enabled, this employee is never paid for overtime hours (salaried / non-OT roles).
+                                                </span>
+                                            </span>
+                                        </label>
                                     </div>
 
                                     {/* Dynamic Bank / Payment Details Fields */}
@@ -1504,7 +1602,7 @@ export default function CreateEmployee(props) {
                                                         </div>
                                                         <span className="text-[10px] font-semibold px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200">Qatar Required</span>
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-3">
+                                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                                         <div>
                                                             <label className="text-xs text-slate-600 font-medium">QID Number</label>
                                                             <input
@@ -1536,7 +1634,7 @@ export default function CreateEmployee(props) {
                                                             <span className="text-xs font-bold text-slate-900 uppercase">Passport Details</span>
                                                         </div>
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-3">
+                                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                                         <div>
                                                             <label className="text-xs text-slate-600 font-medium">Passport Number</label>
                                                             <input
@@ -1568,7 +1666,7 @@ export default function CreateEmployee(props) {
                                                             <span className="text-xs font-bold text-slate-900 uppercase">Health Card / Medical</span>
                                                         </div>
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-3">
+                                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                                         <div>
                                                             <label className="text-xs text-slate-600 font-medium">Health Card No.</label>
                                                             <input
@@ -1589,6 +1687,7 @@ export default function CreateEmployee(props) {
                                                             />
                                                         </div>
                                                     </div>
+                                                    {renderDropzone('health_card_file', 'Health Card Document')}
                                                 </div>
 
                                                 {/* Food Handler Certificate */}
@@ -1773,7 +1872,8 @@ export default function CreateEmployee(props) {
                                     {/* Table of Assigned Weekly Offs */}
                                     {data.weekly_offs.length > 0 ? (
                                         <div className="overflow-hidden border border-slate-200 rounded-xl">
-                                            <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+                                            <div className="overflow-x-auto">
+                                                <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
                                                 <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                                                     <tr>
                                                         <th className="px-4 py-3">Assigned Day</th>
@@ -1798,9 +1898,10 @@ export default function CreateEmployee(props) {
                                                         </tr>
                                                     ))}
                                                 </tbody>
-                                            </table>
+                                                </table>
                                         </div>
-                                    ) : (
+                                    </div>
+                                ) : (
                                         <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl">
                                             <p className="text-xs text-slate-400">No staff-specific weekly offs added. Standard branch schedule applies.</p>
                                         </div>

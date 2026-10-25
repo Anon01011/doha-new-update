@@ -33,7 +33,23 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // SECURITY FIX #11: 'serve' must stay false here.
+            //
+            // With 'serve' => true Laravel's FilesystemServiceProvider registers
+            // a built-in GET /storage/{path} route (named "storage.local") from
+            // inside app->booted(). Because the RouteCollection keys routes by
+            // method+URI, that route OVERWRITES the hardened "storage.fallback"
+            // route defined in routes/web.php, so the authentication gate, the
+            // extension allowlist and the path-traversal guard are never applied.
+            //
+            // The built-in route also serves the 'local' disk, whose visibility
+            // defaults to 'private', so it demands a signed URL and answers
+            // every legitimate /storage/... request with 403 Forbidden.
+            //
+            // The 'local' disk is never used to serve files in this application
+            // (no disk('local') call exists), and the public disk below is
+            // served exclusively by the hardened "storage.fallback" route.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],

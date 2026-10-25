@@ -197,9 +197,18 @@ class DepartmentController extends Controller
     {
         $user = auth()->user();
         $branchId = $request->input('branch_id') ?: $request->input('company_id');
-
-        // Multi-tenancy scoping
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+        // Multi-tenancy scoping:
+        // Only restrict plain employees to their own branch.
+        // HR, managers, shift managers can query any branch they are assigned to.
+        $canSelectBranch = $user->isAdmin()
+            || $user->isHR()
+            || $user->isManager()
+            || $user->hasRole('shift-manager')
+            || $user->hasPermission('manage-shift-rosters')
+            || $user->hasPermission('manage-rosters')
+            || $user->hasPermission('create-employees')
+            || $user->hasPermission('edit-employees');
+        if (!$canSelectBranch && $user->employee_id && $user->employee) {
             $branchId = $user->employee->company_id;
         }
 

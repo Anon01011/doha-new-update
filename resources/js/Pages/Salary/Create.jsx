@@ -5,6 +5,8 @@ import { useState, useMemo, useEffect } from 'react';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Modal from '@/Components/Modal';
 import { FaUser, FaCalendarAlt, FaMoneyBillWave, FaCalculator, FaPlus, FaTrash, FaArrowLeft, FaSave, FaMinus, FaInfoCircle, FaExclamationCircle, FaBuilding, FaChevronDown, FaClock, FaChartLine, FaSun, FaMoon, FaCloudSun, FaStopwatch, FaDollarSign, FaGift, FaCheckCircle, FaBriefcase } from 'react-icons/fa';
+import { resolveCurrency } from '@/helpers/currency';
+import { CurrencyPrefixedInput } from '@/helpers/currency-ui';
 
 /** Reusable section header row for the salary detail modal */
 function SectionHeader({ icon, iconBg, iconColor, title, subtitle }) {
@@ -26,8 +28,7 @@ export default function Create({ employees, salaryComponents = [], companies = [
     const { appSettings, auth } = usePage().props;
     const userRole = auth.user.role;
     const isAdminUser = ['admin', 'system admin', 'system_admin', 'super admin', 'superadmin'].includes(String(userRole).toLowerCase());
-    const currency = appSettings?.currency || 'QAR';
-    const currency_symbol = appSettings?.currency_symbol || 'QAR';
+    const { code: currency, symbol: currency_symbol } = resolveCurrency({ appSettings });
 
     const [selectedCompany, setSelectedCompany] = useState('');
     const [allowances, setAllowances] = useState([{ name: '', amount: '0', value_type: 'flat', percentage: '' }]);
@@ -350,39 +351,40 @@ export default function Create({ employees, salaryComponents = [], companies = [
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-normal text-slate-500 uppercase tracking-[0.2em] ml-1">Basic Salary</label>
-                                    <div className="relative">
-                                        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[10px] font-normal text-slate-400">{currency_symbol}</span>
-                                        <input
-                                            type="number" step="0.01" required
-                                            className="w-full pl-16 pr-5 py-3.5 bg-slate-50/50 border border-slate-100 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none text-[11px] font-normal uppercase tracking-normal"
-                                            value={data.basic_salary}
-                                            onChange={(e) => setData('basic_salary', e.target.value)}
-                                        />
-                                    </div>
+                                    <CurrencyPrefixedInput
+                                        value={data.basic_salary}
+                                        onChange={(e) => setData('basic_salary', e.target.value)}
+                                        symbol={currency_symbol}
+                                        code={currency}
+                                        className="bg-slate-50/50 border border-slate-100 rounded-lg focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all"
+                                        prefixClassName="text-[10px] font-normal text-slate-400 pl-5 pr-1"
+                                        inputClassName="w-full pr-5 py-3.5 text-[11px] font-normal uppercase tracking-normal"
+                                        inputProps={{ required: true }}
+                                    />
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-normal text-slate-500 uppercase tracking-[0.2em] ml-1 text-emerald-600">Overtime</label>
-                                    <div className="relative">
-                                        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[10px] font-normal text-emerald-300">{currency_symbol}</span>
-                                        <input
-                                            type="number" step="0.01"
-                                            className="w-full pl-16 pr-5 py-3.5 bg-emerald-50/10 border border-emerald-100/50 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none text-[11px] font-normal uppercase tracking-normal text-emerald-700"
-                                            value={data.overtime_amount}
-                                            onChange={(e) => setData('overtime_amount', e.target.value)}
-                                        />
-                                    </div>
+                                    <CurrencyPrefixedInput
+                                        value={data.overtime_amount}
+                                        onChange={(e) => setData('overtime_amount', e.target.value)}
+                                        symbol={currency_symbol}
+                                        code={currency}
+                                        className="bg-emerald-50/10 border border-emerald-100/50 rounded-lg focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all"
+                                        prefixClassName="text-[10px] font-normal text-emerald-300 pl-5 pr-1"
+                                        inputClassName="w-full pr-5 py-3.5 text-[11px] font-normal uppercase tracking-normal text-emerald-700"
+                                    />
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-normal text-slate-500 uppercase tracking-[0.2em] ml-1 text-rose-600">Leave Deduction</label>
-                                    <div className="relative">
-                                        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[10px] font-normal text-rose-300">{currency_symbol}</span>
-                                        <input
-                                            type="number" step="0.01"
-                                            className="w-full pl-16 pr-5 py-3.5 bg-rose-50/10 border border-rose-100/50 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none text-[11px] font-normal uppercase tracking-normal text-rose-700"
-                                            value={data.leave_deduction}
-                                            onChange={(e) => setData('leave_deduction', e.target.value)}
-                                        />
-                                    </div>
+                                    <CurrencyPrefixedInput
+                                        value={data.leave_deduction}
+                                        onChange={(e) => setData('leave_deduction', e.target.value)}
+                                        symbol={currency_symbol}
+                                        code={currency}
+                                        className="bg-rose-50/10 border border-rose-100/50 rounded-lg focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all"
+                                        prefixClassName="text-[10px] font-normal text-rose-300 pl-5 pr-1"
+                                        inputClassName="w-full pr-5 py-3.5 text-[11px] font-normal uppercase tracking-normal text-rose-700"
+                                    />
                                 </div>
                             </div>
 
@@ -613,7 +615,7 @@ export default function Create({ employees, salaryComponents = [], companies = [
                                         </button>
                                     )}
                                 </h3>
-                                <div className="grid grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                                     <div className="text-center p-4 bg-emerald-50 rounded-lg border border-emerald-100">
                                         <p className="text-xl font-normal text-emerald-600">{calculationSummary.present}</p>
                                         <p className="text-[8px] font-normal text-emerald-400 uppercase tracking-normal">ACTIVE</p>
@@ -686,7 +688,7 @@ export default function Create({ employees, salaryComponents = [], companies = [
                         </div>
 
                         {/* Quick stats bar */}
-                        <div className="grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-white/10">
+                        <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-white/10 sm:grid-cols-4">
                             {[
                                 { label: 'Basic', value: formatCurrency(calculationDetails?.basic_salary), color: 'text-slate-200' },
                                 { label: '+ Overtime', value: `+${formatCurrency(calculationDetails?.overtime_amount)}`, color: 'text-emerald-300' },
@@ -741,14 +743,15 @@ export default function Create({ employees, salaryComponents = [], companies = [
                                         </div>
                                     ) : (
                                         <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
-                                            <div className="grid grid-cols-4 bg-slate-50 px-4 py-2 border-b border-slate-200">
+                                            <div className="overflow-x-auto">
+                                            <div className="grid min-w-[560px] grid-cols-4 bg-slate-50 px-4 py-2 border-b border-slate-200">
                                                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Date</span>
                                                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Leave Type</span>
                                                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">Status</span>
                                                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Reason</span>
                                             </div>
                                             {leaves.map((leave, idx) => (
-                                                <div key={idx} className={`grid grid-cols-4 items-center px-4 py-2.5 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
+                                                <div key={idx} className={`grid min-w-[560px] grid-cols-4 items-center px-4 py-2.5 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
                                                     <span className="text-[11px] text-slate-600 font-medium">
                                                         {new Date(leave.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                                                     </span>
@@ -769,6 +772,7 @@ export default function Create({ employees, salaryComponents = [], companies = [
                                                     <span className="text-xs font-bold text-rose-700">-{formatCurrency((calculationDetails?.leave_deduction || 0))}</span>
                                                 </div>
                                             )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -779,7 +783,8 @@ export default function Create({ employees, salaryComponents = [], companies = [
                         <div className="px-6 py-5">
                             <SectionHeader icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>} iconBg="bg-violet-100" iconColor="text-violet-600" title="Shift Roster vs Attendance" subtitle="Compares rostered shifts against actual clock-in records and shift multipliers" />
                             <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
-                                <div className="grid grid-cols-4 bg-slate-50 px-4 py-2.5 border-b border-slate-200">
+                                <div className="overflow-x-auto">
+                                <div className="grid min-w-[560px] grid-cols-4 bg-slate-50 px-4 py-2.5 border-b border-slate-200">
                                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Shift</span>
                                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">Rostered Days</span>
                                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider text-center">Days Attended</span>
@@ -797,7 +802,7 @@ export default function Create({ employees, salaryComponents = [], companies = [
                                     const rawMult = effMult || calculationDetails?.overtime_breakdown?.[shift.otKey]?.multiplier;
                                     const mult = rawMult ? parseFloat(rawMult).toFixed(2) : shift.def;
                                     return (
-                                        <div key={shift.key} className={`grid grid-cols-4 items-center px-4 py-3 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
+                                        <div key={shift.key} className={`grid min-w-[560px] grid-cols-4 items-center px-4 py-3 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 last:border-0`}>
                                             <div className="flex items-center gap-2">
                                                 <shift.Icon className={shift.iconColor} size={13} />
                                                 <span className="text-[11px] font-semibold text-slate-700">{shift.label} Shift</span>
@@ -816,6 +821,7 @@ export default function Create({ employees, salaryComponents = [], companies = [
                                         </div>
                                     );
                                 })}
+                                </div>
                             </div>
                             <p className="text-[9px] text-slate-400 mt-2 px-1">
                                 Applied Shift Multipliers: Morning ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Morning || 1.25).toFixed(2)}×), Day ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Day || 1.25).toFixed(2)}×), Evening ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Evening || 1.25).toFixed(2)}×), Night ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Night || 1.50).toFixed(2)}×), Holiday ({parseFloat(calculationDetails?.effective_scope_info?.multipliers?.Holiday || 2.25).toFixed(2)}×).
@@ -889,7 +895,7 @@ export default function Create({ employees, salaryComponents = [], companies = [
                         <div className="px-6 py-5">
                             <SectionHeader icon={<FaChartLine />} iconBg="bg-indigo-100" iconColor="text-indigo-600" title="Overtime Breakdown" subtitle={`${parseFloat(calculationDetails?.overtime_hours || 0).toFixed(2)} total OT hours · Base rate: ${formatCurrency(calculationDetails?.overtime_base_rate)}/hr`} />
                             {/* OT formula cards */}
-                            <div className="grid grid-cols-3 gap-2 mt-3">
+                            <div className="grid grid-cols-1 gap-2 mt-3 sm:grid-cols-3">
                                 {[
                                     { label: 'OT Hours', value: `${parseFloat(calculationDetails?.overtime_hours || 0).toFixed(2)} hrs`, Icon: FaStopwatch, iconColor: 'text-indigo-600' },
                                     { label: 'Base Rate / Hr', value: formatCurrency(calculationDetails?.overtime_base_rate), Icon: FaDollarSign, iconColor: 'text-indigo-600' },

@@ -1,9 +1,12 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { FiArrowLeft, FiFilter, FiDownload, FiFileText, FiTable, FiDollarSign, FiClock, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
+import { resolveCurrency } from '@/helpers/currency';
 
 export default function Advance({ advances, summary, startDate, endDate, status }) {
+    const { appSettings } = usePage().props;
+    const { formatter: formatCurrency } = resolveCurrency({ appSettings });
     const today = new Date().toLocaleDateString('en-CA');
     const [filters, setFilters] = useState({
         start_date: startDate || '',
@@ -120,7 +123,7 @@ export default function Advance({ advances, summary, startDate, endDate, status 
                             </div>
                             <div>
                                 <div className="text-xs font-normal text-slate-400 uppercase tracking-normal">Total Disbursed</div>
-                                <div className="text-xl font-normal text-slate-800">{Number(summary.total_amount).toLocaleString()}</div>
+                                <div className="text-xl font-normal text-slate-800">{formatCurrency(summary.total_amount)}</div>
                             </div>
                         </div>
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex items-center gap-4 group hover:shadow-md transition-all">
@@ -183,7 +186,7 @@ export default function Advance({ advances, summary, startDate, endDate, status 
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-normal text-slate-900">
-                                                {Number(adv.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                {formatCurrency(adv.amount)}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-normal text-slate-500">
                                                 {new Date(adv.request_date).toLocaleDateString()}

@@ -109,7 +109,7 @@ export default function MyTasks({ tasks, status, priority }) {
                                             <p className="text-xs font-normal text-slate-500 truncate">{task.project?.name || 'Standalone Task'}</p>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-3 mb-5">
+                                        <div className="grid grid-cols-1 gap-3 mb-5 sm:grid-cols-2">
                                             <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
                                                 <p className="text-[10px] font-normal text-slate-400 uppercase tracking-normal mb-1">Due Date</p>
                                                 <p className="text-sm font-normal text-slate-700">{formatDate(task.due_date)}</p>

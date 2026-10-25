@@ -15,11 +15,11 @@
                 </td>
                 <td class="summary-item">
                     <span class="label">Total Amount:</span>
-                    <span class="value">{{ number_format($summary['total_amount'], 2) }}</span>
+                    <span class="value">{{ $currencySymbol }}{{ number_format($summary['total_amount'], 2) }}</span>
                 </td>
                 <td class="summary-item">
                     <span class="label">Outstanding:</span>
-                    <span class="value bg-rose">{{ number_format($summary['total_outstanding'], 2) }}</span>
+                    <span class="value bg-rose">{{ $currencySymbol }}{{ number_format($summary['total_outstanding'], 2) }}</span>
                 </td>
                 <td class="summary-item">
                     <span class="label">Completed:</span>
@@ -35,10 +35,10 @@
             <tr>
                 <th>Employee</th>
                 <th>Loan Type</th>
-                <th>Amount</th>
-                <th>Interest</th>
-                <th>Total</th>
-                <th>Paid</th>
+                <th>Amount ({{ $currencyCode }})</th>
+                <th>Interest ({{ $currencyCode }})</th>
+                <th>Total ({{ $currencyCode }})</th>
+                <th>Paid ({{ $currencyCode }})</th>
                 <th>Status</th>
             </tr>
         </thead>
@@ -47,10 +47,10 @@
             <tr>
                 <td>{{ $loan->employee->name }}</td>
                 <td>{{ ucfirst($loan->loan_type) }}</td>
-                <td class="text-right">{{ number_format($loan->amount, 2) }}</td>
-                <td class="text-right">{{ number_format($loan->interest_amount, 2) }}</td>
-                <td class="text-right">{{ number_format($loan->total_payable, 2) }}</td>
-                <td class="text-right bg-emerald">{{ number_format($loan->total_paid, 2) }}</td>
+                <td class="text-right">{{ $currencySymbol }}{{ number_format($loan->amount, 2) }}</td>
+                <td class="text-right">{{ $currencySymbol }}{{ number_format($loan->interest_amount, 2) }}</td>
+                <td class="text-right">{{ $currencySymbol }}{{ number_format($loan->total_payable, 2) }}</td>
+                <td class="text-right bg-emerald">{{ $currencySymbol }}{{ number_format($loan->total_paid, 2) }}</td>
                 <td>
                     <span class="{{ $loan->status === 'completed' ? 'bg-emerald' : ($loan->status === 'rejected' ? 'bg-rose' : 'bg-sky') }}">
                         {{ ucfirst($loan->status) }}

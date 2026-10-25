@@ -2,11 +2,12 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SearchableSelect from '@/Components/SearchableSelect';
 import { Head, useForm, Link, usePage } from '@inertiajs/react';
 import { FaMoneyBillWave, FaCalendarAlt, FaUser, FaInfoCircle, FaSave, FaArrowLeft, FaCheck, FaShieldAlt, FaClock, FaEdit, FaChevronDown, FaHistory, FaChartPie } from 'react-icons/fa';
+import { resolveCurrency } from '@/helpers/currency';
+import { CurrencyPrefixedInput } from '@/helpers/currency-ui';
 
 export default function Edit({ advance, employees, userRole = 'employee' }) {
     const { appSettings } = usePage().props;
-    const currency = appSettings?.currency || 'QAR';
-    const currency_symbol = appSettings?.currency_symbol || 'QAR';
+    const { code: currency, symbol: currency_symbol } = resolveCurrency({ appSettings });
 
     const formatDate = (dateString) => {
         if (!dateString) return '';
@@ -123,14 +124,17 @@ export default function Edit({ advance, employees, userRole = 'employee' }) {
                                 {/* Capital Quantum */}
                                 <div className="md:col-span-2 space-y-2">
                                     <label className="text-[10px] font-normal text-slate-500 uppercase ml-1">Amount</label>
-                                    <div className="relative group">
-                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-normal text-slate-400">{currency_symbol}</div>
-                                        <input
-                                            type="number" step="0.01" value={data.amount}
-                                            className="w-full pl-10 pr-3 py-2 bg-slate-50/50 border border-slate-200 rounded-[3px] focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none text-xl font-normal tracking-normal"
-                                            onChange={(e) => setData('amount', e.target.value)} placeholder="0.00" required
-                                        />
-                                    </div>
+                                    <CurrencyPrefixedInput
+                                        value={data.amount}
+                                        onChange={(e) => setData('amount', e.target.value)}
+                                        symbol={currency_symbol}
+                                        code={currency}
+                                        placeholder="0.00"
+                                        className="group bg-slate-50/50 border border-slate-200 rounded-[3px] focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all"
+                                        prefixClassName="text-[10px] font-normal text-slate-400 pl-4 pr-1"
+                                        inputClassName="w-full pr-3 py-2 text-xl font-normal tracking-normal"
+                                        inputProps={{ required: true }}
+                                    />
                                     {errors.amount && <p className="text-[10px] font-normal text-rose-500 mt-2 ml-1 uppercase">{errors.amount}</p>}
                                 </div>
 

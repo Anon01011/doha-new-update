@@ -5,13 +5,14 @@ import { useState, useEffect, useMemo } from 'react';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Modal from '@/Components/Modal';
 import { FaUser, FaCalendarAlt, FaMoneyBillWave, FaCalculator, FaPlus, FaTrash, FaArrowLeft, FaSave, FaMinus, FaInfoCircle, FaExclamationCircle, FaBuilding, FaChevronDown, FaClock, FaChartLine, FaEdit } from 'react-icons/fa';
+import { resolveCurrency } from '@/helpers/currency';
+import { CurrencyPrefixedInput } from '@/helpers/currency-ui';
 
 export default function Edit({ salaryPosting, employees, salaryComponents = [], companies = [], payrollDetails = null }) {
     const { appSettings, auth } = usePage().props;
     const userRole = auth.user.role;
     const isAdminUser = ['admin', 'system admin', 'system_admin', 'super admin', 'superadmin'].includes(String(userRole).toLowerCase());
-    const currency = appSettings?.currency || 'QAR';
-    const currency_symbol = appSettings?.currency_symbol || 'QAR';
+    const { code: currency, symbol: currency_symbol } = resolveCurrency({ appSettings });
 
     const [selectedCompany, setSelectedCompany] = useState(salaryPosting.employee?.company_id || '');
     const [allowances, setAllowances] = useState([]);
@@ -306,39 +307,40 @@ export default function Edit({ salaryPosting, employees, salaryComponents = [], 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-normal text-slate-500 uppercase tracking-[0.2em] ml-1">Basic Salary</label>
-                                    <div className="relative">
-                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-normal text-slate-400">{currency_symbol}</span>
-                                        <input
-                                            type="number" step="0.01" required
-                                            className="w-full pl-10 pr-4 py-2 bg-slate-50/50 border border-slate-100 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none text-[10px] font-normal uppercase tracking-normal"
-                                            value={data.basic_salary}
-                                            onChange={(e) => setData('basic_salary', e.target.value)}
-                                        />
-                                    </div>
+                                    <CurrencyPrefixedInput
+                                        value={data.basic_salary}
+                                        onChange={(e) => setData('basic_salary', e.target.value)}
+                                        symbol={currency_symbol}
+                                        code={currency}
+                                        className="bg-slate-50/50 border border-slate-100 rounded-lg focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all"
+                                        prefixClassName="text-[10px] font-normal text-slate-400 pl-4 pr-1"
+                                        inputClassName="w-full pr-4 py-2 text-[10px] font-normal uppercase tracking-normal"
+                                        inputProps={{ required: true }}
+                                    />
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-normal text-slate-500 uppercase tracking-[0.2em] ml-1 text-emerald-600">Overtime</label>
-                                    <div className="relative">
-                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-normal text-emerald-500">{currency_symbol}</span>
-                                        <input
-                                            type="number" step="0.01"
-                                            className="w-full pl-10 pr-4 py-2 bg-emerald-50/10 border border-emerald-100/50 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none text-[10px] font-normal uppercase tracking-normal text-emerald-700"
-                                            value={data.overtime_amount}
-                                            onChange={(e) => setData('overtime_amount', e.target.value)}
-                                        />
-                                    </div>
+                                    <CurrencyPrefixedInput
+                                        value={data.overtime_amount}
+                                        onChange={(e) => setData('overtime_amount', e.target.value)}
+                                        symbol={currency_symbol}
+                                        code={currency}
+                                        className="bg-emerald-50/10 border border-emerald-100/50 rounded-lg focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all"
+                                        prefixClassName="text-[10px] font-normal text-emerald-500 pl-4 pr-1"
+                                        inputClassName="w-full pr-4 py-2 text-[10px] font-normal uppercase tracking-normal text-emerald-700"
+                                    />
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-normal text-slate-500 uppercase tracking-[0.2em] ml-1 text-rose-600">Leave Deduction</label>
-                                    <div className="relative">
-                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-normal text-rose-500">{currency_symbol}</span>
-                                        <input
-                                            type="number" step="0.01"
-                                            className="w-full pl-10 pr-4 py-2 bg-rose-50/10 border border-rose-100/50 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none text-[10px] font-normal uppercase tracking-normal text-rose-700"
-                                            value={data.leave_deduction}
-                                            onChange={(e) => setData('leave_deduction', e.target.value)}
-                                        />
-                                    </div>
+                                    <CurrencyPrefixedInput
+                                        value={data.leave_deduction}
+                                        onChange={(e) => setData('leave_deduction', e.target.value)}
+                                        symbol={currency_symbol}
+                                        code={currency}
+                                        className="bg-rose-50/10 border border-rose-100/50 rounded-lg focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all"
+                                        prefixClassName="text-[10px] font-normal text-rose-500 pl-4 pr-1"
+                                        inputClassName="w-full pr-4 py-2 text-[10px] font-normal uppercase tracking-normal text-rose-700"
+                                    />
                                 </div>
                             </div>
 

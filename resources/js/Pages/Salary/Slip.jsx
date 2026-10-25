@@ -3,6 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { FiPrinter, FiArrowLeft, FiDownload, FiClock } from 'react-icons/fi';
 import { useState } from 'react';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { resolveCurrency, resolveCountry, CURRENCY_NAMES, CURRENCY_SUB_UNITS } from '@/helpers/currency';
 
 // Simple SVG Pie/Donut Chart Component
 const PieChart = ({ data, size = 120, innerRadius = 0, centerText = null }) => {
@@ -100,8 +101,8 @@ const numberToWords = (num) => {
 
 export default function Slip({ salaryPosting, loanInstallments = [], advances = [], overtimeDetails = null }) {
     const { appSettings } = usePage().props;
-    const currency = appSettings?.currency || 'QAR';
-    const appCountry = appSettings?.app_country || (currency === 'INR' ? 'IN' : 'QA');
+    const { code: currency } = resolveCurrency({ appSettings });
+    const appCountry = resolveCountry({ appSettings });
     const slipFormat = appSettings?.salary_slip_format || 'classic';
     const paymentDisplay = appSettings?.salary_slip_payment_display || 'full_details';
     const showFullPaymentDetails = paymentDisplay === 'full_details';
@@ -195,19 +196,8 @@ export default function Slip({ salaryPosting, loanInstallments = [], advances = 
     // Amount to words for main currency
     const netInt = Math.floor(netSalary);
     const netDec = Math.round((netSalary - netInt) * 100);
-    const getCurrencyWord = (curr) => {
-        if (curr === 'INR') return 'Rupees';
-        if (curr === 'QAR') return 'Qatari Riyals';
-        if (curr === 'AED') return 'Dirhams';
-        if (curr === 'USD') return 'Dollars';
-        return curr;
-    };
-    const getSubCurrencyWord = (curr) => {
-        if (curr === 'INR') return 'Paise';
-        if (curr === 'QAR' || curr === 'AED') return 'Dirhams';
-        if (curr === 'USD') return 'Cents';
-        return 'Cents';
-    };
+    const getCurrencyWord = (curr) => CURRENCY_NAMES[curr] || curr;
+    const getSubCurrencyWord = (curr) => CURRENCY_SUB_UNITS[curr] || 'Cent';
     const wordsStr = `${numberToWords(netInt)} ${getCurrencyWord(currency)} ${netDec > 0 ? `and ${numberToWords(netDec)} ${getSubCurrencyWord(currency)} ` : ''}Only`;
 
     // Pie Chart Data Colors
@@ -341,7 +331,7 @@ export default function Slip({ salaryPosting, loanInstallments = [], advances = 
                             </div>
 
                             {/* Earnings Table */}
-                            <div className="mt-1">
+                            <div className="mt-1 overflow-x-auto">
                                 <table className="w-full text-xs border-collapse">
                                     <thead>
                                         <tr className="bg-gray-100 border-y border-gray-300">
@@ -380,7 +370,7 @@ export default function Slip({ salaryPosting, loanInstallments = [], advances = 
                             </div>
 
                             {/* Deductions Table */}
-                            <div className="mt-3">
+                            <div className="mt-3 overflow-x-auto">
                                 <table className="w-full text-xs border-collapse">
                                     <thead>
                                         <tr className="bg-gray-100 border-y border-gray-300">
@@ -428,7 +418,7 @@ export default function Slip({ salaryPosting, loanInstallments = [], advances = 
                             </div>
 
                             {/* Summary Rows */}
-                            <div className="mt-3 border-y-2 border-gray-400">
+                            <div className="mt-3 border-y-2 border-gray-400 overflow-x-auto">
                                 <table className="w-full text-xs">
                                     <tbody>
                                         <tr className="border-b border-gray-200">

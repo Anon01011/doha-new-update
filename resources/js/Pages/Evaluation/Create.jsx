@@ -3,6 +3,8 @@ import { Head, useForm, Link } from '@inertiajs/react';
 import { useState, useEffect, useMemo } from 'react';
 import Avatar from '@/Components/Avatar';
 import axios from 'axios';
+import { useCurrency } from '@/helpers/currency';
+import { CurrencyAmountInput } from '@/helpers/currency-ui';
 import {
     UserIcon,
     ChatBubbleBottomCenterTextIcon,
@@ -22,6 +24,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 export default function Create({ auth, employees: initialEmployees, branches, departments: initialDepartments, criteria }) {
+    const { code: currencyCode, symbol: currencySymbol, format: formatCurrency } = useCurrency();
     const { data, setData, post, processing, errors, transform } = useForm({
         branch_id: '',
         department_id: '',
@@ -247,7 +250,7 @@ export default function Create({ auth, employees: initialEmployees, branches, de
                                                 <p className="text-[10px] text-indigo-600 font-normal uppercase">{selectedEmployee.designation || 'Staff'}</p>
                                                 {currentBasic > 0 && (
                                                     <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">
-                                                        Current Basic: ₹{currentBasic.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                        Current Basic: {currencySymbol}{currentBasic.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                                     </p>
                                                 )}
                                             </div>
@@ -347,7 +350,7 @@ export default function Create({ auth, employees: initialEmployees, branches, de
                                                             {getScoreLabel(score)} ({score})
                                                         </span>
                                                     </div>
-                                                    <div className="grid grid-cols-4 gap-2">
+                                                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                                                         {[1, 2, 3, 4].map((num) => (
                                                             <button
                                                                 key={num}
@@ -389,7 +392,7 @@ export default function Create({ auth, employees: initialEmployees, branches, de
                                                 : 'text-slate-500 hover:text-slate-700'
                                         }`}
                                     >
-                                        ₹ Fixed Amount
+                                        {currencySymbol} Fixed Amount
                                     </button>
                                     <button
                                         type="button"
@@ -408,20 +411,17 @@ export default function Create({ auth, employees: initialEmployees, branches, de
                                     {incrementType === 'fixed' ? (
                                         <div>
                                             <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-normal mb-1">
-                                                Fixed Increment Amount (₹)
+                                                Fixed Increment Amount ({currencySymbol})
                                             </label>
-                                            <div className="relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">₹</span>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    step="0.01"
-                                                    value={data.increment_recommended}
-                                                    onChange={(e) => setData('increment_recommended', e.target.value)}
-                                                    placeholder="e.g. 2500"
-                                                    className="w-full pl-7 bg-slate-50 border-slate-200 rounded-lg text-xs font-normal text-slate-700 focus:ring-emerald-500 focus:border-emerald-500"
-                                                />
-                                            </div>
+                                            <CurrencyAmountInput
+                                                value={data.increment_recommended}
+                                                onChange={(e) => setData('increment_recommended', e.target.value)}
+                                                symbol={currencySymbol}
+                                                code={currencyCode}
+                                                placeholder="e.g. 2500"
+                                                min="0"
+                                                tone="emerald"
+                                            />
                                             {errors.increment_recommended && (
                                                 <p className="text-rose-500 text-[10px] mt-1">{errors.increment_recommended}</p>
                                             )}
@@ -457,12 +457,12 @@ export default function Create({ auth, employees: initialEmployees, branches, de
                                             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-1.5">
                                                 <div className="flex items-center justify-between text-[11px]">
                                                     <span className="text-slate-500">Current Basic</span>
-                                                    <span className="font-semibold text-slate-700">₹{currentBasic.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                                    <span className="font-semibold text-slate-700">{currencySymbol}{currentBasic.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                                                 </div>
                                                 <div className="flex items-center justify-between text-[11px]">
                                                     <span className="text-emerald-600">Increment (+)</span>
                                                     <span className="font-semibold text-emerald-700">
-                                                        +₹{incrementAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                        +{currencySymbol}{incrementAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                                         {incrementType === 'fixed' && incrementPct > 0 && (
                                                             <span className="ml-1 text-emerald-500">({incrementPct}%)</span>
                                                         )}
@@ -470,7 +470,7 @@ export default function Create({ auth, employees: initialEmployees, branches, de
                                                 </div>
                                                 <div className="border-t border-emerald-200 pt-1.5 flex items-center justify-between text-[12px]">
                                                     <span className="text-slate-700 font-semibold">New Basic Salary</span>
-                                                    <span className="font-bold text-emerald-700">₹{newSalary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                                    <span className="font-bold text-emerald-700">{currencySymbol}{newSalary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                                                 </div>
                                             </div>
                                         </div>

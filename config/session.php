@@ -47,7 +47,9 @@ return [
     |
     */
 
-    'encrypt' => env('SESSION_ENCRYPT', false),
+    // LOW-03: session payloads are stored in the sessions table. Encrypt them by
+    // default in production so a database dump does not expose live sessions.
+    'encrypt' => env('SESSION_ENCRYPT', env('APP_ENV', 'production') === 'production'),
 
     /*
     |--------------------------------------------------------------------------
@@ -169,7 +171,10 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    // LOW-03: the session cookie must not travel over plain HTTP. When the env
+    // var is unset, default to secure in production and to the request scheme
+    // in local development (so http://localhost keeps working).
+    'secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV', 'production') === 'production'),
 
     /*
     |--------------------------------------------------------------------------

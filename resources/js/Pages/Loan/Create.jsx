@@ -2,6 +2,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SearchableSelect from '@/Components/SearchableSelect';
 import { Head, useForm, router, usePage, Link } from '@inertiajs/react';
 import { useState, useMemo } from 'react';
+import { resolveCurrency } from '@/helpers/currency';
+import { CurrencyPrefixedInput } from '@/helpers/currency-ui';
 import {
     FaArrowLeft, FaPlus, FaSave, FaCheckCircle,
     FaInfoCircle, FaChartPie, FaCogs, FaUser, FaPercentage, FaMoneyBillWave, FaCalendarAlt, FaChevronDown, FaShieldAlt, FaClock, FaUniversity
@@ -9,7 +11,7 @@ import {
 
 export default function Create({ employees = [], loanTypes = [], userRole = 'employee', authEmployeeId = null }) {
     const { appSettings } = usePage().props;
-    const currency_symbol = appSettings?.currency_symbol || 'QAR';
+    const { symbol: currency_symbol } = resolveCurrency({ appSettings });
 
     const [showNewTypeInput, setShowNewTypeInput] = useState(false);
     const [newLoanType, setNewLoanType] = useState('');
@@ -35,7 +37,7 @@ export default function Create({ employees = [], loanTypes = [], userRole = 'emp
 
     const formatCurrency = (amount) => new Intl.NumberFormat('en-US', { 
         style: 'currency', 
-        currency: appSettings?.currency || 'QAR' 
+        currency: resolveCurrency({ appSettings }).code 
     }).format(amount || 0);
 
     const calculation = useMemo(() => {
@@ -201,14 +203,17 @@ export default function Create({ employees = [], loanTypes = [], userRole = 'emp
 
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-normal text-slate-500 uppercase ml-1">Amount</label>
-                                    <div className="relative group">
-                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-normal text-slate-400">{currency_symbol}</div>
-                                        <input
-                                            type="number" step="0.01" value={data.amount}
-                                            className="w-full pl-10 pr-3 py-2 bg-slate-50/50 border border-slate-200 rounded-[3px] focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none text-[11px] font-normal uppercase"
-                                            onChange={(e) => setData('amount', e.target.value)} placeholder="0.00" required
-                                        />
-                                    </div>
+                                    <CurrencyPrefixedInput
+                                        value={data.amount}
+                                        onChange={(e) => setData('amount', e.target.value)}
+                                        symbol={currency_symbol}
+                                        code={currency}
+                                        placeholder="0.00"
+                                        className="group bg-slate-50/50 border border-slate-200 rounded-[3px] focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all"
+                                        prefixClassName="text-[10px] font-normal text-slate-400 pl-4 pr-1"
+                                        inputClassName="w-full pr-3 py-2 text-[11px] font-normal uppercase"
+                                        inputProps={{ required: true }}
+                                    />
                                     {errors.amount && <p className="text-[10px] font-normal text-rose-500 mt-2 ml-1 uppercase">{errors.amount}</p>}
                                 </div>
 
@@ -248,7 +253,7 @@ export default function Create({ employees = [], loanTypes = [], userRole = 'emp
 
                                 <div className="md:col-span-2 space-y-3 pt-4 border-t border-slate-50">
                                     <label className="text-[10px] font-normal text-slate-500 uppercase ml-1">Repayment Method</label>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         <button
                                             type="button"
                                             onClick={() => setData('repayment_method', 'salary_deduction')}

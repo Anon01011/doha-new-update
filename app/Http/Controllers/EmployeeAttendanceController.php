@@ -1280,9 +1280,16 @@ class EmployeeAttendanceController extends Controller
     {
         $user = auth()->user();
 
-        // Only admin, hr, and manager can update attendance records
-        if (!in_array($user->role, ['admin', 'hr', 'manager'])) {
-            abort(403, 'Unauthorized. Only admin, HR, and managers can update attendance records.');
+        // Only admin, HR, and managers holding the manage-attendance permission
+        // can update attendance records.
+        //
+        // This check is deliberately identical to the one in store() so that the
+        // two entry points cannot drift apart. It must use the role helpers
+        // (isAdmin() / isHR()) rather than reading the legacy users.role
+        // column, because a user's role may live solely in the user_roles
+        // pivot table.
+        if (!$user->isAdmin() && !$user->isHR() && !$user->hasPermission('manage-attendance')) {
+            abort(403, 'Unauthorized. Only admin, HR, and managers (with permission) can update attendance records.');
         }
 
         $attendance = EmployeeAttendance::findOrFail($id);

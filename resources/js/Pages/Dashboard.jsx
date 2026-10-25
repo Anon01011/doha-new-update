@@ -3,6 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Avatar from '@/Components/Avatar';
+import { resolveCurrency } from '@/helpers/currency';
 import {
     FiUsers, FiBriefcase, FiCalendar, FiClock, FiDollarSign, FiActivity,
     FiLayers, FiAlertCircle, FiSettings, FiMove, FiEye, FiEyeOff,
@@ -432,7 +433,7 @@ const DEFAULT_LAYOUT = [
 
 export default function Dashboard(props) {
     const { auth, appSettings } = usePage().props;
-    const currency = appSettings?.currency || 'QAR';
+    const { code: currency } = resolveCurrency({ appSettings });
 
     // Merge props layout with default layout
     const initialLayout = props.dashboardSettings || DEFAULT_LAYOUT;

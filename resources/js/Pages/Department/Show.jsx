@@ -2,6 +2,7 @@ import React from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
 import Avatar from '@/Components/Avatar';
+import { employeeRoute } from '@/helpers/employee-routes';
 import {
     FaLayerGroup,
     FaBuilding,
@@ -214,7 +215,7 @@ export default function Show({ department, employees = [] }) {
                                             
                                             <div className="mt-4 flex items-center gap-4">
                                                 <Link
-                                                    href={route('employees.show', emp.id)}
+                                                    href={employeeRoute('employees.show', emp)}
                                                     className="flex items-center justify-center w-full bg-slate-50 hover:bg-slate-900 text-slate-400 hover:text-white py-2.5 rounded-lg text-[9px] font-normal uppercase tracking-normal transition-all active:scale-95 border border-slate-100"
                                                 >
                                                     Analysis Profile <FaChevronRight className="ml-2" size={8} />

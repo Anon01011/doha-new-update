@@ -19,6 +19,9 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
     const [processing, setProcessing] = useState(false);
     const [selectedIds, setSelectedIds] = useState([]);
     const [bulkRejectModal, setBulkRejectModal] = useState({ show: false, reason: '', error: '' });
+    const [balanceSearch, setBalanceSearch] = useState('');
+    const [showAllBalances, setShowAllBalances] = useState(false);
+    const [balanceViewMode, setBalanceViewMode] = useState('grid');
 
     const canUserApprove = (request) => {
         if (request.status === 'approved' || request.status === 'rejected' || request.status === 'cancelled') {
@@ -163,29 +166,125 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
             <Head title="Leave Management" />
 
             <div className="w-full p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
-                {/* Balances */}
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-                    {leaveBalances && Object.entries(leaveBalances).map(([type, balance]) => (
-                        <div key={type} className="bg-white p-3.5 sm:p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group min-w-0">
-                            <div className="flex items-center justify-between mb-2 sm:mb-3">
-                                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
-                                    <FaCalendarCheck size={13} />
+                {/* Balances - Scalable for 5 to 50+ Leave Types */}
+                {(() => {
+                    const rawBalances = leaveBalances ? (Array.isArray(leaveBalances) ? leaveBalances : Object.values(leaveBalances)) : [];
+                    const filtered = rawBalances.filter(item => {
+                        if (!balanceSearch.trim()) return true;
+                        const name = (item?.leave_type?.name || item?.name || '').toLowerCase();
+                        return name.includes(balanceSearch.toLowerCase().trim());
+                    });
+                    const hasMoreThanFive = filtered.length > 5;
+                    const itemsToDisplay = (showAllBalances || balanceSearch.trim()) ? filtered : filtered.slice(0, 5);
+                    const totalRemainingDays = rawBalances.reduce((sum, item) => sum + (parseFloat(item?.remaining_days ?? item?.total_days ?? 0)), 0);
+
+                    return (
+                        <div className="space-y-3">
+                            {/* Header row with search, total summary, and expand toggle when many types exist */}
+                            {rawBalances.length > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-2.5 px-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Leave Balances</span>
+                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                                            {totalRemainingDays}d Total Available
+                                        </span>
+                                        <span className="text-[10px] font-medium text-slate-400">
+                                            ({rawBalances.length} Types)
+                                        </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        {rawBalances.length > 5 && (
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Filter type..."
+                                                    value={balanceSearch}
+                                                    onChange={(e) => setBalanceSearch(e.target.value)}
+                                                    className="w-36 sm:w-44 pl-7 pr-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/20"
+                                                />
+                                                <FaSearch className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                            </div>
+                                        )}
+
+                                        {hasMoreThanFive && !balanceSearch.trim() && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowAllBalances(!showAllBalances)}
+                                                className="text-xs font-bold text-indigo-600 hover:text-indigo-700 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                                            >
+                                                {showAllBalances ? 'Show Less ▴' : `Show All (${rawBalances.length}) ▾`}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
-                                <span className="text-[10px] font-normal text-slate-400 truncate ml-2">{type}</span>
-                            </div>
-                            <div className="flex items-end justify-between min-w-0">
-                                <div className="text-xl sm:text-2xl font-normal text-slate-900 tracking-normal leading-none truncate">{balance}</div>
-                                <div className="text-[8px] sm:text-[9px] font-normal text-slate-400 mb-0.5 whitespace-nowrap">Available</div>
+                            )}
+
+                            {/* Cards Grid */}
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3">
+                                {itemsToDisplay.map((item, idx) => {
+                                    const typeName = item?.leave_type?.name || item?.name || (typeof item === 'string' ? item : `Leave ${idx + 1}`);
+                                    const available = item?.remaining_days !== undefined ? parseFloat(item.remaining_days) : (typeof item === 'number' ? item : 0);
+                                    const total = item?.total_days !== undefined ? parseFloat(item.total_days) : available;
+                                    const used = item?.used_days !== undefined ? parseFloat(item.used_days) : 0;
+                                    const carryForward = item?.carry_forward_days !== undefined ? parseFloat(item.carry_forward_days) : 0;
+                                    const pct = total > 0 ? Math.min(100, Math.max(0, Math.round((available / total) * 100))) : 0;
+
+                                    return (
+                                        <div
+                                            key={item?.id || idx}
+                                            className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200/90 shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between group min-w-0"
+                                        >
+                                            <div>
+                                                <div className="flex items-center justify-between gap-1 mb-2">
+                                                    <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate" title={typeName}>
+                                                        {typeName}
+                                                    </span>
+                                                    {carryForward > 0 && (
+                                                        <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-full shrink-0">
+                                                            +{carryForward} CF
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-baseline justify-between mt-1">
+                                                    <div className="flex items-baseline">
+                                                        <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono">
+                                                            {available}
+                                                        </span>
+                                                        <span className="text-xs font-semibold text-slate-400 ml-0.5">d</span>
+                                                    </div>
+                                                    <span className="text-[10px] font-medium text-slate-400">
+                                                        / {total}d
+                                                    </span>
+                                                </div>
+
+                                                <div className="w-full bg-slate-100 rounded-full h-1 mt-2 overflow-hidden border border-slate-200/50">
+                                                    <div
+                                                        className="bg-emerald-500 h-1 rounded-full transition-all duration-300"
+                                                        style={{ width: `${pct}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2.5 pt-2 border-t border-slate-100">
+                                                <span>Used: <strong className="text-rose-600 font-semibold">{used}d</strong></span>
+                                                <span>Total: <strong className="text-slate-800 font-semibold">{total}d</strong></span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {rawBalances.length === 0 && (
+                                    <div className="col-span-full py-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                        <FaInfoCircle className="mx-auto text-slate-300 mb-1.5" size={20} />
+                                        <p className="text-[11px] font-medium text-slate-400">No active balances allocated</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
-                    ))}
-                    {(!leaveBalances || Object.keys(leaveBalances).length === 0) && (
-                        <div className="col-span-full py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                            <FaInfoCircle className="mx-auto text-slate-300 mb-2" size={24} />
-                            <p className="text-[10px] font-normal text-slate-400">No active balances</p>
-                        </div>
-                    )}
-                </div>
+                    );
+                })()}
 
                 {/* Filters */}
                 <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm">

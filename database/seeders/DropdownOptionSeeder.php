@@ -23,6 +23,7 @@ class DropdownOptionSeeder extends Seeder
 
         $data = [
             'Gender' => ['Male', 'Female'],
+            'Marital Status' => ['Single', 'Married', 'Divorced', 'Widowed', 'Separated'],
             'Designation' => [
                 'Owner / Founder',
                 'Chief Operating Officer',

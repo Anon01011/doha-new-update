@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { FiArrowLeft, FiFilter, FiDownload, FiFileText, FiTable, FiClock, FiCheckCircle, FiXCircle, FiCalendar, FiTrendingUp, FiAlertCircle } from 'react-icons/fi';
+import { resolveCurrency } from '@/helpers/currency';
 import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
 
 // Helper: OT color badge class
@@ -24,7 +25,7 @@ function fmtHours(decimalHours) {
 
 export default function Attendance({ attendances, summary, startDate, endDate, companyId, employeeId, companies, employees, settings }) {
     const { appSettings } = usePage().props;
-    const currency = appSettings?.currency || 'INR';
+    const { code: currency } = resolveCurrency({ appSettings });
     const [activeTab, setActiveTab] = useState('detail');
     const today = new Date().toLocaleDateString('en-CA');
     const stdHours = parseFloat(settings?.standard_working_hours || 9);
@@ -418,7 +419,8 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
 
                         {/* ── SUMMARY TAB ── */}
                         {activeTab === 'summary' && (
-                            <table className="w-full text-left">
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[560px] text-left">
                                 <thead className="bg-slate-50/80 border-b border-slate-100">
                                     <tr>
                                         <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal">Employee</th>
@@ -480,12 +482,14 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                         </tr>
                                     )}
                                 </tbody>
-                            </table>
+                                </table>
+                            </div>
                         )}
 
                         {/* ── OVERTIME TAB ── */}
                         {activeTab === 'overtime' && (
-                            <table className="w-full text-left">
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[560px] text-left">
                                 <thead className="bg-slate-50/80 border-b border-slate-100">
                                     <tr>
                                         <th className="px-6 py-4 text-xs font-normal text-slate-500 uppercase tracking-normal">Date</th>
@@ -567,7 +571,8 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
                                         </tr>
                                     </tfoot>
                                 )}
-                            </table>
+                                </table>
+                            </div>
                         )}
                     </div>
                 </div>

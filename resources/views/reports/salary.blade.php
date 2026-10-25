@@ -28,22 +28,22 @@
                 </td>
                 <td class="summary-item">
                     <span class="label">Basic Salary:</span>
-                    <span class="value">{{ number_format($summary['total_basic'], 2) }}</span>
+                    <span class="value">{{ $currencySymbol }}{{ number_format($summary['total_basic'], 2) }}</span>
                 </td>
                 <td class="summary-item">
                     <span class="label">Allowances:</span>
-                    <span class="value bg-emerald">+{{ number_format($summary['total_allowances'], 2) }}</span>
+                    <span class="value bg-emerald">+{{ $currencySymbol }}{{ number_format($summary['total_allowances'], 2) }}</span>
                 </td>
                 <td class="summary-item">
                     <span class="label">Deductions:</span>
-                    <span class="value bg-rose">-{{ number_format($summary['total_deductions'], 2) }}</span>
+                    <span class="value bg-rose">-{{ $currencySymbol }}{{ number_format($summary['total_deductions'], 2) }}</span>
                 </td>
             </tr>
             <tr>
                 <td class="summary-item" colspan="2"></td>
                 <td class="summary-item" colspan="2" style="text-align: right;">
                     <span class="label" style="font-size: 11px;">Total Net Payroll:</span>
-                    <span class="value" style="font-size: 11px; color: #0284c7;">{{ number_format($summary['total_net_salary'], 2) }}</span>
+                    <span class="value" style="font-size: 11px; color: #0284c7;">{{ $currencySymbol }}{{ number_format($summary['total_net_salary'], 2) }}</span>
                 </td>
             </tr>
         </table>
@@ -55,10 +55,10 @@
             <tr>
                 <th>Employee ID</th>
                 <th>Employee Name</th>
-                <th>Basic Salary</th>
-                <th>Allowances</th>
-                <th>Deductions</th>
-                <th>Net Salary</th>
+                <th>Basic Salary ({{ $currencyCode }})</th>
+                <th>Allowances ({{ $currencyCode }})</th>
+                <th>Deductions ({{ $currencyCode }})</th>
+                <th>Net Salary ({{ $currencyCode }})</th>
                 <th>Status</th>
             </tr>
         </thead>
@@ -67,20 +67,20 @@
             <tr>
                 <td>{{ $posting->employee->employee_code ?? '-' }}</td>
                 <td>{{ $posting->employee->name }}</td>
-                <td class="text-right">{{ number_format($posting->basic_salary, 2) }}</td>
+                <td class="text-right">{{ $currencySymbol }}{{ number_format($posting->basic_salary, 2) }}</td>
                 <td class="text-right bg-emerald">
                     @php
                         $allowances = is_array($posting->allowances) ? array_sum($posting->allowances) : 0;
                     @endphp
-                    {{ number_format($allowances, 2) }}
+                    {{ $currencySymbol }}{{ number_format($allowances, 2) }}
                 </td>
                 <td class="text-right bg-rose">
                     @php
                         $deductions = is_array($posting->deductions) ? array_sum($posting->deductions) : 0;
                     @endphp
-                    {{ number_format($deductions, 2) }}
+                    {{ $currencySymbol }}{{ number_format($deductions, 2) }}
                 </td>
-                <td class="text-right" style="font-weight: bold;">{{ number_format($posting->net_salary, 2) }}</td>
+                <td class="text-right" style="font-weight: bold;">{{ $currencySymbol }}{{ number_format($posting->net_salary, 2) }}</td>
                 <td>{{ ucfirst($posting->status) }}</td>
             </tr>
             @endforeach

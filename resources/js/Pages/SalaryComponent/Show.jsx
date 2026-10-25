@@ -1,9 +1,10 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, usePage } from '@inertiajs/react';
+import { resolveCurrency } from '@/helpers/currency';
 
 export default function Show({ component }) {
     const { appSettings } = usePage().props;
-    const currency = appSettings?.currency || 'QAR';
+    const { code: currency } = resolveCurrency({ appSettings });
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency }).format(amount || 0);
@@ -22,7 +23,7 @@ export default function Show({ component }) {
                             <Link href={route('salary-components.index')} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Back</Link>
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div><label className="text-sm text-gray-500">Type:</label><p className="font-normal">{component.type}</p></div>
                         <div><label className="text-sm text-gray-500">Default Amount:</label><p className="font-normal">{formatCurrency(component.default_amount)}</p></div>
                         <div><label className="text-sm text-gray-500">Taxable:</label><p className="font-normal">{component.is_taxable ? 'Yes' : 'No'}</p></div>

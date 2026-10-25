@@ -28,7 +28,7 @@
                 </td>
                 <td class="summary-item">
                     <span class="label">Total Amount:</span>
-                    <span class="value">{{ number_format($summary['total_amount'], 2) }}</span>
+                    <span class="value">{{ $currencySymbol }}{{ number_format($summary['total_amount'], 2) }}</span>
                 </td>
             </tr>
         </table>
@@ -39,7 +39,7 @@
         <thead>
             <tr>
                 <th>Employee</th>
-                <th class="text-right">Amount</th>
+                <th class="text-right">Amount ({{ $currencyCode }})</th>
                 <th>Request Date</th>
                 <th>Purpose</th>
                 <th>Status</th>
@@ -50,7 +50,7 @@
             @foreach($advances as $adv)
             <tr>
                 <td>{{ $adv->employee->name }}</td>
-                <td class="text-right">{{ number_format($adv->amount, 2) }}</td>
+                <td class="text-right">{{ $currencySymbol }}{{ number_format($adv->amount, 2) }}</td>
                 <td>{{ $adv->request_date->format('d M Y') }}</td>
                 <td style="font-size: 9px;">{{ $adv->purpose }}</td>
                 <td>

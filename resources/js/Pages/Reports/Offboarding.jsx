@@ -8,6 +8,7 @@ import {
     FiClock, FiShield, FiBarChart2, FiUserMinus, FiStar, FiPrinter,
     FiEye, FiCheck, FiX, FiActivity
 } from 'react-icons/fi';
+import { useCurrency } from '@/helpers/currency';
 
 export default function OffboardingReport({
     requests = [],
@@ -105,8 +106,10 @@ export default function OffboardingReport({
         other: 'Other',
     };
 
+    const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
+
     const formatINR = (val) => {
-        return '₹' + Number(val || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+        return formatCurrency(val || 0);
     };
 
     const renderRatingStars = (rating) => {
@@ -415,7 +418,7 @@ export default function OffboardingReport({
                                                     <td className="p-3.5 text-slate-600">
                                                         {r.notice_period_days || 0} days
                                                         {r.notice_pay_applicable && (
-                                                            <span className="block text-[10px] text-indigo-600 font-medium">Notice Pay ₹</span>
+                                                            <span className="block text-[10px] text-indigo-600 font-medium">Notice Pay {currencySymbol}</span>
                                                         )}
                                                     </td>
                                                     <td className="p-3.5">

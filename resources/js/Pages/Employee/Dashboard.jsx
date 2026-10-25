@@ -9,6 +9,7 @@ import {
     FiPlus, FiUserMinus, FiCheckSquare, FiExternalLink, FiShield, FiDownload
 } from 'react-icons/fi';
 import Avatar from '@/Components/Avatar';
+import { useCurrency } from '@/helpers/currency';
 
 // Compact Metric Card
 const StatCard = ({ title, value, subtitle, icon: Icon, color = 'rose', trend }) => {
@@ -96,7 +97,10 @@ export default function Dashboard({
     totalReimbursedAmount = 0,
     recentExpenses = [],
     todayHoliday,
-    activeOffboarding = null
+activeOffboarding = null,
+    probationLifecycle = null,
+    internshipLifecycle = null,
+    contractLifecycle = null,
 }) {
     const fileInput = useRef();
     const [isUploading, setIsUploading] = useState(false);
@@ -115,13 +119,9 @@ export default function Dashboard({
         }
     };
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            maximumFractionDigits: 0,
-        }).format(amount || 0);
-    };
+    const { symbol: currencySymbol, format: formatMoney } = useCurrency();
+
+    const formatCurrency = (amount) => formatMoney(amount || 0, { decimals: 0 });
 
     const evalStatusConfig = {
         draft: { label: 'Draft', color: 'bg-slate-100 text-slate-600' },
@@ -160,6 +160,54 @@ export default function Dashboard({
         if (score >= 40) return 'bg-amber-500';
         return 'bg-rose-500';
     };
+    const categoryLower = (employee.employee_category || '').toLowerCase();
+    const isProbation = ['in_progress', 'ending_soon', 'extended', 'overdue'].includes(probationLifecycle?.status) || (probationLifecycle?.days_remaining !== undefined && probationLifecycle?.days_remaining !== null);
+    const isInternship = ['in_progress', 'ending_soon', 'overdue'].includes(internshipLifecycle?.status) || (internshipLifecycle?.days_remaining !== undefined && internshipLifecycle?.days_remaining !== null);
+    const isContract = ['active', 'expiring_soon', 'expired'].includes(contractLifecycle?.status) || (contractLifecycle?.days_remaining !== undefined && contractLifecycle?.days_remaining !== null);
+
+    let displayPeriod = null;
+    let periodEndDate = null;
+    let periodCountdown = null;
+
+    if (categoryLower.includes('contract')) {
+        displayPeriod = employee.contract_duration || contractLifecycle?.duration_label || 'Fixed Contract';
+        periodEndDate = employee.contract_expiry_date || contractLifecycle?.end_date;
+        const days = contractLifecycle?.days_remaining;
+        if (days !== undefined && days !== null) {
+            periodCountdown = {
+                label: `${days}d remaining`,
+                style: days <= 30 ? 'bg-rose-50 text-rose-700 border-rose-300' : 'bg-blue-50 text-blue-700 border-blue-300'
+            };
+        }
+    } else if (categoryLower.includes('probation')) {
+        displayPeriod = probationLifecycle?.duration_label || '3 Months';
+        periodEndDate = employee.probation_end_date || probationLifecycle?.end_date;
+        const days = probationLifecycle?.days_remaining;
+        if (days !== undefined && days !== null) {
+            periodCountdown = {
+                label: `${days}d remaining`,
+                style: days <= 15 ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-emerald-50 text-emerald-700 border-emerald-300'
+            };
+        }
+    } else if (categoryLower.includes('intern')) {
+        displayPeriod = internshipLifecycle?.duration_label || 'Internship';
+        periodEndDate = employee.internship_end_date || internshipLifecycle?.end_date;
+        const days = internshipLifecycle?.days_remaining;
+        if (days !== undefined && days !== null) {
+            periodCountdown = {
+                label: `${days}d remaining`,
+                style: days <= 15 ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-purple-50 text-purple-700 border-purple-300'
+            };
+        }
+    } else if (categoryLower.includes('permanent')) {
+        displayPeriod = 'Permanent';
+        periodEndDate = null;
+        periodCountdown = {
+            label: employee.confirmation_date ? 'Confirmed' : 'Full-Time Permanent',
+            style: 'bg-emerald-50 text-emerald-700 border-emerald-300'
+        };
+    }
+
 
     return (
         <AuthenticatedLayout>
@@ -232,11 +280,50 @@ export default function Dashboard({
                                         </>
                                     )}
                                 </p>
+
+                                {/* Category, Period, End Date & Remaining Badges */}
+                                <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                                    {/* Category Pill */}
+                                    <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-xs ${
+                                        categoryLower.includes('contract') ? 'bg-blue-50 text-blue-700 border-blue-300' :
+                                        categoryLower.includes('probation') ? 'bg-amber-50 text-amber-700 border-amber-300' :
+                                        categoryLower.includes('intern') ? 'bg-purple-50 text-purple-700 border-purple-300' :
+                                        categoryLower.includes('permanent') ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
+                                        'bg-slate-100 text-slate-700 border-slate-300'
+                                    }`}>
+                                        <span className="opacity-75 uppercase text-[9px] font-extrabold tracking-wider">Category:</span>
+                                        <span className="capitalize font-extrabold">{employee.employee_category || 'None'}</span>
+                                    </div>
+
+                                    {/* Period Pill */}
+                                    <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-700 border border-slate-300 text-[11px] font-bold shadow-xs">
+                                        <span className="opacity-75 uppercase text-[9px] font-extrabold tracking-wider text-slate-500">Period:</span>
+                                        <span className={displayPeriod ? 'text-slate-900 font-extrabold' : 'text-slate-400 italic'}>
+                                            {displayPeriod || 'None'}
+                                        </span>
+                                    </div>
+
+                                    {/* End Date Pill */}
+                                    <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-700 border border-slate-300 text-[11px] font-bold shadow-xs">
+                                        <span className="opacity-75 uppercase text-[9px] font-extrabold tracking-wider text-slate-500">End Date:</span>
+                                        <span className={periodEndDate ? 'text-slate-900 font-extrabold' : 'text-slate-400 italic'}>
+                                            {periodEndDate ? (new Date(periodEndDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : (categoryLower.includes('permanent') ? 'No Expiry' : 'Not Set')}
+                                        </span>
+                                    </div>
+
+                                    {/* Remaining Countdown Pill */}
+                                    {periodCountdown && (
+                                        <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold border shadow-xs ${periodCountdown.style}`}>
+                                            <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse shrink-0" />
+                                            <span>{periodCountdown.label}</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
                         {/* Punch / Month Quick Metrics */}
-                        <div className="grid grid-cols-3 gap-2.5 sm:gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
+                        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
                             <div className="px-3 py-1.5 text-center">
                                 <div className="text-base sm:text-lg font-bold text-emerald-600">{attendanceSummary?.present || 0}</div>
                                 <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Present</div>
@@ -253,6 +340,42 @@ export default function Dashboard({
                     </div>
                 </div>
 
+
+{/* Lifecycle Period Banner */}
+{(isProbation || isInternship || isContract) && (
+<div className="flex flex-wrap gap-2">
+    {isProbation && (
+        <div className="flex-1 min-w-[200px] bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between">
+            <div>
+                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Probation Period</p>
+                <p className="text-sm font-bold text-amber-900">{probationLifecycle.days_remaining ?? 0} days remaining</p>
+                <p className="text-[10px] text-amber-600">Ends: {probationLifecycle.end_date ?? '—'}</p>
+            </div>
+            <FiClock className="w-6 h-6 text-amber-400 shrink-0" />
+        </div>
+    )}
+    {isInternship && (
+        <div className="flex-1 min-w-[200px] bg-cyan-50 border border-cyan-200 rounded-xl p-3.5 flex items-center justify-between">
+            <div>
+                <p className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider">Internship Period</p>
+                <p className="text-sm font-bold text-cyan-900">{internshipLifecycle.days_remaining ?? 0} days remaining</p>
+                <p className="text-[10px] text-cyan-600">Ends: {internshipLifecycle.end_date ?? '—'}</p>
+            </div>
+            <FiClock className="w-6 h-6 text-cyan-400 shrink-0" />
+        </div>
+    )}
+    {isContract && (
+        <div className="flex-1 min-w-[200px] bg-blue-50 border border-blue-200 rounded-xl p-3.5 flex items-center justify-between">
+            <div>
+                <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">Contract Period</p>
+                <p className="text-sm font-bold text-blue-900">{contractLifecycle.days_remaining ?? 0} days remaining</p>
+                <p className="text-[10px] text-blue-600">Ends: {contractLifecycle.end_date ?? '—'}</p>
+            </div>
+            <FiClock className="w-6 h-6 text-blue-400 shrink-0" />
+        </div>
+    )}
+</div>
+)}
                 {/* Offboarding / Resignation Active Status Alert */}
                 {activeOffboarding && !['cancelled'].includes(activeOffboarding.status) && (
                     <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-md border border-indigo-900/50 relative overflow-hidden">
@@ -316,7 +439,7 @@ export default function Dashboard({
                     />
                     <StatCard
                         title="Latest Net Pay"
-                        value={currentMonthSalary?.net_salary ? formatCurrency(currentMonthSalary.net_salary) : '₹0'}
+                        value={currentMonthSalary?.net_salary ? formatCurrency(currentMonthSalary.net_salary) : `${currencySymbol}0`}
                         subtitle="Salary posting"
                         icon={FiDollarSign}
                         color="emerald"

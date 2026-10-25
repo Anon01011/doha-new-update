@@ -1,8 +1,11 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
 import { FiClock, FiCalendar, FiDollarSign, FiCreditCard, FiBookOpen, FiCheckSquare, FiAlertCircle, FiChevronRight, FiTrendingUp, FiUsers, FiBarChart2, FiActivity, FiFileText, FiUserMinus } from 'react-icons/fi';
+import { useCurrency } from '@/helpers/currency';
 
 export default function Index() {
+    const { symbol: currencySymbol } = useCurrency();
+
     const reportCards = [
         {
             title: 'Attendance',
@@ -49,7 +52,7 @@ export default function Index() {
             bg: 'bg-emerald-50',
             text: 'text-emerald-600',
             border: 'border-emerald-100',
-            badge: 'Expenses ₹',
+            badge: `Expenses ${currencySymbol}`,
             badgeColor: 'bg-emerald-50 text-emerald-600 border-emerald-200',
         },
         {

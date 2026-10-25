@@ -7,6 +7,8 @@ import {
     FiBriefcase, FiLayers, FiUser, FiCheck, FiShield,
     FiUserCheck, FiClock, FiMail, FiPhone
 } from 'react-icons/fi';
+import { useCurrency } from '@/helpers/currency';
+import { CurrencyAmountInput } from '@/helpers/currency-ui';
 
 const SEPARATION_REASONS = [
     { value: 'resignation', label: 'Resignation (Voluntary Resignation)' },
@@ -34,6 +36,7 @@ export default function Create({
     companies = [],
     departments = []
 }) {
+    const { code: currencyCode, symbol: currencySymbol } = useCurrency();
     const isManagementRole = ['admin', 'hr', 'manager'].includes(userRole);
     const activeTargetEmployee = preselected || (!isManagementRole ? currentEmployee : null);
 
@@ -461,19 +464,15 @@ export default function Create({
 
                                     {data.notice_pay_applicable && (
                                         <div>
-                                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Notice Pay Amount (₹)</label>
-                                            <div className="relative">
-                                                <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">₹</span>
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="0"
-                                                    placeholder="0.00"
-                                                    value={data.notice_pay_amount}
-                                                    onChange={(e) => setData('notice_pay_amount', e.target.value)}
-                                                    className="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-400/20 focus:border-rose-400"
-                                                />
-                                            </div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Notice Pay Amount ({currencySymbol})</label>
+                                            <CurrencyAmountInput
+                                                value={data.notice_pay_amount}
+                                                onChange={(e) => setData('notice_pay_amount', e.target.value)}
+                                                symbol={currencySymbol}
+                                                code={currencyCode}
+                                                placeholder="0.00"
+                                                min="0"
+                                            />
                                         </div>
                                     )}
                                 </div>

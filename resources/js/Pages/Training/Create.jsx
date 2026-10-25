@@ -204,7 +204,7 @@ export default function Create({ companies, categories }) {
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <div className="space-y-1">
                                     <label className="text-sm font-normal text-slate-600">Start Date <span className="text-rose-500">*</span></label>
                                     <input

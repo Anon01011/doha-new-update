@@ -252,7 +252,7 @@ export default function Index({ documentTypes }) {
                                         {errors.category && <p className="text-[9px] text-rose-500 font-normal uppercase ml-1 mt-1">{errors.category}</p>}
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         <button
                                             type="button"
                                             onClick={() => setData('requires_expiry', !data.requires_expiry)}

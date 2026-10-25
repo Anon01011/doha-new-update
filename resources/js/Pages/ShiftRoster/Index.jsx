@@ -90,9 +90,14 @@ export default function Index({
     shiftTypes = [],
     userRole = 'admin',
     canApprove = false,
+    canManageRosters = false,
+    multiCompanyMode = false,
+    assignedCompanyIds = [],
     weekApprovalStatus = null,
 }) {
     const isEmployee = userRole === 'employee';
+    const isShiftManager = userRole === 'shift-manager';
+    const isManagerRole = canManageRosters || userRole === 'admin' || userRole === 'hr' || userRole === 'manager' || isShiftManager;
     const [viewMode, setViewMode] = useState('week');
     const [selectedCompany, setSelectedCompany] = useState(company_id || '');
     const [selectedDepartment, setSelectedDepartment] = useState(department_id || '');
@@ -805,7 +810,7 @@ export default function Index({
                                                     setShowAdvancedActions(false);
                                                     handleApproveRoster();
                                                 }}
-                                                disabled={!selectedCompany}
+                                                disabled={!selectedCompany && !multiCompanyMode}
                                                 className="w-full text-left px-3 py-2.5 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all text-emerald-700 hover:bg-emerald-600 hover:text-white group/item"
                                             >
                                                 <div className="p-1.5 bg-emerald-50 group-hover/item:bg-white/20 rounded-md transition-colors">
@@ -821,7 +826,7 @@ export default function Index({
                                                     setShowAdvancedActions(false);
                                                     handleRejectRoster();
                                                 }}
-                                                disabled={!selectedCompany}
+                                                disabled={!selectedCompany && !multiCompanyMode}
                                                 className="w-full text-left px-3 py-2.5 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all text-rose-700 hover:bg-rose-600 hover:text-white group/item"
                                             >
                                                 <div className="p-1.5 bg-rose-50 group-hover/item:bg-white/20 rounded-md transition-colors">
@@ -836,7 +841,7 @@ export default function Index({
                                                 setShowAdvancedActions(false);
                                                 handleDuplicateWeek();
                                             }}
-                                            disabled={!selectedCompany}
+                                            disabled={!selectedCompany && !multiCompanyMode}
                                             className={`w-full text-left px-3 py-2.5 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all group/item ${!selectedCompany ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:bg-primary hover:text-white'}`}
                                         >
                                             <div className="p-1.5 bg-indigo-50 group-hover/item:bg-white/20 rounded-md transition-colors">
@@ -849,7 +854,7 @@ export default function Index({
                                                 setShowAdvancedActions(false);
                                                 handleExport();
                                             }}
-                                            disabled={!selectedCompany}
+                                            disabled={!selectedCompany && !multiCompanyMode}
                                             className={`w-full text-left px-3 py-2.5 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all group/item ${!selectedCompany ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:bg-emerald-600 hover:text-white'}`}
                                         >
                                             <div className="p-1.5 bg-emerald-50 group-hover/item:bg-white/20 rounded-md transition-colors">
@@ -862,7 +867,7 @@ export default function Index({
                                                 setShowAdvancedActions(false);
                                                 handleSendEmails();
                                             }}
-                                            disabled={!selectedCompany}
+                                            disabled={!selectedCompany && !multiCompanyMode}
                                             className={`w-full text-left px-3 py-2.5 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all group/item ${!selectedCompany ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:bg-primary hover:text-white'}`}
                                         >
                                             <div className="p-1.5 bg-blue-50 group-hover/item:bg-white/20 rounded-md transition-colors">
@@ -975,7 +980,7 @@ export default function Index({
                                                     value={selectedDepartment}
                                                     onChange={e => setSelectedDepartment(e.target.value)}
                                                     className="w-full text-[11px] font-normal rounded-lg border-gray-100 bg-gray-50/80 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all py-3.5 disabled:opacity-50"
-                                                    disabled={!selectedCompany}
+                                                    disabled={!selectedCompany && !multiCompanyMode}
                                                 >
                                                     <option value="">All Departments</option>
                                                     {departments
@@ -1006,7 +1011,7 @@ export default function Index({
                                             </div>
                                             <p className="text-[10px] font-normal text-indigo-900 uppercase tracking-normal">Insights</p>
                                         </div>
-                                        <div className="mt-4 grid grid-cols-2 gap-3">
+                                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                                             <div className="bg-white/80 p-3 rounded-lg shadow-[0_4px_10px_-2px_rgba(79,70,229,0.1)]">
                                                 <p className="text-[8px] font-normal text-gray-400 uppercase tracking-normal">Active Shifts</p>
                                                 <p className="text-base font-normal text-indigo-600 leading-tight mt-0.5">{rosters.length}</p>
@@ -1252,7 +1257,7 @@ export default function Index({
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         <div className="space-y-1">
                                             <label className="text-[10px] font-normal text-gray-400 uppercase tracking-normal">Shift Timing</label>
                                             <input

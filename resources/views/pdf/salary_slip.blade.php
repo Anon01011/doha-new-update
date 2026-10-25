@@ -230,9 +230,10 @@
 </head>
 <body>
     @php
-        $currency = $appSettings['currency'] ?? 'INR';
-        $formatCurrency = function ($amount) use ($currency) {
-            return ($currency === 'INR' ? '₹ ' : $currency . ' ') . number_format((float) $amount, 2);
+        $currency = \App\Services\CurrencyService::normalizeCode($appSettings['currency'] ?? null);
+        $currencySymbol = \App\Services\CurrencyService::normalizeSymbol($appSettings['currency_symbol'] ?? null);
+        $formatCurrency = function ($amount) use ($currencySymbol) {
+            return $currencySymbol . ' ' . number_format((float) $amount, 2);
         };
 
         $basicSalary = (float) ($salaryPosting->basic_salary ?? 0);
@@ -302,19 +303,8 @@
 
         $netInt = floor($netSalary);
         $netDec = round(($netSalary - $netInt) * 100);
-        $currencyWord = match($currency) {
-            'INR' => 'Rupees',
-            'QAR' => 'Qatari Riyals',
-            'AED' => 'Dirhams',
-            'USD' => 'Dollars',
-            default => $currency,
-        };
-        $subCurrencyWord = match($currency) {
-            'INR' => 'Paise',
-            'QAR', 'AED' => 'Dirhams',
-            'USD' => 'Cents',
-            default => 'Cents',
-        };
+        $currencyWord = \App\Services\CurrencyService::NAME_MAP[$currency] ?? $currency;
+        $subCurrencyWord = \App\Services\CurrencyService::SUB_UNIT_MAP[$currency] ?? 'Cent';
         $wordsStr = ucwords(convertNumberToWord($netInt)) . ' ' . $currencyWord . ($netDec > 0 ? ' and ' . ucwords(convertNumberToWord($netDec)) . ' ' . $subCurrencyWord . ' ' : ' ') . 'Only';
         
         $appName = $appSettings['app_name'] ?? 'COMPANY';
@@ -708,7 +698,7 @@
                         </tr>
                     </table>
 
-                    <p style="text-align: center; margin-bottom: 5px;">I hereby acknowledge and confirm that I have received the above-mentioned amount (salary, allowances, overtime, and other additions) in {{ $currency === 'INR' ? 'Indian Rupees (INR)' : ($currency === 'QAR' ? 'Qatari Riyals' : $currency) }}.</p>
+                    <p style="text-align: center; margin-bottom: 5px;">I hereby acknowledge and confirm that I have received the above-mentioned amount (salary, allowances, overtime, and other additions) in {{ \App\Services\CurrencyService::NAME_MAP[$currency] ?? $currency }} ({{ $currency }}).</p>
                     <p style="text-align: center; margin-bottom: 10px;" class="arabic">أقر وأؤكد بموجبه أنني قد استلمت المبلغ المذكور أعلاه (الراتب، البدلات، ساعات العمل الإضافية، والإضافات الأخرى) بالريال القطري.</p>
                     <p style="text-align: center; margin-bottom: 5px;">I also acknowledge and agree to any deductions stated, if applicable.</p>
                     <p style="text-align: center; margin-bottom: 20px;" class="arabic">كما أقر وأوافق على أي خصومات مذكورة، إن وجدت.</p>

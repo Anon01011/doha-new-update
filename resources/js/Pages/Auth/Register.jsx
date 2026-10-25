@@ -55,7 +55,7 @@ export default function Register() {
                                 Join our professional ecosystem built for elite performance, transparent growth, and team excellence.
                             </p>
 
-                            <div className="grid grid-cols-2 gap-8">
+                            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
                                 <div className="space-y-2">
                                     <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center text-white">
                                         <FiBriefcase className="w-6 h-6" />

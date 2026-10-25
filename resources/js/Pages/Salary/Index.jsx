@@ -4,6 +4,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { FaPlus, FaSearch, FaEye, FaEdit, FaTrash, FaMoneyBillWave, FaCheckCircle, FaTimesCircle, FaClock, FaChevronDown, FaFileInvoiceDollar, FaCalculator } from 'react-icons/fa';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { resolveCurrency } from '@/helpers/currency';
 
 export default function Index({ 
     salaryPostings, 
@@ -20,7 +21,7 @@ export default function Index({
     const { auth, appSettings } = usePage().props;
     const user = auth?.user || {};
     const canManagePayroll = user.role === 'admin' || (user.permissions && user.permissions.includes('manage-payroll'));
-    const currency = appSettings?.currency || 'QAR';
+    const { code: currency } = resolveCurrency({ appSettings });
 
     const [modal, setModal] = useState({
         show: false,
@@ -603,7 +604,7 @@ export default function Index({
                             </p>
                         </div>
                         <form onSubmit={handleBulkGenerate} className="p-6 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Month</label>
                                     <select
@@ -971,7 +972,7 @@ export default function Index({
 
                         <form onSubmit={handleAutoUpdateApply} className="p-6 space-y-4">
                             {/* Month Select */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Month</label>
                                     <select

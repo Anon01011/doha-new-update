@@ -30,8 +30,10 @@ import {
 } from '@heroicons/react/24/outline';
 import { useState, useMemo } from 'react';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { useCurrency } from '@/helpers/currency';
 
 export default function Show({ evaluation, historicalEvaluations = [], criteria = [], userRole, userEmployeeId }) {
+    const { code: currencyCode, format: formatCurrency } = useCurrency();
     const { auth } = usePage().props;
     const user = auth?.user || {};
 
@@ -88,8 +90,8 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
     };
 
     const formatINR = (val) => {
-        if (val === null || val === undefined || isNaN(val)) return '₹0';
-        return '₹' + Number(val).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+        if (val === null || val === undefined || isNaN(val)) return formatCurrency(0);
+        return formatCurrency(val);
     };
 
     const groupedCriteria = useMemo(() => {
@@ -364,7 +366,7 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                             onClick={() => setActiveTab('actions')}
                             className={`pb-2.5 border-b-2 transition-all ${activeTab === 'actions' ? 'border-primary text-primary font-medium' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                         >
-                            Outcomes & Increments (INR)
+                            Outcomes & Increments ({currencyCode})
                         </button>
                         {historicalEvaluations.length > 0 && (
                             <button
@@ -529,7 +531,7 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                     {/* Tab 3: Approved Outcomes & Action Linkage */}
                     {activeTab === 'actions' && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            {/* Salary Increment in INR */}
+                            {/* Salary Increment */}
                             <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-2 group hover:border-emerald-200 transition-all">
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Salary Increment</span>
@@ -551,7 +553,7 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                                         <span className="text-slate-400 text-sm">No Increment Linked</span>
                                     )}
                                 </div>
-                                <p className="text-[9px] text-slate-400 uppercase">Directly updates Basic Salary in INR upon approval</p>
+                                <p className="text-[9px] text-slate-400 uppercase">Directly updates Basic Salary in {currencyCode} upon approval</p>
                             </div>
 
                             {/* Promotion */}
@@ -613,7 +615,8 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                     {/* Tab 4: Historical Records */}
                     {activeTab === 'history' && historicalEvaluations.length > 0 && (
                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                            <table className="w-full text-left">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
                                 <thead className="bg-slate-50 border-b border-slate-100 text-[9px] font-normal text-slate-500 uppercase">
                                     <tr>
                                         <th className="px-5 py-3">Period</th>
@@ -640,7 +643,8 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                                         </tr>
                                     ))}
                                 </tbody>
-                            </table>
+                                </table>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -768,7 +772,7 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                 onClose={() => setApproveModalOpen(false)}
                 onConfirm={confirmApprovalAction}
                 title="Approve Appraisal & Link Changes"
-                message="Approve this appraisal? Approved salary increments in INR and promotions will automatically update the employee profile."
+                message={`Approve this appraisal? Approved salary increments in ${currencyCode} and promotions will automatically update the employee profile.`}
                 confirmText="Approve & Apply Changes"
                 type="success"
             />

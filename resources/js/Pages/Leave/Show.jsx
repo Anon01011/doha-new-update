@@ -341,7 +341,7 @@ export default function Show({ leaveRequest, userRole = 'employee' }) {
                                 <h4 className="text-lg font-normal leading-none mb-2">{leaveRequest.employee?.name}</h4>
                                 <p className="text-[10px] font-normal text-slate-500 mb-6">{leaveRequest.employee?.employee_code}</p>
                                 
-                                  <div className="w-full grid grid-cols-2 gap-3">
+                                  <div className="w-full grid grid-cols-1 gap-3 sm:grid-cols-2">
                                     <div className="p-3 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors">
                                         <p className="text-[8px] font-normal text-white/40 mb-1">Department</p>
                                         <p className="text-[10px] font-normal text-white truncate">{leaveRequest.employee?.department?.name || 'N/A'}</p>

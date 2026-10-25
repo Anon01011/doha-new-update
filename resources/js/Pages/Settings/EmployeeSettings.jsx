@@ -43,13 +43,13 @@ export default function EmployeeSettings({ settings }) {
                                     </label>
                                     <input
                                         type="text"
-                                        maxLength="10"
+                                        maxLength="20"
                                         value={data.employee_code_prefix}
                                         onChange={(e) => setData('employee_code_prefix', e.target.value.toUpperCase())}
                                         className="w-full rounded-lg border-gray-200 bg-gray-50/50 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-normal"
                                         placeholder="EMP"
                                     />
-                                    <p className="text-[10px] text-gray-400 ml-1 italic">Used for auto-generating IDs (e.g. EMP-001)</p>
+                                    <p className="text-[10px] text-gray-400 ml-1 italic">Used for auto-generating IDs (e.g. EMP-001 or EMP:001)</p>
                                 </div>
 
                                 {/* Default Probation */}

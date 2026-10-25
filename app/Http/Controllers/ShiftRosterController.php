@@ -38,34 +38,94 @@ class ShiftRosterController extends Controller
 
             // Multi-tenancy scoping
             $company_id = $request->input('company_id');
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id) {
+            // Only force company_id for plain employees (not HR, not Manager, not Shift Roster Managers)
+            // so that users with multi-branch assignments can switch between their assigned branches.
+            $canManageRosters = $user->isAdmin() || $user->isHR() || $user->isManager()
+                || $user->hasRole('shift-manager')
+                || $user->hasPermission('manage-shift-rosters')
+                || $user->hasPermission('manage-rosters')
+                || $user->hasPermission('view-shift-rosters');
+            if (!$canManageRosters && $user->employee_id) {
                 $company_id = $user->employee->company_id;
             }
 
-            $companiesQuery = Company::orderBy('name');
+            $assignedCompanyIds = collect();
+            $companiesQuery = Company::withoutGlobalScope('company')->orderBy('name');
             if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                $companiesQuery->where('id', $user->employee->company_id);
+                // Support multi-branch assignments: include both the primary company_id
+                // and any additional companies linked via the employee_company pivot table.
+                $employee = $user->employee;
+                $assignedCompanyIds = collect([$employee->company_id]);
+
+                // Check if the employee has additional companies via pivot
+                $pivotIds = \Illuminate\Support\Facades\DB::table('employee_company')
+                    ->where('employee_id', $employee->id)
+                    ->pluck('company_id');
+                $assignedCompanyIds = $assignedCompanyIds->merge($pivotIds)->unique()->filter()->values();
+
+                $companiesQuery->whereIn('id', $assignedCompanyIds);
             }
             $companies = $companiesQuery->get(['id', 'name', 'slug']);
 
-            // Default to first company if no company_id provided
-            if (!$company_id && $companies->isNotEmpty()) {
-                $company_id = $companies->first()->id;
+            // Determine effective company scope
+            // For users who can manage rosters with multiple assigned branches:
+            // - no company_id in request + multiple assigned branches = multi-company mode
+            // - explicit company_id in request = single company mode (selected by user)
+            // For plain employees: always forced to their primary company
+            $requestedCompanyId = $request->input('company_id');
+            $multiCompanyMode = false;
+
+            if ($canManageRosters && !$requestedCompanyId && $assignedCompanyIds->count() > 1) {
+                // User can manage rosters, multiple assigned branches, no branch selected
+                $multiCompanyMode = true;
+                $effectiveCompanyIds = $assignedCompanyIds->values();
+                $effectiveCompanyId = null;
+            } elseif ($company_id) {
+                $effectiveCompanyIds = collect([$company_id]);
+                $effectiveCompanyId = $company_id;
+            } elseif ($companies->isNotEmpty()) {
+                $effectiveCompanyId = $companies->first()->id;
+                $effectiveCompanyIds = collect([$effectiveCompanyId]);
+                $company_id = $effectiveCompanyId;
+            } else {
+                $effectiveCompanyIds = collect();
+                $effectiveCompanyId = null;
             }
 
-            // Fetch departments for the selected company via pivot
-            $departmentsQuery = \App\Models\Department::orderBy('name');
-            if ($company_id) {
-                $departmentsQuery->whereHas('companies', function ($q) use ($company_id) {
-                    $q->where('companies.id', $company_id);
+
+
+            // Fetch departments for the selected company (or all assigned companies in multi mode)
+            $departmentsQuery = \App\Models\Department::withoutGlobalScope('company')->orderBy('name');
+            if ($multiCompanyMode) {
+                $departmentsQuery->whereHas('companies', function ($q) use ($effectiveCompanyIds) {
+                    $q->whereIn('companies.id', $effectiveCompanyIds);
+                });
+            } elseif ($effectiveCompanyId) {
+                $departmentsQuery->whereHas('companies', function ($q) use ($effectiveCompanyId) {
+                    $q->where('companies.id', $effectiveCompanyId);
                 });
             }
             $departments = $departmentsQuery->get(['departments.id', 'name', 'departments.company_id']);
 
+            // Multi-department support: include departments from employee_department pivot
+            $assignedDepartmentIds = collect();
+            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
+                $employee = $user->employee;
+                $assignedDepartmentIds = collect([$employee->department_id]);
+
+                $pivotDeptIds = \Illuminate\Support\Facades\DB::table('employee_department')
+                    ->where('employee_id', $employee->id)
+                    ->pluck('department_id');
+                $assignedDepartmentIds = $assignedDepartmentIds->merge($pivotDeptIds)->unique()->filter()->values();
+            }
+
+
             // Filter employees by company_id and department_id if provided
-            $employeesQuery = Employee::orderBy('name');
-            if ($company_id) {
-                $employeesQuery->where('company_id', $company_id);
+            $employeesQuery = Employee::withoutGlobalScope('company')->orderBy('name');
+            if ($multiCompanyMode) {
+                $employeesQuery->whereIn('company_id', $effectiveCompanyIds);
+            } elseif ($effectiveCompanyId) {
+                $employeesQuery->where('company_id', $effectiveCompanyId);
             }
             if ($department_id) {
                 $employeesQuery->where('department_id', $department_id);
@@ -77,7 +137,7 @@ class ShiftRosterController extends Controller
             }
 
             $employees = $employeesQuery->with(['weeklyOffs', 'company'])->get();
-            $rosters = $this->getRosterData($request, $company_id);
+            $rosters = $this->getRosterData($request, $effectiveCompanyIds);
 
             // If employee without permission, filter rosters to only their own
             if ($user->isEmployee() && $user->employee_id && !$user->hasPermission('view-shift-rosters') && !$user->hasPermission('view-rosters') && isset($rosters)) {
@@ -91,16 +151,17 @@ class ShiftRosterController extends Controller
                 ->pluck('value');
 
             $canApprove = $user->isAdmin() || $user->isHR() || $user->isManager()
+                || $user->hasRole('shift-manager')
                 || $user->hasPermission('approve-shift-rosters');
 
             // Compute week-level approval status (for the currently-viewed week/filter)
             $weekApprovalStatus = null;
             $currentWeekStart = $request->input('week_start', now()->startOfWeek()->toDateString());
             if ($company_id && !$user->isEmployee()) {
-                $weekRosters = \App\Models\ShiftRoster::where('company_id', $company_id)
+                $weekRosters = \App\Models\ShiftRoster::withoutGlobalScope('company')->where('company_id', $company_id)
                     ->where('week_start', $currentWeekStart);
                 if ($department_id) {
-                    $deptEmployeeIds = \App\Models\Employee::where('department_id', $department_id)->pluck('id');
+                    $deptEmployeeIds = \App\Models\Employee::withoutGlobalScope('company')->where('department_id', $department_id)->pluck('id');
                     $weekRosters->whereIn('employee_id', $deptEmployeeIds);
                 }
                 $weekRosters = $weekRosters->with('approvedByUser:id,name')->get();
@@ -132,12 +193,15 @@ class ShiftRosterController extends Controller
                 'employees'          => $employees,
                 'rosters'            => $rosters instanceof \Illuminate\Support\Collection ? $rosters->values() : $rosters,
                 'week_start'         => $currentWeekStart,
-                'company_id'         => $company_id,
+                'company_id'         => $effectiveCompanyId,
                 'department_id'      => $department_id,
                 'shiftTemplates'     => $this->shiftTemplates,
                 'shiftTypes'         => $shiftTypes,
                 'userRole'           => $user->role,
                 'canApprove'         => $canApprove,
+                'canManageRosters'      => $canManageRosters,
+                'multiCompanyMode'      => $multiCompanyMode,
+                'assignedCompanyIds'    => $assignedCompanyIds->values()->all(),
                 'weekApprovalStatus' => $weekApprovalStatus,
             ]);
         } catch (\Exception $e) {
@@ -153,9 +217,20 @@ class ShiftRosterController extends Controller
             if (!$user->isAdmin() && !$user->hasPermission('create-shift-rosters') && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
                 abort(403, 'Unauthorized.');
             }
-            $companiesQuery = Company::orderBy('name');
+            $companiesQuery = Company::withoutGlobalScope('company')->orderBy('name');
             if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                $companiesQuery->where('id', $user->employee->company_id);
+                // Support multi-branch assignments: include both the primary company_id
+                // and any additional companies linked via the employee_company pivot table.
+                $employee = $user->employee;
+                $assignedCompanyIds = collect([$employee->company_id]);
+
+                // Check if the employee has additional companies via pivot
+                $pivotIds = \Illuminate\Support\Facades\DB::table('employee_company')
+                    ->where('employee_id', $employee->id)
+                    ->pluck('company_id');
+                $assignedCompanyIds = $assignedCompanyIds->merge($pivotIds)->unique()->filter()->values();
+
+                $companiesQuery->whereIn('id', $assignedCompanyIds);
             }
             $companies = $companiesQuery->get(['id', 'name', 'slug']);
             $companyParam = $request->input('company');
@@ -192,7 +267,7 @@ class ShiftRosterController extends Controller
             }
 
             // Fetch departments for the selected company (supports both direct and pivot)
-            $departmentsQuery = \App\Models\Department::orderBy('name');
+            $departmentsQuery = \App\Models\Department::withoutGlobalScope('company')->orderBy('name');
             if ($company_id) {
                 $departmentsQuery->where(function ($q) use ($company_id) {
                     $q->where('company_id', $company_id)
@@ -398,6 +473,7 @@ class ShiftRosterController extends Controller
     {
         $user = auth()->user();
         return $user->isAdmin() || $user->isHR() || $user->isManager()
+            || $user->hasRole('shift-manager')
             || $user->hasPermission('approve-shift-rosters');
     }
 
@@ -578,14 +654,25 @@ class ShiftRosterController extends Controller
                 $company_id = $user->employee->company_id;
             }
 
-            $companiesQuery = Company::orderBy('name');
+            $companiesQuery = Company::withoutGlobalScope('company')->orderBy('name');
             if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                $companiesQuery->where('id', $user->employee->company_id);
+                // Support multi-branch assignments: include both the primary company_id
+                // and any additional companies linked via the employee_company pivot table.
+                $employee = $user->employee;
+                $assignedCompanyIds = collect([$employee->company_id]);
+
+                // Check if the employee has additional companies via pivot
+                $pivotIds = \Illuminate\Support\Facades\DB::table('employee_company')
+                    ->where('employee_id', $employee->id)
+                    ->pluck('company_id');
+                $assignedCompanyIds = $assignedCompanyIds->merge($pivotIds)->unique()->filter()->values();
+
+                $companiesQuery->whereIn('id', $assignedCompanyIds);
             }
             $companies = $companiesQuery->get(['id', 'name', 'slug']);
 
             // Accessible departments
-            $departmentsQuery = \App\Models\Department::orderBy('name');
+            $departmentsQuery = \App\Models\Department::withoutGlobalScope('company')->orderBy('name');
             if ($company_id) {
                 $departmentsQuery->where(function ($q) use ($company_id) {
                     $q->where('company_id', $company_id)
@@ -595,7 +682,7 @@ class ShiftRosterController extends Controller
             $departments = $departmentsQuery->get(['id', 'name']);
 
             // Base query for schedule batches
-            $query = ShiftRoster::query();
+            $query = ShiftRoster::withoutGlobalScope('company')->newQuery();
 
             if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
                 $query->where('company_id', $user->employee->company_id);
@@ -704,6 +791,7 @@ class ShiftRosterController extends Controller
             }
 
             $canApprove = $user->isAdmin() || $user->isHR() || $user->isManager()
+                || $user->hasRole('shift-manager')
                 || $user->hasPermission('approve-shift-rosters');
 
             return Inertia::render('ShiftRoster/Management', [
@@ -846,6 +934,7 @@ class ShiftRosterController extends Controller
             })->values();
 
             $canApprove = $user->isAdmin() || $user->isHR() || $user->isManager()
+                || $user->hasRole('shift-manager')
                 || $user->hasPermission('approve-shift-rosters');
 
             return response()->json([
@@ -2486,9 +2575,9 @@ class ShiftRosterController extends Controller
 
     // Private Helper Methods
 
-    private function getRosterData(Request $request, $company_id)
+    private function getRosterData(Request $request, $companyIds)
     {
-        $query = ShiftRoster::query();
+        $query = ShiftRoster::withoutGlobalScope('company')->newQuery();
 
         $week = $request->input('week_start', now()->startOfWeek()->toDateString());
 
@@ -2510,14 +2599,27 @@ class ShiftRosterController extends Controller
             $query->where('week_start', $normalizedWeek);
         }
 
-        if ($company_id) {
-            $query->where('company_id', $company_id);
+        // Support multi-company scope (when "All Branches" is selected)
+        if ($companyIds instanceof \Illuminate\Support\Collection) {
+            if ($companyIds->isNotEmpty()) {
+                $query->whereIn('company_id', $companyIds->values()->all());
+            }
+        } elseif ($companyIds) {
+            $query->where('company_id', $companyIds);
         }
 
-        // Filter by department if provided
+        // Filter by department if provided (scope to the same companies as the roster query)
         $department_id = $request->input('department_id');
         if ($department_id) {
-            $employeeIds = Employee::where('department_id', $department_id)->pluck('id');
+            $deptEmployeeQuery = Employee::withoutGlobalScope('company')->where('department_id', $department_id);
+            if ($companyIds instanceof \Illuminate\Support\Collection) {
+                if ($companyIds->isNotEmpty()) {
+                    $deptEmployeeQuery->whereIn('company_id', $companyIds->values()->all());
+                }
+            } elseif ($companyIds) {
+                $deptEmployeeQuery->where('company_id', $companyIds);
+            }
+            $employeeIds = $deptEmployeeQuery->pluck('id');
             $query->whereIn('employee_id', $employeeIds);
         }
 

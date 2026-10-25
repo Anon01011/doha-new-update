@@ -5,6 +5,8 @@ import {
     FiArrowLeft, FiUploadCloud, FiFile, FiTrash2,
     FiAlertCircle, FiCheckCircle, FiInfo, FiTag
 } from 'react-icons/fi';
+import { useCurrency } from '@/helpers/currency';
+import { useCurrencyLabel, CurrencyAmountInput } from '@/helpers/currency-ui';
 
 export default function Edit({ claim, categories = [], projects = [], departments = [] }) {
     const fileInputRef = useRef();
@@ -55,9 +57,8 @@ export default function Edit({ claim, categories = [], projects = [], department
         });
     };
 
-    const formatINR = (val) => {
-        return '₹' + Number(val || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
-    };
+    const { code: currencyCode, symbol: currencySymbol, format: formatCurrency } = useCurrency();
+    const { caption: currencyCaptionText } = useCurrencyLabel();
 
     return (
         <AuthenticatedLayout>
@@ -124,13 +125,15 @@ export default function Edit({ claim, categories = [], projects = [], department
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Amount (INR ₹) *</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                            Amount <span className="font-normal text-slate-400">({currencyCaptionText})</span> <span className="text-rose-500">*</span>
+                                        </label>
+                                        <CurrencyAmountInput
                                             value={data.amount}
                                             onChange={(e) => setData('amount', e.target.value)}
-                                            className="w-full py-2 px-3 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary focus:bg-white font-semibold"
+                                            symbol={currencySymbol}
+                                            code={currencyCode}
+                                            placeholder="0.00"
                                         />
                                     </div>
 

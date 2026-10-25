@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\EmployeeEvaluation;
 use App\Models\Company;
+use App\Services\CurrencyService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
@@ -21,13 +22,13 @@ class AppraisalLetterMail extends Mailable
     /**
      * Create a new message instance.
      */
-    public function __construct(EmployeeEvaluation $evaluation, array $settings = [], string $currencySymbol = '₹')
+    public function __construct(EmployeeEvaluation $evaluation, array $settings = [], ?string $currencySymbol = null)
     {
         $this->evaluation = $evaluation->loadMissing(['employee.department', 'employee.company', 'evaluator', 'approver']);
         $this->employee = $this->evaluation->employee;
         $this->company = $this->employee->company ?? null;
         $this->settings = $settings;
-        $this->currencySymbol = $currencySymbol;
+        $this->currencySymbol = $currencySymbol ?? CurrencyService::symbol($this->company?->id);
     }
 
     /**

@@ -179,7 +179,7 @@ export default function Edit({ holiday, companies, auth }) {
                                     {/* Schedule */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
                                         <div className="space-y-4">
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                                 <div className="space-y-3">
                                                     <label className="text-[10px] font-normal text-slate-500 flex items-center gap-2 ml-1">
                                                         <FaCalendarAlt className="text-slate-400" /> Start Date

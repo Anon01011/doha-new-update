@@ -11,8 +11,17 @@ import {
     FiLayers, FiInfo, FiFile, FiExternalLink, FiX, FiPlus, FiUpload
 } from 'react-icons/fi';
 
-export default function ShowEmployee({ employee }) {
-    const { appSettings, auth } = usePage().props;
+export default function ShowEmployee({
+    employee,
+    probationLifecycle = null,
+    internshipLifecycle = null,
+    contractLifecycle = null,
+    probation_duration_months = 3,
+    can_see_salary = false,
+    leaveBalances = []
+}) {
+    const { appSettings, auth, leaveBalances: pageLeaveBalances = [] } = usePage().props;
+    const activeLeaveBalances = (leaveBalances && leaveBalances.length > 0) ? leaveBalances : pageLeaveBalances;
     const isAuthorized = ['admin', 'hr', 'manager'].includes(auth.user?.role || '');
     const currency = appSettings?.currency || 'QAR';
     const appCountry = appSettings?.app_country || (currency === 'INR' ? 'IN' : 'QA');
@@ -35,6 +44,98 @@ export default function ShowEmployee({ employee }) {
         }
         return [];
     }, [employee]);
+
+    const categoryLower = (employee.employee_category || '').toLowerCase();
+
+    const { displayPeriod, periodEndDate, periodCountdown } = useMemo(() => {
+        let period = null;
+        let endDate = null;
+        let countdown = null;
+
+        if (categoryLower.includes('contract')) {
+            period = employee.contract_duration || (contractLifecycle?.duration_label) || 'Fixed Contract';
+            endDate = employee.contract_expiry_date || contractLifecycle?.end_date;
+
+            const days = contractLifecycle?.days_remaining;
+            if (contractLifecycle?.status === 'active' || contractLifecycle?.status === 'expiring_soon' || days !== undefined) {
+                countdown = {
+                    label: days !== undefined && days !== null ? `${days}d remaining` : 'Active',
+                    style: (days !== undefined && days <= 30)
+                        ? 'bg-rose-900/70 text-rose-200 border-rose-400 ring-1 ring-rose-400/40 shadow-rose-950/40'
+                        : 'bg-blue-900/70 text-blue-200 border-blue-400 ring-1 ring-blue-400/40 shadow-blue-950/40'
+                };
+            } else if (contractLifecycle?.status === 'expired') {
+                countdown = {
+                    label: 'Contract Expired',
+                    style: 'bg-rose-900/70 text-rose-200 border-rose-400'
+                };
+            }
+        } else if (categoryLower.includes('probation')) {
+            period = probationLifecycle?.duration_label || (probation_duration_months ? `${probation_duration_months} Months` : '3 Months');
+            endDate = employee.probation_end_date || probationLifecycle?.end_date;
+
+            const days = probationLifecycle?.days_remaining;
+            if (probationLifecycle?.status === 'in_progress' || probationLifecycle?.status === 'ending_soon' || days !== undefined) {
+                countdown = {
+                    label: days !== undefined && days !== null ? `${days}d remaining` : 'Probation Active',
+                    style: (days !== undefined && days <= 15)
+                        ? 'bg-amber-900/70 text-amber-200 border-amber-400 ring-1 ring-amber-400/40 shadow-amber-950/40'
+                        : 'bg-emerald-900/70 text-emerald-200 border-emerald-400 ring-1 ring-emerald-400/40 shadow-emerald-950/40'
+                };
+            } else if (probationLifecycle?.status === 'overdue') {
+                countdown = {
+                    label: `Overdue by ${days || 0}d`,
+                    style: 'bg-rose-900/70 text-rose-200 border-rose-400'
+                };
+            } else if (probationLifecycle?.status === 'extended') {
+                countdown = {
+                    label: `Extended (${days}d left)`,
+                    style: 'bg-amber-900/70 text-amber-200 border-amber-400'
+                };
+            } else if (probationLifecycle?.status === 'confirmed') {
+                countdown = {
+                    label: 'Confirmed',
+                    style: 'bg-emerald-900/70 text-emerald-200 border-emerald-400'
+                };
+            }
+        } else if (categoryLower.includes('intern')) {
+            period = internshipLifecycle?.duration_label || 'Internship';
+            endDate = employee.internship_end_date || internshipLifecycle?.end_date;
+            const days = internshipLifecycle?.days_remaining;
+
+            if (internshipLifecycle?.status === 'in_progress' || internshipLifecycle?.status === 'ending_soon' || days !== undefined) {
+                countdown = {
+                    label: days !== undefined && days !== null ? `${days}d remaining` : 'In Progress',
+                    style: (days !== undefined && days <= 15)
+                        ? 'bg-amber-900/70 text-amber-200 border-amber-400'
+                        : 'bg-purple-900/70 text-purple-200 border-purple-400'
+                };
+            } else if (internshipLifecycle?.status === 'overdue') {
+                countdown = {
+                    label: 'Internship Ended',
+                    style: 'bg-rose-900/70 text-rose-200 border-rose-400'
+                };
+            } else if (internshipLifecycle?.status === 'completed') {
+                countdown = {
+                    label: 'Completed',
+                    style: 'bg-purple-900/70 text-purple-200 border-purple-400'
+                };
+            }
+        } else if (categoryLower.includes('permanent')) {
+            period = 'Permanent';
+            endDate = null;
+            countdown = {
+                label: employee.confirmation_date ? `Confirmed (${formatDate(employee.confirmation_date)})` : 'Full-Time Permanent',
+                style: 'bg-emerald-900/70 text-emerald-200 border-emerald-400 ring-1 ring-emerald-400/40 shadow-emerald-950/40'
+            };
+        } else {
+            period = employee.contract_duration || 'None';
+            endDate = employee.contract_expiry_date;
+        }
+
+        return { displayPeriod: period, periodEndDate: endDate, periodCountdown: countdown };
+    }, [employee, categoryLower, contractLifecycle, probationLifecycle, internshipLifecycle, probation_duration_months]);
+
 
     const assignedDepartments = useMemo(() => {
         if (employee.departments_list && employee.departments_list.length > 0) {
@@ -59,6 +160,8 @@ export default function ShowEmployee({ employee }) {
     const [confirmingDelete, setConfirmingDelete] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [leaveTypeFilter, setLeaveTypeFilter] = useState('');
+    const [showAllLeaveCards, setShowAllLeaveCards] = useState(false);
 
     const canDelete = auth.user?.role === 'admin' || auth.user?.roles?.some(r => r.slug === 'admin');
 
@@ -115,7 +218,7 @@ export default function ShowEmployee({ employee }) {
     };
 
     const formatDate = (dateString) => {
-        if (!dateString) return '—';
+        if (!dateString) return '-';
         return new Date(dateString).toLocaleDateString('en-GB', {
             day: '2-digit',
             month: 'short',
@@ -198,10 +301,12 @@ export default function ShowEmployee({ employee }) {
 
     const attachedDocsCount = documentsList.filter(d => d.file || d.number).length;
 
+    const canViewSalary = Boolean(can_see_salary);
+
     const TABS = [
         { id: 'overview', label: 'Profile Overview', icon: FiUser },
         { id: 'work', label: 'Work & Placement', icon: FiBriefcase },
-        { id: 'salary', label: 'Salary & Banking', icon: FiDollarSign },
+        ...(canViewSalary ? [{ id: 'salary', label: 'Salary & Banking', icon: FiDollarSign }] : []),
         { id: 'documents', label: `Documents (${attachedDocsCount})`, icon: FiFileText },
         { id: 'schedule', label: 'Schedule & Offs', icon: FiClock },
     ];
@@ -294,19 +399,67 @@ export default function ShowEmployee({ employee }) {
                                             </span>
                                         )}
                                     </div>
+
+                                    {/* Employment Category, Period, End Date & Remaining Badges */}
+                                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-2">
+                                        {/* Category Pill */}
+                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold backdrop-blur-sm border ${
+                                            categoryLower.includes('contract') ? 'bg-blue-500/15 border-blue-400/30 text-blue-200' :
+                                            categoryLower.includes('probation') ? 'bg-amber-500/15 border-amber-400/30 text-amber-200' :
+                                            categoryLower.includes('intern') ? 'bg-purple-500/15 border-purple-400/30 text-purple-200' :
+                                            categoryLower.includes('permanent') ? 'bg-emerald-500/15 border-emerald-400/30 text-emerald-200' :
+                                            'bg-slate-800/80 border-slate-700 text-slate-200'
+                                        }`}>
+                                            <FiLayers className="w-3.5 h-3.5 opacity-80 shrink-0" />
+                                            <span className="opacity-60 text-[10px] uppercase tracking-wider font-medium">Category:</span>
+                                            <span className="font-bold text-white capitalize">{employee.employee_category || 'None'}</span>
+                                        </div>
+
+                                        {/* Period Pill */}
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 border border-white/15 text-xs font-semibold backdrop-blur-sm text-slate-200">
+                                            <FiClock className="w-3.5 h-3.5 text-indigo-300 opacity-80 shrink-0" />
+                                            <span className="opacity-60 text-[10px] uppercase tracking-wider font-medium">Period:</span>
+                                            <span className={displayPeriod && displayPeriod !== 'None' ? 'font-bold text-white' : 'text-slate-400 italic'}>
+                                                {displayPeriod || 'None'}
+                                            </span>
+                                        </div>
+
+                                        {/* End Date Pill */}
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 border border-white/15 text-xs font-semibold backdrop-blur-sm text-slate-200">
+                                            <FiCalendar className="w-3.5 h-3.5 text-cyan-300 opacity-80 shrink-0" />
+                                            <span className="opacity-60 text-[10px] uppercase tracking-wider font-medium">End Date:</span>
+                                            <span className={periodEndDate ? 'font-bold text-white' : 'text-slate-400 italic'}>
+                                                {periodEndDate ? formatDate(periodEndDate) : (categoryLower.includes('permanent') ? 'No Expiry' : 'Not Set')}
+                                            </span>
+                                        </div>
+
+                                        {/* Current Remaining Period Pill */}
+                                        {periodCountdown && (
+                                            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border backdrop-blur-sm ${
+                                                periodCountdown.label.includes('remaining') || periodCountdown.label.includes('left')
+                                                    ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                                                    : 'bg-white/10 border-white/15 text-slate-200'
+                                            }`}>
+                                                <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse shrink-0" />
+                                                <span>{periodCountdown.label}</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
                             {/* Right Quick Actions & Salary Highlight */}
                             <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
-                                {/* Salary Tag */}
-                                <div className="bg-white/10 border border-white/10 rounded-2xl p-4 text-center sm:text-right shrink-0 backdrop-blur-sm min-w-[170px]">
-                                    <span className="text-[11px] font-semibold text-indigo-200 uppercase tracking-wider block">Net Take-Home Pay</span>
-                                    <span className="text-xl font-black text-white mt-0.5 block">
-                                        {currency} {netSalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </span>
-                                    <span className="text-[10px] text-slate-400 block mt-0.5">Mode: {employee.payment_type || 'Bank'}</span>
-                                </div>
+                                {/* Salary Tag - Only visible if authorized */}
+                                {canViewSalary && (
+                                    <div className="bg-white/10 border border-white/10 rounded-2xl p-4 text-center sm:text-right shrink-0 backdrop-blur-sm min-w-[170px]">
+                                        <span className="text-[11px] font-semibold text-indigo-200 uppercase tracking-wider block">Net Take-Home Pay</span>
+                                        <span className="text-xl font-black text-white mt-0.5 block">
+                                            {currency} {netSalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 block mt-0.5">Mode: {employee.payment_type || 'Bank'}</span>
+                                    </div>
+                                )}
 
                                 {/* Action Buttons */}
                                 <div className="flex flex-col gap-2 w-full sm:w-auto">
@@ -382,19 +535,24 @@ export default function ShowEmployee({ employee }) {
                     {activeTab === 'overview' && (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
 
-                            {/* Personal & Demographic Card */}
-                            <div className="lg:col-span-2 bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6">
-                                <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-                                    <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
-                                        <FiUser className="w-5 h-5" />
+                            {/* 1. Personal & Demographic Card (Left 2 Columns) */}
+                            <div className="lg:col-span-2 bg-white rounded-2xl p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-6">
+                                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+                                            <FiUser className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-bold text-slate-900">Personal & Legal Identity</h3>
+                                            <p className="text-xs text-slate-500">Demographic info and national identity details</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="text-base font-bold text-slate-900">Personal & Legal Identity</h3>
-                                        <p className="text-xs text-slate-500">Demographic info and national identity details</p>
-                                    </div>
+                                    <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
+                                        {employee.gender || 'Employee'}
+                                    </span>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                     <InfoField label="Full Legal Name" value={employee.name} icon={<FiUser />} />
                                     <InfoField label="Employee Code" value={employee.employee_code} icon={<FiShield />} isMono />
                                     <InfoField label="Gender" value={employee.gender} icon={<FiUser />} />
@@ -425,50 +583,199 @@ export default function ShowEmployee({ employee }) {
                                 </div>
                             </div>
 
-                            {/* Contact & Quick Reach Card */}
-                            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6">
-                                <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-                                    <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
-                                        <FiPhone className="w-5 h-5" />
+                            {/* 2. Contact Channels Card (Right 1 Column, Top Row) */}
+                            <div className="bg-white rounded-2xl p-6 sm:p-7 border border-slate-200/80 shadow-xs flex flex-col justify-between space-y-6">
+                                <div>
+                                    <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+                                        <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                                            <FiPhone className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-bold text-slate-900">Contact Channels</h3>
+                                            <p className="text-xs text-slate-500">Official and personal reachability</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="text-base font-bold text-slate-900">Contact Channels</h3>
-                                        <p className="text-xs text-slate-500">Official and personal reachability</p>
+
+                                    <div className="space-y-3.5 mt-5">
+                                        {/* Mobile */}
+                                        <div className="p-3.5 bg-slate-50/80 hover:bg-slate-100/80 transition-colors rounded-xl border border-slate-200/70 flex items-center justify-between">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="p-2 bg-white text-emerald-600 rounded-lg shadow-xs shrink-0">
+                                                    <FiPhone className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Mobile Number</span>
+                                                    <p className="text-sm font-bold text-slate-900 truncate">{employee.mobile || '-'}</p>
+                                                </div>
+                                            </div>
+                                            {employee.mobile && (
+                                                <a href={`tel:${employee.mobile}`} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 px-2 py-1 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors shrink-0">
+                                                    Call
+                                                </a>
+                                            )}
+                                        </div>
+
+                                        {/* Email */}
+                                        <div className="p-3.5 bg-slate-50/80 hover:bg-slate-100/80 transition-colors rounded-xl border border-slate-200/70 flex items-center justify-between">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="p-2 bg-white text-blue-600 rounded-lg shadow-xs shrink-0">
+                                                    <FiMail className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Email Address</span>
+                                                    <p className="text-sm font-bold text-slate-900 truncate" title={employee.email}>{employee.email || '-'}</p>
+                                                </div>
+                                            </div>
+                                            {employee.email && (
+                                                <a href={`mailto:${employee.email}`} className="text-xs font-semibold text-blue-600 hover:text-blue-700 px-2 py-1 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors shrink-0">
+                                                    Email
+                                                </a>
+                                            )}
+                                        </div>
+
+                                        {/* Location */}
+                                        <div className="p-3.5 bg-slate-50/80 hover:bg-slate-100/80 transition-colors rounded-xl border border-slate-200/70 flex items-center gap-3">
+                                            <div className="p-2 bg-white text-indigo-600 rounded-lg shadow-xs shrink-0">
+                                                <FiMapPin className="w-4 h-4" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Residential Location</span>
+                                                <p className="text-sm font-bold text-slate-900 truncate">{employee.location || '-'}</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="space-y-4">
-                                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
-                                        <div className="p-2 bg-white text-emerald-600 rounded-lg shadow-xs">
-                                            <FiPhone className="w-4 h-4" />
-                                        </div>
-                                        <div>
-                                            <span className="text-[10px] font-semibold text-slate-400 uppercase">Mobile Number</span>
-                                            <p className="text-sm font-bold text-slate-800">{employee.mobile || '—'}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
-                                        <div className="p-2 bg-white text-emerald-600 rounded-lg shadow-xs">
-                                            <FiMail className="w-4 h-4" />
-                                        </div>
-                                        <div className="truncate">
-                                            <span className="text-[10px] font-semibold text-slate-400 uppercase">Email Address</span>
-                                            <p className="text-sm font-bold text-slate-800 truncate">{employee.email || '—'}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
-                                        <div className="p-2 bg-white text-emerald-600 rounded-lg shadow-xs">
-                                            <FiMapPin className="w-4 h-4" />
-                                        </div>
-                                        <div>
-                                            <span className="text-[10px] font-semibold text-slate-400 uppercase">Residential Location</span>
-                                            <p className="text-sm font-bold text-slate-800">{employee.location || '—'}</p>
-                                        </div>
-                                    </div>
+                                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                                    <span>Work Branch:</span>
+                                    <span className="font-semibold text-slate-900 truncate max-w-[150px]">
+                                        {assignedCompanies.length > 0 ? assignedCompanies[0].name : (employee.company?.name || 'Main Branch')}
+                                    </span>
                                 </div>
                             </div>
+
+                            {/* 3. Leave Allocation & Balances (Scalable for 5 to 50+ Types) */}
+                            {(() => {
+                                const allBalances = activeLeaveBalances || [];
+                                const filteredBalances = allBalances.filter(item => {
+                                    if (!leaveTypeFilter.trim()) return true;
+                                    const name = (item?.leave_type?.name || item?.leave_type_name || item?.name || '').toLowerCase();
+                                    return name.includes(leaveTypeFilter.toLowerCase().trim());
+                                });
+                                const hasMoreThanFive = filteredBalances.length > 5;
+                                const itemsToShow = (showAllLeaveCards || leaveTypeFilter.trim()) ? filteredBalances : filteredBalances.slice(0, 5);
+                                const totalRemaining = allBalances.reduce((acc, item) => {
+                                    const total = Number(item.total_days || 0) + Number(item.carry_forward_days || 0);
+                                    return acc + Number(item.remaining_days ?? total);
+                                }, 0);
+
+                                return (
+                                    <div className="lg:col-span-3 bg-white rounded-2xl p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-5">
+                                        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl shrink-0">
+                                                    <FiCalendar className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className="text-base font-bold text-slate-900">
+                                                            Leave Allocation & Balances ({new Date().getFullYear()})
+                                                        </h3>
+                                                        <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                            {totalRemaining}d Total Left
+                                                        </span>
+                                                        <span className="text-[10px] font-medium text-slate-400">
+                                                            ({allBalances.length} Types)
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-500 mt-0.5">
+                                                        Annual leave quotas, carried forward balances from previous cycle, used and remaining days
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2.5">
+                                                {allBalances.length > 5 && (
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Filter leave type..."
+                                                        value={leaveTypeFilter}
+                                                        onChange={(e) => setLeaveTypeFilter(e.target.value)}
+                                                        className="w-36 sm:w-44 px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white focus:border-rose-400 focus:ring-1 focus:ring-rose-400/20"
+                                                    />
+                                                )}
+
+                                                {hasMoreThanFive && !leaveTypeFilter.trim() && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowAllLeaveCards(!showAllLeaveCards)}
+                                                        className="text-xs font-bold text-rose-600 hover:text-rose-700 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 transition-colors"
+                                                    >
+                                                        {showAllLeaveCards ? 'Show Less ▴' : `Show All (${allBalances.length}) ▾`}
+                                                    </button>
+                                                )}
+
+                                                <Link
+                                                    href={route('leave-requests.index')}
+                                                    className="text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors group"
+                                                >
+                                                    <span>Leave History</span>
+                                                    <span className="group-hover:translate-x-0.5 transition-transform">&rarr;</span>
+                                                </Link>
+                                            </div>
+                                        </div>
+
+                                        {itemsToShow && itemsToShow.length > 0 ? (
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                                                {itemsToShow.map((bal, idx) => {
+                                                    const total = Number(bal.total_days || 0) + Number(bal.carry_forward_days || 0);
+                                                    const remaining = Number(bal.remaining_days ?? total);
+                                                    const used = Number(bal.used_days || 0);
+                                                    const leaveName = bal.leave_type?.name || bal.leave_type_name || 'Leave';
+                                                    const pct = total > 0 ? Math.min(100, Math.max(0, Math.round((remaining / total) * 100))) : 0;
+
+                                                    return (
+                                                        <div
+                                                            key={bal.id || idx}
+                                                            className="p-4 rounded-xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/50 hover:to-white hover:border-slate-300 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
+                                                        >
+                                                            <div>
+                                                                <div className="flex items-center justify-between gap-1 mb-2">
+                                                                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700 truncate" title={leaveName}>
+                                                                        {leaveName}
+                                                                    </span>
+                                                                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                                                                </div>
+                                                                <div className="flex items-baseline gap-1 mt-1">
+                                                                    <span className="text-2xl font-black text-slate-900 tracking-tight">{remaining}</span>
+                                                                    <span className="text-xs font-semibold text-slate-400">/ {total} days left</span>
+                                                                </div>
+                                                                <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden border border-slate-200/50">
+                                                                    <div
+                                                                        className="bg-gradient-to-r from-emerald-500 to-teal-400 h-1.5 rounded-full transition-all duration-500"
+                                                                        style={{ width: `${pct}%` }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between text-[11px] text-slate-500 mt-4 pt-2.5 border-t border-slate-100">
+                                                                <span>Taken: <strong className="text-rose-600 font-bold">{used}d</strong></span>
+                                                                <span>Quota: <strong className="text-slate-800 font-bold">{total}d</strong></span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                                <p className="text-xs text-slate-500">
+                                                    {leaveTypeFilter ? `No leave types matching "${leaveTypeFilter}".` : `No leave quota balances allocated for this employee for ${new Date().getFullYear()}.`}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+
                         </div>
                     )}
 
@@ -888,14 +1195,15 @@ export default function ShowEmployee({ employee }) {
 
     // Reusable Info Card Helper
     function InfoField({ label, value, icon, isMono = false }) {
+        const hasValue = value && value !== '-';
         return (
-            <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-100/80">
-                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                    {icon && <span className="opacity-60">{icon}</span>}
+            <div className="p-3 bg-slate-50/90 hover:bg-slate-100/80 transition-colors rounded-xl border border-slate-200/70">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                    {icon && <span className="opacity-70 text-slate-500">{icon}</span>}
                     <span>{label}</span>
                 </span>
-                <p className={`text-xs font-bold text-slate-800 truncate ${isMono ? 'font-mono' : ''}`}>
-                    {value || '—'}
+                <p className={`text-xs truncate ${hasValue ? (isMono ? 'font-mono text-slate-900 font-extrabold' : 'text-slate-900 font-bold') : 'text-slate-400 italic font-medium'}`}>
+                    {value || '-'}
                 </p>
             </div>
         );

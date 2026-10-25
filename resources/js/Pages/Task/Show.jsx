@@ -382,7 +382,7 @@ export default function Show({ task, userRole = 'employee', projectMemberRole = 
 
                             <div className="space-y-4">
                                 <h3 className="text-xs font-normal text-slate-500 uppercase tracking-normal mb-3">Information</h3>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                     <div className="space-y-1">
                                         <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Due Date</label>
                                         <p className="text-sm font-normal text-slate-900">{formatDate(task.due_date)}</p>

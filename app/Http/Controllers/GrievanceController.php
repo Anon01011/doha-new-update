@@ -127,6 +127,16 @@ class GrievanceController extends Controller
 
         $validated['company_id'] = $employee->company_id;
 
+        // BUG FIX: `is_anonymous` and `is_confidential` are declared as
+        // `boolean` (not `required`), so they are ABSENT from $validated
+        // whenever the client does not send them. Reading the array key
+        // directly raised "Undefined array key" and turned a legitimate
+        // grievance submission into an HTTP 500. The null coalescing
+        // operator restores the intended default (unchecked) and keeps the
+        // anonymous-submission policy check working.
+        $validated['is_anonymous'] = (bool) ($validated['is_anonymous'] ?? false);
+        $validated['is_confidential'] = (bool) ($validated['is_confidential'] ?? false);
+
         if ($validated['is_anonymous'] && !$anonymousAllowed) {
             return back()->with('error', 'Anonymous submission is not allowed by system settings.');
         }

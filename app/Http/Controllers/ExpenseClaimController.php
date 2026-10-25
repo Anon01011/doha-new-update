@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\Company;
 use App\Models\Department;
 use App\Models\Project;
+use App\Services\CurrencyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -222,10 +223,11 @@ class ExpenseClaimController extends Controller
         $policyViolation = false;
         $violationReason = null;
 
-        // 1. Policy Limit Check (INR)
+        // 1. Policy Limit Check (tenant currency)
         if ($category->policy_limit_amount && (float) $validated['amount'] > (float) $category->policy_limit_amount) {
             $policyViolation = true;
-            $violationReason = "Claim amount (₹" . number_format((float) $validated['amount'], 2) . ") exceeds category policy limit of ₹" . number_format((float) $category->policy_limit_amount, 2) . ".";
+            $currencySymbol = CurrencyService::symbol($employee->company_id);
+            $violationReason = "Claim amount ({$currencySymbol}" . number_format((float) $validated['amount'], 2) . ") exceeds category policy limit of {$currencySymbol}" . number_format((float) $category->policy_limit_amount, 2) . ".";
         }
 
         // 2. Duplicate Check
@@ -375,6 +377,21 @@ class ExpenseClaimController extends Controller
             return redirect()->route('expenses.show', $expense->id)->with('error', 'This claim cannot be edited.');
         }
 
+        // Ownership check: an employee may only edit their own claim. Without
+        // this, any authenticated employee could rewrite another employee's
+        // amount and business purpose (IDOR).
+        if ($user->isEmployee() && $expense->employee_id !== $user->employee_id) {
+            abort(403, 'Unauthorized.');
+        }
+
+        // Branch check: a non-employee staff member may only edit claims that
+        // belong to their own company.
+        if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee && !$user->isEmployee()) {
+            if ($expense->company_id != $user->employee->company_id) {
+                abort(403, 'Unauthorized branch access.');
+            }
+        }
+
         $validated = $request->validate([
             'expense_category_id' => 'required|exists:expense_categories,id',
             'expense_date' => 'required|date|before_or_equal:today',
@@ -405,7 +422,8 @@ class ExpenseClaimController extends Controller
         $violationReason = null;
         if ($category->policy_limit_amount && (float) $validated['amount'] > (float) $category->policy_limit_amount) {
             $policyViolation = true;
-            $violationReason = "Claim amount (₹" . number_format((float) $validated['amount'], 2) . ") exceeds category policy limit of ₹" . number_format((float) $category->policy_limit_amount, 2) . ".";
+            $currencySymbol = CurrencyService::symbol($expense->company_id);
+            $violationReason = "Claim amount ({$currencySymbol}" . number_format((float) $validated['amount'], 2) . ") exceeds category policy limit of {$currencySymbol}" . number_format((float) $category->policy_limit_amount, 2) . ".";
         }
 
         $status = $request->boolean('submit_now', false) ? 'submitted' : $expense->status;

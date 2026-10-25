@@ -8,6 +8,8 @@ import {
     FiPaperclip, FiShield, FiTrendingUp
 } from 'react-icons/fi';
 import Avatar from '@/Components/Avatar';
+import { useCurrency } from '@/helpers/currency';
+import { useCurrencyLabel } from '@/helpers/currency-ui';
 
 export default function Index({
     claims,
@@ -51,9 +53,8 @@ export default function Index({
         router.get(route('expenses.index'));
     };
 
-    const formatINR = (val) => {
-        return '₹' + Number(val || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
-    };
+    const { code: currencyCode, symbol: currencySymbol, format: formatCurrency } = useCurrency();
+    const { caption: currencyCaptionText } = useCurrencyLabel();
 
     const statusBadge = (s) => {
         const map = {
@@ -82,7 +83,7 @@ export default function Index({
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm">
                     <div>
                         <h1 className="text-lg sm:text-2xl font-normal text-slate-900 tracking-normal">Employee Expenses & Claims</h1>
-                        <p className="text-xs text-slate-500 font-normal mt-0.5">Submit claims with receipts, track approval workflows, and manage payroll reimbursements in INR (₹)</p>
+                        <p className="text-xs text-slate-500 font-normal mt-0.5">Submit claims with receipts, track approval workflows, and manage payroll reimbursements in {currencyCaptionText}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         {['admin', 'hr'].includes(userRole) && (
@@ -119,7 +120,7 @@ export default function Index({
                         <div className="min-w-0">
                             <p className="text-[9px] sm:text-[10px] font-normal text-slate-400 uppercase tracking-normal truncate">Total Claims</p>
                             <h4 className="text-base sm:text-xl font-normal text-slate-800 truncate">{summary.total_claims || 0}</h4>
-                            <p className="text-[9px] sm:text-[10px] text-slate-500 truncate">{formatINR(summary.total_amount)}</p>
+                            <p className="text-[9px] sm:text-[10px] text-slate-500 truncate">{formatCurrency(summary.total_amount)}</p>
                         </div>
                     </div>
 
@@ -151,7 +152,7 @@ export default function Index({
                         </div>
                         <div className="min-w-0">
                             <p className="text-[9px] sm:text-[10px] font-normal text-slate-400 uppercase tracking-normal truncate">Total Reimbursed</p>
-                            <h4 className="text-base sm:text-xl font-normal text-emerald-700 truncate">{formatINR(summary.total_paid)}</h4>
+                            <h4 className="text-base sm:text-xl font-normal text-emerald-700 truncate">{formatCurrency(summary.total_paid)}</h4>
                             <p className="text-[9px] sm:text-[10px] text-slate-500 truncate">Paid / In Payroll</p>
                         </div>
                     </div>
@@ -275,7 +276,7 @@ export default function Index({
                                     <th className="py-3.5 px-4">Employee</th>
                                     <th className="py-3.5 px-4">Date & Category</th>
                                     <th className="py-3.5 px-4">Purpose & Project</th>
-                                    <th className="py-3.5 px-4 text-right">Amount (INR ₹)</th>
+                                    <th className="py-3.5 px-4 text-right">Amount ({currencyCaptionText})</th>
                                     <th className="py-3.5 px-4 text-center">Receipt</th>
                                     <th className="py-3.5 px-4 text-center">Status</th>
                                     <th className="py-3.5 px-4 text-center">Reimbursement</th>
@@ -328,9 +329,9 @@ export default function Index({
                                                 )}
                                             </td>
                                             <td className="py-3.5 px-4 text-right font-normal text-slate-900 whitespace-nowrap">
-                                                <span className="text-sm font-semibold">{formatINR(claim.amount)}</span>
+                                                <span className="text-sm font-semibold">{formatCurrency(claim.amount)}</span>
                                                 {claim.tax_amount > 0 && (
-                                                    <p className="text-[9px] text-slate-400">Tax: {formatINR(claim.tax_amount)}</p>
+                                                    <p className="text-[9px] text-slate-400">Tax: {formatCurrency(claim.tax_amount)}</p>
                                                 )}
                                             </td>
                                             <td className="py-3.5 px-4 text-center">

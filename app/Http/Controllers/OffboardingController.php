@@ -356,8 +356,53 @@ class OffboardingController extends Controller
             ->with('success', 'Offboarding request updated successfully.');
     }
 
-    // ─── Approve ─────────────────────────────────────────────────────────────────
+    /**
+     * Assert that the acting user is allowed to manage offboarding records.
+     *
+     * A management role (admin / hr / manager) may manage any request, subject
+     * to the branch check. A plain employee may only act on a request that
+     * belongs to them.
+     *
+     * @param  \App\Models\User|null  $user
+     * @param  \App\Models\OffboardingRequest|null  $offboarding
+     */
+    private function assertCanManageOffboarding($user, $offboarding = null): void
+    {
+        if (!$user) {
+            abort(403, 'Unauthorized.');
+        }
 
+        $userRole = $user->role ?? 'employee';
+        $isManagementRole = in_array($userRole, ['admin', 'hr', 'manager'])
+            || $user->isAdmin() || $user->isHR() || $user->isManager();
+
+        if ($isManagementRole) {
+            // Management may only act inside their own company unless they are admin.
+            if (!$user->isAdmin() && $offboarding && $user->employee_id && $user->employee) {
+                $companyId = $user->employee->company_id;
+                $targetCompanyId = $offboarding->employee?->company_id;
+                if ($companyId && $targetCompanyId && (int) $companyId !== (int) $targetCompanyId) {
+                    abort(403, 'Unauthorized branch access.');
+                }
+            }
+
+            return;
+        }
+
+        // A plain employee may only manage their own request.
+        if ($offboarding) {
+            $currentEmployeeId = $user->employee_id ?: \App\Models\Employee::where('email', $user->email)->value('id');
+            if (!$currentEmployeeId || (int) $offboarding->employee_id !== (int) $currentEmployeeId) {
+                abort(403, 'Unauthorized access to this offboarding request.');
+            }
+
+            return;
+        }
+
+        abort(403, 'You are not authorized to perform this action.');
+    }
+
+    // ─── Approve ─────────────────────────────────────────────────────────────────
     public function approve(Request $request, OffboardingRequest $offboarding)
     {
         $user = Auth::user();
@@ -365,6 +410,26 @@ class OffboardingController extends Controller
             'role'     => ['required', 'in:manager,hr'],
             'comments' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        // Only management roles may approve an offboarding request. Without this
+        // guard any authenticated employee could approve (and record themselves
+        // as the manager approver of) somebody else's offboarding.
+        $this->assertCanManageOffboarding($user);
+
+        // Separation of duties: the "manager" approval must be performed by a
+        // manager, the "hr" approval by HR. An admin may act in either capacity.
+        if ($request->role === 'manager' && !$user->isAdmin() && !$user->isManager()) {
+            abort(403, 'Only a manager may record the manager approval.');
+        }
+
+        if ($request->role === 'hr' && !$user->isAdmin() && !$user->isHR()) {
+            abort(403, 'Only HR may record the HR approval.');
+        }
+
+        // A request that has already been approved must not be approved again.
+        if (in_array($offboarding->status, ['approved', 'in_progress', 'exit_interview_pending', 'settlement_pending', 'completed'], true)) {
+            return back()->withErrors(['error' => 'This offboarding request has already been approved.']);
+        }
 
         DB::transaction(function () use ($offboarding, $user, $request) {
             if ($request->role === 'manager') {
@@ -394,6 +459,9 @@ class OffboardingController extends Controller
     public function reject(Request $request, OffboardingRequest $offboarding)
     {
         $request->validate(['reason' => ['required', 'string', 'max:1000']]);
+
+        // Only management roles may cancel an offboarding request.
+        $this->assertCanManageOffboarding(Auth::user());
 
         $offboarding->update([
             'status'  => 'cancelled',
@@ -616,6 +684,11 @@ class OffboardingController extends Controller
 
     public function destroy(OffboardingRequest $offboarding)
     {
+        // Only management roles (or the employee who raised the request) may
+        // delete an offboarding request. Without this guard any authenticated
+        // employee could delete another employee's request and its document.
+        $this->assertCanManageOffboarding(Auth::user(), $offboarding);
+
         if (!in_array($offboarding->status, ['draft', 'pending_approval', 'cancelled'])) {
             return back()->withErrors(['error' => 'Only draft or cancelled requests can be deleted.']);
         }

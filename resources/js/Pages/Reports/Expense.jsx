@@ -7,6 +7,8 @@ import {
     FiAlertTriangle, FiCheckCircle, FiDollarSign, FiCalendar,
     FiClock, FiShield, FiBarChart2, FiMapPin, FiRepeat
 } from 'react-icons/fi';
+import { useCurrency } from '@/helpers/currency';
+import { useCurrencyLabel } from '@/helpers/currency-ui';
 
 export default function ExpenseReport({
     claims = [],
@@ -48,8 +50,11 @@ export default function ExpenseReport({
         });
     };
 
+    const { code: currencyCode, symbol: currencySymbol, format: formatCurrency } = useCurrency();
+    const { caption: currencyCaptionText } = useCurrencyLabel();
+
     const formatINR = (val) => {
-        return '₹' + Number(val || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+        return formatCurrency(val || 0);
     };
 
     const tabs = [
@@ -89,7 +94,7 @@ export default function ExpenseReport({
                         </Link>
                         <div>
                             <h1 className="text-xl font-semibold text-slate-800 tracking-tight">Employee Expense & Reimbursement Analytics</h1>
-                            <p className="text-xs text-slate-500 font-normal mt-0.5">Comprehensive audit reports across employees, branches, categories, and policy adherence in INR (₹)</p>
+                            <p className="text-xs text-slate-500 font-normal mt-0.5">Comprehensive audit reports across employees, branches, categories, and policy adherence in {currencyCaptionText}</p>
                         </div>
                     </div>
 
@@ -250,7 +255,7 @@ export default function ExpenseReport({
                                         <th className="py-3 px-4">Employee Name</th>
                                         <th className="py-3 px-4">Department</th>
                                         <th className="py-3 px-4 text-center">Total Claims</th>
-                                        <th className="py-3 px-4 text-right">Total Claimed (INR)</th>
+                                        <th className="py-3 px-4 text-right">Total Claimed ({currencyCode})</th>
                                         <th className="py-3 px-4 text-right">Approved Amount</th>
                                         <th className="py-3 px-4 text-right">Settled Amount</th>
                                     </tr>
@@ -371,7 +376,7 @@ export default function ExpenseReport({
                                         <th className="py-3 px-4">Date</th>
                                         <th className="py-3 px-4">Category</th>
                                         <th className="py-3 px-4">Purpose</th>
-                                        <th className="py-3 px-4 text-right">Amount (INR)</th>
+                                        <th className="py-3 px-4 text-right">Amount ({currencyCode})</th>
                                         <th className="py-3 px-4 text-center">Status</th>
                                         <th className="py-3 px-4 text-center">Reimbursement</th>
                                         <th className="py-3 px-4 text-center">Policy Warning</th>

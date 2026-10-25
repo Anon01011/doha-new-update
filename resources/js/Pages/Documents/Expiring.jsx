@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { FaFileContract, FaCalendarAlt, FaClock, FaExclamationTriangle, FaEye, FaArrowRight } from 'react-icons/fa';
+import { employeeRouteKey } from '@/helpers/employee-routes';
 
 export default function Expiring({ expiringDocuments, days }) {
     const [filterDays, setFilterDays] = useState(days);
@@ -132,7 +133,7 @@ export default function Expiring({ expiringDocuments, days }) {
                                                     </td>
                                                     <td className="px-5 py-3 text-right">
                                                         <a
-                                                            href={route('employees.documents.index', doc.employee_id)}
+                                                            href={route('employees.documents.index', employeeRouteKey(doc.employee))}
                                                             className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-normal uppercase tracking-normal hover:bg-primary transition-all active:scale-95 shadow-sm group/btn"
                                                         >
                                                             <FaEye size={10} className="group-hover/btn:scale-110 transition-transform" /> 

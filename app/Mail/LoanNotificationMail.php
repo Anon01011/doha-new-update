@@ -5,6 +5,7 @@ namespace App\Mail;
 use App\Models\Employee;
 use App\Models\Loan;
 use App\Models\Company;
+use App\Services\CurrencyService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -21,6 +22,8 @@ class LoanNotificationMail extends Mailable implements ShouldQueue
     public Company $company;
     public string $type;
     public float $installmentAmount;
+    public string $currencyCode;
+    public string $currencySymbol;
 
     /**
      * Create a new message instance.
@@ -34,6 +37,11 @@ class LoanNotificationMail extends Mailable implements ShouldQueue
         $this->company           = $company;
         $this->type              = $type;
         $this->installmentAmount = $installmentAmount;
+
+        // Amounts in the email must use the tenant currency configured for the
+        // company the loan belongs to, not a hardcoded symbol.
+        $this->currencyCode   = CurrencyService::code($company->id);
+        $this->currencySymbol = CurrencyService::symbol($company->id);
     }
 
     /**

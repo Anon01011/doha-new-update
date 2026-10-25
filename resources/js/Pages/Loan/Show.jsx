@@ -4,11 +4,12 @@ import { FaMoneyBillWave, FaCalendarAlt, FaCheckCircle, FaClock, FaUniversity, F
 import { useState } from 'react';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { resolveCurrency } from '@/helpers/currency';
 
 export default function Show({ loan, userRole = 'employee' }) {
     const { appSettings } = usePage().props;
-    const currency = appSettings?.currency || 'QAR';
-    const currency_symbol = appSettings?.currency_symbol || 'QAR';
+    const { code: currency } = resolveCurrency({ appSettings });
+    const { symbol: currency_symbol } = resolveCurrency({ appSettings });
 
     const [modal, setModal] = useState({
         show: false,

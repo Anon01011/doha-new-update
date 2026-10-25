@@ -185,6 +185,11 @@ class EmployeeDashboardController extends Controller
             ->latest()
             ->first();
 
+        // Lifecycle tracking for the employee dashboard
+        $probationLifecycle  = $employee->getProbationLifecycle();
+        $internshipLifecycle = $employee->getInternshipLifecycle();
+        $contractLifecycle   = $employee->getContractLifecycle();
+
         return Inertia::render('Employee/Dashboard', [
             'employee' => $employee,
             'activeOffboarding' => $activeOffboarding,

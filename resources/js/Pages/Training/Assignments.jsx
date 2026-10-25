@@ -2,7 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { 
     FaPlus, FaSearch, FaCheckCircle, FaSpinner, FaUserClock, 
-    FaExclamationCircle, FaArrowLeft, FaShieldAlt, 
+    FaExclamationCircle, FaExclamationTriangle, FaArrowLeft, FaArrowRight, FaShieldAlt, 
     FaHistory, FaUserGraduate, FaChevronRight, FaTimes, FaEnvelope
 } from 'react-icons/fa';
 import { useState } from 'react';
@@ -75,13 +75,13 @@ export default function Assignments({ assignments, trainingId, status }) {
                             <FaEnvelope size={16} />
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-normal text-amber-800">⚠️ Email Notification Issue</p>
+                            <p className="text-sm font-normal text-amber-800"><FaExclamationTriangle size={14} className="inline mr-1.5 shrink-0" /> Email Notification Issue</p>
                             <p className="text-xs text-amber-700 mt-1 leading-relaxed">{emailWarning}</p>
                             <a
                                 href={route('settings.mail')}
                                 className="inline-block mt-2 text-[10px] font-normal text-amber-700 underline uppercase tracking-normal hover:text-amber-900 transition-colors"
                             >
-                                Go to Mail Settings →
+                                Go to Mail Settings  <FaArrowRight size={10} className="inline ml-1" />
                             </a>
                         </div>
                         <button

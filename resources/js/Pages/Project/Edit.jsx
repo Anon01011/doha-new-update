@@ -1,7 +1,11 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, Link } from '@inertiajs/react';
+import { Head, useForm, Link, usePage } from '@inertiajs/react';
+import { resolveCurrency } from '@/helpers/currency';
+import { CurrencyAmountInput } from '@/helpers/currency-ui';
 
 export default function Edit({ project, branches, employees, settings }) {
+    const { appSettings } = usePage().props;
+    const { code: currencyCode, symbol: currencySymbol } = resolveCurrency({ appSettings });
     const formatDate = (dateString) => {
         if (!dateString) return '';
         return dateString.split('T')[0];
@@ -165,7 +169,7 @@ export default function Edit({ project, branches, employees, settings }) {
                                 </div>
 
                                 <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         <div>
                                             <label className="block text-xs font-normal text-slate-500 uppercase tracking-normal mb-1.5">Visibility</label>
                                             <select
@@ -195,17 +199,13 @@ export default function Edit({ project, branches, employees, settings }) {
                                     {settings?.budget_tracking && (
                                         <div>
                                             <label className="block text-xs font-normal text-slate-500 uppercase tracking-normal mb-1.5">Budget</label>
-                                            <div className="relative">
-                                                <span className="absolute left-3 top-2.5 text-slate-400 font-normal text-sm">$</span>
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    value={data.budget}
-                                                    onChange={e => setData('budget', e.target.value)}
-                                                    className="w-full pl-7 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-normal focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
-                                                    placeholder="0.00"
-                                                />
-                                            </div>
+                                            <CurrencyAmountInput
+                                                value={data.budget}
+                                                onChange={(e) => setData('budget', e.target.value)}
+                                                symbol={currencySymbol}
+                                                code={currencyCode}
+                                                placeholder="0.00"
+                                            />
                                         </div>
                                     )}
 

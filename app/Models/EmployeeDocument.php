@@ -4,14 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Auditable;
+use App\Traits\BelongsToCompany;
 use Carbon\Carbon;
 
 class EmployeeDocument extends Model
 {
-    use Auditable;
+    use Auditable, BelongsToCompany;
 
     protected $fillable = [
         'employee_id',
+        'company_id',
         'document_type_id',
         'document_name',
         'file_path',

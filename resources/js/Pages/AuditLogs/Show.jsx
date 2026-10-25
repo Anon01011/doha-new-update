@@ -92,7 +92,7 @@ export default function Show({ auditLog }) {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                     <div className="p-2.5 bg-gray-50/50 rounded-xl border border-gray-100">
                                         <p className="text-[9px] font-normal text-gray-400 uppercase tracking-normal mb-1">Occurred At</p>
                                         <p className="text-[11px] font-normal text-gray-800 leading-tight">{formatDate(auditLog.created_at)}</p>
@@ -183,7 +183,8 @@ export default function Show({ auditLog }) {
 
                                     {changes.length > 0 ? (
                                         <div className="rounded-xl border border-gray-100 overflow-hidden shadow-sm">
-                                            <table className="w-full text-left border-collapse table-fixed">
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left border-collapse table-fixed">
                                                 <thead>
                                                     <tr className="bg-gray-900 text-white">
                                                         <th className="font-normal text-[9px] uppercase tracking-normal px-4 py-3 w-1/4 border-r border-gray-800">Attribute</th>
@@ -208,7 +209,8 @@ export default function Show({ auditLog }) {
                                                         </tr>
                                                     ))}
                                                 </tbody>
-                                            </table>
+                                                </table>
+                                            </div>
                                         </div>
                                     ) : (
                                         <div className="text-center py-16 px-5 bg-gray-50/30 rounded-2xl border-2 border-dashed border-gray-100">

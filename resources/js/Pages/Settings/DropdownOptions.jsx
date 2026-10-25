@@ -447,7 +447,7 @@ export default function DropdownOptions({ groupedOptions = {}, standardCategorie
                             </div>
 
                             {/* Sort Order & Active */}
-                            <div className="grid grid-cols-2 gap-4 pt-1">
+                            <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-2">
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
                                         Sort Order

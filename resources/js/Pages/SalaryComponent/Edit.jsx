@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link, usePage } from '@inertiajs/react';
 import { FaMoneyBillWave, FaArrowLeft, FaSave, FaTag, FaPercentage, FaCheck, FaTimes, FaShieldAlt, FaCogs, FaCoins, FaEdit, FaHistory } from 'react-icons/fa';
+import { resolveCurrency } from '@/helpers/currency';
 
 export default function Edit({ component }) {
     const { appSettings } = usePage().props;
@@ -135,7 +136,7 @@ export default function Edit({ component }) {
                                         <label className="text-[10px] font-normal text-slate-500 uppercase tracking-[0.2em] ml-1">Default Amount</label>
                                         <div className="relative">
                                             <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[10px] font-normal text-slate-400">
-                                                {data.value_type === 'percentage' ? '%' : (appSettings?.currency_symbol || 'QAR')}
+                                                {data.value_type === 'percentage' ? '%' : (resolveCurrency({ appSettings }).symbol)}
                                             </span>
                                             <input
                                                 type="number" step="0.01"

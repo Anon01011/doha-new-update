@@ -54,7 +54,11 @@ class EmployeeRequest extends FormRequest
             'employee_code' => [
                 'nullable', // Can be null if auto-generated
                 'string',
-                'max:255',
+                'max:20',
+                // Alphanumeric only. Auto generated codes are <PREFIX><8 digits>,
+                // a manually entered code may use any letters and digits but no
+                // spaces or symbols so it stays safe in URLs and exports.
+                'regex:/^[A-Za-z0-9\-_:\/]+$/',
                 Rule::unique('employees', 'employee_code')->ignore($employeeId),
             ],
             'gender' => 'required|in:Male,Female',
@@ -73,6 +77,7 @@ class EmployeeRequest extends FormRequest
             ],
             'designation' => 'nullable|string|max:255',
             'nationality' => 'nullable|string|max:255',
+            'marital_status' => 'nullable|string|max:50',
             'sponsor' => 'nullable|string|max:255',
             'company_id' => 'nullable|exists:companies,id',
             'company_ids' => 'nullable|array',
@@ -99,6 +104,10 @@ class EmployeeRequest extends FormRequest
             'pan_number' => 'nullable|string|max:255',
             'leave_status' => 'nullable|string|max:255',
             'reported_to' => 'nullable|string|max:255',
+            'reports_to_id' => 'nullable|integer|exists:employees,id',
+            'no_overtime' => 'nullable|boolean',
+            'exit_date' => 'nullable|date',
+            'exit_reason' => 'nullable|string|max:255',
             'employee_image' => 'nullable|file|image|mimes:jpg,jpeg,png,webp,gif|max:10240',
             'manual_status' => 'nullable|in:active,inactive,waiting',
             'role' => 'nullable|string|exists:roles,slug',
@@ -141,6 +150,7 @@ class EmployeeRequest extends FormRequest
             'food_handler_expiry_date' => 'nullable|date',
             'health_card_number' => 'nullable|string|max:255',
             'health_card_expiry_date' => 'nullable|date',
+            'health_card_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
             'contract_issue_date' => 'nullable|date',
             'contract_expiry_date' => 'nullable|date',
             'weekly_offs' => 'nullable|array',
@@ -156,6 +166,7 @@ class EmployeeRequest extends FormRequest
     {
         return [
             'employee_code.unique' => 'This employee code is already in use by another employee.',
+            'employee_code.regex' => 'The employee code may only contain letters, digits, and symbols (- : _ /).',
             'mobile.unique' => 'This mobile / phone number is already registered for another employee.',
             'email.unique' => 'This email address is already in use by another employee.',
             'qid_number.unique' => 'This QID / Document ID is already registered for another employee.',

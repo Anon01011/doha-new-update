@@ -9,6 +9,7 @@ import {
     FiSearch, FiX, FiCalendar, FiBriefcase, FiRefreshCw, FiCheckSquare,
     FiSliders, FiMessageCircle
 } from 'react-icons/fi';
+import { useCurrency } from '@/helpers/currency';
 
 const STATUS_STEPS = [
     { key: 'pending_approval', label: 'Pending Approval' },
@@ -37,7 +38,6 @@ const REASON_LABELS = {
     mutual_separation: 'Mutual Separation', absconding: 'Absconding', other: 'Other',
 };
 
-const formatINR = (v) => v ? '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '₹0';
 
 function TaskRow({ task, offboardingRef, canUpdate }) {
     const [editingNote, setEditingNote] = useState(false);
@@ -209,6 +209,8 @@ export default function Show({
     canApprove = false,
     canSettle = false
 }) {
+    const { format: formatCurrency } = useCurrency();
+    const formatINR = (v) => formatCurrency(v || 0);
     const [approveModal, setApproveModal] = useState(false);
     const [rejectModal, setRejectModal] = useState(false);
     const [completeModal, setCompleteModal] = useState(false);

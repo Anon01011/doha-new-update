@@ -3,10 +3,11 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { FiArrowLeft, FiFilter, FiDownload, FiFileText, FiTable, FiDollarSign, FiUsers, FiPlusCircle, FiMinusCircle } from 'react-icons/fi';
 import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
+import { resolveCurrency } from '@/helpers/currency';
 
 export default function Salary({ salaryPostings, summary, month, year, companyId, companies, departments = [], departmentId, employees, employeeId }) {
     const { appSettings } = usePage().props;
-    const currency = appSettings?.currency || 'INR';
+    const { code: currency } = resolveCurrency({ appSettings });
     const [filters, setFilters] = useState({
         month: month 
             ? (Array.isArray(month) ? month.map(String) : [String(month)]) 

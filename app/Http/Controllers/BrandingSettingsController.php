@@ -33,7 +33,7 @@ class BrandingSettingsController extends Controller
 
         $request->validate([
             'app_name' => 'required|string|max:255',
-            'logo' => 'nullable|image|mimes:png,jpg,jpeg,svg|max:2048',
+            'logo' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'favicon' => 'nullable|mimes:ico,png|max:512',
             'theme_color' => ['nullable', 'string', 'regex:@^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$@'],
         ]);

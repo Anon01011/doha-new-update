@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Setting;
+use App\Services\CurrencyService;
 
 class SettingsController extends Controller
 {
@@ -130,9 +131,9 @@ class SettingsController extends Controller
             'app_country' => 'nullable|string|in:QA,IN,AE,SA,US,GB,UK,ALL',
             'currency' => 'required|string|max:10',
             'currency_symbol' => 'required|string|max:10',
-            'logo' => 'nullable|image|mimes:png,jpg,jpeg,svg|max:2048',
+            'logo' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'favicon' => 'nullable|mimes:ico,png|max:512',
-            'company_stamp' => 'nullable|image|mimes:png,jpg,jpeg,svg|max:2048',
+            'company_stamp' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'theme_color' => ['nullable', 'string', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
             'secondary_color' => ['nullable', 'string', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
             'accent_color' => ['nullable', 'string', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
@@ -191,7 +192,7 @@ class SettingsController extends Controller
             Setting::set('app_url', $appUrl, 'branding', 'string', $companyId);
             Setting::set('app_timezone', $request->app_timezone, 'branding', 'string', $companyId);
             Setting::set('app_locale', $request->app_locale, 'branding', 'string', $companyId);
-            Setting::set('app_country', $request->app_country ?: ($currency === 'INR' ? 'IN' : 'QA'), 'branding', 'string', $companyId);
+            Setting::set('app_country', $request->app_country ?: CurrencyService::countryForCode($currency), 'branding', 'string', $companyId);
             Setting::set('currency', $currency, 'branding', 'string', $companyId);
             Setting::set('currency_symbol', $currencySymbol, 'branding', 'string', $companyId);
             Setting::set('theme_color', $request->theme_color ?: '#090b4e', 'branding', 'string', $companyId);
@@ -304,9 +305,9 @@ class SettingsController extends Controller
             'app_url' => Setting::get('app_url', env('APP_URL', 'http://localhost'), $companyId),
             'app_timezone' => Setting::get('app_timezone', env('APP_TIMEZONE', 'UTC'), $companyId),
             'app_locale' => Setting::get('app_locale', env('APP_LOCALE', 'en'), $companyId),
-            'app_country' => Setting::get('app_country', (Setting::get('currency', 'INR', $companyId) === 'INR' ? 'IN' : 'QA'), $companyId),
-            'currency' => Setting::get('currency', 'INR', $companyId),
-            'currency_symbol' => Setting::get('currency_symbol', '₹', $companyId),
+            'app_country' => Setting::get('app_country', CurrencyService::defaultCountry($companyId), $companyId),
+            'currency' => CurrencyService::code($companyId),
+            'currency_symbol' => CurrencyService::symbol($companyId),
             'app_logo' => Setting::get('app_logo', null, $companyId),
             'favicon' => Setting::get('favicon', null, $companyId),
             'company_stamp' => Setting::get('company_stamp', null, $companyId),
@@ -513,7 +514,7 @@ class SettingsController extends Controller
             'tax_percentage' => 'nullable|numeric|min:0|max:100',
             'provident_fund_percentage' => 'nullable|numeric|min:0|max:100',
             'salary_slip_template' => 'nullable|string',
-            'salary_slip_stamp' => 'nullable|image|mimes:png,jpg,jpeg,svg|max:2048',
+            'salary_slip_stamp' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'salary_slip_show_photo' => 'nullable|boolean',
             'salary_slip_show_charts' => 'nullable|boolean',
             'salary_slip_format' => 'nullable|in:classic,corporate',
@@ -787,7 +788,7 @@ class SettingsController extends Controller
     public function updateEmployeeSettings(Request $request)
     {
         $validated = $request->validate([
-            'employee_code_prefix' => 'nullable|string|max:10',
+            'employee_code_prefix' => 'nullable|string|max:20|regex:/^[A-Za-z0-9\-_:\/]*$/',
             'default_probation_months' => 'nullable|integer|min:0',
             'retirement_age' => 'nullable|integer|min:0',
             'allow_duplicate_mobile' => 'nullable|boolean',

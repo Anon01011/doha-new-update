@@ -6,6 +6,7 @@ use App\Models\SalaryPosting;
 use App\Models\Employee;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 use App\Services\PayrollService;
@@ -17,6 +18,104 @@ class SalaryPostingController extends Controller
     public function __construct(PayrollService $payrollService)
     {
         $this->payrollService = $payrollService;
+    }
+
+    /**
+     * A validation rule that only accepts an employee of the caller's tenant.
+     *
+     * SECURITY (HIGH-05): the plain `exists:employees,id` rule queries the
+     * table directly and therefore bypasses the BelongsToCompany global scope.
+     * A payroll manager of company A could point a posting at an employee of
+     * company B and the write succeeded. This rule adds the company
+     * constraint to the lookup query, so a foreign employee fails validation
+     * with a clean 422 and nothing is written.
+     *
+     * The constraint mirrors the global scope exactly: a non-admin is limited
+     * to `employees.company_id = <their company>`, and admins are unrestricted
+     * (the scope also exempts admins).
+     */
+    private function employeeExistsRule($user): \Illuminate\Validation\Rules\Exists
+    {
+        return Rule::exists('employees', 'id')->where(function ($query) use ($user) {
+            // Admins are superusers across tenants - no restriction, exactly
+            // like the BelongsToCompany scope.
+            if ($user->isAdmin()) {
+                return;
+            }
+
+            $companyId = $this->companyIdFor($user);
+
+            if ($companyId === null) {
+                // A non-admin without any tenant context may not reference any
+                // employee. Deny by default rather than allow everything.
+                $query->whereRaw('1 = 0');
+
+                return;
+            }
+
+            $query->where('company_id', $companyId);
+        });
+    }
+
+    /**
+     * Resolve an employee for a payroll write and enforce tenant isolation.
+     *
+     * SECURITY (HIGH-05): the backstop for every write path. The employee is
+     * resolved through the SCOPED model, so an employee of another tenant
+     * resolves to null, and the company is then verified explicitly. A
+     * mismatch is refused with 403 and an unknown employee with 404 - both
+     * BEFORE any row is written.
+     *
+     * SECURITY (LOW-05): the previous code dereferenced the result of
+     * Employee::find() without a null check, which produced a 500 ("Attempt
+     * to read property on null") and leaked whether the id existed in another
+     * tenant.
+     */
+    private function resolveEmployee(int $employeeId, $user)
+    {
+        // Scoped lookup: the BelongsToCompany global scope hides employees of
+        // other tenants, so a foreign id resolves to null.
+        $employee = Employee::find($employeeId);
+
+        if ($employee === null) {
+            abort(404, 'Employee not found.');
+        }
+
+        // Admins are trusted across tenants; everyone else must match.
+        if (! $user->isAdmin()) {
+            $companyId = $this->companyIdFor($user);
+
+            if ($companyId === null || (int) $employee->company_id !== (int) $companyId) {
+                abort(403, 'You are not authorized to manage payroll for this employee.');
+            }
+        }
+
+        return $employee;
+    }
+
+    /**
+     * The company the authenticated user acts for.
+     *
+     * `company_id` is read from the user row first; the employee profile is
+     * only consulted as a fallback. The lookup uses a raw DB query on purpose:
+     * resolving the employee through the model would trigger the
+     * BelongsToCompany scope, which is exactly what is being determined here.
+     */
+    private function companyIdFor($user): ?int
+    {
+        if (! empty($user->company_id)) {
+            return (int) $user->company_id;
+        }
+
+        if (! empty($user->employee_id)) {
+            $companyId = \Illuminate\Support\Facades\DB::table('employees')
+                ->where('id', $user->employee_id)
+                ->value('company_id');
+
+            return $companyId === null ? null : (int) $companyId;
+        }
+
+        return null;
     }
 
     /**
@@ -122,7 +221,8 @@ class SalaryPostingController extends Controller
         }
 
         $validated = $request->validate([
-            'employee_id' => 'required|exists:employees,id',
+            // SECURITY (HIGH-05): tenant constrained - see employeeExistsRule().
+            'employee_id' => ['required', $this->employeeExistsRule($user)],
             'month' => 'required|integer|between:1,12',
             'year' => 'required|integer|min:2000|max:2100',
             'basic_salary' => 'required|numeric|min:0',
@@ -132,7 +232,9 @@ class SalaryPostingController extends Controller
             'leave_deduction' => 'nullable|numeric|min:0',
         ]);
 
-        $employee = Employee::find($validated['employee_id']);
+        // SECURITY (HIGH-05, LOW-05): resolve through the scoped model and
+        // refuse a cross-tenant employee before anything is written.
+        $employee = $this->resolveEmployee((int) $validated['employee_id'], $user);
 
         // 1. Check if employee is active
         if (!$employee->is_active) {
@@ -275,7 +377,8 @@ class SalaryPostingController extends Controller
         }
 
         $validated = $request->validate([
-            'employee_id' => 'required|exists:employees,id',
+            // SECURITY (HIGH-05): tenant constrained - see employeeExistsRule().
+            'employee_id' => ['required', $this->employeeExistsRule($user)],
             'month' => 'required|integer|between:1,12',
             'year' => 'required|integer|min:2000|max:2100',
             'basic_salary' => 'required|numeric|min:0',
@@ -285,7 +388,9 @@ class SalaryPostingController extends Controller
             'leave_deduction' => 'nullable|numeric|min:0',
         ]);
 
-        $employee = Employee::find($validated['employee_id']);
+        // SECURITY (HIGH-05, LOW-05): resolve through the scoped model and
+        // refuse a cross-tenant employee before anything is written.
+        $employee = $this->resolveEmployee((int) $validated['employee_id'], $user);
 
         // 1. Check if employee is active
         if (!$employee->is_active && $employee->id != $salaryPosting->employee_id) {
@@ -646,7 +751,8 @@ class SalaryPostingController extends Controller
             'department_ids' => 'nullable|array',
             'department_ids.*' => 'exists:departments,id',
             'employee_ids' => 'nullable|array',
-            'employee_ids.*' => 'exists:employees,id',
+            // SECURITY (HIGH-05): tenant constrained - see employeeExistsRule().
+            'employee_ids.*' => ['integer', $this->employeeExistsRule($user)],
             // Keep single inputs for backward compatibility if any client triggers it
             'company_id' => 'nullable|exists:companies,id',
             'department_id' => 'nullable|exists:departments,id',
@@ -734,7 +840,8 @@ class SalaryPostingController extends Controller
             'department_ids' => 'nullable|array',
             'department_ids.*' => 'exists:departments,id',
             'employee_ids' => 'nullable|array',
-            'employee_ids.*' => 'exists:employees,id',
+            // SECURITY (HIGH-05): tenant constrained - see employeeExistsRule().
+            'employee_ids.*' => ['integer', $this->employeeExistsRule($user)],
         ]);
 
         $month = $request->month;

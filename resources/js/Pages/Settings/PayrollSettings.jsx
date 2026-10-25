@@ -2,10 +2,11 @@ import SettingsLayout from './SettingsLayout';
 import { useForm, usePage, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { FiCreditCard, FiLayers, FiSun, FiMoon, FiGlobe, FiMapPin, FiBriefcase, FiAward, FiMail, FiFileText } from 'react-icons/fi';
+import { resolveCurrency } from '@/helpers/currency';
 
 export default function PayrollSettings({ settings, companies = [], departments = [], selected_company_id = null, selected_department_id = null }) {
     const { appSettings } = usePage().props;
-    const currency_symbol = appSettings?.currency_symbol || '$';
+    const { symbol: currency_symbol } = resolveCurrency({ appSettings });
 
     const [scopeType, setScopeType] = useState(
         selected_department_id ? 'department' : (selected_company_id ? 'company' : 'global')

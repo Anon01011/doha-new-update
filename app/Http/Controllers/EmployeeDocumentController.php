@@ -196,14 +196,23 @@ class EmployeeDocumentController extends Controller
     {
         $user = auth()->user();
 
-        // Check authorization
-        if ($user->role === 'employee' && $user->employee_id != $document->employee_id) {
+        // Ownership check: a plain employee may only download their own documents.
+        // `isEmployee()` is used instead of comparing the raw `role` column so
+        // that users whose role lives only in the `user_roles` pivot are covered.
+        if ($user->isEmployee() && (int) $document->employee_id !== (int) $user->employee_id) {
             abort(403, 'Unauthorized access.');
         }
 
-        // Branch isolation check
-        if ($user->role !== 'admin' && $user->employee_id && $document->employee->company_id != $user->employee->company_id) {
-            abort(403, 'Unauthorized access.');
+        // Branch isolation check. A user with no linked employee profile is
+        // denied outright rather than being allowed to read across tenants.
+        if (!$user->isAdmin()) {
+            if (!$user->employee_id || !$user->employee) {
+                abort(403, 'Unauthorized access.');
+            }
+
+            if ((int) $document->employee->company_id !== (int) $user->employee->company_id) {
+                abort(403, 'Unauthorized access.');
+            }
         }
 
         // SECURITY FIX #11: Check file existence on public disk and prevent path traversal
@@ -212,21 +221,41 @@ class EmployeeDocumentController extends Controller
         }
 
         $absolutePath = Storage::disk('public')->path($document->file_path);
-        return response()->download($absolutePath, $document->document_name . '.' . $document->file_type);
+
+        // MEDIUM-04: `document_name` is user-supplied. Strip characters that are
+        // unsafe or that could be used to spoof the file type / inject headers.
+        $safeName = preg_replace('/[^A-Za-z0-9._\- ]+/', '_', (string) $document->document_name);
+        $safeName = trim((string) $safeName);
+        if ($safeName === '') {
+            $safeName = 'document';
+        }
+        // Cap the length so the Content-Disposition header stays sane.
+        $safeName = substr($safeName, 0, 100);
+
+        return response()->download($absolutePath, $safeName . '.' . $document->file_type, [
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function destroy(EmployeeDocument $document)
     {
         $user = auth()->user();
 
-        // Only admin, hr can delete documents
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        // Only admin and hr may delete documents. The role check consults both
+        // the legacy `role` column and the `user_roles` pivot.
+        if (!$user->isAdmin() && !$user->isHR()) {
             abort(403, 'Unauthorized.');
         }
 
         // Branch isolation check
-        if ($user->role !== 'admin' && $user->employee_id && $document->employee->company_id != $user->employee->company_id) {
-            abort(403, 'Unauthorized access.');
+        if (!$user->isAdmin()) {
+            if (!$user->employee_id || !$user->employee) {
+                abort(403, 'Unauthorized access.');
+            }
+
+            if ((int) $document->employee->company_id !== (int) $user->employee->company_id) {
+                abort(403, 'Unauthorized access.');
+            }
         }
 
         // Check retention policy

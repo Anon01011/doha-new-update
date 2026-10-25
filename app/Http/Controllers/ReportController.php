@@ -28,6 +28,7 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use App\Models\Setting;
+use App\Services\CurrencyService;
 use App\Services\WeeklyOffService;
 
 class ReportController extends Controller
@@ -569,6 +570,34 @@ class ReportController extends Controller
         return Setting::pluck('value', 'key')->toArray();
     }
 
+    /**
+     * Resolve the company whose currency settings should drive the exported
+     * amounts. Every export is company scoped, so the currency has to follow
+     * the same scope: the current user's company for non-admins, the filtered
+     * company for admins, and the global setting when neither applies.
+     *
+     * @param  mixed  $companyId
+     */
+    private function resolveCurrencyCompanyId($companyId = null)
+    {
+        $user = auth()->user();
+
+        if ($user && $user->role !== 'admin' && $user->employee_id && $user->employee) {
+            return $user->employee->company_id;
+        }
+
+        if (! empty($companyId)) {
+            $ids = is_array($companyId) ? $companyId : explode(',', (string) $companyId);
+            $ids = array_values(array_filter($ids));
+
+            if (! empty($ids)) {
+                return $ids[0];
+            }
+        }
+
+        return $user && $user->company_id ? $user->company_id : null;
+    }
+
     public function attendanceExportPdf(Request $request)
     {
         $startDate = $request->query('start_date');
@@ -617,13 +646,18 @@ class ReportController extends Controller
             'total_ot_amount' => round($attendances->sum('ot_amt'), 2),
         ];
 
+        $currencyCompanyId = $this->resolveCurrencyCompanyId($companyId);
+
         $pdf = Pdf::loadView('reports.attendance', [
             'attendances' => $attendances,
             'summary' => $summary,
             'startDate' => $startDate,
             'endDate' => $endDate,
             'reportType' => $reportType,
-            'settings' => $this->getReportSettings()
+            'settings' => $this->getReportSettings(),
+            'currencyCode' => CurrencyService::code($currencyCompanyId),
+            'currencySymbol' => CurrencyService::symbol($currencyCompanyId),
+            'currencyLabel' => CurrencyService::label($currencyCompanyId),
         ]);
 
         return $pdf->download($reportType . '_report_' . now()->format('YmdHis') . '.pdf');
@@ -1512,12 +1546,17 @@ class ReportController extends Controller
         }
         $monthLabel = implode(', ', $monthNames);
 
+        $currencyCompanyId = $this->resolveCurrencyCompanyId($companyId);
+
         $pdf = Pdf::loadView('reports.salary', [
             'salaryPostings' => $salaryPostings,
             'summary' => $summary,
             'month' => $monthLabel ?: 'All',
             'year' => $year,
-            'settings' => $this->getReportSettings()
+            'settings' => $this->getReportSettings(),
+            'currencyCode' => CurrencyService::code($currencyCompanyId),
+            'currencySymbol' => CurrencyService::symbol($currencyCompanyId),
+            'currencyLabel' => CurrencyService::label($currencyCompanyId),
         ]);
 
         return $pdf->download('salary_report_' . $year . '_' . implode('_', $months) . '.pdf');
@@ -1746,7 +1785,8 @@ class ReportController extends Controller
         $sheet4 = $spreadsheet->createSheet();
         $sheet4->setTitle('Bank Payment Statement');
 
-        $headers4 = ['Employee ID', 'Employee Name', 'Branch', 'Department', 'Payment Mode', 'Net Salary (INR)', 'Payroll Month', 'Year', 'Status'];
+        $currencyCompanyId = $this->resolveCurrencyCompanyId($companyId);
+        $headers4 = ['Employee ID', 'Employee Name', 'Branch', 'Department', 'Payment Mode', 'Net Salary (' . CurrencyService::code($currencyCompanyId) . ')', 'Payroll Month', 'Year', 'Status'];
         foreach ($headers4 as $key => $header) {
             $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($key + 1);
             $sheet4->setCellValue($colLetter . '1', $header);
@@ -1858,10 +1898,15 @@ class ReportController extends Controller
             'total_outstanding' => $loans->whereIn('status', ['approved', 'disbursed'])->sum('amount'),
         ];
 
+        $currencyCompanyId = $this->resolveCurrencyCompanyId($companyId);
+
         $pdf = Pdf::loadView('reports.loan', [
             'loans' => $loans,
             'summary' => $summary,
-            'settings' => $this->getReportSettings()
+            'settings' => $this->getReportSettings(),
+            'currencyCode' => CurrencyService::code($currencyCompanyId),
+            'currencySymbol' => CurrencyService::symbol($currencyCompanyId),
+            'currencyLabel' => CurrencyService::label($currencyCompanyId),
         ]);
 
         return $pdf->download('loan_report_' . now()->format('YmdHis') . '.pdf');
@@ -2240,12 +2285,17 @@ class ReportController extends Controller
             'total_amount' => $advances->sum('amount'),
         ];
 
+        $currencyCompanyId = $this->resolveCurrencyCompanyId($companyId);
+
         $pdf = Pdf::loadView('reports.advance', [
             'advances' => $advances,
             'summary' => $summary,
             'startDate' => $startDate,
             'endDate' => $endDate,
-            'settings' => $this->getReportSettings()
+            'settings' => $this->getReportSettings(),
+            'currencyCode' => CurrencyService::code($currencyCompanyId),
+            'currencySymbol' => CurrencyService::symbol($currencyCompanyId),
+            'currencyLabel' => CurrencyService::label($currencyCompanyId),
         ]);
 
         return $pdf->download('advance_report_' . now()->format('YmdHis') . '.pdf');
@@ -2502,6 +2552,8 @@ class ReportController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Performance Appraisals');
 
+        $currencyCompanyId = $this->resolveCurrencyCompanyId($companyId);
+        $currencySymbol = CurrencyService::symbol($currencyCompanyId);
         $headers = [
             'Employee Code',
             'Employee Name',
@@ -2513,7 +2565,7 @@ class ReportController extends Controller
             'Year',
             'Overall Score (%)',
             'Status',
-            'Increment Recommended (₹)',
+            'Increment Recommended (' . $currencySymbol . ')',
             'Promotion Recommended',
             'Recommended Designation',
             'PIP Required',
@@ -2542,7 +2594,7 @@ class ReportController extends Controller
             $sheet->setCellValue('H' . $row, $ev->year);
             $sheet->setCellValue('I' . $row, $ev->overall_score . '%');
             $sheet->setCellValue('J' . $row, ucfirst(str_replace('_', ' ', $ev->status ?? 'approved')));
-            $sheet->setCellValue('K' . $row, $ev->increment_recommended ? '₹' . number_format($ev->increment_recommended, 2) : '-');
+            $sheet->setCellValue('K' . $row, $ev->increment_recommended ? CurrencyService::format($ev->increment_recommended, $currencyCompanyId) : '-');
             $sheet->setCellValue('L' . $row, $ev->promotion_recommended ? 'Yes' : 'No');
             $sheet->setCellValue('M' . $row, $ev->recommended_designation ?? '-');
             $sheet->setCellValue('N' . $row, $ev->pip_required ? 'Yes (Under Watch)' : 'No');
@@ -2755,12 +2807,17 @@ class ReportController extends Controller
             'violations_count' => $claims->where('policy_violation_flag', true)->count(),
         ];
 
+        $currencyCompanyId = $this->resolveCurrencyCompanyId($companyId);
+
         $pdf = Pdf::loadView('reports.expense', [
             'claims' => $claims,
             'summary' => $summary,
             'month' => $month,
             'year' => $year,
             'settings' => $this->getReportSettings(),
+            'currencyCode' => CurrencyService::code($currencyCompanyId),
+            'currencySymbol' => CurrencyService::symbol($currencyCompanyId),
+            'currencyLabel' => CurrencyService::label($currencyCompanyId),
         ]);
 
         return $pdf->download('employee_expense_report_' . $year . ($month ? '_' . $month : '') . '.pdf');
@@ -2801,6 +2858,8 @@ class ReportController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Employee Expense Report');
 
+        $currencyCompanyId = $this->resolveCurrencyCompanyId($companyId);
+        $currencyLabel = CurrencyService::label($currencyCompanyId);
         $headers = [
             'Claim Number',
             'Employee Code',
@@ -2809,8 +2868,8 @@ class ReportController extends Controller
             'Department',
             'Expense Date',
             'Category',
-            'Amount (INR ₹)',
-            'Tax (INR ₹)',
+            'Amount (' . $currencyLabel . ')',
+            'Tax (' . $currencyLabel . ')',
             'Vendor',
             'Business Purpose',
             'Cost Centre',
@@ -2841,8 +2900,8 @@ class ReportController extends Controller
             $sheet->setCellValue('E' . $row, $cl->employee?->department?->name ?? '-');
             $sheet->setCellValue('F' . $row, $cl->expense_date ? $cl->expense_date->format('Y-m-d') : '-');
             $sheet->setCellValue('G' . $row, $cl->category?->name ?? 'Other');
-            $sheet->setCellValue('H' . $row, '₹' . number_format($cl->amount, 2));
-            $sheet->setCellValue('I' . $row, '₹' . number_format($cl->tax_amount, 2));
+            $sheet->setCellValue('H' . $row, CurrencyService::format($cl->amount, $currencyCompanyId));
+            $sheet->setCellValue('I' . $row, CurrencyService::format($cl->tax_amount, $currencyCompanyId));
             $sheet->setCellValue('J' . $row, $cl->vendor_name ?? '-');
             $sheet->setCellValue('K' . $row, $cl->business_purpose);
             $sheet->setCellValue('L' . $row, $cl->cost_center ?? '-');
@@ -3007,6 +3066,8 @@ class ReportController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Offboarding Report');
 
+        $currencyCompanyId = $this->resolveCurrencyCompanyId($company);
+        $currencyCode = CurrencyService::code($currencyCompanyId);
         $headers = [
             'Employee Code',
             'Employee Name',
@@ -3016,11 +3077,11 @@ class ReportController extends Controller
             'Separation Reason',
             'Last Working Day',
             'Notice Pay Applicable',
-            'Notice Pay Amount (INR)',
+            'Notice Pay Amount (' . $currencyCode . ')',
             'Status',
             'Clearance Completed',
             'Exit Interview Done',
-            'Net Settlement (INR)',
+            'Net Settlement (' . $currencyCode . ')',
             'Completed Date'
         ];
 
@@ -3042,11 +3103,11 @@ class ReportController extends Controller
             $sheet->setCellValue('F' . $row, ucfirst(str_replace('_', ' ', $req->separation_reason)));
             $sheet->setCellValue('G' . $row, $req->proposed_last_working_day ? $req->proposed_last_working_day->format('Y-m-d') : '-');
             $sheet->setCellValue('H' . $row, $req->notice_pay_applicable ? 'Yes' : 'No');
-            $sheet->setCellValue('I' . $row, $req->notice_pay_amount ? '₹' . number_format($req->notice_pay_amount, 2) : '-');
+            $sheet->setCellValue('I' . $row, $req->notice_pay_amount ? CurrencyService::format($req->notice_pay_amount, $currencyCompanyId) : '-');
             $sheet->setCellValue('J' . $row, ucfirst(str_replace('_', ' ', $req->status)));
             $sheet->setCellValue('K' . $row, $req->clearance_completed_at ? 'Yes (' . $req->clearance_completed_at->format('Y-m-d') . ')' : 'Pending');
             $sheet->setCellValue('L' . $row, $req->exitInterview ? 'Yes' : 'No');
-            $sheet->setCellValue('M' . $row, $req->net_settlement_payable !== null ? '₹' . number_format($req->net_settlement_payable, 2) : '-');
+            $sheet->setCellValue('M' . $row, $req->net_settlement_payable !== null ? CurrencyService::format($req->net_settlement_payable, $currencyCompanyId) : '-');
             $sheet->setCellValue('N' . $row, $req->completed_at ? $req->completed_at->format('Y-m-d') : '-');
             $row++;
         }
