@@ -5,6 +5,7 @@ import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Modal from '@/Components/Modal';
 import { FiCopy, FiCheck, FiInfo } from 'react-icons/fi';
+import { FaExclamationTriangle } from 'react-icons/fa';
 
 const formatDate = (date) => {
     const d = new Date(date);
@@ -127,6 +128,15 @@ export default function Index({
         shift_type: '',
         designation: '',
         notes: ''
+    });
+
+    // Duplicate week conflict state
+    const [duplicateConflictModal, setDuplicateConflictModal] = useState({
+        show: false,
+        targetWeek: '',
+        approved: 0,
+        pending: 0,
+        total: 0,
     });
 
     const [confirmingAction, setConfirmingAction] = useState({
@@ -347,11 +357,45 @@ export default function Index({
     const [showDuplicateModal, setShowDuplicateModal] = useState(false);
     const [targetDuplicateDate, setTargetDuplicateDate] = useState('');
 
+    // Target week preview calculation for cloning
+    const targetMondayPreview = useMemo(() => {
+        if (!targetDuplicateDate) return null;
+        try {
+            const d = new Date(targetDuplicateDate + 'T00:00:00');
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            const mon = new Date(d.setDate(diff));
+            const sun = new Date(mon);
+            sun.setDate(mon.getDate() + 6);
+            const monFormatted = formatDate(mon);
+            return {
+                monFormatted,
+                startDateLabel: mon.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                endDateLabel: sun.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                fullRangeLabel: `${mon.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} – ${sun.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
+                isSameAsSource: monFormatted === weekStart
+            };
+        } catch (_) {
+            return null;
+        }
+    }, [targetDuplicateDate, weekStart]);
+
+    const sourceWeekDetails = useMemo(() => {
+        if (!weekStart) return { label: '', shiftsCount: 0, empCount: 0 };
+        const mon = new Date(weekStart + 'T00:00:00');
+        const sun = new Date(mon);
+        sun.setDate(mon.getDate() + 6);
+        const label = `${mon.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} – ${sun.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`;
+        const shiftsCount = weekApprovalStatus?.total || (Array.isArray(rosters) ? rosters.length : 0);
+        const empCount = Array.isArray(employees) ? employees.length : 0;
+        return { label, shiftsCount, empCount };
+    }, [weekStart, weekApprovalStatus, rosters, employees]);
+
     const handleDuplicateWeek = () => {
         setShowDuplicateModal(true);
     };
 
-    const confirmDuplicateWeek = () => {
+    const confirmDuplicateWeek = async (forceOverride = false) => {
         if (!targetDuplicateDate) {
             setConfirmingAction({
                 show: true,
@@ -365,26 +409,68 @@ export default function Index({
             return;
         }
 
-        // Ensure data is snapped to Monday
+        // Snap to Monday
         const d = new Date(targetDuplicateDate + 'T00:00:00');
         const day = d.getDay();
         const diff = d.getDate() - day + (day === 0 ? -6 : 1);
         const mondayDate = formatDate(new Date(d.setDate(diff)));
+
+        // Prevent duplicating a week onto itself
+        if (mondayDate === weekStart) {
+            setConfirmingAction({
+                show: true,
+                title: 'Invalid Target',
+                message: 'The target week is the same as the source week. Please choose a different week.',
+                type: 'warning',
+                hideCancel: true,
+                confirmText: 'OK',
+                onConfirm: () => setConfirmingAction(prev => ({ ...prev, show: false }))
+            });
+            return;
+        }
+
+        // If not forcing override, check if target week already has shifts
+        if (!forceOverride) {
+            try {
+                const res = await window.axios.post(route('shift-rosters.duplicateWeek'), {
+                    source_week: weekStart,
+                    target_week: mondayDate,
+                    company_id: selectedCompany,
+                    department_id: selectedDepartment || null,
+                    check_conflicts: true
+                });
+                if (res?.data?.has_conflicts) {
+                    setShowDuplicateModal(false);
+                    setDuplicateConflictModal({
+                        show: true,
+                        targetWeek: mondayDate,
+                        approved: res.data.approved_count || 0,
+                        pending: res.data.pending_count || 0,
+                        total: res.data.total_conflicts || 0,
+                    });
+                    return;
+                }
+            } catch (_) {
+                // If check fails, proceed with duplicate anyway (fail-open)
+            }
+        }
 
         setIsSaving(true);
         router.post(route('shift-rosters.duplicateWeek'), {
             source_week: weekStart,
             target_week: mondayDate,
             company_id: selectedCompany,
-            department_id: selectedDepartment || null
+            department_id: selectedDepartment || null,
+            confirm_override: forceOverride,
         }, {
             onSuccess: () => {
                 setShowDuplicateModal(false);
+                setDuplicateConflictModal(prev => ({ ...prev, show: false }));
                 setTargetDuplicateDate('');
                 setConfirmingAction({
                     show: true,
-                    title: 'Success',
-                    message: `Week duplicated successfully for week starting ${mondayDate}!`,
+                    title: 'Schedule Duplicated',
+                    message: `Roster cloned successfully to week starting ${mondayDate}!`,
                     type: 'success',
                     hideCancel: true,
                     confirmText: 'Great',
@@ -429,14 +515,16 @@ export default function Index({
     };
 
     const handleSendEmails = () => {
-        // Block broadcast if the roster is not fully approved
-        if (weekApprovalStatus && !weekApprovalStatus.all_approved) {
+        // Block broadcast if there are no shifts or roster is not fully approved
+        if (!weekApprovalStatus || !weekApprovalStatus.all_approved) {
             setConfirmingAction({
                 show: true,
                 title: 'Broadcast Blocked: Approval Required',
-                message: weekApprovalStatus.has_pending
-                    ? `This roster has ${weekApprovalStatus.pending} pending shift entries. It must be approved by HR or a Manager before broadcasting to employees.`
-                    : 'This roster has rejected entries or is not yet approved. Please revise and approve the roster before broadcasting.',
+                message: !weekApprovalStatus
+                    ? 'No roster data found for this week. Please create and approve a roster before broadcasting.'
+                    : weekApprovalStatus.has_pending
+                        ? `This roster has ${weekApprovalStatus.pending} pending shift entries. It must be approved by HR or a Manager before broadcasting to employees.`
+                        : 'This roster has rejected entries or is not yet approved. Please revise and approve the roster before broadcasting.',
                 type: 'warning',
                 hideCancel: true,
                 confirmText: 'Understood',
@@ -833,6 +921,22 @@ export default function Index({
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                                                 </div>
                                                 Reject Roster
+                                            </button>
+                                        )}
+
+                                        {canApprove && weekApprovalStatus && (weekApprovalStatus.all_approved || weekApprovalStatus.has_rejected) && (
+                                            <button
+                                                onClick={() => {
+                                                    setShowAdvancedActions(false);
+                                                    handleResetToPending();
+                                                }}
+                                                disabled={!selectedCompany && !multiCompanyMode}
+                                                className="w-full text-left px-3 py-2.5 text-[11px] font-normal uppercase rounded-lg flex items-center gap-3 transition-all text-orange-700 hover:bg-orange-600 hover:text-white group/item"
+                                            >
+                                                <div className="p-1.5 bg-orange-50 group-hover/item:bg-white/20 rounded-md transition-colors">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                                </div>
+                                                Reset to Pending
                                             </button>
                                         )}
 
@@ -1241,6 +1345,17 @@ export default function Index({
 
                                 {/* Modal Body */}
                                 <div className="p-6 space-y-5">
+
+                                    {/* Warning banner for already-approved shift */}
+                                    {editingRoster?.id && editingRoster?.status === 'approved' && (
+                                        <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
+                                            <FaExclamationTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600" />
+                                            <div>
+                                                <span className="font-bold">Caution:</span> This shift is already <strong>Approved</strong>. Saving changes will reset its status back to <strong>Pending Approval</strong> and require re-approval before broadcasting.
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Templates */}
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-normal text-gray-400 uppercase tracking-normal">Quick Templates</label>
@@ -1312,43 +1427,161 @@ export default function Index({
                     )
                 }
 
-                {/* Duplicate Week Modal */}
+                {/* Duplicate / Clone Week Modal */}
                 {
                     showDuplicateModal && (
-                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-                            <div className="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl overflow-hidden border border-white/40 ring-1 ring-black/5 transform animate-in zoom-in-95 duration-200">
-                                <div className="bg-gradient-to-br from-indigo-600 to-violet-600 px-6 py-5 text-white flex justify-between items-center relative overflow-hidden">
-                                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/20 rounded-full blur-2xl"></div>
-                                    <div className="relative z-10">
-                                        <h3 className="text-base font-normal uppercase tracking-normal flex items-center gap-2">
-                                            <svg className="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
-                                            Duplicate Roster
-                                        </h3>
-                                        <p className="text-[11px] font-normal opacity-90 mt-1">{new Date(weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(new Date(weekStart).setDate(new Date(weekStart).getDate() + 6)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+                            <div className="bg-white w-full max-w-lg rounded-[3px] shadow-2xl overflow-hidden border border-gray-200 ring-1 ring-black/10 transform animate-in zoom-in-95 duration-200">
+                                {/* Header with Theme Color */}
+                                <div className="bg-primary px-6 py-4 text-white flex justify-between items-center rounded-t-[3px] relative overflow-hidden">
+                                    <div className="flex items-center gap-3 relative z-10">
+                                        <div className="p-2 bg-white/10 rounded-[2px] border border-white/20 text-white flex items-center justify-center">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+                                                Clone Shift Roster
+                                            </h3>
+                                            <p className="text-[11px] text-white/80 mt-0.5 font-normal">
+                                                Duplicate weekly schedule to target dates
+                                            </p>
+                                        </div>
                                     </div>
-                                    <button onClick={() => setShowDuplicateModal(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-lg transition-all relative z-10">
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
+                                    <button
+                                        onClick={() => setShowDuplicateModal(false)}
+                                        className="p-1.5 text-white/80 hover:text-white hover:bg-white/15 rounded-[2px] transition-all relative z-10"
+                                        title="Close"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
                                     </button>
                                 </div>
-                                <div className="p-5 space-y-4">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-normal text-gray-400 uppercase tracking-normal">Target Week</label>
+
+                                {/* Modal Body */}
+                                <div className="p-6 space-y-4 text-xs">
+                                    {/* 1. What We Are Cloning: Source Details */}
+                                    <div className="border border-gray-200 bg-gray-50/90 rounded-[3px] p-3.5 space-y-2">
+                                        <div className="flex items-center justify-between text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+                                            <span>Source Schedule To Clone</span>
+                                            <span className="px-2 py-0.5 bg-white border border-gray-200 rounded-[2px] text-gray-700 font-medium">
+                                                {selectedCompanyObj?.name || 'Selected Branch'}
+                                                {selectedDepartment && ` • ${departments.find(d => d.id == selectedDepartment)?.name || 'Dept'}`}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 text-gray-900 font-bold text-sm">
+                                            <svg className="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                            </svg>
+                                            <span>{sourceWeekDetails.label}</span>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 pt-1 flex-wrap">
+                                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 border border-primary/20 rounded-[2px] text-primary font-semibold text-[11px]">
+                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                <span>{sourceWeekDetails.shiftsCount} Shifts</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-gray-200 rounded-[2px] text-gray-700 font-medium text-[11px]">
+                                                <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                                <span>{sourceWeekDetails.empCount} Employees</span>
+                                            </div>
+                                            <span className={`ml-auto px-2 py-0.5 rounded-[2px] text-[10px] font-bold uppercase tracking-wider ${
+                                                weekApprovalStatus?.all_approved
+                                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                                    : 'bg-amber-100 text-amber-800 border border-amber-200'
+                                            }`}>
+                                                {weekApprovalStatus?.all_approved ? 'Approved Source' : 'Pending Source'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* 2. Target Week Selection */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-[11px] font-semibold text-gray-700 uppercase tracking-wider block">
+                                            Target Week Date (Monday)
+                                        </label>
                                         <input
                                             type="date"
                                             value={targetDuplicateDate}
                                             onChange={e => setTargetDuplicateDate(e.target.value)}
-                                            className="w-full pl-4 pr-4 py-2.5 bg-gray-50 border-gray-200 rounded-lg text-xs font-normal focus:ring-2 focus:ring-indigo-500 transition-all"
+                                            className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-[3px] text-xs font-medium text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm"
                                         />
+                                        <p className="text-[10px] text-gray-400">
+                                            Select any day in the target week — it will automatically snap to Monday.
+                                        </p>
                                     </div>
-                                    <div className="bg-amber-50 p-3 rounded-lg border border-amber-100 flex gap-3 items-start">
-                                        <svg className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                                        <p className="text-[10px] text-amber-700 leading-relaxed font-normal">Existing shifts in the target week will be replaced.</p>
+
+                                    {/* Target Week Live Preview */}
+                                    {targetMondayPreview && (
+                                        <div className={`p-3 rounded-[3px] border text-xs transition-all ${
+                                            targetMondayPreview.isSameAsSource
+                                                ? 'bg-rose-50 border-rose-200 text-rose-800'
+                                                : 'bg-primary/5 border-primary/20 text-gray-900'
+                                        }`}>
+                                            {targetMondayPreview.isSameAsSource ? (
+                                                <div className="flex items-center gap-2">
+                                                    <FaExclamationTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                                                    <span className="font-semibold">Target week is the same as the source week. Please choose a different target week.</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center justify-between">
+                                                    <div className="space-y-0.5">
+                                                        <span className="text-[10px] uppercase font-bold text-primary tracking-wider block">Target Period Preview</span>
+                                                        <div className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                                                            <span>{targetMondayPreview.fullRangeLabel}</span>
+                                                        </div>
+                                                    </div>
+                                                    <span className="px-2 py-1 bg-primary text-white text-[10px] font-bold rounded-[2px] uppercase tracking-wider">
+                                                        Target Week
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* 3. Important Rules / Info Notice */}
+                                    <div className="bg-amber-50/80 p-3 rounded-[3px] border border-amber-200/80 flex gap-2.5 items-start text-xs text-amber-900">
+                                        <FaExclamationTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                        <div className="space-y-1">
+                                            <p className="font-semibold text-amber-900">Important Schedule Notes:</p>
+                                            <ul className="text-[11px] text-amber-800 list-disc pl-4 space-y-0.5 leading-relaxed">
+                                                <li>Existing shifts in the target week will be replaced.</li>
+                                                <li>Cloned shifts will be initialized as <strong>Pending Approval</strong> so management can review them before broadcast.</li>
+                                                <li>Weekly off days will be automatically re-applied according to target week dates and each employee's settings.</li>
+                                            </ul>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3">
-                                    <button onClick={() => setShowDuplicateModal(false)} className="px-4 py-2.5 text-[10px] font-normal text-gray-500 uppercase hover:text-gray-800 rounded-lg">Cancel</button>
-                                    <button onClick={confirmDuplicateWeek} disabled={isSaving || !targetDuplicateDate} className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg text-[10px] font-normal uppercase tracking-normal hover:brightness-110 shadow-lg shadow-primary/20 active:scale-95 shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2">
-                                        {isSaving ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : 'Confirm Copy'}
+
+                                {/* Modal Footer */}
+                                <div className="px-6 py-3.5 bg-gray-50 border-t border-gray-200 rounded-b-[3px] flex items-center justify-end gap-2.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowDuplicateModal(false)}
+                                        className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-[3px] transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => confirmDuplicateWeek(false)}
+                                        disabled={isSaving || !targetDuplicateDate || targetMondayPreview?.isSameAsSource}
+                                        className="px-5 py-2 bg-primary hover:brightness-110 active:scale-[0.99] text-white text-xs font-semibold rounded-[3px] shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isSaving ? (
+                                            <>
+                                                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                <span>Cloning Schedule...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                                                <span>Clone Schedule</span>
+                                            </>
+                                        )}
                                     </button>
                                 </div>
                             </div>
@@ -1465,6 +1698,55 @@ export default function Index({
                     hideCancel={confirmingAction.hideCancel}
                     confirmText={confirmingAction.confirmText}
                 />
+
+                {/* Duplicate Week Conflict Confirmation Modal */}
+                <Modal
+                    show={duplicateConflictModal.show}
+                    onClose={() => setDuplicateConflictModal(prev => ({ ...prev, show: false }))}
+                    maxWidth="md"
+                    zIndexClass="z-[900]"
+                    roundedClass="rounded-[3px]"
+                    className="border border-gray-200 shadow-2xl"
+                >
+                    <div className="p-6 flex flex-col gap-4 text-xs">
+                        <div className="flex items-start gap-3">
+                            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-[2px] border border-amber-200 flex-shrink-0">
+                                <FaExclamationTriangle className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Target Week Has Existing Shifts</h3>
+                                <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                                    The week starting <strong className="text-gray-900 font-bold">{duplicateConflictModal.targetWeek}</strong> already contains <strong className="text-gray-900 font-bold">{duplicateConflictModal.total} shift(s)</strong> ({duplicateConflictModal.approved} approved, {duplicateConflictModal.pending} pending).
+                                </p>
+                            </div>
+                        </div>
+
+                        {duplicateConflictModal.approved > 0 && (
+                            <div className="p-3 bg-rose-50 border border-rose-200 rounded-[2px] text-rose-700 text-xs flex items-start gap-2">
+                                <FaExclamationTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-rose-600" />
+                                <span><strong>Caution:</strong> {duplicateConflictModal.approved} already-approved shift(s) will be replaced and reset back to <strong>Pending Approval</strong>.</span>
+                            </div>
+                        )}
+
+                        <div className="flex justify-end gap-2.5 pt-2 border-t border-gray-100">
+                            <button
+                                type="button"
+                                onClick={() => setDuplicateConflictModal(prev => ({ ...prev, show: false }))}
+                                className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-[3px] transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isSaving}
+                                onClick={() => confirmDuplicateWeek(true)}
+                                className="px-5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-[3px] shadow-sm active:scale-[0.99] transition-all"
+                            >
+                                {isSaving ? 'Cloning...' : 'Confirm Override & Clone'}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
             </>
         </AuthenticatedLayout>
     );

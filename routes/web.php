@@ -206,6 +206,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('employee-attendances', \App\Http\Controllers\EmployeeAttendanceController::class);
 
     // Shift Roster custom routes (must be before resource route)
+    Route::post('shift-rosters/check-conflicts', [\App\Http\Controllers\ShiftRosterController::class, 'checkConflicts'])->name('shift-rosters.checkConflicts');
     Route::get('shift-rosters/show-employee/{company}/{employee}', [\App\Http\Controllers\ShiftRosterController::class, 'showEmployeeRoster'])->name('shift-rosters.showEmployee');
     Route::post('shift-rosters/bulk-store', [\App\Http\Controllers\ShiftRosterController::class, 'bulkStore'])->name('shift-rosters.bulkStore');
     Route::post('shift-rosters/create-shift', [\App\Http\Controllers\ShiftRosterController::class, 'createShift'])->name('shift-rosters.createShift');

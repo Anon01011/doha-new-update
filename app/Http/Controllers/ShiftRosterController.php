@@ -156,7 +156,7 @@ class ShiftRosterController extends Controller
 
             // Compute week-level approval status (for the currently-viewed week/filter)
             $weekApprovalStatus = null;
-            $currentWeekStart = $request->input('week_start', now()->startOfWeek()->toDateString());
+            $currentWeekStart = Carbon::parse($request->input('week_start', now()->startOfWeek(Carbon::MONDAY)->toDateString()))->startOfWeek(Carbon::MONDAY)->toDateString();
             if ($company_id && !$user->isEmployee()) {
                 $weekRosters = \App\Models\ShiftRoster::withoutGlobalScope('company')->where('company_id', $company_id)
                     ->where('week_start', $currentWeekStart);
@@ -304,6 +304,119 @@ class ShiftRosterController extends Controller
         } catch (\Exception $e) {
             Log::error('ShiftRoster create error: ' . $e->getMessage());
             return back()->with('error', 'Error loading create form: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Check if roster entries conflict with existing shifts (approved or pending).
+     */
+    public function checkConflicts(Request $request)
+    {
+        try {
+            $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('create-shift-rosters') && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $companyId = $request->input('company_id');
+            $entries = $request->input('entries', []);
+
+            if (empty($entries) || !is_array($entries)) {
+                return response()->json([
+                    'has_conflicts' => false,
+                    'total_conflicts' => 0,
+                    'approved_count' => 0,
+                    'pending_count' => 0,
+                    'rejected_count' => 0,
+                    'conflicts' => [],
+                ]);
+            }
+
+            // Filter entries with non-empty shift_time
+            $entriesCollection = collect($entries)->filter(fn($e) => !empty(trim($e['shift_time'] ?? '')));
+            $employeeIds = $entriesCollection->pluck('employee_id')->unique()->values();
+
+            if ($employeeIds->isEmpty()) {
+                return response()->json([
+                    'has_conflicts' => false,
+                    'total_conflicts' => 0,
+                    'approved_count' => 0,
+                    'pending_count' => 0,
+                    'rejected_count' => 0,
+                    'conflicts' => [],
+                ]);
+            }
+
+            // Build lookup keys for requested entries: employeeId_weekStart_day
+            $lookupKeys = [];
+            $weekStarts = [];
+            foreach ($entriesCollection as $entry) {
+                $ws = $entry['week_start'] ?? $request->input('week_start');
+                if ($ws && !empty($entry['day'])) {
+                    $normalizedWs = Carbon::parse($ws)->startOfWeek(Carbon::MONDAY)->toDateString();
+                    $lookupKeys[$entry['employee_id'] . '_' . $normalizedWs . '_' . $entry['day']] = true;
+                    $weekStarts[] = $normalizedWs;
+                }
+            }
+            $weekStarts = array_unique($weekStarts);
+
+            $existing = ShiftRoster::whereIn('employee_id', $employeeIds)
+                ->whereIn('week_start', $weekStarts)
+                ->with('employee:id,name,designation')
+                ->get();
+
+            $conflicts = [];
+            $approvedCount = 0;
+            $pendingCount = 0;
+            $rejectedCount = 0;
+
+            foreach ($existing as $roster) {
+                $rosterWs = Carbon::parse($roster->week_start)->toDateString();
+                $key = $roster->employee_id . '_' . $rosterWs . '_' . $roster->day;
+
+                if (isset($lookupKeys[$key])) {
+                    if ($roster->status === 'approved') {
+                        $approvedCount++;
+                    } elseif ($roster->status === 'rejected') {
+                        $rejectedCount++;
+                    } else {
+                        $pendingCount++;
+                    }
+
+                    $empName = $roster->employee ? $roster->employee->name : "Employee #{$roster->employee_id}";
+                    if (!isset($conflicts[$roster->employee_id])) {
+                        $conflicts[$roster->employee_id] = [
+                            'employee_id' => $roster->employee_id,
+                            'employee_name' => $empName,
+                            'designation' => $roster->employee?->designation,
+                            'shifts' => [],
+                        ];
+                    }
+
+                    $conflicts[$roster->employee_id]['shifts'][] = [
+                        'day' => $roster->day,
+                        'week_start' => $rosterWs,
+                        'shift_time' => $roster->shift_time,
+                        'shift_type' => $roster->shift_type,
+                        'status' => $roster->status,
+                    ];
+                }
+            }
+
+            $totalConflicts = $approvedCount + $pendingCount + $rejectedCount;
+
+            return response()->json([
+                'has_conflicts' => $totalConflicts > 0,
+                'total_conflicts' => $totalConflicts,
+                'approved_count' => $approvedCount,
+                'pending_count' => $pendingCount,
+                'rejected_count' => $rejectedCount,
+                'conflicts' => array_values($conflicts),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('checkConflicts error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
@@ -525,11 +638,140 @@ class ShiftRosterController extends Controller
                 'count'       => $count,
             ]);
 
-            return back()->with('success', "✅ {$count} roster entries approved successfully! You can now broadcast to employees.");
+            // Automatic notification dispatch upon approval (Email, SMS, WhatsApp as per company settings)
+            $notifStatus = '';
+            if ($count > 0) {
+                $company = Company::find($data['company_id']);
+                if ($company) {
+                    $dispatchResult = $this->dispatchRosterNotifications($company, $data['week_start'], $data['department_id'] ?? null);
+                    if ($dispatchResult['dispatched']) {
+                        $channelsList = implode(', ', $dispatchResult['channels']);
+                        $notifStatus = " Notifications dispatched automatically via: {$channelsList} to {$dispatchResult['recipients_count']} employees.";
+                    }
+                }
+            }
+
+            return back()->with('success', "✅ {$count} roster entries approved successfully!{$notifStatus}");
 
         } catch (\Exception $e) {
             Log::error('ShiftRoster approve error: ' . $e->getMessage());
             return back()->with('error', 'Error approving roster: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Dispatch roster notifications to employees across enabled channels (Email, WhatsApp, SMS).
+     */
+    public function dispatchRosterNotifications(Company $company, string $weekStart, ?int $departmentId = null): array
+    {
+        try {
+            $companyId = $company->id;
+
+            $sendEmail    = Setting::get('roster_send_email', true, $companyId);
+            $sendWhatsapp = Setting::get('roster_send_whatsapp', false, $companyId);
+            $sendSms      = Setting::get('roster_send_sms', false, $companyId);
+
+            $enabledChannels = [];
+            if ($sendEmail) $enabledChannels[] = 'Email';
+            if ($sendWhatsapp) $enabledChannels[] = 'WhatsApp';
+            if ($sendSms) $enabledChannels[] = 'SMS';
+
+            if (empty($enabledChannels)) {
+                Log::info("dispatchRosterNotifications: No notification channels enabled for company {$companyId}");
+                return ['dispatched' => false, 'channels' => [], 'recipients_count' => 0];
+            }
+
+            $startDate = Carbon::parse($weekStart);
+            $endDate   = $startDate->copy()->addDays(6);
+            $dateRange = $startDate->format('M d, Y') . ' - ' . $endDate->format('M d, Y');
+
+            $query = ShiftRoster::where('company_id', $companyId)
+                ->where('week_start', $weekStart)
+                ->where('status', 'approved');
+
+            if ($departmentId) {
+                $deptEmployeeIds = Employee::where('department_id', $departmentId)->pluck('id');
+                $query->whereIn('employee_id', $deptEmployeeIds);
+            }
+
+            $rosters = $query->get();
+
+            if ($rosters->isEmpty()) {
+                return ['dispatched' => false, 'channels' => $enabledChannels, 'recipients_count' => 0];
+            }
+
+            $employeeIds = $rosters->pluck('employee_id')->unique();
+            $employees = Employee::whereIn('id', $employeeIds)->get();
+
+            $dispatchedCount = 0;
+
+            foreach ($employees as $employee) {
+                $employeeRoster = $rosters->where('employee_id', $employee->id)->map(function ($r) {
+                    return [
+                        'day'         => $r->day,
+                        'date'        => Carbon::parse($r->week_start)->addDays($this->getDayOffset($r->day))->format('M d, Y'),
+                        'shift_time'  => $r->shift_time,
+                        'shift_type'  => $r->shift_type,
+                        'designation' => $r->designation,
+                        'notes'       => $r->notes,
+                    ];
+                })->values()->toArray();
+
+                if (empty($employeeRoster)) {
+                    continue;
+                }
+
+                $sentToEmployee = false;
+
+                // 1. Email Channel
+                if ($sendEmail && !empty($employee->email)) {
+                    try {
+                        Mail::to($employee->email)->queue(new EmployeeRosterMail($employee, $company, $employeeRoster, $dateRange));
+                        $sentToEmployee = true;
+                    } catch (\Exception $e) {
+                        Log::error("Failed to queue email for {$employee->name}: " . $e->getMessage());
+                    }
+                }
+
+                // 2. WhatsApp Channel
+                if ($sendWhatsapp && !empty($employee->mobile)) {
+                    try {
+                        \App\Jobs\SendWhatsAppRosterNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
+                        $sentToEmployee = true;
+                    } catch (\Exception $e) {
+                        Log::error("Failed to dispatch WhatsApp for {$employee->name}: " . $e->getMessage());
+                    }
+                }
+
+                // 3. SMS Channel
+                if ($sendSms && !empty($employee->mobile)) {
+                    try {
+                        \App\Jobs\SendRosterSmsNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
+                        $sentToEmployee = true;
+                    } catch (\Exception $e) {
+                        Log::error("Failed to dispatch SMS for {$employee->name}: " . $e->getMessage());
+                    }
+                }
+
+                if ($sentToEmployee) {
+                    $dispatchedCount++;
+                }
+            }
+
+            Log::info("Automatic roster notifications dispatched for week {$weekStart}", [
+                'company_id'       => $companyId,
+                'channels'         => $enabledChannels,
+                'recipients_count' => $dispatchedCount,
+            ]);
+
+            return [
+                'dispatched'       => $dispatchedCount > 0,
+                'channels'         => $enabledChannels,
+                'recipients_count' => $dispatchedCount,
+            ];
+        } catch (\Exception $e) {
+            Log::error('dispatchRosterNotifications error: ' . $e->getMessage());
+            return ['dispatched' => false, 'channels' => [], 'recipients_count' => 0];
         }
     }
 
@@ -596,7 +838,7 @@ class ShiftRosterController extends Controller
     {
         try {
             $user = auth()->user();
-            if (!$user->isAdmin() && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+            if (!$this->canApproveRosters() && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
                 return back()->with('error', 'Unauthorized.');
             }
 
@@ -1152,7 +1394,27 @@ class ShiftRosterController extends Controller
             $sourceRosters = $query->get();
 
             if ($sourceRosters->isEmpty()) {
-                return back()->with('error', 'No shifts found in the source week to duplicate.');
+                return $request->boolean('check_conflicts')
+                    ? response()->json(['has_conflicts' => false, 'total_conflicts' => 0, 'approved_count' => 0, 'pending_count' => 0])
+                    : back()->with('error', 'No shifts found in the source week to duplicate.');
+            }
+
+            // Target week conflict check
+            if ($request->boolean('check_conflicts')) {
+                $targetQuery = ShiftRoster::where('company_id', $data['company_id'])
+                    ->where('week_start', $data['target_week']);
+                if ($request->has('department_id') && $request->department_id) {
+                    $targetQuery->whereIn('employee_id', $employeeIds);
+                }
+                $existingCount = (clone $targetQuery)->count();
+                $approvedCount = (clone $targetQuery)->where('status', 'approved')->count();
+                $pendingCount = (clone $targetQuery)->where('status', 'pending')->count();
+                return response()->json([
+                    'has_conflicts' => $existingCount > 0,
+                    'total_conflicts' => $existingCount,
+                    'approved_count' => $approvedCount,
+                    'pending_count' => $pendingCount,
+                ]);
             }
 
             $duplicatedCount = 0;
@@ -1518,11 +1780,23 @@ class ShiftRosterController extends Controller
             // APPROVAL GATE: Only allow broadcast if roster is approved
             // ----------------------------------------------------------------
             if ($week_start && $company_id) {
-                $pendingCount = ShiftRoster::where('company_id', $company_id)
-                    ->where('week_start', $week_start)
-                    ->where('status', 'pending')
-                    ->count();
+                $department_id = $request->input('department_id');
 
+                $pendingQuery = ShiftRoster::where('company_id', $company_id)
+                    ->where('week_start', $week_start)
+                    ->where('status', 'pending');
+
+                $rejectedQuery = ShiftRoster::where('company_id', $company_id)
+                    ->where('week_start', $week_start)
+                    ->where('status', 'rejected');
+
+                if ($department_id) {
+                    $deptEmployeeIds = Employee::where('department_id', $department_id)->pluck('id');
+                    $pendingQuery->whereIn('employee_id', $deptEmployeeIds);
+                    $rejectedQuery->whereIn('employee_id', $deptEmployeeIds);
+                }
+
+                $pendingCount = $pendingQuery->count();
                 if ($pendingCount > 0) {
                     return response()->json([
                         'success' => false,
@@ -1531,11 +1805,7 @@ class ShiftRosterController extends Controller
                     ], 422);
                 }
 
-                $rejectedCount = ShiftRoster::where('company_id', $company_id)
-                    ->where('week_start', $week_start)
-                    ->where('status', 'rejected')
-                    ->count();
-
+                $rejectedCount = $rejectedQuery->count();
                 if ($rejectedCount > 0) {
                     return response()->json([
                         'success' => false,
@@ -1769,18 +2039,7 @@ class ShiftRosterController extends Controller
                     }
 
                     if ($sendSms && !empty($employee->mobile)) {
-                        $smsMessage = "Hi {$employee->name},\nYour shift roster for {$dateRange} at {$company->name}:\n";
-                        foreach ($employeeRoster as $shift) {
-                            $smsMessage .= "- {$shift['date']} ({$shift['day']}): {$shift['shift_time']} ({$shift['designation']})\n";
-                        }
-                        $smsMessage .= "Please arrive 10 mins early. Contact HR for queries.";
-
-                        // TODO: Implement actual SMS API call (Twilio or Custom)
-                        Log::info('SMS roster notification queued', [
-                            'employee_id' => $employee->id,
-                            'mobile' => $employee->mobile,
-                            'message_preview' => $smsMessage
-                        ]);
+                        \App\Jobs\SendRosterSmsNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
                     }
 
                     $sent++;
@@ -2009,11 +2268,7 @@ class ShiftRosterController extends Controller
                     }
 
                     if ($sendSms && !empty($employee->mobile)) {
-                        // TODO: Implement actual SMS API call
-                        Log::info('SMS roster notification queued (selected)', [
-                            'employee_id' => $employee->id,
-                            'mobile' => $employee->mobile
-                        ]);
+                        \App\Jobs\SendRosterSmsNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
                     }
 
                     $sent++;
@@ -2704,6 +2959,7 @@ class ShiftRosterController extends Controller
             'entries.*.designation' => 'nullable|string|max:255',
             'entries.*.notes' => 'nullable|string|max:1000',
             'entries.*.week_start' => 'nullable|date',
+            'confirm_override' => 'nullable|boolean',
         ]);
     }
 

@@ -2,6 +2,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import Modal from '@/Components/Modal';
+import { FaExclamationTriangle } from 'react-icons/fa';
 
 const formatDate = (date) => {
     const d = new Date(date);
@@ -98,6 +100,16 @@ export default function Create({
         message: '',
         onConfirm: () => { },
         type: 'warning'
+    });
+
+    const [conflictModal, setConflictModal] = useState({
+        show: false,
+        total: 0,
+        approved: 0,
+        pending: 0,
+        rejected: 0,
+        conflicts: [],
+        pendingEntries: []
     });
 
     // Date states
@@ -242,6 +254,22 @@ export default function Create({
         });
     };
 
+    const submitRosterEntries = (entries, confirmOverride = false) => {
+        setIsSubmitting(true);
+        router.post(route('shift-rosters.store'), {
+            company_id: selectedCompany,
+            department_id: selectedDepartment || null,
+            entries: entries,
+            week_start: viewMode === 'week' ? weekStart : null,
+            confirm_override: confirmOverride,
+        }, {
+            onFinish: () => {
+                setIsSubmitting(false);
+                setConflictModal(prev => ({ ...prev, show: false }));
+            }
+        });
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (isSubmitting || selectedEmployees.length === 0) return;
@@ -280,14 +308,46 @@ export default function Create({
             return;
         }
 
-        router.post(route('shift-rosters.store'), {
-            company_id: selectedCompany,
-            department_id: selectedDepartment || null,
-            entries: entries,
-            week_start: viewMode === 'week' ? weekStart : null
-        }, {
-            onFinish: () => setIsSubmitting(false)
-        });
+        // Check for conflicts with existing shifts (approved or pending)
+        try {
+            const response = await window.axios.post(route('shift-rosters.checkConflicts'), {
+                company_id: selectedCompany,
+                week_start: viewMode === 'week' ? weekStart : null,
+                entries: entries
+            });
+
+            if (response?.data?.has_conflicts) {
+                setIsSubmitting(false);
+                // Flatten grouped conflicts (per-employee with shifts[]) into flat rows for display
+                const flatConflicts = [];
+                (response.data.conflicts || []).forEach(emp => {
+                    (emp.shifts || []).forEach(shift => {
+                        flatConflicts.push({
+                            employee_name: emp.employee_name,
+                            department: emp.designation || '',
+                            day: shift.day,
+                            week_start: shift.week_start,
+                            current_shift_time: shift.shift_time,
+                            status: shift.status,
+                        });
+                    });
+                });
+                setConflictModal({
+                    show: true,
+                    total: response.data.total_conflicts || 0,
+                    approved: response.data.approved_count || 0,
+                    pending: response.data.pending_count || 0,
+                    rejected: response.data.rejected_count || 0,
+                    conflicts: flatConflicts,
+                    pendingEntries: entries
+                });
+                return;
+            }
+        } catch (err) {
+            console.error('Shift conflict check error:', err);
+        }
+
+        submitRosterEntries(entries, false);
     };
 
     return (
@@ -586,6 +646,109 @@ export default function Create({
                 hideCancel={true}
                 confirmText="OK"
             />
+
+            {/* Conflict Override Confirmation Modal */}
+            <Modal
+                show={conflictModal.show}
+                onClose={() => setConflictModal(prev => ({ ...prev, show: false }))}
+                maxWidth="2xl"
+                zIndexClass="z-[900]"
+            >
+                <div className="p-6 bg-white rounded-2xl shadow-xl flex flex-col gap-5">
+                    {/* Header */}
+                    <div className="flex items-start gap-4">
+                        <div className="p-3 bg-amber-50 text-amber-600 rounded-xl border border-amber-200 flex-shrink-0">
+                            <FaExclamationTriangle className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                Existing Roster Schedule Detected
+                            </h3>
+                            <p className="text-xs text-gray-500 mt-1">
+                                One or more employees already have shifts scheduled in this period. Review existing shifts below before deciding whether to override.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Stats Summary */}
+                    <div className="grid grid-cols-3 gap-3">
+                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-center">
+                            <div className="text-xl font-bold text-gray-800">{conflictModal.total}</div>
+                            <div className="text-[11px] font-medium text-gray-500">Total Existing Shifts</div>
+                        </div>
+                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-center">
+                            <div className="text-xl font-bold text-amber-600">{conflictModal.approved}</div>
+                            <div className="text-[11px] font-semibold text-amber-700">Approved (Will Reset)</div>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-center">
+                            <div className="text-xl font-bold text-blue-600">{conflictModal.pending}</div>
+                            <div className="text-[11px] font-medium text-blue-700">Pending Approval</div>
+                        </div>
+                    </div>
+
+                    {/* Warning if any shifts are already approved */}
+                    {conflictModal.approved > 0 && (
+                        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-start gap-2.5">
+                            <FaExclamationTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
+                            <div>
+                                <span className="font-bold">Caution:</span> {conflictModal.approved} existing shift(s) are already <strong>Approved</strong>. Overriding them will replace their timings and reset their status back to <strong>Pending Approval</strong>.
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Conflict Items List */}
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="bg-gray-100 px-4 py-2 border-b border-gray-200 text-[11px] font-semibold text-gray-600 uppercase tracking-wider flex justify-between">
+                            <span>Conflicting Shifts</span>
+                            <span>{conflictModal.conflicts?.length || 0} entries</span>
+                        </div>
+                        <div className="max-h-56 overflow-y-auto divide-y divide-gray-100 custom-scrollbar">
+                            {(conflictModal.conflicts || []).map((item, idx) => (
+                                <div key={idx} className="p-3 text-xs flex items-center justify-between hover:bg-gray-50/80 transition-colors">
+                                    <div className="space-y-0.5">
+                                        <div className="font-semibold text-gray-900 flex items-center gap-2">
+                                            {item.employee_name}
+                                            <span className="text-[10px] font-normal text-gray-400">({item.department || 'N/A'})</span>
+                                        </div>
+                                        <div className="text-gray-500 text-[11px]">
+                                            {item.day} • {item.date || item.week_start} • Current: <span className="font-medium text-gray-700">{item.current_shift_time}</span>
+                                        </div>
+                                    </div>
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                        item.status === 'approved'
+                                            ? 'bg-emerald-100 text-emerald-800'
+                                            : item.status === 'rejected'
+                                            ? 'bg-rose-100 text-rose-800'
+                                            : 'bg-amber-100 text-amber-800'
+                                    }`}>
+                                        {item.status}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                        <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => setConflictModal(prev => ({ ...prev, show: false }))}
+                            className="px-4 py-2 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all"
+                        >
+                            Cancel & Review
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => submitRosterEntries(conflictModal.pendingEntries, true)}
+                            className="px-5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 rounded-xl shadow-md shadow-amber-600/20 transition-all flex items-center gap-1.5"
+                        >
+                            {isSubmitting ? 'Overriding...' : 'Confirm & Overwrite Roster'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </AuthenticatedLayout>
     );
 }
