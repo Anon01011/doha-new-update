@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\DB;
 use App\Mail\EmployeeRosterMail;
 use Illuminate\Support\Facades\Mail;
 use App\Services\WeeklyOffService;
+use App\Models\Setting;
+use App\Jobs\SendWhatsAppRosterNotification;
+use App\Jobs\SendRosterSmsNotification;
 
 class ShiftRosterController extends Controller
 {
