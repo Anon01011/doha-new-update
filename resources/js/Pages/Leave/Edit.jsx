@@ -13,6 +13,7 @@ export default function Edit({ leaveRequest, employees, leaveTypes, userRole = '
     };
 
     const { data, setData, post, processing, errors } = useForm({
+        _method: 'PUT',
         employee_id: leaveRequest.employee_id || '',
         leave_type_id: leaveRequest.leave_type_id || '',
         start_date: formatDate(leaveRequest.start_date),
@@ -52,7 +53,6 @@ export default function Edit({ leaveRequest, employees, leaveTypes, userRole = '
         e.preventDefault();
         post(route('leave-requests.update', leaveRequest.id), {
             forceFormData: true,
-            _method: 'PUT',
         });
     };
 

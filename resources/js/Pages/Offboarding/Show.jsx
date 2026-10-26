@@ -655,7 +655,7 @@ export default function Show({
                                         <div key={lb.id} className="flex justify-between items-center text-xs py-1 border-b border-slate-50 last:border-0">
                                             <span className="text-slate-500">{lb.leave_type?.name || 'Leave'}</span>
                                             <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
-                                                {lb.balance} days
+                                                {parseFloat(lb.remaining_days ?? lb.balance ?? 0)} days
                                             </span>
                                         </div>
                                     ))}

@@ -56,7 +56,38 @@ class LeaveRequestController extends Controller
 
         $leaveRequests = $query->latest()->paginate(10)->withQueryString();
 
-        // Get leave balances for employee
+        // Leave statistics for administrative / team / personal overview
+        $statsQuery = LeaveRequest::query();
+        if ($user->isEmployee() && $user->employee_id) {
+            $statsQuery->where(function ($q) use ($user) {
+                $q->where('employee_id', $user->employee_id)
+                    ->orWhere(function ($q2) use ($user) {
+                        $q2->where('manager_id', $user->employee_id)
+                            ->where('manager_approval_status', 'pending');
+                    });
+            });
+        } elseif ($user->isManager() && !$user->isAdmin() && !$user->isHR()) {
+            $statsQuery->where(function ($q) use ($user) {
+                $q->where('manager_id', $user->employee_id)
+                    ->orWhere('employee_id', $user->employee_id);
+            });
+        }
+
+        $today = now()->toDateString();
+        $stats = [
+            'total'          => (clone $statsQuery)->count(),
+            'pending'        => (clone $statsQuery)->where('status', 'pending')->count(),
+            'approved'       => (clone $statsQuery)->where('status', 'approved')->count(),
+            'rejected'       => (clone $statsQuery)->where('status', 'rejected')->count(),
+            'on_leave_today' => (clone $statsQuery)
+                ->where('status', 'approved')
+                ->whereDate('start_date', '<=', $today)
+                ->whereDate('end_date', '>=', $today)
+                ->count(),
+        ];
+
+        // Get leave balances for employee — show ALL active leave types,
+        // including those without an allocated balance record.
         $leaveBalances = [];
         $empId = $user->employee_id ?: ($user->employee ? $user->employee->id : null);
         if ($empId) {
@@ -69,9 +100,10 @@ class LeaveRequestController extends Controller
         return Inertia::render('Leave/Index', [
             'leaveRequests' => $leaveRequests,
             'leaveBalances' => $leaveBalances,
-            'status' => $status,
-            'search' => $search,
-            'userRole' => $user->role,
+            'stats'         => $stats,
+            'status'        => $status,
+            'search'        => $search,
+            'userRole'      => $user->role,
         ]);
     }
 
@@ -757,10 +789,12 @@ class LeaveRequestController extends Controller
         }
 
         $validated = $request->validate([
-            'ids' => 'required|array',
-            'ids.*' => 'exists:leave_requests,id',
+            'ids'     => 'required|array',
+            'ids.*'   => 'exists:leave_requests,id',
+            'remarks' => 'nullable|string|max:1000',
         ]);
 
+        $remarks = $request->input('remarks');
         $approvedCount = 0;
         $managerApprovedCount = 0;
 
@@ -773,7 +807,8 @@ class LeaveRequestController extends Controller
                 if ($user->employee_id == $leaveRequest->manager_id && $leaveRequest->manager_approval_status === 'pending') {
                     $leaveRequest->update([
                         'manager_approval_status' => 'approved',
-                        'manager_approved_at' => now(),
+                        'manager_approved_at'     => now(),
+                        'approval_remarks'        => $remarks,
                     ]);
                     $this->notifyEmployee($leaveRequest->employee_id, new \App\Notifications\LeaveStatusUpdated($leaveRequest, 'approved by Manager', 'Your leave request has been approved by your manager and is now awaiting HR approval.'));
                     $managerApprovedCount++;
@@ -782,10 +817,11 @@ class LeaveRequestController extends Controller
                 elseif (in_array($user->role, ['admin', 'hr'])) {
                     if ($leaveRequest->status !== 'approved') {
                         $leaveRequest->update([
-                            'status' => 'approved',
+                            'status'           => 'approved',
                             'hr_approval_status' => 'approved',
-                            'approved_by' => auth()->id(),
-                            'approved_at' => now(),
+                            'approved_by'      => auth()->id(),
+                            'approved_at'      => now(),
+                            'approval_remarks' => $remarks,
                         ]);
 
                         // Update leave balance

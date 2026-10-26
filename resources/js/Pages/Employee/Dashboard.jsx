@@ -65,7 +65,7 @@ export default function Dashboard({
     pendingLeaveRequests,
     approvedLeaveRequests,
     recentLeaveRequests,
-    leaveBalances,
+    leaveBalances = [],
     totalSalaryPostings,
     currentMonthSalary,
     recentSalaryPostings,
@@ -104,6 +104,18 @@ activeOffboarding = null,
 }) {
     const fileInput = useRef();
     const [isUploading, setIsUploading] = useState(false);
+    const [showAllBalances, setShowAllBalances] = useState(false);
+
+    const cleanLeaveName = (name) => {
+        if (!name) return 'Leave';
+        const trimmed = String(name).trim();
+        if (trimmed.toUpperCase() === 'PH') return 'Public Holiday (PH)';
+        if (trimmed.toUpperCase() === 'OT TO OFFSET') return 'OT to Offset';
+        if (trimmed === trimmed.toUpperCase() && trimmed.length > 2) {
+            return trimmed.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        }
+        return trimmed;
+    };
 
     const handleImageChange = (e) => {
         const file = e.target.files[0];
@@ -703,35 +715,65 @@ activeOffboarding = null,
                             title="Leave Balances"
                             icon={FiPieChart}
                             action={
-                                <Link
-                                    href={route('leave-requests.create')}
-                                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1"
-                                >
-                                    <FiPlus className="w-3 h-3" /> Apply
-                                </Link>
+                                <div className="flex items-center gap-1.5">
+                                    <Link
+                                        href={route('leave-requests.index')}
+                                        className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+                                    >
+                                        View All
+                                    </Link>
+                                    <Link
+                                        href={route('leave-requests.create')}
+                                        className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1"
+                                    >
+                                        <FiPlus className="w-3 h-3" /> Apply
+                                    </Link>
+                                </div>
                             }
                         >
                             <div className="space-y-3">
-                                {leaveBalances.map((bal, idx) => {
-                                    const pct = bal.total_days > 0 ? (bal.remaining_days / bal.total_days) * 100 : 0;
+                                {(leaveBalances || []).length > 0 && (
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 text-[11px]">
+                                        <span className="text-slate-500 font-medium">Total Available</span>
+                                        <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded font-mono">
+                                            {(leaveBalances || []).reduce((acc, b) => acc + (parseFloat(b.remaining_days) || 0), 0)} / {(leaveBalances || []).reduce((acc, b) => acc + (parseFloat(b.total_days) || 0), 0)}d
+                                        </span>
+                                    </div>
+                                )}
+                                {((leaveBalances || []).length > 4 && !showAllBalances
+                                    ? (leaveBalances || []).slice(0, 4)
+                                    : (leaveBalances || [])
+                                ).map((bal, idx) => {
+                                    const rem = parseFloat(bal.remaining_days) || 0;
+                                    const tot = parseFloat(bal.total_days) || 0;
+                                    const pct = tot > 0 ? (rem / tot) * 100 : 0;
                                     return (
-                                        <div key={idx}>
-                                            <div className="flex justify-between text-xs font-semibold text-slate-700 mb-1">
-                                                <span>{bal.leave_type?.name}</span>
-                                                <span className="text-slate-500 font-mono text-[11px]">
-                                                    {bal.remaining_days} / {bal.total_days}d
+                                        <div key={idx} className="space-y-1">
+                                            <div className="flex justify-between text-xs font-semibold text-slate-700">
+                                                <span className="truncate pr-2" title={bal.leave_type?.name}>{cleanLeaveName(bal.leave_type?.name)}</span>
+                                                <span className="text-slate-500 font-mono text-[11px] shrink-0">
+                                                    {rem} / {tot}d
                                                 </span>
                                             </div>
                                             <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                                 <div
-                                                    className={`h-full rounded-full ${pct > 40 ? 'bg-emerald-500' : pct > 15 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                                                    style={{ width: `${pct}%` }}
+                                                    className={`h-full rounded-full transition-all duration-300 ${pct > 40 ? 'bg-emerald-500' : pct > 15 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                                    style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
                                                 />
                                             </div>
                                         </div>
                                     );
                                 })}
-                                {leaveBalances.length === 0 && (
+                                {(leaveBalances || []).length > 4 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAllBalances(!showAllBalances)}
+                                        className="w-full py-1 text-center text-[11px] font-semibold text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-100"
+                                    >
+                                        {showAllBalances ? 'Show Less' : `View All (${leaveBalances.length} Categories)`}
+                                    </button>
+                                )}
+                                {(leaveBalances || []).length === 0 && (
                                     <p className="text-xs text-slate-400 italic text-center py-3">No leave quotas allocated.</p>
                                 )}
                             </div>

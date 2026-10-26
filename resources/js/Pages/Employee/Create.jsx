@@ -1,4 +1,4 @@
-﻿import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useForm, Head, Link, usePage } from '@inertiajs/react';
 import { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';

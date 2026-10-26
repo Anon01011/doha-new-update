@@ -150,11 +150,8 @@ class EmployeeDashboardController extends Controller
         // Attendance for last 30 days summary
         $attendanceSummary = $employee->getAttendanceSummary(now()->month, now()->year);
 
-        // Leave Balances
-        $leaveBalances = \App\Models\LeaveBalance::with('leaveType')
-            ->where('employee_id', $employee->id)
-            ->where('year', now()->year)
-            ->get();
+        // Leave Balances — sync and retrieve all active leave types
+        $leaveBalances = \App\Services\LeaveBalanceService::getOrSyncBalancesForEmployee($employee, (int) now()->year);
 
         // Warning Letters
         $warningLetters = \App\Models\WarningLetter::where('employee_id', $employee->id)

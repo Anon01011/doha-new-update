@@ -4,6 +4,8 @@ import { useState, useMemo } from 'react';
 import Lightbox from '@/Components/Lightbox';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { resolveCurrency, resolveCountry } from '@/helpers/currency';
+import { employeeRouteKey, employeeRoute } from '@/helpers/employee-routes';
 import {
     FiUser, FiCreditCard, FiMapPin, FiBriefcase, FiClock, FiDollarSign,
     FiFileText, FiArrowLeft, FiEdit3, FiPrinter, FiTrash2, FiCheckCircle,
@@ -23,8 +25,8 @@ export default function ShowEmployee({
     const { appSettings, auth, leaveBalances: pageLeaveBalances = [] } = usePage().props;
     const activeLeaveBalances = (leaveBalances && leaveBalances.length > 0) ? leaveBalances : pageLeaveBalances;
     const isAuthorized = ['admin', 'hr', 'manager'].includes(auth.user?.role || '');
-    const currency = appSettings?.currency || 'QAR';
-    const appCountry = appSettings?.app_country || (currency === 'INR' ? 'IN' : 'QA');
+    const { code: currency } = resolveCurrency({ appSettings });
+    const appCountry = resolveCountry({ appSettings });
     const isIndiaMode = appCountry === 'IN';
     const isQatarMode = appCountry === 'QA';
     const isAllMode = appCountry === 'ALL';
@@ -169,7 +171,7 @@ export default function ShowEmployee({
 
     const confirmApprove = () => {
         setProcessing(true);
-        router.post(route('employees.approve', employee.id), {}, {
+        router.post(route('employees.approve', employeeRouteKey(employee)), {}, {
             onFinish: () => {
                 setProcessing(false);
                 setConfirmingApproval(false);
@@ -181,7 +183,7 @@ export default function ShowEmployee({
 
     const confirmDelete = () => {
         setDeleting(true);
-        router.delete(route('employees.destroy', employee.id), {
+        router.delete(route('employees.destroy', employeeRouteKey(employee)), {
             onFinish: () => {
                 setDeleting(false);
                 setConfirmingDelete(false);
@@ -477,7 +479,7 @@ export default function ShowEmployee({
 
                                     <div className="flex items-center gap-2">
                                         <Link
-                                            href={route('employees.edit', employee.id)}
+                                            href={employeeRoute('employees.edit', employee)}
                                             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-md transition-all active:scale-[0.98]"
                                         >
                                             <FiEdit3 className="w-4 h-4" />
@@ -867,6 +869,9 @@ export default function ShowEmployee({
                                     <InfoField label="Visa Type" value={employee.visa_type} icon={<FiFileText />} />
                                     <InfoField label="Visa Designation" value={employee.visa_designation} icon={<FiFileText />} />
                                     <InfoField label="Contract Duration" value={employee.contract_duration} icon={<FiClock />} />
+                                    <InfoField label="Exit Status" value={employee.exit_status} icon={<FiUser />} />
+                                    <InfoField label="Exit Date" value={formatDate(employee.exit_date)} icon={<FiCalendar />} />
+                                    <InfoField label="Exit Reason" value={employee.exit_reason} icon={<FiFileText />} />
                                 </div>
                             </div>
                         </div>
@@ -935,6 +940,11 @@ export default function ShowEmployee({
                                     {employee.iban && <InfoField label="IBAN Number" value={employee.iban} icon={<FiCreditCard />} isMono />}
                                     {employee.upi_id && <InfoField label="UPI / VPA ID" value={employee.upi_id} icon={<FiCreditCard />} isMono />}
                                     {employee.pan_number && <InfoField label="PAN / Tax ID" value={employee.pan_number} icon={<FiCreditCard />} isMono />}
+                                    <InfoField
+                                        label="Overtime Eligibility"
+                                        value={employee.no_overtime ? 'Excluded from Overtime' : 'Eligible for Overtime'}
+                                        icon={<FiClock />}
+                                    />
                                 </div>
                             </div>
 
@@ -943,7 +953,8 @@ export default function ShowEmployee({
                                 <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-4">
                                     <h4 className="text-sm font-bold text-slate-900">Configured Salary Components</h4>
                                     <div className="overflow-hidden border border-slate-200 rounded-xl">
-                                        <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
                                             <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                                                 <tr>
                                                     <th className="px-4 py-3">Component</th>
@@ -972,7 +983,8 @@ export default function ShowEmployee({
                                                     </tr>
                                                 ))}
                                             </tbody>
-                                        </table>
+                                            </table>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -999,7 +1011,7 @@ export default function ShowEmployee({
                                         {attachedDocsCount} Files Recorded
                                     </span>
                                     <Link
-                                        href={route('employees.documents.index', employee.id)}
+                                        href={employeeRoute('employees.documents.index', employee)}
                                         className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
                                     >
                                         <FiPlus className="w-3.5 h-3.5" />
@@ -1088,7 +1100,7 @@ export default function ShowEmployee({
                                             ) : (
                                                 <div className="pt-3 border-t border-slate-100 mt-2">
                                                     <Link
-                                                        href={route('employees.documents.index', employee.id)}
+                                                        href={employeeRoute('employees.documents.index', employee)}
                                                         className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-medium transition-colors border border-slate-200/60"
                                                     >
                                                         <FiPlus className="w-3.5 h-3.5 text-slate-400" />
@@ -1135,7 +1147,8 @@ export default function ShowEmployee({
 
                                 {(employee.weekly_offs || employee.weeklyOffs || []).length > 0 ? (
                                     <div className="overflow-hidden border border-slate-200 rounded-xl">
-                                        <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
                                             <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                                                 <tr>
                                                     <th className="px-4 py-3">Weekly Off Day</th>
@@ -1150,7 +1163,8 @@ export default function ShowEmployee({
                                                     </tr>
                                                 ))}
                                             </tbody>
-                                        </table>
+                                            </table>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="p-4 bg-slate-50 rounded-xl text-xs text-slate-500">
