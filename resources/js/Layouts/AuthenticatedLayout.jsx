@@ -1727,6 +1727,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                         hour: '2-digit',
                                         minute: '2-digit',
                                         second: '2-digit',
+                                        timeZone: appSettings?.timezone || undefined,
                                     })}
                                 </div>
                                 <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">
@@ -1734,6 +1735,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                         weekday: 'short',
                                         month: 'short',
                                         day: 'numeric',
+                                        timeZone: appSettings?.timezone || undefined,
                                     })}
                                 </div>
                             </div>

@@ -908,11 +908,13 @@ class EmployeeAttendanceController extends Controller
             'date' => $today,
         ], $updateData);
 
+        $clockInTimeFormatted = \App\Helpers\TimeHelper::now($employee->company_id)->format('h:i A');
+
         // Notify Management Stakeholders (Admins, Branch HR, Managers, Direct Reporting Manager)
         \App\Services\NotificationService::notifyManagementStakeholders(
             new \App\Notifications\AttendanceEventNotification(
                 'Employee Clock In',
-                "{$employee->name} clocked in at " . now()->format('h:i A') . " ({$attendanceStatus}).",
+                "{$employee->name} clocked in at {$clockInTimeFormatted} ({$attendanceStatus}).",
                 $today,
                 'attendance_event',
                 route('employee-attendances.index', ['date' => $today])
@@ -923,7 +925,7 @@ class EmployeeAttendanceController extends Controller
             $employee
         );
 
-        return back()->with('success', 'Clocked in successfully at ' . now()->format('h:i A'));
+        return back()->with('success', 'Clocked in successfully at ' . $clockInTimeFormatted);
     }
 
     /**
@@ -1019,10 +1021,12 @@ class EmployeeAttendanceController extends Controller
             'reason' => $isEarlyDeparture ? ($attendance->reason ? $attendance->reason . ' | Early Departure' : 'Early Departure') : $attendance->reason,
         ]);
 
+        $formattedToTime = \App\Helpers\TimeHelper::inTz($toTime, $attendance->company_id)->format('h:i A');
+
         // Notify Management Stakeholders (Admins, Branch HR, Managers, Direct Reporting Manager)
         $emp = $attendance->employee ?: Employee::find($attendance->employee_id);
         if ($emp) {
-            $msg = "{$emp->name} clocked out at " . $toTime->format('h:i A') . " ({$hoursWorked} hrs worked";
+            $msg = "{$emp->name} clocked out at " . $formattedToTime . " ({$hoursWorked} hrs worked";
             if ($totalBreakMinutes > 0) {
                 $msg .= ", {$totalBreakMinutes} mins break";
             }
@@ -1046,7 +1050,7 @@ class EmployeeAttendanceController extends Controller
             );
         }
 
-        return back()->with('success', 'Clocked out successfully at ' . $toTime->format('h:i A') . '. Total hours: ' . $hoursWorked . ' (Break: ' . $totalBreakMinutes . ' mins)');
+        return back()->with('success', 'Clocked out successfully at ' . $formattedToTime . '. Total hours: ' . $hoursWorked . ' (Break: ' . $totalBreakMinutes . ' mins)');
     }
 
     /**
@@ -1099,13 +1103,15 @@ class EmployeeAttendanceController extends Controller
             'punches' => $punches
         ]);
 
+        $breakStartTimeFormatted = \App\Helpers\TimeHelper::now($attendance->company_id)->format('h:i A');
+
         // Notify Management Stakeholders (Admins, Branch HR, Managers, Direct Reporting Manager)
         $emp = $attendance->employee ?: Employee::find($attendance->employee_id);
         if ($emp) {
             \App\Services\NotificationService::notifyManagementStakeholders(
                 new \App\Notifications\AttendanceEventNotification(
                     'Employee Break Started',
-                    "{$emp->name} started a break at " . now()->format('h:i A') . ".",
+                    "{$emp->name} started a break at " . $breakStartTimeFormatted . ".",
                     $attendance->date,
                     'attendance_event',
                     route('employee-attendances.index', ['date' => $attendance->date])
@@ -1117,7 +1123,7 @@ class EmployeeAttendanceController extends Controller
             );
         }
 
-        return back()->with('success', 'Break started at ' . now()->format('h:i A'));
+        return back()->with('success', 'Break started at ' . $breakStartTimeFormatted);
     }
 
     /**
@@ -1167,10 +1173,12 @@ class EmployeeAttendanceController extends Controller
             'reason' => $overBreak ? ($attendance->reason ? $attendance->reason . ' | Over Break' : 'Over Break') : $attendance->reason,
         ]);
 
+        $breakEndTimeFormatted = \App\Helpers\TimeHelper::inTz($breakEnd, $attendance->company_id)->format('h:i A');
+
         // Notify Management Stakeholders (Admins, Branch HR, Managers, Direct Reporting Manager)
         $emp = $attendance->employee ?: Employee::find($attendance->employee_id);
         if ($emp) {
-            $msg = "{$emp->name} resumed work from break at " . $breakEnd->format('h:i A') . " ({$duration} mins break)";
+            $msg = "{$emp->name} resumed work from break at " . $breakEndTimeFormatted . " ({$duration} mins break)";
             if ($overBreak) {
                 $msg .= ' [OVER BREAK]';
             }

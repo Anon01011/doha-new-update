@@ -28,14 +28,15 @@ class NotificationController extends Controller
             });
         }
 
-        $notifications = $query->paginate(15)->through(function ($n) {
+        $companyId = $user->company_id ?: $user->employee?->company_id;
+        $notifications = $query->paginate(15)->through(function ($n) use ($companyId) {
             return [
                 'id'         => $n->id,
                 'data'       => $n->data,
                 'read_at'    => $n->read_at,
                 'is_unread'  => is_null($n->read_at),
                 'created_at' => $n->created_at->diffForHumans(),
-                'timestamp'  => $n->created_at->format('d M Y, h:i A'),
+                'timestamp'  => \App\Helpers\TimeHelper::inTz($n->created_at, $companyId)->format('d M Y, h:i A'),
             ];
         });
 
@@ -118,10 +119,12 @@ class NotificationController extends Controller
             ->take(15)
             ->get();
 
+        $companyId = $user->company_id ?: $user->employee?->company_id;
         $notifications = $unread->map(fn($n) => [
             'id' => $n->id,
             'data' => $n->data,
             'created_at' => $n->created_at->diffForHumans(),
+            'timestamp' => \App\Helpers\TimeHelper::inTz($n->created_at, $companyId)->format('h:i A'),
             'read_at' => $n->read_at,
         ]);
 

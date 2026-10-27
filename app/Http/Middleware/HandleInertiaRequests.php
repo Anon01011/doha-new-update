@@ -85,7 +85,7 @@ class HandleInertiaRequests extends Middleware
                 'secondary_color' => \App\Models\Setting::get('secondary_color', '#103c7f', $user?->employee?->company_id),
                 'accent_color' => \App\Models\Setting::get('accent_color', '#818cf8', $user?->employee?->company_id),
                 'app_font' => \App\Models\Setting::get('app_font', 'Inter', $user?->employee?->company_id),
-                'timezone' => config('app.timezone'),
+                'timezone' => \App\Models\Setting::get('app_timezone', config('app.timezone', 'UTC'), $user?->company_id ?: $user?->employee?->company_id),
                 'salary_slip_stamp' => \App\Models\Setting::get('salary_slip_stamp', null, $user?->employee?->company_id),
                 'salary_slip_show_photo' => \App\Models\Setting::get('salary_slip_show_photo', '1', $user?->employee?->company_id) === '1' || \App\Models\Setting::get('salary_slip_show_photo', '1', $user?->employee?->company_id) === true,
                 'salary_slip_show_charts' => \App\Models\Setting::get('salary_slip_show_charts', '1', $user?->employee?->company_id) === '1' || \App\Models\Setting::get('salary_slip_show_charts', '1', $user?->employee?->company_id) === true,
