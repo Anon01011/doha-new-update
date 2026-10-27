@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     FiAlertCircle,
     FiAward,
+    FiActivity,
     FiBookOpen,
     FiBriefcase,
     FiCalendar,
@@ -521,6 +522,14 @@ export default function AuthenticatedLayout({ header, children }) {
                             permissions: ['view-holidays'],
                         },
                     ],
+                },
+                {
+                    name: 'Live Feed',
+                    href: route('attendance.live-feed'),
+                    icon: <FiActivity className="h-4 w-4" />,
+                    current: route().current('attendance.live-feed.*'),
+                    permissions: ['view-live-attendance'],
+                    roles: ['admin', 'hr', 'manager'],
                 },
             ],
         },

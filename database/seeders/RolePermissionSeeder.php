@@ -70,6 +70,7 @@ class RolePermissionSeeder extends Seeder
 
             // Attendance Module
             ['name' => 'View Attendance', 'slug' => 'view-attendance', 'module' => 'attendance', 'description' => 'Can view attendance records'],
+            ['name' => 'View Live Attendance Feed', 'slug' => 'view-live-attendance', 'module' => 'attendance', 'description' => 'Can view real-time live attendance and break feed'],
             ['name' => 'Create Attendance', 'slug' => 'create-attendance', 'module' => 'attendance', 'description' => 'Can create attendance records'],
             ['name' => 'Edit Attendance', 'slug' => 'edit-attendance', 'module' => 'attendance', 'description' => 'Can edit attendance records'],
             ['name' => 'Delete Attendance', 'slug' => 'delete-attendance', 'module' => 'attendance', 'description' => 'Can delete attendance records'],
@@ -225,6 +226,7 @@ class RolePermissionSeeder extends Seeder
             return in_array($p->slug, [
                 'view-employees',
                 'view-attendance',
+                'view-live-attendance',
                 'view-leave-requests',
                 'approve-leave-requests',
                 'reject-leave-requests',

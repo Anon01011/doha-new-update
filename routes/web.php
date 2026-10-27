@@ -203,7 +203,10 @@ Route::middleware('auth')->group(function () {
         Route::get('audit-logs/{auditLog}', [\App\Http\Controllers\AuditLogController::class, 'show'])->name('audit-logs.show');
     });
 
-    // Mixed routes (Controller handles filtering)
+    // Live Attendance & Break Feed
+    Route::get('attendance/live-feed', [\App\Http\Controllers\LiveAttendanceController::class, 'index'])->name('attendance.live-feed');
+    Route::get('attendance/live-feed/data', [\App\Http\Controllers\LiveAttendanceController::class, 'data'])->name('attendance.live-feed.data');
+
     Route::post('employee-attendances/clock-in', [\App\Http\Controllers\EmployeeAttendanceController::class, 'clockIn'])->name('employee-attendances.clockIn');
     Route::post('employee-attendances/clock-out', [\App\Http\Controllers\EmployeeAttendanceController::class, 'clockOut'])->name('employee-attendances.clockOut');
     Route::post('employee-attendances/start-break', [\App\Http\Controllers\EmployeeAttendanceController::class, 'startBreak'])->name('employee-attendances.startBreak');
