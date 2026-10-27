@@ -85,7 +85,8 @@ export default function Create({
     shiftTemplates = {},
     selectedCompany: initialSelectedCompany = '',
     selectedDepartment: initialSelectedDepartment = '',
-    shiftTypes = []
+    shiftTypes = [],
+    approvedLeaves = []
 }) {
     // State management
     const [selectedCompany, setSelectedCompany] = useState(initialSelectedCompany || '');
@@ -182,6 +183,27 @@ export default function Create({
         return lookup;
     }, [employees, days]);
 
+    // Pre-calculate approved leaves lookup: lookup[emp.id][day.date] = leave object | null
+    const approvedLeavesLookup = useMemo(() => {
+        const lookup = {};
+        employees.forEach(emp => {
+            lookup[emp.id] = {};
+        });
+        (approvedLeaves || []).forEach(leave => {
+            if (!lookup[leave.employee_id]) {
+                lookup[leave.employee_id] = {};
+            }
+            days.forEach(day => {
+                const s = typeof leave.start_date === 'string' ? leave.start_date.slice(0, 10) : '';
+                const e = typeof leave.end_date === 'string' ? leave.end_date.slice(0, 10) : '';
+                if (day.date >= s && day.date <= e) {
+                    lookup[leave.employee_id][day.date] = leave;
+                }
+            });
+        });
+        return lookup;
+    }, [employees, approvedLeaves, days]);
+
     // Handlers
     const toggleSelectAll = () => {
         if (isAllSelected) {
@@ -241,14 +263,26 @@ export default function Create({
         setRosterEntries(prev => {
             const newEmpEntries = { ...prev[empId] };
             days.forEach(day => {
-                newEmpEntries[day.date] = {
-                    ...newEmpEntries[day.date],
-                    shift_time: template.time,
-                    shift_type: template.type,
-                    designation: template.designation,
-                    date: day.date,
-                    employee_id: empId
-                };
+                const activeLeave = approvedLeavesLookup[empId]?.[day.date];
+                if (activeLeave) {
+                    newEmpEntries[day.date] = {
+                        ...newEmpEntries[day.date],
+                        shift_time: 'On Leave',
+                        shift_type: 'Leave',
+                        notes: `Approved ${activeLeave.leave_type || 'Leave'}`,
+                        date: day.date,
+                        employee_id: empId
+                    };
+                } else {
+                    newEmpEntries[day.date] = {
+                        ...newEmpEntries[day.date],
+                        shift_time: template.time,
+                        shift_type: template.type,
+                        designation: template.designation,
+                        date: day.date,
+                        employee_id: empId
+                    };
+                }
             });
             return { ...prev, [empId]: newEmpEntries };
         });
@@ -571,32 +605,41 @@ export default function Create({
                                                         {days.map(day => {
                                                             const entry = rosterEntries[empId]?.[day.date] || {};
                                                             const isWeeklyOff = weeklyOffLookup[empId]?.[day.date] || false;
+                                                            const activeLeave = approvedLeavesLookup[empId]?.[day.date] || null;
+                                                            const isLeave = Boolean(activeLeave);
+
                                                             return (
-                                                                <td key={day.date} className={`p-1 border-r border-gray-50 last:border-r-0 ${isWeeklyOff ? 'bg-amber-50/20' : ''}`}>
+                                                                <td key={day.date} className={`p-1.5 border-r border-gray-50 last:border-r-0 transition-colors ${isLeave ? 'bg-rose-50/60 border-rose-100' : isWeeklyOff ? 'bg-amber-50/20' : ''}`}>
                                                                     <div className="flex flex-col gap-1">
-                                                                        {isWeeklyOff && (
+                                                                        {isLeave ? (
+                                                                            <span className="text-[8px] font-bold text-rose-700 bg-rose-100/90 border border-rose-200 px-1.5 py-0.5 rounded uppercase tracking-wider self-start leading-none flex items-center gap-1 shadow-xs">
+                                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block animate-pulse"></span>
+                                                                                On Leave ({activeLeave.leave_type || 'Leave'})
+                                                                            </span>
+                                                                        ) : isWeeklyOff ? (
                                                                             <span className="text-[8px] font-bold text-amber-600 bg-amber-100/50 px-1.5 py-0.5 rounded uppercase tracking-wider self-start leading-none">Weekly Off Day</span>
-                                                                        )}
+                                                                        ) : null}
                                                                         <input
                                                                             type="text"
-                                                                            placeholder={isWeeklyOff ? "Weekly Off" : "HH:MM - HH:MM"}
-                                                                            value={entry.shift_time || ''}
+                                                                            placeholder={isLeave ? `On Leave (${activeLeave.leave_type})` : isWeeklyOff ? "Weekly Off" : "HH:MM - HH:MM"}
+                                                                            value={entry.shift_time || (isLeave ? 'On Leave' : '')}
                                                                             onChange={e => handleEntryChange(empId, day.date, 'shift_time', e.target.value)}
-                                                                            className={`w-full text-[10px] font-normal p-1.5 border-transparent focus:bg-white focus:border-indigo-100 focus:ring-1 focus:ring-indigo-100 rounded-lg transition-all ${isWeeklyOff ? 'bg-amber-50/60 placeholder-amber-400 text-amber-700' : 'bg-gray-50/80'}`}
+                                                                            className={`w-full text-[10px] font-normal p-1.5 border rounded-lg transition-all ${isLeave ? 'bg-rose-50/90 border-rose-200 placeholder-rose-500 text-rose-800 font-semibold focus:ring-rose-200 focus:border-rose-300' : isWeeklyOff ? 'bg-amber-50/60 border-transparent placeholder-amber-400 text-amber-700' : 'bg-gray-50/80 border-transparent focus:bg-white focus:border-indigo-100 focus:ring-1 focus:ring-indigo-100'}`}
                                                                         />
                                                                         <div className="flex gap-1">
                                                                             <select
-                                                                                value={entry.shift_type || ''}
+                                                                                value={entry.shift_type || (isLeave ? 'Leave' : '')}
                                                                                 onChange={e => handleEntryChange(empId, day.date, 'shift_type', e.target.value)}
-                                                                                className="flex-1 text-[9px] font-normal p-1 bg-gray-50/40 border-transparent rounded-lg focus:ring-0 focus:bg-white"
+                                                                                className={`flex-1 text-[9px] font-normal p-1 border rounded-lg focus:ring-0 focus:bg-white ${isLeave ? 'bg-rose-50 border-rose-200 text-rose-700 font-medium' : 'bg-gray-50/40 border-transparent'}`}
                                                                             >
                                                                                 <option value="">Type</option>
+                                                                                {isLeave && <option value="Leave">Leave</option>}
                                                                                 {shiftTypes.map(t => <option key={t} value={t}>{t}</option>)}
                                                                             </select>
                                                                             <input
                                                                                 type="text"
                                                                                 placeholder="Note"
-                                                                                value={entry.notes || ''}
+                                                                                value={entry.notes || (isLeave ? `Approved ${activeLeave.leave_type}` : '')}
                                                                                 onChange={e => handleEntryChange(empId, day.date, 'notes', e.target.value)}
                                                                                 className="w-16 text-[9px] font-normal p-1 bg-gray-50/40 border-transparent rounded-lg focus:ring-0 focus:bg-white"
                                                                             />

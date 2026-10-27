@@ -97,10 +97,11 @@ export default function Dashboard({
     totalReimbursedAmount = 0,
     recentExpenses = [],
     todayHoliday,
-activeOffboarding = null,
+    activeOffboarding = null,
     probationLifecycle = null,
     internshipLifecycle = null,
     contractLifecycle = null,
+    celebrationAppraisal = null,
 }) {
     const fileInput = useRef();
     const [isUploading, setIsUploading] = useState(false);
@@ -388,6 +389,82 @@ activeOffboarding = null,
     )}
 </div>
 )}
+
+                {/* Celebration Banner for Approved Appraisal / Increment / Promotion */}
+                {celebrationAppraisal && (
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 p-5 text-white shadow-xl border border-emerald-400/30">
+                        {/* Decorative background glow & particles */}
+                        <div className="absolute top-0 right-0 -mt-6 -mr-6 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+                        <div className="absolute bottom-0 left-1/3 -mb-8 w-40 h-40 bg-amber-400/10 rounded-full blur-xl pointer-events-none" />
+                        
+                        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div className="flex items-start gap-3.5">
+                                <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl text-amber-300 border border-white/20 shrink-0 shadow-inner animate-bounce">
+                                    <FiAward className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400 text-amber-950 shadow-xs">
+                                            🎉 Official Promotion & Appraisal
+                                        </span>
+                                        <span className="text-[11px] font-semibold text-emerald-100">
+                                            {celebrationAppraisal.cycle_type?.toUpperCase()} Cycle {celebrationAppraisal.year}
+                                        </span>
+                                    </div>
+                                    <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                                        Congratulations, {employee.name}!
+                                    </h3>
+                                    <p className="text-xs text-emerald-50 mt-1 max-w-xl leading-relaxed">
+                                        Your performance appraisal has been formally reviewed, approved, and recorded in the system.
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                                        {celebrationAppraisal.overall_score > 0 && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/15 backdrop-blur-xs text-xs font-bold text-white border border-white/15">
+                                                <FiStar className="w-3.5 h-3.5 text-amber-300" />
+                                                Score: {celebrationAppraisal.overall_score}%
+                                            </span>
+                                        )}
+                                        {celebrationAppraisal.increment_recommended > 0 ? (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/30 backdrop-blur-xs text-xs font-black text-white border border-emerald-300/40">
+                                                <FiTrendingUp className="w-3.5 h-3.5 text-emerald-300" />
+                                                +{formatCurrency(celebrationAppraisal.increment_recommended)} Basic Increment
+                                            </span>
+                                        ) : celebrationAppraisal.increment_percentage > 0 ? (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/30 backdrop-blur-xs text-xs font-black text-white border border-emerald-300/40">
+                                                <FiTrendingUp className="w-3.5 h-3.5 text-emerald-300" />
+                                                +{celebrationAppraisal.increment_percentage}% Salary Increment
+                                            </span>
+                                        ) : null}
+                                        {celebrationAppraisal.promotion_recommended && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/30 backdrop-blur-xs text-xs font-black text-white border border-indigo-300/40">
+                                                <FiBriefcase className="w-3.5 h-3.5 text-indigo-200" />
+                                                Promoted: {celebrationAppraisal.new_designation || 'New Title'}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto shrink-0 pt-2 md:pt-0">
+                                <a
+                                    href={route('evaluations.appraisal-letter', celebrationAppraisal.id)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white text-emerald-900 font-black text-xs shadow-lg hover:bg-emerald-50 hover:shadow-xl active:scale-95 transition-all"
+                                >
+                                    <FiDownload className="w-4 h-4 text-emerald-600" />
+                                    Download Appraisal Letter (PDF)
+                                </a>
+                                <Link
+                                    href={route('evaluations.show', celebrationAppraisal.id)}
+                                    className="inline-flex items-center justify-center gap-1 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white transition-all"
+                                >
+                                    Review Details →
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Offboarding / Resignation Active Status Alert */}
                 {activeOffboarding && !['cancelled'].includes(activeOffboarding.status) && (
                     <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-md border border-indigo-900/50 relative overflow-hidden">

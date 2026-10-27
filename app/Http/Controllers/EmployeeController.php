@@ -630,6 +630,8 @@ class EmployeeController extends Controller
                 'departments_list' => $departmentsList,
                 'role_name' => $roleName,
                 'role_slug' => $roleSlug,
+                'leave_status' => $employee->current_leave_status,
+                'shift' => $employee->current_shift,
             ]),
             'probationLifecycle'  => $probationLifecycle,
             'internshipLifecycle' => $internshipLifecycle,
@@ -1217,8 +1219,22 @@ class EmployeeController extends Controller
     public function getByDepartment(Request $request)
     {
         try {
+            $user = auth()->user();
+            if (!$user) {
+                return response()->json(['error' => 'Unauthenticated.'], 401);
+            }
+
             $departmentId = $request->input('department_id');
             $companyId = $request->input('company_id');
+
+            // Multi-tenancy check: non-admins are restricted to their own branch
+            if (!$user->isAdmin()) {
+                $userCompanyId = $user->employee?->company_id;
+                if ($companyId && (int)$companyId !== (int)$userCompanyId) {
+                    abort(403, 'Unauthorized access to another branch employees.');
+                }
+                $companyId = $userCompanyId ?: $companyId;
+            }
 
             $departmentEmployees = collect();
             if ($departmentId) {

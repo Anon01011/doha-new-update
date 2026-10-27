@@ -15,6 +15,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Carbon\Carbon;
+use App\Models\Setting;
+use App\Services\NotificationService;
+use App\Notifications\OffboardingNotification;
+use App\Mail\RelievingCertificateMail;
+use Illuminate\Support\Facades\Mail;
 
 class OffboardingController extends Controller
 {
@@ -229,6 +234,18 @@ class OffboardingController extends Controller
             'supporting_document'     => $docPath,
             'status'                  => 'pending_approval',
         ]);
+
+        if ($employee) {
+            NotificationService::notifyApprovers(
+                $employee->id,
+                new OffboardingNotification(
+                    $offboarding,
+                    'Offboarding Request Submitted',
+                    "Offboarding request for {$employee->name} has been submitted.",
+                    'offboarding_submitted'
+                )
+            );
+        }
 
         return redirect()->route('offboarding.show', $offboarding->request_number ?: $offboarding->id)
             ->with('success', 'Offboarding request submitted for approval.');
@@ -451,6 +468,16 @@ class OffboardingController extends Controller
             }
         });
 
+        NotificationService::notifyEmployee(
+            $offboarding->employee_id,
+            new OffboardingNotification(
+                $offboarding,
+                'Offboarding Request Approved',
+                "Your offboarding request has been approved ({$request->role} approval).",
+                'offboarding_approved'
+            )
+        );
+
         return back()->with('success', 'Offboarding request approved.');
     }
 
@@ -467,6 +494,16 @@ class OffboardingController extends Controller
             'status'  => 'cancelled',
             'remarks' => ($offboarding->remarks ? $offboarding->remarks . "\n" : '') . 'Rejected: ' . $request->reason,
         ]);
+
+        NotificationService::notifyEmployee(
+            $offboarding->employee_id,
+            new OffboardingNotification(
+                $offboarding,
+                'Offboarding Request Rejected',
+                "Your offboarding request has been rejected. Reason: {$request->reason}",
+                'offboarding_rejected'
+            )
+        );
 
         return back()->with('success', 'Offboarding request rejected/cancelled.');
     }
@@ -651,8 +688,30 @@ class OffboardingController extends Controller
             ]);
         });
 
+        // Notify the employee about completion
+        NotificationService::notifyEmployee(
+            $offboarding->employee_id,
+            new OffboardingNotification(
+                $offboarding,
+                'Offboarding Completed',
+                'Your offboarding process has been completed. Your experience & relieving certificate is now available for download.',
+                'offboarding_completed'
+            )
+        );
+
+        // Auto-send relieving certificate by email if setting is enabled
+        $empCompanyId = $offboarding->employee?->company_id;
+        $sendEmail = Setting::get('offboarding_send_email', '1', $empCompanyId) === '1';
+        if ($sendEmail) {
+            try {
+                $this->dispatchRelievingEmail($offboarding);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Auto relieving email failed: ' . $e->getMessage());
+            }
+        }
+
         return redirect()->route('offboarding.show', $offboarding->request_number ?: $offboarding->id)
-            ->with('success', 'Offboarding completed. Employee profile has been locked and marked inactive.');
+            ->with('success', 'Offboarding completed. Employee profile has been locked and relieving certificate sent by email.');
     }
 
     // ─── Unlock / Reactivate Profile ─────────────────────────────────────────────
@@ -703,19 +762,106 @@ class OffboardingController extends Controller
             ->with('success', 'Offboarding request deleted.');
     }
 
+    // ─── Relieving Letter: Download PDF ─────────────────────────────────────────
+
     public function generateRelievingLetter(OffboardingRequest $offboarding)
     {
         $offboarding->load(['employee.company', 'employee.department']);
         $employee = $offboarding->employee;
-        $company = $employee->company;
+        $company  = $employee->company;
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.relieving_letter', [
+        // Use the admin-configured template (allowlisted)
+        $allowed  = ['relieving_letter', 'relieving_letter_classic', 'relieving_letter_modern', 'relieving_letter_comprehensive'];
+        $template = Setting::get('relieving_letter_template', 'relieving_letter', $company?->id ?? null);
+        if (!in_array($template, $allowed)) {
+            $template = 'relieving_letter';
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.' . $template, [
             'offboarding' => $offboarding,
-            'employee' => $employee,
-            'company' => $company,
-        ]);
+            'employee'    => $employee,
+            'company'     => $company,
+        ])->setPaper('a4', 'portrait');
 
-        $fileName = 'Relieving_Letter_' . str_replace(' ', '_', $employee->name) . '_' . now()->format('Ymd') . '.pdf';
+        $fileName = 'Relieving_Certificate_' . str_replace(' ', '_', $employee->name) . '_' . now()->format('Ymd') . '.pdf';
         return $pdf->download($fileName);
+    }
+
+    // ─── Relieving Letter: Inline Preview ────────────────────────────────────────
+
+    public function previewRelievingLetter(OffboardingRequest $offboarding)
+    {
+        $offboarding->load(['employee.company', 'employee.department']);
+        $employee = $offboarding->employee;
+        $company  = $employee->company;
+
+        $allowed  = ['relieving_letter', 'relieving_letter_classic', 'relieving_letter_modern', 'relieving_letter_comprehensive'];
+        $template = Setting::get('relieving_letter_template', 'relieving_letter', $company?->id ?? null);
+        if (!in_array($template, $allowed)) {
+            $template = 'relieving_letter';
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.' . $template, [
+            'offboarding' => $offboarding,
+            'employee'    => $employee,
+            'company'     => $company,
+        ])->setPaper('a4', 'portrait');
+
+        $fileName = 'Preview_Relieving_' . ($employee->employee_code ?? $employee->id) . '.pdf';
+        return $pdf->stream($fileName);
+    }
+
+    // ─── Relieving Letter: Send by Email ─────────────────────────────────────────
+
+    public function sendRelievingEmail(Request $request, OffboardingRequest $offboarding)
+    {
+        $user = Auth::user();
+        if (!$user->isAdmin() && !in_array($user->role, ['admin', 'hr'])) {
+            abort(403, 'Unauthorized. Only HR or Administrator can send relieving certificates.');
+        }
+
+        if ($offboarding->status !== 'completed') {
+            return back()->withErrors(['error' => 'Relieving certificate can only be sent after offboarding is fully completed.']);
+        }
+
+        try {
+            $this->dispatchRelievingEmail($offboarding);
+            return back()->with('success', 'Relieving certificate successfully sent to ' . ($offboarding->employee->email ?? 'employee') . ' by email.');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Relieving email failed: ' . $e->getMessage());
+            return back()->withErrors(['error' => 'Failed to send email: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Shared helper: build the PDF and dispatch RelievingCertificateMail.
+     */
+    private function dispatchRelievingEmail(OffboardingRequest $offboarding): void
+    {
+        $offboarding->loadMissing(['employee.company', 'employee.department']);
+        $employee = $offboarding->employee;
+        $company  = $employee->company;
+
+        if (!$employee || !$employee->email) {
+            return;
+        }
+
+        $allowed  = ['relieving_letter', 'relieving_letter_classic', 'relieving_letter_modern', 'relieving_letter_comprehensive'];
+        $template = Setting::get('relieving_letter_template', 'relieving_letter', $company?->id ?? null);
+        if (!in_array($template, $allowed)) {
+            $template = 'relieving_letter';
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.' . $template, [
+            'offboarding' => $offboarding,
+            'employee'    => $employee,
+            'company'     => $company,
+        ])->setPaper('a4', 'portrait');
+
+        $pdfContent = $pdf->output();
+        $fileName   = 'Relieving_Certificate_' . str_replace(' ', '_', $employee->name) . '_' . now()->format('Ymd') . '.pdf';
+
+        Mail::to($employee->email)
+            ->queue(new RelievingCertificateMail($offboarding, $pdfContent, $fileName));
     }
 }

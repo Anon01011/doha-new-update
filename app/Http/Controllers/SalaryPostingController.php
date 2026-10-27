@@ -577,7 +577,19 @@ class SalaryPostingController extends Controller
 
         $this->notifyEmployee($salaryPosting->employee_id, new \App\Notifications\SalaryGenerated($salaryPosting));
 
-        // Mark loans and advances for this month as repaid
+        // Notify Management Stakeholders (Admins, HR, Managers)
+        $salaryPosting->loadMissing('employee');
+        \App\Services\NotificationService::notifyManagementStakeholders(
+            new \App\Notifications\GenericHrNotification(
+                'Salary Posting Approved',
+                "{$user->name} approved salary posting for {$salaryPosting->employee?->name} ({$salaryPosting->month}/{$salaryPosting->year}).",
+                route('salary-postings.show', $salaryPosting),
+                'salary_approved'
+            ),
+            $salaryPosting->company_id,
+            $salaryPosting->employee?->department_id,
+            $user->id
+        );
         $this->markRepaymentsAsPaid($salaryPosting);
 
         // Mark pending payroll expense claims as reimbursed via this salary posting
@@ -663,6 +675,17 @@ class SalaryPostingController extends Controller
                     'remarks' => $payAmount < $installment->amount ? "Partial payment of $payAmount from salary." : "Full payment from salary.",
                 ]);
                 $remainingAmount -= $payAmount;
+
+                $loan = $installment->loan;
+                if ($loan) {
+                    $allPaid = $loan->installments()->where('status', '!=', 'paid')->count() === 0;
+                    if ($allPaid) {
+                        $loan->update(['status' => 'completed']);
+                        \App\Services\NotificationService::notifyEmployee($employeeId, new \App\Notifications\LoanStatusUpdated($loan, 'completed'));
+                    } else {
+                        \App\Services\NotificationService::notifyEmployee($employeeId, new \App\Notifications\LoanStatusUpdated($loan, 'installment_paid'));
+                    }
+                }
             }
         }
 
@@ -682,13 +705,19 @@ class SalaryPostingController extends Controller
                 if ($remainingAmount <= 0) break;
 
                 $payAmount = min($remainingAmount, $advance->amount);
+                $isFull = $payAmount >= $advance->amount;
                 $advance->update([
                     'repaid_amount' => $payAmount,
                     'repaid_at' => now(),
-                    'status' => $payAmount >= $advance->amount ? 'repaid' : 'approved',
-                    'remarks' => $advance->remarks . ($payAmount < $advance->amount ? "\nPartial repayment of $payAmount from salary." : "\nFull repayment from salary."),
+                    'status' => $isFull ? 'repaid' : 'approved',
+                    'remarks' => $advance->remarks . (!$isFull ? "\nPartial repayment of $payAmount from salary." : "\nFull repayment from salary."),
                 ]);
                 $remainingAmount -= $payAmount;
+
+                \App\Services\NotificationService::notifyEmployee(
+                    $employeeId,
+                    new \App\Notifications\AdvanceRepaidNotification($advance, $payAmount, $isFull)
+                );
             }
         }
     }
@@ -725,6 +754,23 @@ class SalaryPostingController extends Controller
                     $count++;
                 }
             }
+
+            // Notify Management Stakeholders (Admins, HR, Managers)
+            if ($count > 0 && !empty($ids)) {
+                $firstPosting = SalaryPosting::find($ids[0]);
+                \App\Services\NotificationService::notifyManagementStakeholders(
+                    new \App\Notifications\GenericHrNotification(
+                        'Salary Postings Approved',
+                        "{$user->name} approved {$count} salary postings.",
+                        route('salary-postings.index'),
+                        'salary_approved'
+                    ),
+                    $firstPosting?->company_id,
+                    null,
+                    $user->id
+                );
+            }
+
             return redirect()->back()->with('success', $count . ' salary postings approved successfully!');
         } elseif ($action === 'reject') {
             SalaryPosting::whereIn('id', $ids)
@@ -932,13 +978,6 @@ class SalaryPostingController extends Controller
     }
     private function notifyEmployee($employeeId, $notification)
     {
-        $employee = Employee::find($employeeId);
-        if ($employee && $employee->user) {
-            try {
-                $employee->user->notify($notification);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Notification failed: ' . $e->getMessage());
-            }
-        }
+        \App\Services\NotificationService::notifyEmployee($employeeId, $notification);
     }
 }

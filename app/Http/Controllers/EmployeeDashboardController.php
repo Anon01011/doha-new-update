@@ -166,10 +166,11 @@ class EmployeeDashboardController extends Controller
             ->get();
 
         // Appraisal summary stats
-        $totalEvaluations     = $myEvaluations->count();
+        $totalEvaluations      = $myEvaluations->count();
         $pendingAckEvaluations = $myEvaluations->where('status', 'pending_acknowledgment')->count();
-        $latestEvaluation     = $myEvaluations->first();
-        $latestScore          = $latestEvaluation ? (float) $latestEvaluation->overall_score : null;
+        $latestEvaluation      = $myEvaluations->first();
+        $latestScore           = $latestEvaluation ? (float) $latestEvaluation->overall_score : null;
+        $celebrationAppraisal  = $myEvaluations->where('status', 'approved')->first();
 
         // Today's Holiday
         $todayHoliday = \App\Models\Holiday::where('start_date', '<=', now()->toDateString())
@@ -238,6 +239,7 @@ class EmployeeDashboardController extends Controller
             'totalEvaluations' => $totalEvaluations,
             'pendingAckEvaluations' => $pendingAckEvaluations,
             'latestScore' => $latestScore,
+            'celebrationAppraisal' => $celebrationAppraisal,
             'todayHoliday' => $todayHoliday,
         ]);
     }

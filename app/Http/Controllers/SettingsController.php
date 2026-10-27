@@ -123,6 +123,8 @@ class SettingsController extends Controller
             abort(403, 'Unauthorized. Only Super Admin can save settings to the environment file.');
         }
 
+        $allowedTemplates = ['relieving_letter', 'relieving_letter_classic', 'relieving_letter_modern', 'relieving_letter_comprehensive'];
+
         $request->validate([
             'app_name' => 'required|string|max:255',
             'app_url' => 'required|url',
@@ -138,6 +140,9 @@ class SettingsController extends Controller
             'secondary_color' => ['nullable', 'string', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
             'accent_color' => ['nullable', 'string', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
             'app_font' => 'nullable|string|in:Inter,Roboto,Poppins,Nunito,Outfit',
+            'relieving_letter_template' => ['nullable', 'string', \Illuminate\Validation\Rule::in($allowedTemplates)],
+            'offboarding_send_email' => 'nullable|boolean',
+            'offboarding_send_sms' => 'nullable|boolean',
         ]);
 
         try {
@@ -199,6 +204,30 @@ class SettingsController extends Controller
             Setting::set('secondary_color', $request->secondary_color ?: '#103c7f', 'branding', 'string', $companyId);
             Setting::set('accent_color', $request->accent_color ?: '#818cf8', 'branding', 'string', $companyId);
             Setting::set('app_font', $appFont, 'branding', 'string', $companyId);
+
+            // Notification Sound Settings
+            if ($request->has('notification_sound_enabled')) {
+                $soundEnabled = ($request->notification_sound_enabled === 'true' || $request->notification_sound_enabled === true || $request->notification_sound_enabled === '1' || $request->notification_sound_enabled === 1) ? '1' : '0';
+                Setting::set('notification_sound_enabled', $soundEnabled, 'notification', 'string', $companyId);
+            }
+            if ($request->filled('notification_sound_file')) {
+                $approvedSounds = ['/sounds/notification.mp3', '/sounds/notification-chime.mp3'];
+                $selectedSound = in_array($request->notification_sound_file, $approvedSounds) ? $request->notification_sound_file : '/sounds/notification.mp3';
+                Setting::set('notification_sound_file', $selectedSound, 'notification', 'string', $companyId);
+            }
+
+            // Offboarding / Relieving Letter settings
+            if ($request->filled('relieving_letter_template')) {
+                $allowed = ['relieving_letter', 'relieving_letter_classic', 'relieving_letter_modern', 'relieving_letter_comprehensive'];
+                $tpl = in_array($request->relieving_letter_template, $allowed) ? $request->relieving_letter_template : 'relieving_letter';
+                Setting::set('relieving_letter_template', $tpl, 'offboarding', 'string', $companyId);
+            }
+            if ($request->has('offboarding_send_email')) {
+                Setting::set('offboarding_send_email', $request->boolean('offboarding_send_email') ? '1' : '0', 'offboarding', 'string', $companyId);
+            }
+            if ($request->has('offboarding_send_sms')) {
+                Setting::set('offboarding_send_sms', $request->boolean('offboarding_send_sms') ? '1' : '0', 'offboarding', 'string', $companyId);
+            }
 
             if ($saveToEnv === true || $saveToEnv === 'true' || $saveToEnv === '1' || $saveToEnv === 1) {
                 $this->updateEnvironmentFile([
@@ -315,6 +344,22 @@ class SettingsController extends Controller
             'secondary_color' => Setting::get('secondary_color', '#103c7f', $companyId),
             'accent_color' => Setting::get('accent_color', '#818cf8', $companyId),
             'app_font' => Setting::get('app_font', 'Inter', $companyId),
+            'notification_sound_enabled' => Setting::get('notification_sound_enabled', '1', $companyId) === '1',
+            'notification_sound_file' => Setting::get('notification_sound_file', '/sounds/notification.mp3', $companyId),
+            'available_sounds' => [
+                ['label' => 'Subtle Ding (Default)', 'value' => '/sounds/notification.mp3'],
+                ['label' => 'Melodic Chime', 'value' => '/sounds/notification-chime.mp3'],
+            ],
+            // Offboarding / Relieving Letter settings
+            'relieving_letter_template' => Setting::get('relieving_letter_template', 'relieving_letter', $companyId),
+            'offboarding_send_email' => Setting::get('offboarding_send_email', '1', $companyId) === '1',
+            'offboarding_send_sms' => Setting::get('offboarding_send_sms', '0', $companyId) === '1',
+            'available_relieving_templates' => [
+                ['value' => 'relieving_letter',              'label' => 'Standard (Original)',        'description' => 'Simple clean A4 experience & relieving certificate'],
+                ['value' => 'relieving_letter_classic',      'label' => 'Classic (Formal / Legal)',   'description' => 'Double border, embossed official seal — ideal for conservative organisations'],
+                ['value' => 'relieving_letter_modern',       'label' => 'Modern (Executive)',         'description' => 'Branded header bar, grid-style data, verification code footer'],
+                ['value' => 'relieving_letter_comprehensive','label' => 'Comprehensive (Full Audit)', 'description' => 'Multi-section clearance table, signature + seal columns'],
+            ],
             'app_debug' => env('APP_DEBUG', false),
             'has_session_settings' => false,
             'available_timezones' => $this->getAvailableTimezones(),
@@ -914,30 +959,206 @@ class SettingsController extends Controller
         return back()->with('success', 'Integration settings updated successfully!');
     }
 
+    // ==================== Offboarding Settings ====================
+
+    public function offboardingSettings()
+    {
+        $user = auth()->user();
+        $companyId = $user->employee_id ? $user->employee->company_id : null;
+
+        $settings = $this->getModuleSettings('offboarding', $companyId);
+
+        // Ensure robust defaults
+        $defaults = [
+            'relieving_letter_template' => 'relieving_letter',
+            'offboarding_send_email' => true,
+            'offboarding_send_sms' => false,
+            'minimum_notice_days' => 30,
+            'require_asset_clearance' => true,
+            'require_finance_clearance' => true,
+            'require_exit_interview' => false,
+            'auto_archive_employee_on_complete' => true,
+            'relieving_letter_signatory_name' => Setting::get('app_name', config('app.name', 'Earth Doha Group')) . ' Management',
+            'relieving_letter_signatory_title' => 'Head of Human Resources',
+        ];
+        $settings = array_merge($defaults, $settings);
+
+        $availableTemplates = [
+            [
+                'value' => 'relieving_letter',
+                'label' => 'Standard (Clean A4)',
+                'badge' => 'Default',
+                'badgeColor' => 'blue',
+                'description' => 'Clean, minimal A4 certificate with official company header, details grid, and authorized signatory line.',
+                'features' => ['Universal acceptance', 'Single-page compact format', 'Standard verification note']
+            ],
+            [
+                'value' => 'relieving_letter_classic',
+                'label' => 'Classic (Formal / Legal)',
+                'badge' => 'Legal & Formal',
+                'badgeColor' => 'emerald',
+                'description' => 'Formal framed certificate with double border, legal declaration, clearance certifications, and official seal imprint.',
+                'features' => ['Double decorative border', 'Formal legal phrasing', 'Explicit clearance verification']
+            ],
+            [
+                'value' => 'relieving_letter_modern',
+                'label' => 'Modern (Executive Branded)',
+                'badge' => 'Executive',
+                'badgeColor' => 'purple',
+                'description' => 'Contemporary executive design with branded navy header bar, structured stat pills, and verification code badge.',
+                'features' => ['Deep navy corporate header', 'Service timeline metrics', 'Certificate verification ID']
+            ],
+            [
+                'value' => 'relieving_letter_comprehensive',
+                'label' => 'Comprehensive (Full Clearance Audit)',
+                'badge' => 'Audit & Multi-Dept',
+                'badgeColor' => 'amber',
+                'description' => 'Detailed multi-department clearance certificate with department sign-offs (IT, HR, Finance, Facilities) and formal discharge.',
+                'features' => ['Multi-department clearance grid', 'Assets & dues sign-off', 'Comprehensive discharge clause']
+            ],
+        ];
+
+        return Inertia::render('Settings/OffboardingSettings', [
+            'settings' => $settings,
+            'availableTemplates' => $availableTemplates,
+        ]);
+    }
+
+    public function updateOffboardingSettings(Request $request)
+    {
+        $allowedTemplates = ['relieving_letter', 'relieving_letter_classic', 'relieving_letter_modern', 'relieving_letter_comprehensive'];
+
+        $validated = $request->validate([
+            'relieving_letter_template' => ['required', 'string', \Illuminate\Validation\Rule::in($allowedTemplates)],
+            'offboarding_send_email' => 'nullable|boolean',
+            'offboarding_send_sms' => 'nullable|boolean',
+            'minimum_notice_days' => 'nullable|integer|min:0|max:365',
+            'require_asset_clearance' => 'nullable|boolean',
+            'require_finance_clearance' => 'nullable|boolean',
+            'require_exit_interview' => 'nullable|boolean',
+            'auto_archive_employee_on_complete' => 'nullable|boolean',
+            'relieving_letter_signatory_name' => 'nullable|string|max:255',
+            'relieving_letter_signatory_title' => 'nullable|string|max:255',
+        ]);
+
+        $user = auth()->user();
+        $companyId = $user->employee_id ? $user->employee->company_id : null;
+
+        foreach ($validated as $key => $value) {
+            Setting::set($key, $value, 'offboarding', $this->getSettingType($value), $companyId);
+        }
+
+        return back()->with('success', 'Offboarding settings updated successfully!');
+    }
+
+    public function previewRelievingLetterTemplate(Request $request)
+    {
+        $user = auth()->user();
+        if (!$user->isAdmin() && !in_array($user->role, ['admin', 'hr'])) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $allowed = ['relieving_letter', 'relieving_letter_classic', 'relieving_letter_modern', 'relieving_letter_comprehensive'];
+        $template = $request->query('template', 'relieving_letter');
+        if (!in_array($template, $allowed)) {
+            $template = 'relieving_letter';
+        }
+
+        $companyId = $user->employee_id ? $user->employee->company_id : null;
+        $company = $companyId ? \App\Models\Company::find($companyId) : \App\Models\Company::first();
+
+        if (!$company) {
+            $company = (object) [
+                'id' => 1,
+                'name' => Setting::get('app_name', config('app.name', 'Earth Doha Group')),
+                'address' => 'Corporate Tower, West Bay, Doha, Qatar',
+                'email' => 'hr@earthdoha.com',
+                'phone' => '+974 4400 1234',
+                'website' => url('/'),
+                'logo' => null,
+            ];
+        }
+
+        $sampleDept = (object) ['name' => 'Engineering & Technology'];
+
+        $sampleEmployee = (object) [
+            'id' => 9999,
+            'employee_code' => 'ED-1088',
+            'name' => 'Alexander Vance',
+            'email' => 'alexander.vance@example.com',
+            'phone' => '+974 5512 3456',
+            'gender' => 'male',
+            'designation' => 'Lead Software Architect',
+            'joined_date' => now()->subYears(3)->subMonths(4)->toDateString(),
+            'department' => $sampleDept,
+            'company' => $company,
+        ];
+
+        $sampleOffboarding = (object) [
+            'id' => 9999,
+            'request_number' => 'OFF-2026-0042',
+            'separation_reason' => 'resignation',
+            'proposed_last_working_day' => now()->toDateString(),
+            'actual_last_working_day' => now()->toDateString(),
+            'notice_period_days' => 30,
+            'notice_pay_applicable' => false,
+            'notice_pay_amount' => 0,
+            'remarks' => 'Employee has completed all project handovers and returned company assets in good condition.',
+            'status' => 'completed',
+            'employee' => $sampleEmployee,
+            'employee_id' => 9999,
+            'created_at' => now()->subDays(30),
+            'updated_at' => now(),
+        ];
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.' . $template, [
+            'offboarding' => $sampleOffboarding,
+            'employee' => $sampleEmployee,
+            'company' => $company,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->stream("Sample_Relieving_Letter_{$template}.pdf");
+    }
+
     // ==================== Helper Methods ====================
 
     /**
-     * Get all settings for a specific module/category.
+     * Get all settings for a specific module/category with global fallback.
      */
     private function getModuleSettings($category, $companyId = null, $departmentId = null)
     {
-        $query = Setting::byCategory($category);
+        // 1. Fetch global settings first
+        $globalSettings = Setting::byCategory($category)
+            ->whereNull('company_id')
+            ->whereNull('department_id')
+            ->get();
 
-        if ($departmentId !== null) {
-            $query->where('department_id', $departmentId);
-        } elseif ($companyId !== null) {
-            $query->where('company_id', $companyId)->whereNull('department_id');
-        } else {
-            $query->whereNull('company_id')->whereNull('department_id');
+        $result = [];
+        foreach ($globalSettings as $setting) {
+            $result[$setting->key] = $setting->getValue();
         }
 
-        $settings = $query->get();
+        // 2. Overlay company-specific settings if companyId provided
+        if ($companyId !== null) {
+            $companySettings = Setting::byCategory($category)
+                ->where('company_id', $companyId)
+                ->whereNull('department_id')
+                ->get();
 
-        // Convert to key-value array with typed values
-        $result = [];
-        /** @var Setting $setting */
-        foreach ($settings as $setting) {
-            $result[$setting->key] = $setting->getValue();
+            foreach ($companySettings as $setting) {
+                $result[$setting->key] = $setting->getValue();
+            }
+        }
+
+        // 3. Overlay department-specific settings if departmentId provided
+        if ($departmentId !== null) {
+            $deptSettings = Setting::byCategory($category)
+                ->where('department_id', $departmentId)
+                ->get();
+
+            foreach ($deptSettings as $setting) {
+                $result[$setting->key] = $setting->getValue();
+            }
         }
 
         return $result;

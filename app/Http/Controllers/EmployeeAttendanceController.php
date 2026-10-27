@@ -226,8 +226,9 @@ class EmployeeAttendanceController extends Controller
                     continue;
                 }
 
-                // Find Employee by employee_code or id with fallback to padded format (always global to allow multi-branch imports)
+                // Find Employee by employee_code or id with fallback to padded format (scoped to company when provided)
                 $employee = Employee::with(['weeklyOffs', 'company'])
+                    ->when($companyId, fn($q) => $q->where('company_id', $companyId))
                     ->where(function ($query) use ($empCode) {
                         $query->where('employee_code', $empCode)
                             ->orWhere('id', $empCode);
@@ -1213,7 +1214,35 @@ class EmployeeAttendanceController extends Controller
             }
         }
 
-        EmployeeAttendance::create($validated);
+        $attRecord = EmployeeAttendance::create($validated);
+        $emp = \App\Models\Employee::find($validated['employee_id']);
+
+        if ($user->employee_id !== (int)$validated['employee_id']) {
+            \App\Services\NotificationService::notifyEmployee(
+                $validated['employee_id'],
+                new \App\Notifications\AttendanceEventNotification(
+                    'Attendance Logged',
+                    "An attendance record for {$validated['date']} has been recorded by management ({$validated['status']}).",
+                    $validated['date'],
+                    'attendance_event'
+                )
+            );
+        }
+
+        // Notify Management Stakeholders (Admins, HR, Managers)
+        if ($emp) {
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\AttendanceEventNotification(
+                    'Attendance Recorded',
+                    "{$user->name} recorded attendance for {$emp->name} on {$validated['date']} ({$validated['status']}).",
+                    $validated['date'],
+                    'attendance_event'
+                ),
+                $emp->company_id,
+                $emp->department_id,
+                $user->id
+            );
+        }
 
         return redirect()->route('employee-attendances.index')
             ->with('success', 'Attendance created successfully!');
@@ -1399,6 +1428,34 @@ class EmployeeAttendanceController extends Controller
         }
 
         $attendance->update($validated);
+        $emp = $attendance->employee ?: \App\Models\Employee::find($attendance->employee_id);
+
+        if ($user->employee_id !== (int)$attendance->employee_id) {
+            \App\Services\NotificationService::notifyEmployee(
+                $attendance->employee_id,
+                new \App\Notifications\AttendanceEventNotification(
+                    'Attendance Adjusted',
+                    "Your attendance record for {$attendance->date} was updated by management ({$attendance->status}).",
+                    $attendance->date,
+                    'attendance_event'
+                )
+            );
+        }
+
+        // Notify Management Stakeholders (Admins, HR, Managers)
+        if ($emp) {
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\AttendanceEventNotification(
+                    'Attendance Adjusted',
+                    "{$user->name} adjusted attendance for {$emp->name} on {$attendance->date} ({$attendance->status}).",
+                    $attendance->date,
+                    'attendance_event'
+                ),
+                $emp->company_id,
+                $emp->department_id,
+                $user->id
+            );
+        }
 
         return redirect()->route('employee-attendances.index')
             ->with('success', 'Attendance updated successfully!');

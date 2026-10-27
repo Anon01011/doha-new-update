@@ -93,11 +93,15 @@ class AdvanceController extends Controller
         $validated['status'] = 'pending';
         $advance = Advance::create($validated);
 
-        // Notify Admins
-        $admins = \App\Models\User::where('role', 'admin')->get();
+        // Notify designated approvers (Reporting Manager + Branch HR/Admin)
         $employee = Employee::find($validated['employee_id']);
-        foreach ($admins as $admin) {
-            $admin->notify(new \App\Notifications\AdvanceRequested($advance, $employee->name));
+        if ($employee) {
+            \App\Services\NotificationService::notifyApprovers(
+                $employee,
+                new \App\Notifications\AdvanceRequested($advance, $employee->name),
+                $user->id,
+                'approve-advances'
+            );
         }
 
         return redirect()->route('advances.index')->with('success', 'Advance request created successfully!');
@@ -159,6 +163,12 @@ class AdvanceController extends Controller
             if ($advance->status !== 'pending') {
                 abort(403, 'You cannot update an advance request that is already processed.');
             }
+            $validated['employee_id'] = $user->employee_id;
+        } else {
+            $targetEmployee = Employee::findOrFail($validated['employee_id']);
+            if ($targetEmployee->company_id !== $advance->company_id) {
+                return back()->withErrors(['employee_id' => 'The selected employee must belong to the same branch.'])->withInput();
+            }
         }
 
         $advance->update($validated);
@@ -168,7 +178,7 @@ class AdvanceController extends Controller
     public function destroy(Advance $advance)
     {
         $user = auth()->user();
-        if ($user->role === 'employee') {
+        if ($user->isEmployee()) {
             if ($advance->employee_id != $user->employee_id) {
                 abort(403, 'Unauthorized access.');
             }
@@ -194,7 +204,10 @@ class AdvanceController extends Controller
             'approved_at' => now(),
         ]);
 
-        $this->notifyEmployee($advance->employee_id, new \App\Notifications\AdvanceStatusUpdated($advance, 'approved'));
+        \App\Services\NotificationService::notifyEmployee(
+            $advance->employee_id,
+            new \App\Notifications\AdvanceStatusUpdated($advance, 'approved')
+        );
 
         return redirect()->back()->with('success', 'Advance approved successfully!');
     }
@@ -211,22 +224,11 @@ class AdvanceController extends Controller
             'remarks' => $request->remarks ? $advance->remarks . "\nRejection Reason: " . $request->remarks : $advance->remarks,
         ]);
 
-        $this->notifyEmployee($advance->employee_id, new \App\Notifications\AdvanceStatusUpdated($advance, 'rejected'));
+        \App\Services\NotificationService::notifyEmployee(
+            $advance->employee_id,
+            new \App\Notifications\AdvanceStatusUpdated($advance, 'rejected')
+        );
 
         return redirect()->back()->with('success', 'Advance request rejected.');
-    }
-    /**
-     * Helper to notify employee
-     */
-    private function notifyEmployee($employeeId, $notification)
-    {
-        $employee = Employee::find($employeeId);
-        if ($employee && $employee->user) {
-            try {
-                $employee->user->notify($notification);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Notification failed: ' . $e->getMessage());
-            }
-        }
     }
 }

@@ -13,7 +13,7 @@ class StoreProjectRequest extends FormRequest
     public function authorize(): bool
     {
         $user = Auth::user();
-        if ($user && $user->role === 'employee') {
+        if ($user && ($user->isEmployee() || $user->role === 'employee')) {
             return false;
         }
         return true;

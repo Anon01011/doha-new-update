@@ -14,16 +14,17 @@ class UpdateProjectRequest extends FormRequest
     {
         $user = Auth::user();
         $project = $this->route('project');
+        $isEmp = $user && ($user->isEmployee() || $user->role === 'employee');
 
         $isProjectLead = false;
-        if ($user && $user->role === 'employee' && $user->employee_id) {
+        if ($isEmp && $user->employee_id) {
             $isProjectLead = \App\Models\ProjectMember::where('project_id', $project->id)
                 ->where('employee_id', $user->employee_id)
                 ->where('role', 'lead')
                 ->exists();
         }
 
-        if ($user && $user->role === 'employee' && !$isProjectLead) {
+        if ($isEmp && !$isProjectLead) {
             return false;
         }
         return true;

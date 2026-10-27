@@ -7,7 +7,7 @@ import {
     FiChevronDown, FiChevronUp, FiFlag, FiShield, FiStar, FiPackage,
     FiLock, FiBookOpen, FiClipboard, FiCheck, FiDownload, FiInfo, FiLayers,
     FiSearch, FiX, FiCalendar, FiBriefcase, FiRefreshCw, FiCheckSquare,
-    FiSliders, FiMessageCircle
+    FiSliders, FiMessageCircle, FiEye, FiMail
 } from 'react-icons/fi';
 import { useCurrency } from '@/helpers/currency';
 
@@ -363,14 +363,37 @@ export default function Show({
                         )}
 
                         {['settlement_pending', 'completed'].includes(offboarding.status) && (
-                            <a
-                                href={route('offboarding.relieving-letter', offboardingRef)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all shadow-xs"
-                            >
-                                <FiDownload className="w-4 h-4" /> Relieving Letter
-                            </a>
+                            <>
+                                <a
+                                    href={route('offboarding.relieving-letter.preview', offboardingRef)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-all shadow-xs"
+                                >
+                                    <FiEye className="w-4 h-4" /> Preview Letter
+                                </a>
+                                <a
+                                    href={route('offboarding.relieving-letter', offboardingRef)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all shadow-xs"
+                                >
+                                    <FiDownload className="w-4 h-4" /> Relieving Letter
+                                </a>
+                                {isManagementRole && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (confirm(`Send the official Relieving Certificate PDF to ${offboarding.employee?.email || 'the employee'} via email?`)) {
+                                                router.post(route('offboarding.relieving-letter.email', offboardingRef));
+                                            }
+                                        }}
+                                        className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all shadow-xs cursor-pointer"
+                                    >
+                                        <FiMail className="w-4 h-4" /> Email Certificate
+                                    </button>
+                                )}
+                            </>
                         )}
 
                         {['draft', 'pending_approval'].includes(offboarding.status) && (

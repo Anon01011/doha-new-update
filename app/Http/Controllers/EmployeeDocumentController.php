@@ -16,13 +16,13 @@ class EmployeeDocumentController extends Controller
     {
         $user = auth()->user();
 
-        // Check authorization
-        if ($user->role === 'employee' && $user->employee_id != $employee->id) {
+        // Check authorization: Employees can only view their own documents
+        if ($user->isEmployee() && $user->employee_id != $employee->id) {
             abort(403, 'Unauthorized access.');
         }
 
-        // Branch isolation check
-        if ($user->role !== 'admin' && $user->employee_id && $employee->company_id != $user->employee->company_id) {
+        // Branch isolation check for non-admins
+        if (!$user->isAdmin() && $user->employee_id && $employee->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access to this employee\'s documents.');
         }
 
@@ -53,13 +53,14 @@ class EmployeeDocumentController extends Controller
         $user = auth()->user();
 
         // Authorization: admin, hr, manager OR employee uploading their own document
-        $isSelfEmployee = ($user->role === 'employee' && $user->employee_id == $employee->id);
-        if (!in_array($user->role, ['admin', 'hr', 'manager']) && !$isSelfEmployee) {
+        $isSelfEmployee = ($user->isEmployee() && $user->employee_id == $employee->id);
+        $isStaffAuth = $user->isAdmin() || $user->isHR() || $user->isManager() || in_array($user->role, ['admin', 'hr', 'manager']);
+        if (!$isStaffAuth && !$isSelfEmployee) {
             abort(403, 'Unauthorized to upload documents.');
         }
 
         // Manager/HR/Employee from different branch check
-        if ($user->role !== 'admin' && $user->employee_id && $employee->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && $employee->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -67,6 +68,12 @@ class EmployeeDocumentController extends Controller
         $maxSizeMb = Setting::get('max_file_size_mb', 10, $companyId);
         $maxSizeKb = $maxSizeMb * 1024;
         $allowedTypes = Setting::get('allowed_file_types', 'pdf,jpg,jpeg,png,doc,docx', $companyId);
+        if (is_array($allowedTypes)) {
+            $allowedTypes = implode(',', array_filter($allowedTypes));
+        }
+        if (empty($allowedTypes)) {
+            $allowedTypes = 'pdf,jpg,jpeg,png,doc,docx';
+        }
 
         $validated = $request->validate([
             'document_type_id' => 'nullable|exists:document_types,id',

@@ -10,6 +10,8 @@ use App\Http\Requests\Task\StoreTaskRequest;
 use App\Http\Requests\Task\UpdateTaskRequest;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
+use App\Services\NotificationService;
+use App\Notifications\TaskCompletedNotification;
 
 class TaskController extends Controller
 {
@@ -196,6 +198,20 @@ class TaskController extends Controller
             });
         }
 
+        // Notify Management Stakeholders (Admins, HR, Managers)
+        $creatorUser = Auth::user();
+        \App\Services\NotificationService::notifyManagementStakeholders(
+            new \App\Notifications\GenericHrNotification(
+                'Task Created',
+                "{$creatorUser->name} created task '{$task->title}' for " . count($request->assigned_employee_ids ?? []) . " assignee(s).",
+                route('tasks.show', $task),
+                'task_assigned'
+            ),
+            $task->branch_id,
+            $task->department_id,
+            $creatorUser->id
+        );
+
         return redirect()->route('tasks.index')->with('success', 'Task created successfully!');
     }
 
@@ -204,14 +220,7 @@ class TaskController extends Controller
      */
     private function notifyEmployee($employeeId, $notification)
     {
-        $employee = Employee::find($employeeId);
-        if ($employee && $employee->user) {
-            try {
-                $employee->user->notify($notification);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Notification failed: ' . $e->getMessage());
-            }
-        }
+        \App\Services\NotificationService::notifyEmployee($employeeId, $notification);
     }
 
     /**
@@ -414,8 +423,36 @@ class TaskController extends Controller
                 }
             });
 
+            // Notify Management Stakeholders (Admins, HR, Managers)
+            $updater = Auth::user();
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\GenericHrNotification(
+                    'Task Updated',
+                    "{$updater->name} updated task '{$task->title}'.",
+                    route('tasks.show', $task),
+                    'task_assigned'
+                ),
+                $task->branch_id,
+                $task->department_id,
+                $updater->id
+            );
+
             return redirect()->route('tasks.show', $task)->with('success', 'Task updated successfully!');
         }
+
+        // Notify Management Stakeholders on non-assignment updates
+        $updater = Auth::user();
+        \App\Services\NotificationService::notifyManagementStakeholders(
+            new \App\Notifications\GenericHrNotification(
+                'Task Updated',
+                "{$updater->name} updated task '{$task->title}'.",
+                route('tasks.show', $task),
+                'task_assigned'
+            ),
+            $task->branch_id,
+            $task->department_id,
+            $updater->id
+        );
 
         return redirect()->route('tasks.show', $task)->with('success', 'Task updated successfully!');
     }
@@ -586,12 +623,42 @@ class TaskController extends Controller
             $fileName = $request->file('file')->getClientOriginalName();
         }
 
-        $task->comments()->create([
+        $comment = $task->comments()->create([
             'user_id' => Auth::id(),
             'comment' => $request->comment,
             'file_path' => $filePath,
             'file_name' => $fileName,
         ]);
+
+        // Notify assigned employees and task creator
+        $currentUserId = Auth::id();
+        $notifiableUsers = collect();
+
+        // 1. Task creator
+        if ($task->created_by && $task->created_by !== $currentUserId) {
+            $creator = \App\Models\User::find($task->created_by);
+            if ($creator) {
+                $notifiableUsers->push($creator);
+            }
+        }
+
+        // 2. Assigned employees
+        $task->loadMissing('assignments.employee.user');
+        foreach ($task->assignments as $assignment) {
+            $assignedUser = $assignment->employee?->user;
+            if ($assignedUser && $assignedUser->id !== $currentUserId) {
+                $notifiableUsers->push($assignedUser);
+            }
+        }
+
+        $notifiableUsers = $notifiableUsers->unique('id');
+        foreach ($notifiableUsers as $targetUser) {
+            try {
+                $targetUser->notify(new \App\Notifications\TaskCommentNotification($task, Auth::user(), $request->comment));
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Task comment notification failed: ' . $e->getMessage());
+            }
+        }
 
         return back()->with('success', 'Comment added successfully.');
     }
@@ -679,6 +746,38 @@ class TaskController extends Controller
             'status' => 'completed',
             'completed_date' => now()->toDateString(),
         ]);
+
+        // If all assignments are completed (or this is the only assignment), mark task as completed
+        $pendingAssignments = $task->assignments()->where('status', '!=', 'completed')->exists();
+        if (!$pendingAssignments) {
+            $task->update([
+                'status' => 'completed',
+                'progress' => 100,
+            ]);
+        }
+
+        // Real-time Notification dispatch:
+        // - Admin (receives notifications across all branches)
+        // - HR (strictly same branch / company)
+        // - Manager (strictly same branch / reporting & dept managers)
+        $employee = $user->employee ?: ($user->employee_id ? Employee::find($user->employee_id) : null);
+        NotificationService::notifyApprovers(
+            $employee,
+            new TaskCompletedNotification($task, $employee, $request->notes),
+            $user->id
+        );
+
+        // Also notify the task creator if creator is another user
+        if ($task->created_by && $task->created_by !== $user->id) {
+            $creator = \App\Models\User::find($task->created_by);
+            if ($creator) {
+                try {
+                    $creator->notify(new TaskCompletedNotification($task, $employee, $request->notes));
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Task complete notification to creator failed: ' . $e->getMessage());
+                }
+            }
+        }
 
         return back()->with('success', 'Task marked as completed!');
     }

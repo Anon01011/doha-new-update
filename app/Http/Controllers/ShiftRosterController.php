@@ -139,8 +139,14 @@ class ShiftRosterController extends Controller
                 $employeesQuery->where('id', $user->employee_id);
             }
 
-            $employees = $employeesQuery->with(['weeklyOffs', 'company'])->get();
-            $rosters = $this->getRosterData($request, $effectiveCompanyIds);
+            $employees = $employeesQuery->with([
+                'weeklyOffs:id,employee_id,weekly_off_day,effective_date',
+                'company:id,name,weekly_off_days'
+            ])->select([
+                'id', 'name', 'employee_code', 'designation', 'department_id', 'company_id', 'employee_image'
+            ])->get();
+
+            $rosters = $this->getRosterData($request, $effectiveCompanyIds, $employees);
 
             // If employee without permission, filter rosters to only their own
             if ($user->isEmployee() && $user->employee_id && !$user->hasPermission('view-shift-rosters') && !$user->hasPermission('view-rosters') && isset($rosters)) {
@@ -157,23 +163,38 @@ class ShiftRosterController extends Controller
                 || $user->hasRole('shift-manager')
                 || $user->hasPermission('approve-shift-rosters');
 
-            // Compute week-level approval status (for the currently-viewed week/filter)
+            // Compute week-level approval status efficiently using single aggregate query
             $weekApprovalStatus = null;
             $currentWeekStart = Carbon::parse($request->input('week_start', now()->startOfWeek(Carbon::MONDAY)->toDateString()))->startOfWeek(Carbon::MONDAY)->toDateString();
             if ($company_id && !$user->isEmployee()) {
-                $weekRosters = \App\Models\ShiftRoster::withoutGlobalScope('company')->where('company_id', $company_id)
+                $weekStatsQuery = \App\Models\ShiftRoster::withoutGlobalScope('company')
+                    ->where('company_id', $company_id)
                     ->where('week_start', $currentWeekStart);
+
                 if ($department_id) {
                     $deptEmployeeIds = \App\Models\Employee::withoutGlobalScope('company')->where('department_id', $department_id)->pluck('id');
-                    $weekRosters->whereIn('employee_id', $deptEmployeeIds);
+                    $weekStatsQuery->whereIn('employee_id', $deptEmployeeIds);
                 }
-                $weekRosters = $weekRosters->with('approvedByUser:id,name')->get();
-                $total    = $weekRosters->count();
-                $approved = $weekRosters->where('status', 'approved')->count();
-                $pending  = $weekRosters->where('status', 'pending')->count();
-                $rejected = $weekRosters->where('status', 'rejected')->count();
-                $lastApproved = $weekRosters->whereNotNull('approved_by')->first();
-                $lastRejected = $weekRosters->where('status', 'rejected')->whereNotNull('rejection_reason')->first();
+
+                $weekStats = $weekStatsQuery->selectRaw("
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                    SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+                    MAX(approved_by) as approved_by,
+                    MAX(approved_at) as approved_at,
+                    MAX(rejection_reason) as rejection_reason
+                ")->first();
+
+                $total    = (int) ($weekStats?->total ?? 0);
+                $approved = (int) ($weekStats?->approved ?? 0);
+                $pending  = (int) ($weekStats?->pending ?? 0);
+                $rejected = (int) ($weekStats?->rejected ?? 0);
+
+                $approvedByName = null;
+                if ($weekStats?->approved_by) {
+                    $approvedByName = \App\Models\User::where('id', $weekStats->approved_by)->value('name');
+                }
 
                 $weekApprovalStatus = [
                     'total'            => $total,
@@ -184,9 +205,9 @@ class ShiftRosterController extends Controller
                     'has_pending'      => $pending > 0,
                     'has_rejected'     => $rejected > 0,
                     'status'           => ($total === 0) ? 'empty' : ($rejected > 0 ? 'rejected' : ($pending > 0 ? 'pending' : 'approved')),
-                    'approved_by_name' => $lastApproved?->approvedByUser?->name,
-                    'approved_at'      => $lastApproved?->approved_at?->format('M d, Y h:i A'),
-                    'rejection_reason' => $lastRejected?->rejection_reason,
+                    'approved_by_name' => $approvedByName,
+                    'approved_at'      => $weekStats?->approved_at ? Carbon::parse($weekStats->approved_at)->format('M d, Y h:i A') : null,
+                    'rejection_reason' => $weekStats?->rejection_reason,
                 ];
             }
 
@@ -244,7 +265,12 @@ class ShiftRosterController extends Controller
                 $companyParam = $user->employee->company_id;
             }
 
-            $employeesQuery = Employee::with(['company:id,slug,weekly_off_days', 'weeklyOffs'])->orderBy('name');
+            $employeesQuery = Employee::active()
+                ->with([
+                    'company:id,slug,weekly_off_days',
+                    'weeklyOffs:id,employee_id,weekly_off_day,effective_date'
+                ])
+                ->orderBy('name');
             $selectedCompany = '';
             $selectedDepartment = '';
             $company_id = null;
@@ -289,6 +315,36 @@ class ShiftRosterController extends Controller
 
             $employees = $employeesQuery->get(['id', 'name', 'designation', 'company_id', 'department_id', 'employee_image']);
 
+            // Preload approved leaves for this week so the grid displays and protects leaves
+            $weekStartParam = $request->input('week_start', now()->startOfWeek(Carbon::MONDAY)->toDateString());
+            $currentWeekStart = Carbon::parse($weekStartParam)->startOfWeek(Carbon::MONDAY);
+            $currentWeekEnd = $currentWeekStart->copy()->endOfWeek(Carbon::SUNDAY);
+            $employeeIds = $employees->pluck('id');
+
+            $approvedLeaves = collect();
+            if ($employeeIds->isNotEmpty()) {
+                $approvedLeaves = \App\Models\LeaveRequest::with('leaveType:id,name')
+                    ->whereIn('employee_id', $employeeIds)
+                    ->where('status', 'approved')
+                    ->where(function ($q) use ($currentWeekStart, $currentWeekEnd) {
+                        $q->whereBetween('start_date', [$currentWeekStart->toDateString(), $currentWeekEnd->toDateString()])
+                          ->orWhereBetween('end_date', [$currentWeekStart->toDateString(), $currentWeekEnd->toDateString()])
+                          ->orWhere(function ($sub) use ($currentWeekStart, $currentWeekEnd) {
+                              $sub->where('start_date', '<=', $currentWeekStart->toDateString())
+                                  ->where('end_date', '>=', $currentWeekEnd->toDateString());
+                          });
+                    })
+                    ->select(['id', 'employee_id', 'leave_type_id', 'start_date', 'end_date'])
+                    ->get()
+                    ->map(fn($l) => [
+                        'id'          => $l->id,
+                        'employee_id' => $l->employee_id,
+                        'leave_type'  => $l->leaveType?->name ?? 'Leave',
+                        'start_date'  => is_string($l->start_date) ? substr($l->start_date, 0, 10) : $l->start_date->toDateString(),
+                        'end_date'    => is_string($l->end_date) ? substr($l->end_date, 0, 10) : $l->end_date->toDateString(),
+                    ]);
+            }
+
             // Fetch dynamic shift types
             $shiftTypes = \App\Models\DropdownOption::where('category', 'Shift')
                 ->where('is_active', true)
@@ -296,13 +352,14 @@ class ShiftRosterController extends Controller
                 ->pluck('value');
 
             return Inertia::render('ShiftRoster/Create', [
-                'companies' => $companies,
-                'departments' => $departments,
-                'employees' => $employees,
-                'shiftTemplates' => $this->shiftTemplates,
-                'selectedCompany' => $selectedCompany,
+                'companies'          => $companies,
+                'departments'        => $departments,
+                'employees'          => $employees,
+                'shiftTemplates'     => $this->shiftTemplates,
+                'selectedCompany'    => $selectedCompany,
                 'selectedDepartment' => $selectedDepartment,
-                'shiftTypes' => $shiftTypes,
+                'shiftTypes'         => $shiftTypes,
+                'approvedLeaves'     => $approvedLeaves,
             ]);
         } catch (\Exception $e) {
             Log::error('ShiftRoster create error: ' . $e->getMessage());
@@ -446,6 +503,29 @@ class ShiftRosterController extends Controller
             // Send WhatsApp notifications after successful save
             $this->sendBulkAutomaticNotifications($data);
 
+            // In-app notification to affected employees that their roster has been created and assigned
+            $startDate = $data['week_start'] ?? now()->toDateString();
+            $endDate = !empty($data['entries']) ? collect($data['entries'])->max('date') : \Carbon\Carbon::parse($startDate)->addDays(6)->toDateString();
+            $affectedEmpIds = collect($data['entries'] ?? [])->pluck('employee_id')->filter()->unique();
+            foreach ($affectedEmpIds as $empId) {
+                \App\Services\NotificationService::notifyEmployee(
+                    $empId,
+                    new \App\Notifications\ShiftAssignedNotification($startDate, $endDate)
+                );
+            }
+
+            // Notify Management Stakeholders (Admins across all branches, HR, and Department/Branch Managers)
+            $company = Company::find($data['company_id']);
+            if ($company) {
+                $shiftsCount = count($data['entries'] ?? []);
+                \App\Services\NotificationService::notifyManagementStakeholders(
+                    new \App\Notifications\ShiftRosterCreatedNotification($company, $startDate, $shiftsCount, $user->name),
+                    $company->id,
+                    $data['department_id'] ?? null,
+                    $user->id
+                );
+            }
+
             // Redirect with the correct parameters to show the saved data
             $redirectParams = [
                 'company_id' => $data['company_id'],
@@ -547,6 +627,33 @@ class ShiftRosterController extends Controller
             $shiftRoster->update($data);
             $this->sendAutomaticNotification($shiftRoster);
 
+            // In-app real-time notification to affected employee
+            if ($shiftRoster->employee_id) {
+                \App\Services\NotificationService::notifyEmployee(
+                    $shiftRoster->employee_id,
+                    new \App\Notifications\ShiftRosterUpdatedNotification(
+                        'Shift Schedule Updated',
+                        "Your shift for {$shiftRoster->date} has been updated to {$shiftRoster->shift_time} by {$user->name}.",
+                        route('shift-rosters.index', ['week_start' => $shiftRoster->week_start]),
+                        'shift_roster_updated'
+                    )
+                );
+            }
+
+            // In-app real-time notification to Management Stakeholders (HR, Manager, Admin)
+            $shiftRoster->loadMissing('employee');
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\ShiftRosterUpdatedNotification(
+                    'Shift Schedule Updated',
+                    "{$user->name} updated the shift schedule for {$shiftRoster->employee?->name} ({$shiftRoster->date}: {$shiftRoster->shift_time}).",
+                    route('shift-rosters.index', ['week_start' => $shiftRoster->week_start, 'company_id' => $shiftRoster->company_id]),
+                    'shift_roster_updated'
+                ),
+                $shiftRoster->company_id,
+                $shiftRoster->employee?->department_id,
+                $user->id
+            );
+
             Log::info('ShiftRoster updated', ['id' => $shiftRoster->id]);
 
             // Return redirect for both regular and AJAX (Inertia) requests
@@ -627,12 +734,65 @@ class ShiftRosterController extends Controller
                 $query->whereIn('employee_id', $deptEmployeeIds);
             }
 
-            $count = $query->update([
-                'status'      => 'approved',
-                'approved_by' => $user->id,
-                'approved_at' => now(),
-                'rejection_reason' => null,
-            ]);
+            $pendingEntries = $query->get();
+
+            if ($pendingEntries->isEmpty()) {
+                return back()->with('info', 'No pending roster entries found to approve.');
+            }
+
+            // Pre-fetch approved leaves for these employees during the target week range
+            $weekStartCarbon = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
+            $minDate = $weekStartCarbon->toDateString();
+            $maxDate = $weekStartCarbon->copy()->endOfWeek(Carbon::SUNDAY)->toDateString();
+            $employeeIds = $pendingEntries->pluck('employee_id')->unique();
+
+            $approvedLeaves = \App\Models\LeaveRequest::with('leaveType')
+                ->whereIn('employee_id', $employeeIds)
+                ->where('status', 'approved')
+                ->where(function ($q) use ($minDate, $maxDate) {
+                    $q->whereBetween('start_date', [$minDate, $maxDate])
+                      ->orWhereBetween('end_date', [$minDate, $maxDate])
+                      ->orWhere(function ($sub) use ($minDate, $maxDate) {
+                          $sub->where('start_date', '<=', $minDate)
+                              ->where('end_date', '>=', $maxDate);
+                      });
+                })
+                ->get()
+                ->groupBy('employee_id');
+
+            $dayOffsets = ['Monday' => 0, 'Tuesday' => 1, 'Wednesday' => 2, 'Thursday' => 3,
+                           'Friday' => 4, 'Saturday' => 5, 'Sunday' => 6];
+
+            $count = 0;
+            foreach ($pendingEntries as $entry) {
+                $dayOffset = $dayOffsets[$entry->day] ?? 0;
+                $actualDateStr = $weekStartCarbon->copy()->addDays($dayOffset)->toDateString();
+
+                $empLeaves = $approvedLeaves->get($entry->employee_id, collect());
+                $matchingLeave = $empLeaves->first(function ($leave) use ($actualDateStr) {
+                    $s = is_string($leave->start_date) ? substr($leave->start_date, 0, 10) : $leave->start_date->toDateString();
+                    $e = is_string($leave->end_date) ? substr($leave->end_date, 0, 10) : $leave->end_date->toDateString();
+                    return $actualDateStr >= $s && $actualDateStr <= $e;
+                });
+
+                $updateData = [
+                    'status'           => 'approved',
+                    'approved_by'      => $user->id,
+                    'approved_at'      => now(),
+                    'rejection_reason' => null,
+                ];
+
+                // If employee is on approved leave on this day, ensure shift remains/sets to On Leave
+                if ($matchingLeave) {
+                    $leaveName = $matchingLeave->leaveType->name ?? 'Leave';
+                    $updateData['shift_time'] = 'On Leave';
+                    $updateData['shift_type'] = 'Leave';
+                    $updateData['notes']      = 'Approved ' . $leaveName;
+                }
+
+                $entry->update($updateData);
+                $count++;
+            }
 
             Log::info('ShiftRoster approved', [
                 'approved_by' => $user->id,
@@ -652,6 +812,30 @@ class ShiftRosterController extends Controller
                         $notifStatus = " Notifications dispatched automatically via: {$channelsList} to {$dispatchResult['recipients_count']} employees.";
                     }
                 }
+            }
+
+            // In-app system notification to assigned employees
+            if ($count > 0 && isset($employeeIds) && $employeeIds->isNotEmpty()) {
+                $compName = isset($company) && $company ? $company->name : 'Company';
+                foreach ($employeeIds as $empId) {
+                    \App\Services\NotificationService::notifyEmployee(
+                        $empId,
+                        new \App\Notifications\ShiftRosterApprovedNotification($data['week_start'], $compName)
+                    );
+                }
+
+                // In-app system notification to Management Stakeholders (Admins, HR, Managers)
+                \App\Services\NotificationService::notifyManagementStakeholders(
+                    new \App\Notifications\ShiftRosterUpdatedNotification(
+                        'Shift Roster Approved',
+                        "{$user->name} approved the weekly shift roster for {$compName} (Week: {$data['week_start']}).",
+                        route('shift-rosters.index', ['week_start' => $data['week_start'], 'company_id' => $data['company_id']]),
+                        'shift_roster_approved'
+                    ),
+                    $data['company_id'],
+                    $data['department_id'] ?? null,
+                    $user->id
+                );
             }
 
             return back()->with('success', "✅ {$count} roster entries approved successfully!{$notifStatus}");
@@ -826,6 +1010,19 @@ class ShiftRosterController extends Controller
                 'count'       => $count,
             ]);
 
+            // In-app notification to Management Stakeholders (HR, Manager, Admin)
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\ShiftRosterUpdatedNotification(
+                    'Shift Roster Rejected',
+                    "{$user->name} rejected the shift roster for Week: {$data['week_start']}. Reason: " . ($data['rejection_reason'] ?? 'Needs revision'),
+                    route('shift-rosters.management', ['from_date' => $data['week_start'], 'company_id' => $data['company_id']]),
+                    'shift_roster_rejected'
+                ),
+                $data['company_id'],
+                $data['department_id'] ?? null,
+                $user->id
+            );
+
             return back()->with('success', "❌ {$count} roster entries rejected. Creator can revise and resubmit.");
 
         } catch (\Exception $e) {
@@ -940,12 +1137,29 @@ class ShiftRosterController extends Controller
                 $query->whereIn('employee_id', $deptEmployeeIds);
             }
 
-            if ($request->filled('from_date')) {
-                $query->where('week_start', '>=', $request->from_date);
-            }
+            $period = $request->input('period', 'all');
+            if ($period === 'this_week') {
+                $ws = now()->startOfWeek(Carbon::MONDAY)->toDateString();
+                $query->where('week_start', $ws);
+            } elseif ($period === 'next_week') {
+                $ws = now()->addWeek()->startOfWeek(Carbon::MONDAY)->toDateString();
+                $query->where('week_start', $ws);
+            } elseif ($period === 'this_month') {
+                $ms = now()->startOfMonth()->startOfWeek(Carbon::MONDAY)->toDateString();
+                $me = now()->endOfMonth()->startOfWeek(Carbon::MONDAY)->toDateString();
+                $query->whereBetween('week_start', [$ms, $me]);
+            } elseif ($period === 'last_month') {
+                $ms = now()->subMonth()->startOfMonth()->startOfWeek(Carbon::MONDAY)->toDateString();
+                $me = now()->subMonth()->endOfMonth()->startOfWeek(Carbon::MONDAY)->toDateString();
+                $query->whereBetween('week_start', [$ms, $me]);
+            } else {
+                if ($request->filled('from_date')) {
+                    $query->where('week_start', '>=', $request->from_date);
+                }
 
-            if ($request->filled('to_date')) {
-                $query->where('week_start', '<=', $request->to_date);
+                if ($request->filled('to_date')) {
+                    $query->where('week_start', '<=', $request->to_date);
+                }
             }
 
             // Aggregate by company_id and week_start
@@ -1035,6 +1249,22 @@ class ShiftRosterController extends Controller
                 })->values();
             }
 
+            // Sort batches according to sort_by filter
+            $sortBy = $request->input('sort_by', 'date_desc');
+            if ($sortBy === 'date_asc') {
+                $batches = $batches->sortBy('week_start')->values();
+            } elseif ($sortBy === 'shifts_desc') {
+                $batches = $batches->sortByDesc('total_shifts')->values();
+            } elseif ($sortBy === 'shifts_asc') {
+                $batches = $batches->sortBy('total_shifts')->values();
+            } elseif ($sortBy === 'employees_desc') {
+                $batches = $batches->sortByDesc('total_employees')->values();
+            } elseif ($sortBy === 'pending_desc') {
+                $batches = $batches->sortByDesc('pending_count')->values();
+            } else {
+                $batches = $batches->sortByDesc('week_start')->values();
+            }
+
             $canApprove = $user->isAdmin() || $user->isHR() || $user->isManager()
                 || $user->hasRole('shift-manager')
                 || $user->hasPermission('approve-shift-rosters');
@@ -1051,6 +1281,8 @@ class ShiftRosterController extends Controller
                     'search'        => $request->search,
                     'from_date'     => $request->from_date,
                     'to_date'       => $request->to_date,
+                    'period'        => $period,
+                    'sort_by'       => $sortBy,
                 ],
                 'canApprove'   => $canApprove,
                 'userRole'     => $user->role,
@@ -1299,6 +1531,31 @@ class ShiftRosterController extends Controller
                 $data
             );
             $this->sendAutomaticNotification($shiftRoster);
+
+            // In-app notification to affected employee
+            \App\Services\NotificationService::notifyEmployee(
+                $shiftRoster->employee_id,
+                new \App\Notifications\ShiftRosterUpdatedNotification(
+                    'Shift Schedule Assigned',
+                    "Your shift for {$shiftRoster->date} has been scheduled as {$shiftRoster->shift_time} by {$user->name}.",
+                    route('shift-rosters.index', ['week_start' => $shiftRoster->week_start]),
+                    'shift_roster_updated'
+                )
+            );
+
+            // In-app notification to Management Stakeholders (HR, Manager, Admin)
+            $shiftRoster->loadMissing('employee');
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\ShiftRosterUpdatedNotification(
+                    'Shift Schedule Updated',
+                    "{$user->name} saved shift for {$shiftRoster->employee?->name} ({$shiftRoster->date}: {$shiftRoster->shift_time}).",
+                    route('shift-rosters.index', ['week_start' => $shiftRoster->week_start, 'company_id' => $shiftRoster->company_id]),
+                    'shift_roster_updated'
+                ),
+                $shiftRoster->company_id,
+                $shiftRoster->employee?->department_id,
+                $user->id
+            );
 
             Log::info('ShiftRoster created/updated from inline editor', ['id' => $shiftRoster->id]);
 
@@ -2833,7 +3090,7 @@ class ShiftRosterController extends Controller
 
     // Private Helper Methods
 
-    private function getRosterData(Request $request, $companyIds)
+    private function getRosterData(Request $request, $companyIds, $preloadedEmployees = null)
     {
         $query = ShiftRoster::withoutGlobalScope('company')->newQuery();
 
@@ -2902,10 +3159,18 @@ class ShiftRosterController extends Controller
         // referenceDate: use the actual start of the period being viewed (not always current week)
         $weeklyOffService = app(WeeklyOffService::class);
         $employeeIds = $rosters->pluck('employee_id')->unique()->values();
-        $employees = Employee::with(['weeklyOffs', 'company'])
+
+        if ($preloadedEmployees instanceof \Illuminate\Support\Collection && $preloadedEmployees->isNotEmpty()) {
+            $employees = $preloadedEmployees->whereIn('id', $employeeIds)->keyBy('id');
+        } else {
+            $employees = Employee::with([
+                'weeklyOffs:id,employee_id,weekly_off_day,effective_date',
+                'company:id,weekly_off_days'
+            ])
             ->whereIn('id', $employeeIds)
-            ->get()
+            ->get(['id', 'company_id'])
             ->keyBy('id');
+        }
 
         // Pick correct reference date based on view mode
         if ($request->has('month') && $request->has('year')) {
@@ -3005,6 +3270,25 @@ class ShiftRosterController extends Controller
             $referenceDate = Carbon::parse($topLevelWs ?? now());
             $weeklyOffMap = $weeklyOffService->buildWeeklyOffMap($validEmployeesCollection, $referenceDate);
 
+            // Pre-fetch approved leaves for these employees during the target week range
+            $minDate = $referenceDate->copy()->startOfWeek(Carbon::MONDAY)->toDateString();
+            $maxDate = $referenceDate->copy()->endOfWeek(Carbon::SUNDAY)->toDateString();
+
+            $approvedLeaves = \App\Models\LeaveRequest::with('leaveType')
+                ->whereIn('employee_id', $validEmployeeIds)
+                ->where('status', 'approved')
+                ->where(function ($q) use ($minDate, $maxDate) {
+                    $q->whereBetween('start_date', [$minDate, $maxDate])
+                      ->orWhereBetween('end_date', [$minDate, $maxDate])
+                      ->orWhere(function ($sub) use ($minDate, $maxDate) {
+                          $sub->where('start_date', '<=', $minDate)
+                              ->where('end_date', '>=', $maxDate);
+                      });
+                })
+                ->get();
+
+            $leavesMap = $approvedLeaves->groupBy('employee_id');
+
             // Day-offset map for computing actual dates
             $dayOffsets = ['Monday' => 0, 'Tuesday' => 1, 'Wednesday' => 2, 'Thursday' => 3,
                            'Friday' => 4, 'Saturday' => 5, 'Sunday' => 6];
@@ -3037,12 +3321,26 @@ class ShiftRosterController extends Controller
 
                 $dayOffset = $dayOffsets[$entry['day']] ?? 0;
                 $actualDate = $wsCarbonCache[$ws]->copy()->addDays($dayOffset);
+                $actualDateStr = $actualDate->toDateString();
+
+                // Check if employee has an approved leave on this date
+                $empLeaves = $leavesMap->get($entry['employee_id'], collect());
+                $matchingLeave = $empLeaves->first(function ($leave) use ($actualDateStr) {
+                    $s = is_string($leave->start_date) ? substr($leave->start_date, 0, 10) : $leave->start_date->toDateString();
+                    $e = is_string($leave->end_date) ? substr($leave->end_date, 0, 10) : $leave->end_date->toDateString();
+                    return $actualDateStr >= $s && $actualDateStr <= $e;
+                });
 
                 // Check if this day is a weekly off for the employee
                 $isWeeklyOff = $weeklyOffService->isWeeklyOffFromMap($entry['employee_id'], $actualDate, $weeklyOffMap);
 
-                // Override shift details if it is a weekly off day
-                if ($isWeeklyOff) {
+                // Auto-sync shift details: Leave takes highest priority, followed by Weekly Off
+                if ($matchingLeave) {
+                    $leaveName = $matchingLeave->leaveType->name ?? 'Leave';
+                    $time = 'On Leave';
+                    $shiftType = 'Leave';
+                    $notes = 'Approved ' . $leaveName;
+                } elseif ($isWeeklyOff) {
                     $time = 'Weekly Off';
                     $shiftType = 'Weekly Off';
                     $notes = 'Auto: Weekly Off Day';

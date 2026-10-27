@@ -152,10 +152,14 @@ class LoanController extends Controller
 
         $loan = Loan::create($validated);
         
-        // Notify Admins
-        $admins = \App\Models\User::where('role', 'admin')->get();
-        foreach ($admins as $admin) {
-            $admin->notify(new \App\Notifications\LoanRequested($loan, $employee->name));
+        // Notify designated approvers (Reporting Manager + Branch HR/Admin)
+        if ($employee) {
+            \App\Services\NotificationService::notifyApprovers(
+                $employee,
+                new \App\Notifications\LoanRequested($loan, $employee->name),
+                $user->id,
+                'disburse-loans'
+            );
         }
 
         return redirect()->route('loans.index')->with('success', 'Loan request created successfully!');
@@ -164,7 +168,7 @@ class LoanController extends Controller
     public function show(Loan $loan)
     {
         $user = auth()->user();
-        if ($user->role === 'employee' && $loan->employee_id != $user->employee_id) {
+        if ($user->isEmployee() && $loan->employee_id != $user->employee_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -228,6 +232,15 @@ class LoanController extends Controller
             'remarks' => 'nullable|string|max:2000',
             'repayment_method' => 'nullable|string|in:salary_deduction,manual',
         ]);
+
+        if ($user->isEmployee()) {
+            $validated['employee_id'] = $user->employee_id;
+        } else {
+            $targetEmployee = Employee::findOrFail($validated['employee_id']);
+            if ($targetEmployee->company_id !== $loan->company_id) {
+                return back()->withErrors(['employee_id' => 'The selected employee must belong to the same branch.'])->withInput();
+            }
+        }
 
         // Recalculate monthly installment if amount, rate, or tenure changed
         if (
@@ -551,10 +564,7 @@ class LoanController extends Controller
      */
     private function notifyEmployee($employeeId, $notification)
     {
-        $employee = Employee::find($employeeId);
-        if ($employee && $employee->user) {
-            $this->notifyUser($employee->user->id, $notification);
-        }
+        \App\Services\NotificationService::notifyEmployee($employeeId, $notification);
     }
 
     /**

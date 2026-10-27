@@ -184,8 +184,9 @@ export default function Index({
         return formatDate(today);
     });
 
-    // Ref to track previous parameters
+    // Ref to track previous parameters and initial mount
     const prevParamsRef = useRef();
+    const isInitialMount = useRef(true);
 
     // Get days based on view mode
     const days = useMemo(() => {
@@ -242,6 +243,13 @@ export default function Index({
             params.start_date = customStart;
             params.end_date = customEnd;
         }
+
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            prevParamsRef.current = JSON.stringify(params);
+            return;
+        }
+
         updateRoster(params);
     }, [selectedCompany, selectedDepartment, weekStart, viewMode, monthYear, customStart, customEnd]);
 
@@ -1159,19 +1167,29 @@ export default function Index({
                                                     <div className="grid grid-cols-1 gap-2">
                                                         {days.map(day => {
                                                             const roster = rosterMap[`${emp.id}_${day.date}`];
-                                                            const isWeeklyOff = (roster && roster.is_weekly_off) || isEmployeeWeeklyOff(emp, day.date);
+                                                            const isLeave = Boolean(roster && (roster.shift_type === 'Leave' || roster.shift_time === 'On Leave' || (roster.notes && roster.notes.toLowerCase().includes('approved'))));
+                                                            const isWeeklyOff = !isLeave && ((roster && roster.is_weekly_off) || isEmployeeWeeklyOff(emp, day.date));
                                                             if (!roster && !isWeeklyOff) return null;
                                                             return (
-                                                                <div key={day.date} className={`flex justify-between items-center p-3 rounded-lg ${isSelf ? 'bg-white/10' : 'bg-gray-50'} ${isWeeklyOff ? 'border border-amber-200 bg-amber-50/20' : ''}`}>
+                                                                <div key={day.date} className={`flex justify-between items-center p-3 rounded-lg ${isLeave ? 'border border-rose-200 bg-rose-50/70 text-rose-800' : isSelf ? 'bg-white/10' : 'bg-gray-50'} ${isWeeklyOff ? 'border border-amber-200 bg-amber-50/20' : ''}`}>
                                                                     <div className="flex flex-col">
-                                                                        <span className={`text-[8px] font-normal uppercase tracking-normal ${isSelf ? 'text-indigo-100' : 'text-gray-400'}`}>{day.day}</span>
+                                                                        <span className={`text-[8px] font-normal uppercase tracking-normal ${isLeave ? 'text-rose-500' : isSelf ? 'text-indigo-100' : 'text-gray-400'}`}>{day.day}</span>
                                                                         <span className="text-xs font-normal">{day.label}</span>
                                                                     </div>
                                                                     <div className="text-right">
-                                                                        <span className={`text-xs font-semibold uppercase tracking-wide ${isWeeklyOff ? 'text-amber-700' : (isSelf ? 'text-white' : 'text-indigo-600')}`}>
-                                                                            {isWeeklyOff ? 'Weekly Off' : roster.shift_time}
-                                                                        </span>
-                                                                        {!isWeeklyOff && roster.shift_type && (
+                                                                        {isLeave ? (
+                                                                            <span className="text-xs font-semibold uppercase tracking-wide text-rose-700 flex items-center justify-end gap-1">
+                                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                                                                                On Leave
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className={`text-xs font-semibold uppercase tracking-wide ${isWeeklyOff ? 'text-amber-700' : (isSelf ? 'text-white' : 'text-indigo-600')}`}>
+                                                                                {isWeeklyOff ? 'Weekly Off' : roster.shift_time}
+                                                                            </span>
+                                                                        )}
+                                                                        {isLeave ? (
+                                                                            <p className="text-[9px] font-normal text-rose-500">{roster.notes || 'Approved Leave'}</p>
+                                                                        ) : !isWeeklyOff && roster.shift_type && (
                                                                             <p className={`text-[9px] font-normal uppercase ${isSelf ? 'text-indigo-100' : 'text-gray-400'}`}>{roster.shift_type}</p>
                                                                         )}
                                                                     </div>
@@ -1194,7 +1212,7 @@ export default function Index({
                                                     <th className="p-0 sticky left-0 z-[60] bg-white/95 backdrop-blur-md border-r border-b border-gray-100 min-w-[200px] shadow-[10px_0_30px_-15px_rgba(0,0,0,0.05)]">
                                                         <div className="px-5 py-3 text-left flex items-center gap-3">
                                                             <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-                                                                <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                                                 <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                                                             </div>
                                                             <div className="flex flex-col">
                                                                 <span className="text-[10px] font-normal text-gray-400 uppercase tracking-[0.2em] leading-none">Team Members</span>
@@ -1252,11 +1270,32 @@ export default function Index({
                                                                 {days.map(day => {
                                                                     const roster = rosterMap[`${emp.id}_${day.date}`];
                                                                     const isToday = day.date === todayDate;
-                                                                    const isWeeklyOff = (roster && roster.is_weekly_off) || isEmployeeWeeklyOff(emp, day.date);
+                                                                    const isLeave = Boolean(roster && (roster.shift_type === 'Leave' || roster.shift_time === 'On Leave' || (roster.notes && roster.notes.toLowerCase().includes('approved'))));
+                                                                    const isWeeklyOff = !isLeave && ((roster && roster.is_weekly_off) || isEmployeeWeeklyOff(emp, day.date));
 
                                                                     return (
-                                                                        <td key={day.date} className={`p-2 transition-all duration-500 ${isToday ? (isSelf ? 'bg-indigo-100/30' : 'bg-indigo-50/20') : ''}`}>
-                                                                            {isWeeklyOff ? (
+                                                                        <td key={day.date} className={`p-2 transition-all duration-500 ${isLeave ? 'bg-rose-50/25' : isToday ? (isSelf ? 'bg-indigo-100/30' : 'bg-indigo-50/20') : ''}`}>
+                                                                            {isLeave ? (
+                                                                                <div className="p-2.5 rounded-lg border border-rose-200 bg-rose-50/80 shadow-sm flex flex-col justify-between min-h-[58px] transition-all duration-300 relative group/cell hover:shadow-md hover:border-rose-300">
+                                                                                    <div className="flex items-center justify-between">
+                                                                                        <span className="text-xs font-bold text-rose-800 tracking-tight flex items-center gap-1.5">
+                                                                                            <span className="w-2 h-2 rounded-full bg-rose-500 inline-block animate-pulse"></span>
+                                                                                            On Leave
+                                                                                        </span>
+                                                                                        <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200/60">
+                                                                                            {roster.shift_type || 'Leave'}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="text-[9px] font-medium text-rose-600 truncate mt-1" title={roster.notes || 'Approved Leave'}>
+                                                                                        {roster.notes || 'Approved Leave'}
+                                                                                    </div>
+                                                                                    {!isEmployee && (
+                                                                                        <button onClick={() => handleOpenEdit(roster, emp, day)} className="absolute -top-2 -right-2 opacity-0 group-hover/cell:opacity-100 p-1.5 bg-rose-600 text-white rounded-lg shadow-lg hover:scale-110 active:scale-95 transition-all z-30">
+                                                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            ) : isWeeklyOff ? (
                                                                                 <div className="p-2 rounded-lg border border-amber-200 bg-amber-50/70 shadow-sm flex flex-col items-center justify-center h-12 text-center select-none animate-in fade-in duration-300">
                                                                                     <span className="text-[10px] font-bold text-amber-700 tracking-wider uppercase">Weekly Off</span>
                                                                                 </div>

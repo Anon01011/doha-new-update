@@ -34,6 +34,8 @@ export default function SystemSettings({ systemSettings }) {
         secondary_color: systemSettings.secondary_color || '#103c7f',
         accent_color: systemSettings.accent_color || '#818cf8',
         app_font: systemSettings.app_font || 'Inter',
+        notification_sound_enabled: systemSettings.notification_sound_enabled !== false,
+        notification_sound_file: systemSettings.notification_sound_file || '/sounds/notification.mp3',
         save_to_env: "0",
     });
 
@@ -569,6 +571,75 @@ export default function SystemSettings({ systemSettings }) {
                                             <p className="mt-1 text-[10px] font-normal text-rose-500">{errors.company_stamp}</p>
                                         )}
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Notification & Sound Settings */}
+                    <div className="glass-card premium-shadow rounded-lg p-5 border border-white/40">
+                        <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-100">
+                            <div>
+                                <h4 className="text-sm font-semibold text-gray-900 tracking-normal">System Notification & Sound Alerts</h4>
+                                <p className="text-xs text-gray-400 mt-0.5">Control the universal audio chime and notification triggers across the app</p>
+                            </div>
+                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-[10px] font-bold uppercase tracking-wider">
+                                Live Signal Hub
+                            </span>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between p-3.5 bg-gray-50/70 rounded-xl border border-gray-200/70">
+                                <div>
+                                    <label htmlFor="notification_sound_enabled" className="text-xs font-bold text-gray-800 block cursor-pointer">
+                                        Enable Notification Sound Effects
+                                    </label>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">
+                                        Plays a notification chime when leaves, rosters, appraisals, loans, or tasks update
+                                    </p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        id="notification_sound_enabled"
+                                        checked={data.notification_sound_enabled}
+                                        onChange={(e) => setData('notification_sound_enabled', e.target.checked)}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                </label>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-800 block mb-1.5">
+                                        Active Sound Effect
+                                    </label>
+                                    <select
+                                        value={data.notification_sound_file}
+                                        onChange={(e) => setData('notification_sound_file', e.target.value)}
+                                        className="w-full text-xs rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option value="/sounds/notification.mp3">Subtle Ding (Default Effect)</option>
+                                        <option value="/sounds/notification-chime.mp3">Melodic Chime (Harmonic)</option>
+                                    </select>
+                                </div>
+                                <div className="pt-2 sm:pt-6">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            try {
+                                                const audio = new Audio(data.notification_sound_file);
+                                                audio.volume = 0.8;
+                                                audio.play().catch(e => console.log('Audio test error:', e));
+                                            } catch (err) {
+                                                console.error(err);
+                                            }
+                                        }}
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-all"
+                                    >
+                                        <span>🔊 Preview Sound</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>

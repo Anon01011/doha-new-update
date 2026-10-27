@@ -91,6 +91,8 @@ class HandleInertiaRequests extends Middleware
                 'salary_slip_show_charts' => \App\Models\Setting::get('salary_slip_show_charts', '1', $user?->employee?->company_id) === '1' || \App\Models\Setting::get('salary_slip_show_charts', '1', $user?->employee?->company_id) === true,
                 'salary_slip_format' => \App\Models\Setting::get('salary_slip_format', 'classic', $user?->employee?->company_id),
                 'salary_slip_payment_display' => \App\Models\Setting::get('salary_slip_payment_display', 'full_details', $user?->employee?->company_id),
+                'notification_sound_enabled' => \App\Models\Setting::get('notification_sound_enabled', '1', $user?->employee?->company_id) === '1',
+                'notification_sound_file' => \App\Models\Setting::get('notification_sound_file', '/sounds/notification.mp3', $user?->employee?->company_id),
             ],
             'csrf_token' => csrf_token(),
             'flash' => [

@@ -405,6 +405,53 @@ class Employee extends Model
         return $this->attributes['joined_date'] ?? null;
     }
 
+    /**
+     * Dynamic current leave status (e.g. "On Leave (Sick Leave)" or "Available").
+     */
+    public function getCurrentLeaveStatusAttribute(): string
+    {
+        $today = now()->toDateString();
+        $activeLeave = $this->leaveRequests()
+            ->where('status', 'approved')
+            ->where('start_date', '<=', $today)
+            ->where('end_date', '>=', $today)
+            ->with('leaveType')
+            ->first();
+
+        if ($activeLeave) {
+            $typeName = $activeLeave->leaveType?->name ?? 'Leave';
+            return "On Leave ({$typeName})";
+        }
+
+        return $this->attributes['leave_status'] ?: 'Available';
+    }
+
+    /**
+     * Dynamic current shift based on approved ShiftRoster for today.
+     */
+    public function getCurrentShiftAttribute(): string
+    {
+        $today = now();
+        $weekStart = $today->copy()->startOfWeek(\Carbon\Carbon::MONDAY)->toDateString();
+        $dayName = $today->format('l');
+
+        $todayRoster = $this->shiftRosters()
+            ->where('week_start', $weekStart)
+            ->where('day', $dayName)
+            ->where('status', 'approved')
+            ->first();
+
+        if ($todayRoster) {
+            $details = $todayRoster->shift_time;
+            if ($todayRoster->shift_type && $todayRoster->shift_type !== $todayRoster->shift_time) {
+                $details .= " ({$todayRoster->shift_type})";
+            }
+            return $details;
+        }
+
+        return $this->attributes['shift'] ?: 'Not Scheduled';
+    }
+
     public function leaveRequests()
     {
         return $this->hasMany(LeaveRequest::class);
