@@ -714,7 +714,7 @@ export default function Create({
                     </div>
 
                     {/* Stats Summary */}
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-center">
                             <div className="text-xl font-bold text-gray-800">{conflictModal.total}</div>
                             <div className="text-[11px] font-medium text-gray-500">Total Existing Shifts</div>

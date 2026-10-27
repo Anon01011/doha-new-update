@@ -516,14 +516,14 @@ export default function Index({ branches = [], employees, attendances = [], rost
                 </div>
             )}
 
-            <div className="w-full h-[calc(100vh-64px)] flex flex-col bg-white">
+            <div className="w-full min-h-[calc(100vh-64px)] flex flex-col bg-white">
                 {/* Global Orchestration Bar */}
-                <div className="px-6 py-4 flex flex-col md:flex-row gap-6 items-center justify-between border-b border-slate-100 bg-white">
-                    <div className="flex items-center gap-6 w-full md:w-auto">
+                <div className="px-4 sm:px-6 py-4 flex flex-col md:flex-row gap-4 sm:gap-6 items-stretch md:items-center justify-between border-b border-slate-100 bg-white">
+                    <div className="flex flex-wrap items-center gap-3 sm:gap-6 w-full md:w-auto">
                         {!isEmployee && (
-                            <div className="relative">
+                            <div className="relative w-full sm:w-auto">
                                 <select
-                                    className="appearance-none bg-slate-50 border-slate-200 rounded-lg text-[11px] font-normal uppercase tracking-normal min-w-[240px] pl-4 pr-10 py-2.5 focus:border-primary focus:ring-primary/10 transition-all outline-none"
+                                    className="w-full appearance-none bg-slate-50 border-slate-200 rounded-lg text-[11px] font-normal uppercase tracking-normal min-w-0 sm:min-w-[240px] pl-4 pr-10 py-2.5 focus:border-primary focus:ring-primary/10 transition-all outline-none"
                                     value={selectedBranch}
                                     onChange={e => { setSelectedBranch(e.target.value); updateParams({ company_id: e.target.value }); }}
                                 >
