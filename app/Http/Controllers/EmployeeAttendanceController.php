@@ -908,6 +908,21 @@ class EmployeeAttendanceController extends Controller
             'date' => $today,
         ], $updateData);
 
+        // Notify Management Stakeholders (Admins, Branch HR, Managers, Direct Reporting Manager)
+        \App\Services\NotificationService::notifyManagementStakeholders(
+            new \App\Notifications\AttendanceEventNotification(
+                'Employee Clock In',
+                "{$employee->name} clocked in at " . now()->format('h:i A') . " ({$attendanceStatus}).",
+                $today,
+                'attendance_event',
+                route('employee-attendances.index', ['date' => $today])
+            ),
+            $employee->company_id,
+            $employee->department_id,
+            $user->id,
+            $employee
+        );
+
         return back()->with('success', 'Clocked in successfully at ' . now()->format('h:i A'));
     }
 
@@ -1004,6 +1019,33 @@ class EmployeeAttendanceController extends Controller
             'reason' => $isEarlyDeparture ? ($attendance->reason ? $attendance->reason . ' | Early Departure' : 'Early Departure') : $attendance->reason,
         ]);
 
+        // Notify Management Stakeholders (Admins, Branch HR, Managers, Direct Reporting Manager)
+        $emp = $attendance->employee ?: Employee::find($attendance->employee_id);
+        if ($emp) {
+            $msg = "{$emp->name} clocked out at " . $toTime->format('h:i A') . " ({$hoursWorked} hrs worked";
+            if ($totalBreakMinutes > 0) {
+                $msg .= ", {$totalBreakMinutes} mins break";
+            }
+            if ($ot > 0) {
+                $msg .= ", {$ot} hrs OT";
+            }
+            $msg .= ').';
+
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\AttendanceEventNotification(
+                    'Employee Clock Out',
+                    $msg,
+                    $attendance->date,
+                    'attendance_event',
+                    route('employee-attendances.index', ['date' => $attendance->date])
+                ),
+                $attendance->company_id,
+                $emp->department_id,
+                $user->id,
+                $emp
+            );
+        }
+
         return back()->with('success', 'Clocked out successfully at ' . $toTime->format('h:i A') . '. Total hours: ' . $hoursWorked . ' (Break: ' . $totalBreakMinutes . ' mins)');
     }
 
@@ -1057,6 +1099,24 @@ class EmployeeAttendanceController extends Controller
             'punches' => $punches
         ]);
 
+        // Notify Management Stakeholders (Admins, Branch HR, Managers, Direct Reporting Manager)
+        $emp = $attendance->employee ?: Employee::find($attendance->employee_id);
+        if ($emp) {
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\AttendanceEventNotification(
+                    'Employee Break Started',
+                    "{$emp->name} started a break at " . now()->format('h:i A') . ".",
+                    $attendance->date,
+                    'attendance_event',
+                    route('employee-attendances.index', ['date' => $attendance->date])
+                ),
+                $attendance->company_id,
+                $emp->department_id,
+                $user->id,
+                $emp
+            );
+        }
+
         return back()->with('success', 'Break started at ' . now()->format('h:i A'));
     }
 
@@ -1106,6 +1166,30 @@ class EmployeeAttendanceController extends Controller
             'punches' => $punches,
             'reason' => $overBreak ? ($attendance->reason ? $attendance->reason . ' | Over Break' : 'Over Break') : $attendance->reason,
         ]);
+
+        // Notify Management Stakeholders (Admins, Branch HR, Managers, Direct Reporting Manager)
+        $emp = $attendance->employee ?: Employee::find($attendance->employee_id);
+        if ($emp) {
+            $msg = "{$emp->name} resumed work from break at " . $breakEnd->format('h:i A') . " ({$duration} mins break)";
+            if ($overBreak) {
+                $msg .= ' [OVER BREAK]';
+            }
+            $msg .= '.';
+
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\AttendanceEventNotification(
+                    'Employee Break Ended',
+                    $msg,
+                    $attendance->date,
+                    'attendance_event',
+                    route('employee-attendances.index', ['date' => $attendance->date])
+                ),
+                $attendance->company_id,
+                $emp->department_id,
+                $user->id,
+                $emp
+            );
+        }
 
         return back()->with('success', 'Break ended. Duration: ' . $duration . ' minutes.');
     }

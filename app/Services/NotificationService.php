@@ -300,7 +300,8 @@ class NotificationService
         Notification $notification,
         ?int $companyId = null,
         ?int $departmentId = null,
-        ?int $excludeUserId = null
+        ?int $excludeUserId = null,
+        $employeeOrId = null
     ): int {
         $sentUserIds = [];
         $count = 0;
@@ -382,6 +383,20 @@ class NotificationService
                 $count++;
             } catch (\Throwable $e) {
                 Log::error("Failed to notify manager {$manager->id}: " . $e->getMessage());
+            }
+        }
+
+        // 4. Direct Reporting Manager (if employee provided)
+        if ($employeeOrId) {
+            $repManager = self::getReportingManagerUser($employeeOrId);
+            if ($repManager && (!$excludeUserId || $repManager->id !== $excludeUserId) && !in_array($repManager->id, $sentUserIds)) {
+                try {
+                    $repManager->notify($notification);
+                    $sentUserIds[] = $repManager->id;
+                    $count++;
+                } catch (\Throwable $e) {
+                    Log::error("Failed to notify direct reporting manager {$repManager->id}: " . $e->getMessage());
+                }
             }
         }
 
