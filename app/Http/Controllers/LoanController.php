@@ -168,8 +168,14 @@ class LoanController extends Controller
     public function show(Loan $loan)
     {
         $user = auth()->user();
-        if ($user->isEmployee() && $loan->employee_id != $user->employee_id) {
-            abort(403, 'Unauthorized access.');
+
+        // Default-deny: non-privileged users must own this record.
+        // The old `if ($user->isEmployee())` check was insufficient because a user
+        // with role=null would bypass it — isEmployee() returns false for null roles.
+        if (!$user->isAdmin() && !$user->isHR() && !$user->isManager() && !$user->hasPermission('view-loans')) {
+            if ((int) $loan->employee_id !== (int) $user->employee_id) {
+                abort(403, 'Unauthorized access.');
+            }
         }
 
         $loan->load('employee', 'approver', 'installments');

@@ -7,6 +7,9 @@ use App\Models\Training;
 use App\Models\Employee;
 use App\Models\Setting;
 use App\Mail\TrainingAssignedMail;
+use App\Services\NotificationService;
+use App\Notifications\TrainingAssignedNotification;
+use App\Notifications\GenericHrNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -189,6 +192,29 @@ class TrainingAssignmentController extends Controller
         }
 
         $count = count($assignments);
+
+        // Send in-app notifications to each newly assigned employee
+        foreach ($assignedEmployees as $emp) {
+            NotificationService::notifyEmployee(
+                $emp->id,
+                new TrainingAssignedNotification($training)
+            );
+        }
+
+        // Notify management stakeholders (HR, Admins, Managers) of the new batch assignment
+        if ($count > 0) {
+            NotificationService::notifyManagementStakeholders(
+                new GenericHrNotification(
+                    'Training Assignment',
+                    "{$count} employee(s) have been assigned to training: {$training->title}.",
+                    route('training-assignments.index', ['training_id' => $training->id]),
+                    'training_assigned'
+                ),
+                $companyId,
+                null,
+                auth()->id()
+            );
+        }
 
         // If some emails failed (e.g. SMTP not configured), redirect with a warning instead of error
         if (!empty($emailFailures)) {

@@ -110,8 +110,14 @@ class AdvanceController extends Controller
     public function show(Advance $advance)
     {
         $user = auth()->user();
-        if ($user->role === 'employee' && $advance->employee_id != $user->employee_id) {
-            abort(403, 'Unauthorized access.');
+
+        // Default-deny: non-privileged users must own this record.
+        // Using isEmployee() is insufficient because a user with role=null
+        // would bypass the condition entirely (isEmployee() returns false).
+        if (!$user->isAdmin() && !$user->isHR() && !$user->isManager() && !$user->hasPermission('view-advances')) {
+            if ((int) $advance->employee_id !== (int) $user->employee_id) {
+                abort(403, 'Unauthorized access.');
+            }
         }
 
         $advance->load('employee', 'approver');
@@ -178,8 +184,10 @@ class AdvanceController extends Controller
     public function destroy(Advance $advance)
     {
         $user = auth()->user();
-        if ($user->isEmployee()) {
-            if ($advance->employee_id != $user->employee_id) {
+
+        // Default-deny: non-privileged users must own the record AND it must be pending.
+        if (!$user->isAdmin() && !$user->isHR() && !$user->isManager() && !$user->hasPermission('approve-advances')) {
+            if ((int) $advance->employee_id !== (int) $user->employee_id) {
                 abort(403, 'Unauthorized access.');
             }
             if ($advance->status !== 'pending') {
