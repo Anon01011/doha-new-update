@@ -15,10 +15,10 @@ class ShiftAssignedNotification extends Notification implements ShouldQueue
     protected $shiftName;
     protected $shiftTime;
 
-    public function __construct(string $startDate, string $endDate, ?string $shiftName = null, ?string $shiftTime = null)
+    public function __construct(?string $startDate = null, ?string $endDate = null, ?string $shiftName = null, ?string $shiftTime = null)
     {
-        $this->startDate = $startDate;
-        $this->endDate   = $endDate;
+        $this->startDate = $startDate ?: now()->toDateString();
+        $this->endDate   = $endDate ?: $this->startDate;
         $this->shiftName = $shiftName;
         $this->shiftTime = $shiftTime;
     }

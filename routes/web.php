@@ -271,13 +271,16 @@ Route::middleware('auth')->group(function () {
     // delete another employee's offboarding request. The module is now restricted
     // to the management roles, and the state-changing endpoints additionally
     // enforce their own ownership / separation-of-duties checks in the controller.
+    // Offboarding routes: employees can submit their own resignation and view their own request
+    Route::resource('offboarding', \App\Http\Controllers\OffboardingController::class);
+    Route::get('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'exitInterview'])->name('offboarding.exit-interview');
+    Route::post('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'storeExitInterview'])->name('offboarding.exit-interview.store');
+
+    // Management-only offboarding actions
     Route::middleware('role:admin,hr,manager')->group(function () {
-        Route::resource('offboarding', \App\Http\Controllers\OffboardingController::class);
         Route::post('offboarding/{offboarding}/approve', [\App\Http\Controllers\OffboardingController::class, 'approve'])->name('offboarding.approve');
         Route::post('offboarding/{offboarding}/reject', [\App\Http\Controllers\OffboardingController::class, 'reject'])->name('offboarding.reject');
         Route::post('offboarding/{offboarding}/tasks/{task}', [\App\Http\Controllers\OffboardingController::class, 'updateTask'])->name('offboarding.tasks.update');
-        Route::get('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'exitInterview'])->name('offboarding.exit-interview');
-        Route::post('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'storeExitInterview'])->name('offboarding.exit-interview.store');
         Route::post('offboarding/{offboarding}/settlement', [\App\Http\Controllers\OffboardingController::class, 'settlementPreview'])->name('offboarding.settlement');
         Route::post('offboarding/{offboarding}/complete', [\App\Http\Controllers\OffboardingController::class, 'complete'])->name('offboarding.complete');
         Route::post('offboarding/{offboarding}/unlock', [\App\Http\Controllers\OffboardingController::class, 'unlockProfile'])->name('offboarding.unlock');

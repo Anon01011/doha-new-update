@@ -504,8 +504,12 @@ class ShiftRosterController extends Controller
             $this->sendBulkAutomaticNotifications($data);
 
             // In-app notification to affected employees that their roster has been created and assigned
-            $startDate = $data['week_start'] ?? now()->toDateString();
-            $endDate = !empty($data['entries']) ? collect($data['entries'])->max('date') : \Carbon\Carbon::parse($startDate)->addDays(6)->toDateString();
+            $startDate = !empty($data['week_start'])
+                ? $data['week_start']
+                : (!empty($data['entries']) ? (collect($data['entries'])->min('date') ?: now()->toDateString()) : now()->toDateString());
+            $endDate = !empty($data['entries'])
+                ? (collect($data['entries'])->max('date') ?: \Carbon\Carbon::parse($startDate)->addDays(6)->toDateString())
+                : \Carbon\Carbon::parse($startDate)->addDays(6)->toDateString();
             $affectedEmpIds = collect($data['entries'] ?? [])->pluck('employee_id')->filter()->unique();
             foreach ($affectedEmpIds as $empId) {
                 \App\Services\NotificationService::notifyEmployee(
@@ -806,10 +810,15 @@ class ShiftRosterController extends Controller
             if ($count > 0) {
                 $company = Company::find($data['company_id']);
                 if ($company) {
-                    $dispatchResult = $this->dispatchRosterNotifications($company, $data['week_start'], $data['department_id'] ?? null);
-                    if ($dispatchResult['dispatched']) {
-                        $channelsList = implode(', ', $dispatchResult['channels']);
-                        $notifStatus = " Notifications dispatched automatically via: {$channelsList} to {$dispatchResult['recipients_count']} employees.";
+                    try {
+                        $dispatchResult = $this->dispatchRosterNotifications($company, $data['week_start'], $data['department_id'] ?? null);
+                        if ($dispatchResult['dispatched']) {
+                            $channelsList = implode(', ', $dispatchResult['channels']);
+                            $notifStatus = " Notifications dispatched automatically via: {$channelsList} to {$dispatchResult['recipients_count']} employees.";
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning('Roster approval notification dispatch warning: ' . $e->getMessage());
+                        $notifStatus = " (⚠️ Email notification could not be sent: SMTP is not configured or proc_open is disabled on server.)";
                     }
                 }
             }
@@ -840,7 +849,7 @@ class ShiftRosterController extends Controller
 
             return back()->with('success', "✅ {$count} roster entries approved successfully!{$notifStatus}");
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('ShiftRoster approve error: ' . $e->getMessage());
             return back()->with('error', 'Error approving roster: ' . $e->getMessage());
         }
@@ -912,11 +921,15 @@ class ShiftRosterController extends Controller
 
                 // 1. Email Channel
                 if ($sendEmail && !empty($employee->email)) {
-                    try {
-                        Mail::to($employee->email)->queue(new EmployeeRosterMail($employee, $company, $employeeRoster, $dateRange));
-                        $sentToEmployee = true;
-                    } catch (\Exception $e) {
-                        Log::error("Failed to queue email for {$employee->name}: " . $e->getMessage());
+                    if (config('mail.default') === 'sendmail' && !function_exists('proc_open')) {
+                        Log::warning("proc_open is disabled on this server; skipping email dispatch for {$employee->name}.");
+                    } else {
+                        try {
+                            Mail::to($employee->email)->queue(new EmployeeRosterMail($employee, $company, $employeeRoster, $dateRange));
+                            $sentToEmployee = true;
+                        } catch (\Throwable $e) {
+                            Log::warning("Failed to queue email for {$employee->name}: " . $e->getMessage());
+                        }
                     }
                 }
 
@@ -925,7 +938,7 @@ class ShiftRosterController extends Controller
                     try {
                         \App\Jobs\SendWhatsAppRosterNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
                         $sentToEmployee = true;
-                    } catch (\Exception $e) {
+                    } catch (\Throwable $e) {
                         Log::error("Failed to dispatch WhatsApp for {$employee->name}: " . $e->getMessage());
                     }
                 }
@@ -935,7 +948,7 @@ class ShiftRosterController extends Controller
                     try {
                         \App\Jobs\SendRosterSmsNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
                         $sentToEmployee = true;
-                    } catch (\Exception $e) {
+                    } catch (\Throwable $e) {
                         Log::error("Failed to dispatch SMS for {$employee->name}: " . $e->getMessage());
                     }
                 }
@@ -956,7 +969,7 @@ class ShiftRosterController extends Controller
                 'channels'         => $enabledChannels,
                 'recipients_count' => $dispatchedCount,
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('dispatchRosterNotifications error: ' . $e->getMessage());
             return ['dispatched' => false, 'channels' => [], 'recipients_count' => 0];
         }
@@ -2538,7 +2551,7 @@ class ShiftRosterController extends Controller
                         'status' => 'sent',
                         'shifts_count' => count($employeeRoster)
                     ];
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     $failed++;
                     $results[] = [
                         'employee' => $employee->name,
@@ -2570,7 +2583,7 @@ class ShiftRosterController extends Controller
                 ]
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Error sending roster emails to selected employees: ' . $e->getMessage());
 
             return response()->json([
@@ -2740,7 +2753,7 @@ class ShiftRosterController extends Controller
                         'shifts_count' => count($employeeRoster)
                     ]
                 ]);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 Log::error('Failed to send roster notification to single employee', [
                     'employee_id' => $employee->id,
                     'employee_name' => $employee->name,
@@ -2751,7 +2764,7 @@ class ShiftRosterController extends Controller
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Failed to send email: ' . $e->getMessage()
+                    'message' => 'Failed to send email (SMTP or server mail error): ' . $e->getMessage()
                 ], 500);
             }
 

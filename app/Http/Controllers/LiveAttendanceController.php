@@ -35,6 +35,7 @@ class LiveAttendanceController extends Controller
                 'department_id' => $request->input('department_id', ''),
                 'status' => $request->input('status', 'all'),
                 'search' => $request->input('search', ''),
+                'only_logged' => $request->input('only_logged', '1'),
             ],
             'companies' => $feedData['companies'],
             'departments' => $feedData['departments'],
@@ -157,17 +158,23 @@ class LiveAttendanceController extends Controller
 
         $weeklyOffService = app(WeeklyOffService::class);
 
+        $onlyLogged = $request->has('only_logged')
+            ? in_array($request->input('only_logged'), ['1', 'true', true], true)
+            : true; // Default to showing only employees logged today
+
         // 5. Build Employee Statuses and Real-time Activity Events
         $processedEmployees = [];
         $activityEvents = [];
         $kpi = [
             'total' => $employees->count(),
+            'logged_today' => 0,
             'working' => 0,
             'on_break' => 0,
             'clocked_out' => 0,
             'not_checked_in' => 0,
             'on_leave' => 0,
             'weekly_off' => 0,
+            'attendance_rate' => 0,
         ];
 
         foreach ($employees as $emp) {
@@ -311,8 +318,16 @@ class LiveAttendanceController extends Controller
                 $kpi['not_checked_in']++;
             }
 
+            $isLoggedToday = in_array($status, ['working', 'on_break', 'clocked_out'], true);
+
             // Status filter check
             $statusFilter = $request->input('status', 'all');
+
+            // If only_logged is requested (and user hasn't explicitly selected an absent/leave status)
+            if ($onlyLogged && $statusFilter === 'all' && !$isLoggedToday) {
+                continue;
+            }
+
             if ($statusFilter !== 'all' && $statusFilter !== $status) {
                 continue;
             }
@@ -325,9 +340,12 @@ class LiveAttendanceController extends Controller
                 'designation' => $emp->designation ?? 'Team Member',
                 'department' => $emp->department?->name ?? 'General',
                 'company' => $emp->company?->name ?? 'Branch',
+                'phone' => $emp->mobile ?? null,
+                'email' => $emp->email ?? null,
                 'status' => $status,
                 'status_label' => $statusLabel,
                 'status_color' => $statusColor,
+                'is_logged_today' => $isLoggedToday,
                 'clock_in_time' => $clockInTime,
                 'clock_out_time' => $clockOutTime,
                 'break_start_time' => $breakStartTime,
@@ -335,11 +353,18 @@ class LiveAttendanceController extends Controller
                 'break_elapsed_minutes' => $breakElapsedMinutes,
                 'total_break_minutes' => $totalBreakMinutes,
                 'hours_worked' => $hoursWorked,
+                'normal_hours' => (float)($att?->normal_hours ?: 8),
+                'ot' => (float)($att?->ot ?: 0),
                 'attendance_status' => $att?->attendance ?? null,
                 'punches_count' => count($punches),
-                'punches' => array_slice(array_reverse($punches), 0, 4), // Latest 4 punches
+                'punches' => $punches,
+                'break_history' => $breakHistory,
             ];
         }
+
+        // Summary calculations
+        $kpi['logged_today'] = $kpi['working'] + $kpi['on_break'] + $kpi['clocked_out'];
+        $kpi['attendance_rate'] = $kpi['total'] > 0 ? round(($kpi['logged_today'] / $kpi['total']) * 100, 1) : 0;
 
         // Sort activity events descending by timestamp
         usort($activityEvents, fn($a, $b) => $b['timestamp'] <=> $a['timestamp']);
@@ -352,6 +377,8 @@ class LiveAttendanceController extends Controller
             'companies' => $availableCompanies,
             'departments' => $departments,
             'selected_company_id' => $selectedCompanyId,
+            'selected_department_id' => $request->input('department_id', ''),
+            'only_logged' => $onlyLogged,
             'date' => $today,
             'current_time' => $currentTimeString,
             'current_date' => $currentDateString,

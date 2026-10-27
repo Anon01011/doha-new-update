@@ -454,20 +454,20 @@ export default function AuthenticatedLayout({ header, children }) {
             title: 'TIME & ATTENDANCE',
             items: [
                 {
-                    name: 'Attendance',
+                    name: userRole === 'employee' ? 'My Attendance' : 'Attendance',
                     href: route('employee-attendances.index'),
                     icon: <FiClock className="h-4 w-4" />,
                     current: route().current('employee-attendances.*'),
-                    permissions: ['view-attendance'],
-                    roles: ['admin', 'hr', 'manager'],
+                    permissions: userRole === 'employee' ? [] : ['view-attendance'],
+                    roles: ['admin', 'hr', 'manager', 'employee'],
                 },
                 {
-                    name: 'Shift Roster',
+                    name: userRole === 'employee' ? 'My Shift Roster' : 'Shift Roster',
                     href: route('shift-rosters.index'),
                     icon: <FiCalendar className="h-4 w-4" />,
                     current: route().current('shift-rosters.*'),
-                    permissions: ['view-shift-rosters'],
-                    roles: ['admin', 'hr', 'manager'],
+                    permissions: userRole === 'employee' ? [] : ['view-shift-rosters'],
+                    roles: ['admin', 'hr', 'manager', 'employee'],
                     subMenu: [
                         {
                             name: 'Roster Schedule',
@@ -475,7 +475,8 @@ export default function AuthenticatedLayout({ header, children }) {
                             current:
                                 route().current('shift-rosters.index') ||
                                 route().current('shift-rosters.create'),
-                            permissions: ['view-shift-rosters'],
+                            permissions: userRole === 'employee' ? [] : ['view-shift-rosters'],
+                            roles: ['admin', 'hr', 'manager', 'employee'],
                         },
                         {
                             name: 'Approvals & Schedules',
@@ -699,7 +700,10 @@ export default function AuthenticatedLayout({ header, children }) {
                     href: route('offboarding.index'),
                     icon: <FiUserMinus className="h-4 w-4" />,
                     current: route().current('offboarding.*'),
-                    permissions: ['view-offboarding', 'create-offboarding'],
+                    permissions:
+                        userRole === 'employee'
+                            ? []
+                            : ['view-offboarding', 'create-offboarding'],
                     roles: ['admin', 'hr', 'manager', 'employee'],
                 },
             ],
