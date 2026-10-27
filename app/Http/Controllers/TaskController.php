@@ -567,7 +567,7 @@ class TaskController extends Controller
 
         $timer = $assignment->timers()->whereNull('end_time')->firstOrFail();
         $endTime = now();
-        $duration = $endTime->diffInMinutes($timer->start_time);
+        $duration = (int) round($endTime->diffInMinutes($timer->start_time, true));
 
         $timer->update([
             'end_time' => $endTime,

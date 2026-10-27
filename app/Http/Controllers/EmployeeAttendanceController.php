@@ -1146,7 +1146,7 @@ class EmployeeAttendanceController extends Controller
 
         $breakStart = $attendance->current_break_start;
         $breakEnd = now();
-        $duration = $breakEnd->diffInMinutes($breakStart);
+        $duration = (int) round($breakEnd->diffInMinutes($breakStart, true));
 
         $punches = $attendance->punches ?: [];
         $punches[] = [
