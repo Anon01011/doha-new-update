@@ -594,11 +594,10 @@ class EmployeeController extends Controller
         $internshipLifecycle = $employee->getInternshipLifecycle();
         $contractLifecycle   = $employee->getContractLifecycle();
 
-        // Salary visibility: Default is HR (and Admin).
-        // Can be configured for other roles via the 'view-employee-salary' permission.
-        $canSeeSalary = $user->isAdmin()
-            || $user->isHR()
-            || $user->hasPermission('view-employee-salary');
+        // Salary visibility is strictly controlled by the 'view-employee-salary' permission.
+        // It does not bypass for admin or HR: if the permission is unchecked on a role,
+        // users with that role will not be able to see salary on this profile page.
+        $canSeeSalary = $user->hasPermission('view-employee-salary', false);
 
 
         // Redact pay data at the source so it never reaches the browser for

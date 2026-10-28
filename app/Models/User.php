@@ -154,11 +154,14 @@ class User extends Authenticatable
 
     /**
      * Check if user has a specific permission.
+     *
+     * @param string|int $permission
+     * @param bool $allowAdminBypass When false, strictly checks assigned role/user permissions even for admin
      */
-    public function hasPermission($permission)
+    public function hasPermission($permission, bool $allowAdminBypass = true)
     {
-        // Admin has all permissions
-        if ($this->isAdmin()) {
+        // Admin has all permissions unless bypass is explicitly disabled
+        if ($allowAdminBypass && $this->isAdmin()) {
             return true;
         }
 

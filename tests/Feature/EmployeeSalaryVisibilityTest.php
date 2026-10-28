@@ -48,7 +48,53 @@ class EmployeeSalaryVisibilityTest extends TestCase
         ]);
     }
 
-    public function test_hr_role_can_see_employee_salary(): void
+    public function test_admin_with_salary_permission_can_see_salary(): void
+    {
+        $adminRole = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Administrator', 'is_active' => true]);
+        $adminRole->permissions()->syncWithoutDetaching([$this->viewSalaryPerm->id]);
+
+        $adminUser = User::create([
+            'name' => 'Admin User',
+            'email' => 'admin_' . uniqid() . '@example.test',
+            'password' => bcrypt('password'),
+            'role' => 'admin',
+        ]);
+        $adminUser->roles()->syncWithoutDetaching([$adminRole->id]);
+
+        $response = $this->actingAs($adminUser)->get(route('employees.show', $this->targetEmployee));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) =>
+            $page->component('Employee/Show')
+                ->where('can_see_salary', true)
+                ->has('employee.basic_salary')
+        );
+    }
+
+    public function test_admin_without_salary_permission_cannot_see_salary(): void
+    {
+        $adminRole = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Administrator', 'is_active' => true]);
+        $adminRole->permissions()->detach($this->viewSalaryPerm->id);
+
+        $adminUser = User::create([
+            'name' => 'Admin User Without Salary Perm',
+            'email' => 'admin_no_sal_' . uniqid() . '@example.test',
+            'password' => bcrypt('password'),
+            'role' => 'admin',
+        ]);
+        $adminUser->roles()->syncWithoutDetaching([$adminRole->id]);
+
+        $response = $this->actingAs($adminUser)->get(route('employees.show', $this->targetEmployee));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) =>
+            $page->component('Employee/Show')
+                ->where('can_see_salary', false)
+                ->missing('employee.basic_salary')
+        );
+    }
+
+    public function test_hr_role_with_permission_can_see_employee_salary(): void
     {
         $hrRole = Role::firstOrCreate(['slug' => 'hr'], ['name' => 'Human Resources', 'is_active' => true]);
         $hrRole->permissions()->syncWithoutDetaching([$this->viewEmployeesPerm->id, $this->viewSalaryPerm->id]);
@@ -72,25 +118,28 @@ class EmployeeSalaryVisibilityTest extends TestCase
         );
     }
 
-    public function test_admin_can_see_employee_salary(): void
+    public function test_hr_role_without_permission_cannot_see_employee_salary(): void
     {
-        $adminRole = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Administrator', 'is_active' => true]);
+        $hrRole = Role::firstOrCreate(['slug' => 'hr'], ['name' => 'Human Resources', 'is_active' => true]);
+        $hrRole->permissions()->syncWithoutDetaching([$this->viewEmployeesPerm->id]);
+        $hrRole->permissions()->detach($this->viewSalaryPerm->id);
 
-        $adminUser = User::create([
-            'name' => 'Admin User',
-            'email' => 'admin_' . uniqid() . '@example.test',
+        $hrUser = User::create([
+            'name' => 'HR User Without Salary Perm',
+            'email' => 'hr_no_sal_' . uniqid() . '@example.test',
             'password' => bcrypt('password'),
-            'role' => 'admin',
+            'role' => 'hr',
+            'company_id' => $this->company->id,
         ]);
-        $adminUser->roles()->syncWithoutDetaching([$adminRole->id]);
+        $hrUser->roles()->syncWithoutDetaching([$hrRole->id]);
 
-        $response = $this->actingAs($adminUser)->get(route('employees.show', $this->targetEmployee));
+        $response = $this->actingAs($hrUser)->get(route('employees.show', $this->targetEmployee));
 
         $response->assertOk();
         $response->assertInertia(fn ($page) =>
             $page->component('Employee/Show')
-                ->where('can_see_salary', true)
-                ->has('employee.basic_salary')
+                ->where('can_see_salary', false)
+                ->missing('employee.basic_salary')
         );
     }
 
@@ -143,4 +192,3 @@ class EmployeeSalaryVisibilityTest extends TestCase
         );
     }
 }
-
