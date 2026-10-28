@@ -64,6 +64,7 @@ class RolePermissionSeeder extends Seeder
         $permissions = [
             // Employee Module
             ['name' => 'View Employees', 'slug' => 'view-employees', 'module' => 'employee', 'description' => 'Can view employee list'],
+            ['name' => 'View Employee Salary', 'slug' => 'view-employee-salary', 'module' => 'employee', 'description' => 'Can view employee salary details and salary tab on profile'],
             ['name' => 'Create Employees', 'slug' => 'create-employees', 'module' => 'employee', 'description' => 'Can create new employees'],
             ['name' => 'Edit Employees', 'slug' => 'edit-employees', 'module' => 'employee', 'description' => 'Can edit employee information'],
             ['name' => 'Delete Employees', 'slug' => 'delete-employees', 'module' => 'employee', 'description' => 'Can delete employees'],

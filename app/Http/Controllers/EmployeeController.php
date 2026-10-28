@@ -533,7 +533,7 @@ class EmployeeController extends Controller
 
         // Multi-tenancy check: BelongsToCompany handles global filtering.
         // We only need to check if an employee is trying to see someone else's record.
-        if ($user->isEmployee() && $user->employee_id !== $employee->id) {
+        if ($user->isEmployee() && (int) $user->employee_id !== (int) $employee->id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -594,10 +594,11 @@ class EmployeeController extends Controller
         $internshipLifecycle = $employee->getInternshipLifecycle();
         $contractLifecycle   = $employee->getContractLifecycle();
 
-        // Salary privacy: the employee viewing their own profile is the only
-        // role allowed to see pay data on this page. Admin / HR / manager use
-        // the payroll and salary-structure modules instead.
-        $canSeeSalary = $linkedUser !== null && (int) $linkedUser->id === (int) $user->id;
+        // Salary visibility: Default is HR (and Admin).
+        // Can be configured for other roles via the 'view-employee-salary' permission.
+        $canSeeSalary = $user->isAdmin()
+            || $user->isHR()
+            || $user->hasPermission('view-employee-salary');
 
 
         // Redact pay data at the source so it never reaches the browser for

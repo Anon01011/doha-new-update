@@ -305,6 +305,12 @@ export default function ShowEmployee({
 
     const canViewSalary = Boolean(can_see_salary);
 
+    useEffect(() => {
+        if (!canViewSalary && activeTab === 'salary') {
+            setActiveTab('overview');
+        }
+    }, [canViewSalary, activeTab]);
+
     const TABS = [
         { id: 'overview', label: 'Profile Overview', icon: FiUser },
         { id: 'work', label: 'Work & Placement', icon: FiBriefcase },
@@ -880,7 +886,7 @@ export default function ShowEmployee({
                     {/* ============================================================== */}
                     {/* TAB 3: SALARY & BANKING */}
                     {/* ============================================================== */}
-                    {activeTab === 'salary' && (
+                    {canViewSalary && activeTab === 'salary' && (
                         <div className="space-y-6 animate-in fade-in duration-200">
 
                             {/* Salary Summary Card */}
