@@ -287,4 +287,78 @@ class User extends Authenticatable
     {
         return $this->role === 'employee' || $this->hasRole('employee');
     }
+
+    /**
+     * Get the assigned company / branch IDs for this user.
+     * Admin gets all company IDs.
+     * Non-admins get their primary company and any companies linked via employee_company pivot.
+     *
+     * @return \Illuminate\Support\Collection<int>
+     */
+    public function getAssignedCompanyIds(): \Illuminate\Support\Collection
+    {
+        if ($this->isAdmin()) {
+            return Company::withoutGlobalScope('company')->pluck('id');
+        }
+
+        $ids = collect();
+
+        $employee = null;
+        if ($this->employee_id) {
+            $employee = Employee::withoutGlobalScope('company')->find($this->employee_id);
+        } elseif (!empty($this->email)) {
+            $employee = Employee::withoutGlobalScope('company')->where('email', $this->email)->first();
+        }
+
+        if ($employee) {
+            if ($employee->company_id) {
+                $ids->push((int) $employee->company_id);
+            }
+            $pivotIds = \Illuminate\Support\Facades\DB::table('employee_company')
+                ->where('employee_id', $employee->id)
+                ->pluck('company_id');
+            $ids = $ids->merge($pivotIds->map(fn($id) => (int) $id));
+        }
+
+        if ($this->company_id) {
+            $ids->push((int) $this->company_id);
+        }
+
+        return $ids->filter()->unique()->values();
+    }
+
+    /**
+     * Get the assigned department IDs for this user.
+     * Admin gets all department IDs.
+     * Non-admins get their primary department and any departments linked via employee_department pivot.
+     *
+     * @return \Illuminate\Support\Collection<int>
+     */
+    public function getAssignedDepartmentIds(): \Illuminate\Support\Collection
+    {
+        if ($this->isAdmin()) {
+            return Department::withoutGlobalScope('company')->pluck('id');
+        }
+
+        $ids = collect();
+
+        $employee = null;
+        if ($this->employee_id) {
+            $employee = Employee::withoutGlobalScope('company')->find($this->employee_id);
+        } elseif (!empty($this->email)) {
+            $employee = Employee::withoutGlobalScope('company')->where('email', $this->email)->first();
+        }
+
+        if ($employee) {
+            if ($employee->department_id) {
+                $ids->push((int) $employee->department_id);
+            }
+            $pivotIds = \Illuminate\Support\Facades\DB::table('employee_department')
+                ->where('employee_id', $employee->id)
+                ->pluck('department_id');
+            $ids = $ids->merge($pivotIds->map(fn($id) => (int) $id));
+        }
+
+        return $ids->filter()->unique()->values();
+    }
 }

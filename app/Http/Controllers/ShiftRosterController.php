@@ -52,21 +52,14 @@ class ShiftRosterController extends Controller
                 $company_id = $user->employee->company_id;
             }
 
-            $assignedCompanyIds = collect();
             $companiesQuery = Company::withoutGlobalScope('company')->orderBy('name');
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                // Support multi-branch assignments: include both the primary company_id
-                // and any additional companies linked via the employee_company pivot table.
-                $employee = $user->employee;
-                $assignedCompanyIds = collect([$employee->company_id]);
-
-                // Check if the employee has additional companies via pivot
-                $pivotIds = \Illuminate\Support\Facades\DB::table('employee_company')
-                    ->where('employee_id', $employee->id)
-                    ->pluck('company_id');
-                $assignedCompanyIds = $assignedCompanyIds->merge($pivotIds)->unique()->filter()->values();
-
-                $companiesQuery->whereIn('id', $assignedCompanyIds);
+            if (!$user->isAdmin()) {
+                $assignedCompanyIds = $user->getAssignedCompanyIds();
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $companiesQuery->whereIn('id', $assignedCompanyIds);
+                }
+            } else {
+                $assignedCompanyIds = collect();
             }
             $companies = $companiesQuery->get(['id', 'name', 'slug']);
 
@@ -112,14 +105,8 @@ class ShiftRosterController extends Controller
 
             // Multi-department support: include departments from employee_department pivot
             $assignedDepartmentIds = collect();
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                $employee = $user->employee;
-                $assignedDepartmentIds = collect([$employee->department_id]);
-
-                $pivotDeptIds = \Illuminate\Support\Facades\DB::table('employee_department')
-                    ->where('employee_id', $employee->id)
-                    ->pluck('department_id');
-                $assignedDepartmentIds = $assignedDepartmentIds->merge($pivotDeptIds)->unique()->filter()->values();
+            if (!$user->isAdmin()) {
+                $assignedDepartmentIds = $user->getAssignedDepartmentIds();
             }
 
 
@@ -242,26 +229,18 @@ class ShiftRosterController extends Controller
                 abort(403, 'Unauthorized.');
             }
             $companiesQuery = Company::withoutGlobalScope('company')->orderBy('name');
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                // Support multi-branch assignments: include both the primary company_id
-                // and any additional companies linked via the employee_company pivot table.
-                $employee = $user->employee;
-                $assignedCompanyIds = collect([$employee->company_id]);
-
-                // Check if the employee has additional companies via pivot
-                $pivotIds = \Illuminate\Support\Facades\DB::table('employee_company')
-                    ->where('employee_id', $employee->id)
-                    ->pluck('company_id');
-                $assignedCompanyIds = $assignedCompanyIds->merge($pivotIds)->unique()->filter()->values();
-
-                $companiesQuery->whereIn('id', $assignedCompanyIds);
+            if (!$user->isAdmin()) {
+                $assignedCompanyIds = $user->getAssignedCompanyIds();
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $companiesQuery->whereIn('id', $assignedCompanyIds);
+                }
             }
             $companies = $companiesQuery->get(['id', 'name', 'slug']);
             $companyParam = $request->input('company');
             $departmentParam = $request->input('department');
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id) {
+            // Multi-tenancy check: for plain employees force their branch; HR/Manager can pick freely within assigned
+            if (!$user->isAdmin() && !$user->isHR() && !$user->isManager() && $user->employee_id) {
                 $companyParam = $user->employee->company_id;
             }
 
@@ -1105,24 +1084,16 @@ class ShiftRosterController extends Controller
 
             // Multi-tenancy scoping
             $company_id = $request->input('company_id');
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
+            if (!$user->isAdmin() && !$user->isHR() && !$user->isManager() && $user->employee_id && $user->employee) {
                 $company_id = $user->employee->company_id;
             }
 
             $companiesQuery = Company::withoutGlobalScope('company')->orderBy('name');
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                // Support multi-branch assignments: include both the primary company_id
-                // and any additional companies linked via the employee_company pivot table.
-                $employee = $user->employee;
-                $assignedCompanyIds = collect([$employee->company_id]);
-
-                // Check if the employee has additional companies via pivot
-                $pivotIds = \Illuminate\Support\Facades\DB::table('employee_company')
-                    ->where('employee_id', $employee->id)
-                    ->pluck('company_id');
-                $assignedCompanyIds = $assignedCompanyIds->merge($pivotIds)->unique()->filter()->values();
-
-                $companiesQuery->whereIn('id', $assignedCompanyIds);
+            if (!$user->isAdmin()) {
+                $assignedCompanyIds = $user->getAssignedCompanyIds();
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $companiesQuery->whereIn('id', $assignedCompanyIds);
+                }
             }
             $companies = $companiesQuery->get(['id', 'name', 'slug']);
 
@@ -1139,8 +1110,13 @@ class ShiftRosterController extends Controller
             // Base query for schedule batches
             $query = ShiftRoster::withoutGlobalScope('company')->newQuery();
 
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                $query->where('company_id', $user->employee->company_id);
+            if (!$user->isAdmin()) {
+                $assignedIds = $user->getAssignedCompanyIds();
+                if ($company_id) {
+                    $query->where('company_id', $company_id);
+                } elseif ($assignedIds->isNotEmpty()) {
+                    $query->whereIn('company_id', $assignedIds);
+                }
             } elseif ($company_id) {
                 $query->where('company_id', $company_id);
             }

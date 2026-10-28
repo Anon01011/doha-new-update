@@ -206,17 +206,28 @@ class EmployeeController extends Controller
             abort(403, 'Unauthorized. You do not have permission to create employees.');
         }
 
-        $companies = Company::orderBy('name')->get(['id', 'name']);
+        $assignedCompanyIds = $user->getAssignedCompanyIds();
+        $companiesQuery = Company::orderBy('name');
+        if (!$user->isAdmin() && $assignedCompanyIds->isNotEmpty()) {
+            $companiesQuery->whereIn('id', $assignedCompanyIds);
+        }
+        $companies = $companiesQuery->get(['id', 'name']);
+
         // Branch-scope departments
         $departmentsQuery = Department::orderBy('name');
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-            $companyId = $user->employee->company_id;
-            $departmentsQuery->where(function ($q) use ($companyId) {
-                $q->where('departments.company_id', $companyId)
-                  ->orWhereHas('companies', function ($sub) use ($companyId) {
-                      $sub->where('companies.id', $companyId);
-                  });
-            });
+        if (!$user->isAdmin()) {
+            if ($assignedCompanyIds->isNotEmpty()) {
+                $departmentsQuery->where(function ($q) use ($assignedCompanyIds) {
+                    $q->whereIn('departments.company_id', $assignedCompanyIds)
+                      ->orWhereHas('companies', function ($sub) use ($assignedCompanyIds) {
+                          $sub->whereIn('companies.id', $assignedCompanyIds);
+                      });
+                });
+            }
+            $assignedDepartmentIds = $user->getAssignedDepartmentIds();
+            if ($assignedDepartmentIds->isNotEmpty()) {
+                $departmentsQuery->whereIn('departments.id', $assignedDepartmentIds);
+            }
         }
         $departments = $departmentsQuery->distinct()->get(['departments.id', 'name']);
         $salaryComponents = \App\Models\SalaryComponent::where('is_active', true)->get();
@@ -653,17 +664,28 @@ class EmployeeController extends Controller
         }
 
         $employee->load(['salaryStructures.component', 'weeklyOffs', 'user.roles', 'companies', 'departments']);
-        $companies = Company::orderBy('name')->get(['id', 'name']);
+        $assignedCompanyIds = $user->getAssignedCompanyIds();
+        $companiesQuery = Company::orderBy('name');
+        if (!$user->isAdmin() && $assignedCompanyIds->isNotEmpty()) {
+            $companiesQuery->whereIn('id', $assignedCompanyIds);
+        }
+        $companies = $companiesQuery->get(['id', 'name']);
+
         // Branch-scope departments
         $departmentsQuery = Department::orderBy('name');
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-            $companyId = $user->employee->company_id;
-            $departmentsQuery->where(function ($q) use ($companyId) {
-                $q->where('departments.company_id', $companyId)
-                  ->orWhereHas('companies', function ($sub) use ($companyId) {
-                      $sub->where('companies.id', $companyId);
-                  });
-            });
+        if (!$user->isAdmin()) {
+            if ($assignedCompanyIds->isNotEmpty()) {
+                $departmentsQuery->where(function ($q) use ($assignedCompanyIds) {
+                    $q->whereIn('departments.company_id', $assignedCompanyIds)
+                      ->orWhereHas('companies', function ($sub) use ($assignedCompanyIds) {
+                          $sub->whereIn('companies.id', $assignedCompanyIds);
+                      });
+                });
+            }
+            $assignedDepartmentIds = $user->getAssignedDepartmentIds();
+            if ($assignedDepartmentIds->isNotEmpty()) {
+                $departmentsQuery->whereIn('departments.id', $assignedDepartmentIds);
+            }
         }
         $departments = $departmentsQuery->distinct()->get(['departments.id', 'name']);
         $salaryComponents = \App\Models\SalaryComponent::where('is_active', true)->get();
