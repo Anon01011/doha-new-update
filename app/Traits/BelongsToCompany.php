@@ -39,35 +39,94 @@ trait BelongsToCompany
                     return;
                 }
 
-                // Prioritize company_id directly on the user model to avoid relationship recursion
-                $companyId = $user->company_id;
+                // Resolve assigned companies safely without triggering Eloquent recursion
+                $assignedCompanyIds = $user->getAssignedCompanyIds();
 
-                if (!$companyId && $user->employee_id) {
-                    // If company_id is not on user, get it from employee table directly 
-                    // to avoid triggering Eloquent global scopes recursively (cached request-wide)
-                    static $employeeCompanyIds = [];
-                    if (!isset($employeeCompanyIds[$user->employee_id])) {
-                        $employeeCompanyIds[$user->employee_id] = \Illuminate\Support\Facades\DB::table('employees')
-                            ->where('id', $user->employee_id)
-                            ->value('company_id');
-                    }
-                    $companyId = $employeeCompanyIds[$user->employee_id];
-                }
-
-                if ($companyId) {
-                    $builder->where(function ($query) use ($companyId) {
-                        $model = new static;
-                        $table = $model->getTable();
-                        
-                        // If the model is Company itself, scope by id
-                        if ($model instanceof \App\Models\Company) {
-                            $query->where($table . '.id', $companyId);
-                        } else {
-                            $column = in_array('branch_id', $model->getFillable()) ? 'branch_id' : 'company_id';
-                            $query->where($table . '.' . $column, $companyId);
+                // Fallback to user company_id if getAssignedCompanyIds returned empty
+                if ($assignedCompanyIds->isEmpty()) {
+                    $companyId = $user->company_id;
+                    if (!$companyId && $user->employee_id) {
+                        static $employeeCompanyIds = [];
+                        if (!isset($employeeCompanyIds[$user->employee_id])) {
+                            $employeeCompanyIds[$user->employee_id] = \Illuminate\Support\Facades\DB::table('employees')
+                                ->where('id', $user->employee_id)
+                                ->value('company_id');
                         }
-                    });
+                        $companyId = $employeeCompanyIds[$user->employee_id];
+                    }
+                    if ($companyId) {
+                        $assignedCompanyIds = collect([(int) $companyId]);
+                    }
                 }
+
+                // Resolve reporting subordinates (subordinates across any branch/department)
+                $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+
+                $builder->where(function ($query) use ($assignedCompanyIds, $subordinateIds) {
+                    $model = new static;
+                    $table = $model->getTable();
+                    $fillable = $model->getFillable();
+
+                    // If the model is Company itself, scope by id
+                    if ($model instanceof \App\Models\Company) {
+                        if ($assignedCompanyIds->isNotEmpty()) {
+                            $query->whereIn($table . '.id', $assignedCompanyIds);
+                        } else {
+                            $query->whereRaw('1 = 0');
+                        }
+                        return;
+                    }
+
+                    $column = in_array('branch_id', $fillable) ? 'branch_id' : 'company_id';
+                    $hasEmployeeColumn = in_array('employee_id', $fillable) || $table === 'leave_requests' || $table === 'shift_rosters' || $table === 'employee_attendances';
+
+                    // For Employee model itself: match assigned companies OR reporting subordinates
+                    if ($model instanceof \App\Models\Employee) {
+                        $query->where(function ($sub) use ($table, $column, $assignedCompanyIds, $subordinateIds) {
+                            if ($assignedCompanyIds->isNotEmpty()) {
+                                $sub->whereIn($table . '.' . $column, $assignedCompanyIds);
+                            }
+                            if ($subordinateIds->isNotEmpty()) {
+                                if ($assignedCompanyIds->isNotEmpty()) {
+                                    $sub->orWhereIn($table . '.id', $subordinateIds);
+                                } else {
+                                    $sub->whereIn($table . '.id', $subordinateIds);
+                                }
+                            }
+                            if ($assignedCompanyIds->isEmpty() && $subordinateIds->isEmpty()) {
+                                $sub->whereRaw('1 = 0');
+                            }
+                        });
+                        return;
+                    }
+
+                    // For records with employee_id: match assigned companies OR records of subordinates
+                    if ($hasEmployeeColumn) {
+                        $query->where(function ($sub) use ($table, $column, $assignedCompanyIds, $subordinateIds) {
+                            if ($assignedCompanyIds->isNotEmpty()) {
+                                $sub->whereIn($table . '.' . $column, $assignedCompanyIds);
+                            }
+                            if ($subordinateIds->isNotEmpty()) {
+                                if ($assignedCompanyIds->isNotEmpty()) {
+                                    $sub->orWhereIn($table . '.employee_id', $subordinateIds);
+                                } else {
+                                    $sub->whereIn($table . '.employee_id', $subordinateIds);
+                                }
+                            }
+                            if ($assignedCompanyIds->isEmpty() && $subordinateIds->isEmpty()) {
+                                $sub->whereRaw('1 = 0');
+                            }
+                        });
+                        return;
+                    }
+
+                    // Default organizational models (departments, holidays, components, etc.)
+                    if ($assignedCompanyIds->isNotEmpty()) {
+                        $query->whereIn($table . '.' . $column, $assignedCompanyIds);
+                    } else {
+                        $query->whereRaw('1 = 0');
+                    }
+                });
             }
         });
 

@@ -55,8 +55,14 @@ class ShiftRosterController extends Controller
             $companiesQuery = Company::withoutGlobalScope('company')->orderBy('name');
             if (!$user->isAdmin()) {
                 $assignedCompanyIds = $user->getAssignedCompanyIds();
-                if ($assignedCompanyIds->isNotEmpty()) {
-                    $companiesQuery->whereIn('id', $assignedCompanyIds);
+                $subordinateCompanyIds = \Illuminate\Support\Facades\DB::table('employees')
+                    ->whereIn('id', $user->getSubordinateEmployeeIds(true))
+                    ->pluck('company_id')
+                    ->filter()
+                    ->unique();
+                $accessibleCompanyIds = $assignedCompanyIds->merge($subordinateCompanyIds)->unique()->values();
+                if ($accessibleCompanyIds->isNotEmpty()) {
+                    $companiesQuery->whereIn('id', $accessibleCompanyIds);
                 }
             } else {
                 $assignedCompanyIds = collect();
@@ -215,6 +221,8 @@ class ShiftRosterController extends Controller
                 'assignedCompanyIds'    => $assignedCompanyIds->values()->all(),
                 'weekApprovalStatus' => $weekApprovalStatus,
             ]);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster index error: ' . $e->getMessage());
             return back()->with('error', 'Error loading roster data: ' . $e->getMessage());
@@ -231,8 +239,14 @@ class ShiftRosterController extends Controller
             $companiesQuery = Company::withoutGlobalScope('company')->orderBy('name');
             if (!$user->isAdmin()) {
                 $assignedCompanyIds = $user->getAssignedCompanyIds();
-                if ($assignedCompanyIds->isNotEmpty()) {
-                    $companiesQuery->whereIn('id', $assignedCompanyIds);
+                $subordinateCompanyIds = \Illuminate\Support\Facades\DB::table('employees')
+                    ->whereIn('id', $user->getSubordinateEmployeeIds(true))
+                    ->pluck('company_id')
+                    ->filter()
+                    ->unique();
+                $accessibleCompanyIds = $assignedCompanyIds->merge($subordinateCompanyIds)->unique()->values();
+                if ($accessibleCompanyIds->isNotEmpty()) {
+                    $companiesQuery->whereIn('id', $accessibleCompanyIds);
                 }
             }
             $companies = $companiesQuery->get(['id', 'name', 'slug']);
@@ -340,6 +354,8 @@ class ShiftRosterController extends Controller
                 'shiftTypes'         => $shiftTypes,
                 'approvedLeaves'     => $approvedLeaves,
             ]);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster create error: ' . $e->getMessage());
             return back()->with('error', 'Error loading create form: ' . $e->getMessage());
@@ -453,6 +469,8 @@ class ShiftRosterController extends Controller
                 'conflicts' => array_values($conflicts),
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('checkConflicts error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
@@ -469,9 +487,10 @@ class ShiftRosterController extends Controller
             // SECURITY: Do NOT log $request->all() — it may contain sensitive shift/employee data.
             Log::info('ShiftRoster store initiated', ['user_id' => auth()->id()]);
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($request->input('company_id') && $request->input('company_id') != $user->employee->company_id) {
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin()) {
+                $targetCompanyId = $request->input('company_id');
+                if ($targetCompanyId && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $targetCompanyId)) {
                     abort(403, 'Unauthorized access to another branch.');
                 }
             }
@@ -526,6 +545,8 @@ class ShiftRosterController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('ShiftRoster validation error: ' . json_encode($e->errors()));
             return back()->withErrors($e->errors())->withInput();
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster store error: ' . $e->getMessage());
             Log::error('Stack trace: ' . $e->getTraceAsString());
@@ -547,6 +568,8 @@ class ShiftRosterController extends Controller
                 'roster' => $shiftRoster,
                 'shiftTemplates' => $this->shiftTemplates,
             ]);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster show error: ' . $e->getMessage());
             return back()->with('error', 'Error loading roster details: ' . $e->getMessage());
@@ -573,6 +596,8 @@ class ShiftRosterController extends Controller
                 'shiftTemplates' => $this->shiftTemplates,
                 'shiftTypes' => $shiftTypes,
             ]);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster edit error: ' . $e->getMessage());
             return back()->with('error', 'Error loading edit form: ' . $e->getMessage());
@@ -587,11 +612,9 @@ class ShiftRosterController extends Controller
                 abort(403, 'Unauthorized.');
             }
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($shiftRoster->company_id != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, $shiftRoster)) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             $data = $request->validate([
@@ -654,6 +677,8 @@ class ShiftRosterController extends Controller
             }
 
             return back()->withErrors($e->errors())->withInput();
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster update error: ' . $e->getMessage());
 
@@ -701,11 +726,9 @@ class ShiftRosterController extends Controller
 
             $user = auth()->user();
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($data['company_id'] != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $data['company_id'])) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             $query = ShiftRoster::where('company_id', $data['company_id'])
@@ -1017,6 +1040,8 @@ class ShiftRosterController extends Controller
 
             return back()->with('success', "❌ {$count} roster entries rejected. Creator can revise and resubmit.");
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster reject error: ' . $e->getMessage());
             return back()->with('error', 'Error rejecting roster: ' . $e->getMessage());
@@ -1057,6 +1082,8 @@ class ShiftRosterController extends Controller
 
             return back()->with('success', "{$count} roster entries reset to pending.");
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster reset error: ' . $e->getMessage());
             return back()->with('error', 'Error resetting roster: ' . $e->getMessage());
@@ -1091,8 +1118,14 @@ class ShiftRosterController extends Controller
             $companiesQuery = Company::withoutGlobalScope('company')->orderBy('name');
             if (!$user->isAdmin()) {
                 $assignedCompanyIds = $user->getAssignedCompanyIds();
-                if ($assignedCompanyIds->isNotEmpty()) {
-                    $companiesQuery->whereIn('id', $assignedCompanyIds);
+                $subordinateCompanyIds = \Illuminate\Support\Facades\DB::table('employees')
+                    ->whereIn('id', $user->getSubordinateEmployeeIds(true))
+                    ->pluck('company_id')
+                    ->filter()
+                    ->unique();
+                $accessibleCompanyIds = $assignedCompanyIds->merge($subordinateCompanyIds)->unique()->values();
+                if ($accessibleCompanyIds->isNotEmpty()) {
+                    $companiesQuery->whereIn('id', $accessibleCompanyIds);
                 }
             }
             $companies = $companiesQuery->get(['id', 'name', 'slug']);
@@ -1277,6 +1310,8 @@ class ShiftRosterController extends Controller
                 'userRole'     => $user->role,
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster managementIndex error: ' . $e->getMessage());
             return back()->with('error', 'Error loading roster management: ' . $e->getMessage());
@@ -1308,11 +1343,9 @@ class ShiftRosterController extends Controller
             $company_id = $request->company_id;
             $week_start = $request->week_start;
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                if ($company_id != $user->employee->company_id) {
-                    return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
-                }
+            // Multi-tenancy & reporting check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $company_id)) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
             }
 
             $company = Company::findOrFail($company_id);
@@ -1427,6 +1460,8 @@ class ShiftRosterController extends Controller
                 ]
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster getBatchDetails error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Error loading details: ' . $e->getMessage()], 500);
@@ -1441,17 +1476,17 @@ class ShiftRosterController extends Controller
                 abort(403, 'Unauthorized.');
             }
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($shiftRoster->company_id != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, $shiftRoster)) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             $shiftRoster->delete();
             Log::info('ShiftRoster deleted', ['id' => $shiftRoster->id]);
 
             return back()->with('success', 'Roster deleted successfully!');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster destroy error: ' . $e->getMessage());
             return back()->with('error', 'Error deleting roster: ' . $e->getMessage());
@@ -1478,11 +1513,9 @@ class ShiftRosterController extends Controller
                 'notes' => 'nullable|string|max:1000',
             ]);
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($data['company_id'] != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $data['company_id'])) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             // Ensure week_start is normalized to Monday
@@ -1553,6 +1586,8 @@ class ShiftRosterController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('ShiftRoster create shift validation error: ' . json_encode($e->errors()));
             return back()->withErrors($e->errors());
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster create shift error: ' . $e->getMessage());
             return back()->with('error', 'Error creating shift: ' . $e->getMessage());
@@ -1574,14 +1609,12 @@ class ShiftRosterController extends Controller
 
             $data = $this->validateRosterData($request);
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($data['company_id'] != $user->employee->company_id) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Unauthorized access to another branch.'
-                    ], 403);
-                }
+            // Multi-tenancy & reporting check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $data['company_id'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized access to another branch.'
+                ], 403);
             }
 
             $result = $this->processRosterEntries($data);
@@ -1592,6 +1625,8 @@ class ShiftRosterController extends Controller
                 'data' => $result
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster bulk store error: ' . $e->getMessage());
             return response()->json([
@@ -1624,11 +1659,9 @@ class ShiftRosterController extends Controller
             $data['source_week'] = Carbon::parse($data['source_week'])->startOfWeek(Carbon::MONDAY)->toDateString();
             $data['target_week'] = Carbon::parse($data['target_week'])->startOfWeek(Carbon::MONDAY)->toDateString();
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($data['company_id'] != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $data['company_id'])) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             $query = ShiftRoster::where('company_id', $data['company_id'])
@@ -1729,10 +1762,14 @@ class ShiftRosterController extends Controller
                 DB::commit();
                 return back()->with('success', "Successfully duplicated {$duplicatedCount} roster entries to week starting {$data['target_week']}");
 
-            } catch (\Exception $e) {
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
+        } catch (\Exception $e) {
                 DB::rollBack();
                 throw $e;
             }
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster duplicate week error: ' . $e->getMessage());
             return back()->with('error', 'Error duplicating week: ' . $e->getMessage());
@@ -1752,11 +1789,9 @@ class ShiftRosterController extends Controller
                 'company_id' => 'required|exists:companies,id',
             ]);
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($data['company_id'] != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $data['company_id'])) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             $query = ShiftRoster::where('company_id', $data['company_id'])
@@ -1772,6 +1807,8 @@ class ShiftRosterController extends Controller
 
             return back()->with('success', "Successfully cleared {$deletedCount} roster entries");
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster clear week error: ' . $e->getMessage());
             return back()->with('error', 'Error clearing week: ' . $e->getMessage());
@@ -1791,11 +1828,9 @@ class ShiftRosterController extends Controller
                 'company_id' => 'required|exists:companies,id',
             ]);
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($data['company_id'] != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $data['company_id'])) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             $weekStart = Carbon::parse($data['week_start']);
@@ -2005,6 +2040,8 @@ class ShiftRosterController extends Controller
                 'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             ])->deleteFileAfterSend(true);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster export week error: ' . $e->getMessage());
             return response()->json([
@@ -2073,11 +2110,9 @@ class ShiftRosterController extends Controller
                 return response()->json(['success' => false, 'message' => 'Company ID is required.'], 422);
             }
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($company_id != $user->employee->company_id) {
-                    return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
-                }
+            // Multi-tenancy & reporting check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $company_id)) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
             }
 
             $company = Company::findOrFail($company_id);
@@ -2309,7 +2344,9 @@ class ShiftRosterController extends Controller
                         ],
                         'shifts_count' => count($employeeRoster)
                     ]);
-                } catch (\Exception $e) {
+                } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
+        } catch (\Exception $e) {
                     $failed++;
                     $results[] = [
                         'employee' => $employee->name,
@@ -2348,6 +2385,8 @@ class ShiftRosterController extends Controller
                 ]
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Error sending roster emails: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
@@ -2391,11 +2430,9 @@ class ShiftRosterController extends Controller
             $start_date = $request->input('start_date');
             $end_date = $request->input('end_date');
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($company_id != $user->employee->company_id) {
-                    return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
-                }
+            // Multi-tenancy & reporting check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $company_id)) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
             }
 
             $company = Company::findOrFail($company_id);
@@ -2598,11 +2635,9 @@ class ShiftRosterController extends Controller
             $start_date = $request->input('start_date');
             $end_date = $request->input('end_date');
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($company_id != $user->employee->company_id) {
-                    return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
-                }
+            // Multi-tenancy & reporting check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $company_id)) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
             }
 
             $company = Company::findOrFail($company_id);
@@ -2744,6 +2779,8 @@ class ShiftRosterController extends Controller
                 ], 500);
             }
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Error sending roster email to single employee: ' . $e->getMessage());
 
@@ -2797,7 +2834,9 @@ class ShiftRosterController extends Controller
                 ];
 
                 \App\Jobs\SendWhatsAppRosterNotification::dispatch($shiftRoster->employee, $shiftRoster->company, $employeeRoster, $dateRange);
-            } catch (\Exception $e) {
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
+        } catch (\Exception $e) {
                 Log::error('Auto-WhatsApp notification failed: ' . $e->getMessage());
             }
         }
@@ -2915,10 +2954,14 @@ class ShiftRosterController extends Controller
                 try {
                     \App\Jobs\SendWhatsAppRosterNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
                     Log::info("sendBulkAutomaticNotifications: WhatsApp queued for {$employee->name} (ID: {$empId}), shifts: " . count($employeeRoster));
-                } catch (\Exception $e) {
+                } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
+        } catch (\Exception $e) {
                     Log::error("sendBulkAutomaticNotifications: Failed for employee {$empId}: " . $e->getMessage());
                 }
             }
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             // Never break the save flow — just log
             Log::error('sendBulkAutomaticNotifications error: ' . $e->getMessage());
@@ -2955,6 +2998,8 @@ class ShiftRosterController extends Controller
                 ]
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -3011,6 +3056,8 @@ class ShiftRosterController extends Controller
                 ]
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -3373,6 +3420,8 @@ class ShiftRosterController extends Controller
 
             return ['created' => 0, 'updated' => $updatedCount, 'errors' => $errors];
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Error in processRosterEntries: ' . $e->getMessage());
             Log::error('Stack trace: ' . $e->getTraceAsString());

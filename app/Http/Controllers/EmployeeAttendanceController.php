@@ -721,12 +721,26 @@ class EmployeeAttendanceController extends Controller
 
         // Fetch roster/attendance data
         $employeesQuery = Employee::with(['weeklyOffs', 'company'])->orderBy('name');
+        $subordinateIds = $user->getSubordinateEmployeeIds(true);
+
         if ($company_id) {
-            $employeesQuery->where('company_id', $company_id);
+            if ($subordinateIds->isNotEmpty()) {
+                $employeesQuery->where(function ($q) use ($company_id, $subordinateIds) {
+                    $q->where('company_id', $company_id)->orWhereIn('id', $subordinateIds);
+                });
+            } else {
+                $employeesQuery->where('company_id', $company_id);
+            }
         }
 
         if (!$user->isAdmin() && !$user->isHR() && !$user->isManager() && $user->employee_id) {
-            $employeesQuery->where('id', $user->employee_id);
+            if ($subordinateIds->isNotEmpty()) {
+                $employeesQuery->where(function ($q) use ($user, $subordinateIds) {
+                    $q->where('id', $user->employee_id)->orWhereIn('id', $subordinateIds);
+                });
+            } else {
+                $employeesQuery->where('id', $user->employee_id);
+            }
         }
 
         // Search filter
@@ -1438,7 +1452,8 @@ class EmployeeAttendanceController extends Controller
 
         // Multi-tenancy check for target company
         if (!$user->isAdmin() && $user->role !== 'hr' && $user->employee_id && $user->employee) {
-            if ($validated['company_id'] != $user->employee->company_id) {
+            $isSubordinate = !empty($validated['employee_id']) && $user->isReportingManagerFor((int) $validated['employee_id']);
+            if ($validated['company_id'] != $user->employee->company_id && !$isSubordinate) {
                 abort(403, 'Unauthorized access to another branch.');
             }
         }

@@ -104,11 +104,16 @@ class EmployeeController extends Controller
         // Calculate stats before applying status filter
         $statsQuery = clone $query;
         $deptCountQuery = Department::query();
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-            $companyId = $user->employee->company_id;
-            $deptCountQuery->whereHas('companies', function ($q) use ($companyId) {
-                $q->where('companies.id', $companyId);
-            });
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            if ($assignedCompanyIds->isNotEmpty()) {
+                $deptCountQuery->where(function ($dq) use ($assignedCompanyIds) {
+                    $dq->whereIn('departments.company_id', $assignedCompanyIds)
+                       ->orWhereHas('companies', function ($q) use ($assignedCompanyIds) {
+                           $q->whereIn('companies.id', $assignedCompanyIds);
+                       });
+                });
+            }
         }
         $now = now();
         $stats = [
@@ -543,14 +548,18 @@ class EmployeeController extends Controller
         $user = auth()->user();
 
         // Multi-tenancy check: BelongsToCompany handles global filtering.
-        // We only need to check if an employee is trying to see someone else's record.
+        // Plain employees can view their own profile or their reporting subordinates.
         if ($user->isEmployee() && (int) $user->employee_id !== (int) $employee->id) {
-            abort(403, 'Unauthorized access.');
+            if (!$user->isReportingManagerFor($employee) && !$user->canManageEmployee($employee, 'view')) {
+                abort(403, 'Unauthorized access.');
+            }
         }
 
-        // Non-employees with no view permission also denied
+        // Non-employees with no view permission also denied unless they are the reporting manager
         if (!$user->isEmployee() && !$user->isAdmin() && !$user->hasPermission('view-employees')) {
-            abort(403, 'Unauthorized access.');
+            if (!$user->isReportingManagerFor($employee)) {
+                abort(403, 'Unauthorized access.');
+            }
         }
 
         $employee->load(['company', 'companies', 'department', 'departments', 'salaryStructures.component', 'user.roles', 'evaluations.evaluator', 'weeklyOffs', 'expenseClaims.category', 'documents.documentType']);
@@ -804,6 +813,10 @@ class EmployeeController extends Controller
 
             if ($manager && (int) $manager->id === (int) $employee->id) {
                 return back()->withErrors(['reports_to_id' => 'An employee cannot report to themselves.']);
+            }
+
+            if ($manager && \App\Services\EmployeeAuthorizationService::detectReportingCycle((int) $employee->id, (int) $manager->id)) {
+                return back()->withErrors(['reports_to_id' => 'Circular reporting detected. An employee cannot report to someone who reports to them.']);
             }
 
             $validated['reported_to'] = $manager ? $manager->name : null;
@@ -1298,7 +1311,7 @@ class EmployeeController extends Controller
      */
     private function getLeadershipEmployees()
     {
-        $leadership = Employee::where(function ($q) {
+        $leadership = Employee::withoutGlobalScope('company')->where(function ($q) {
             $q->where('designation', 'LIKE', '%CEO%')
               ->orWhere('designation', 'LIKE', '%Founder%')
               ->orWhere('designation', 'LIKE', '%Owner%')
@@ -1338,7 +1351,7 @@ class EmployeeController extends Controller
      */
     private function getManagerAndHrEmployees()
     {
-        return Employee::where(function ($q) {
+        return Employee::withoutGlobalScope('company')->where(function ($q) {
             $q->where('designation', 'LIKE', '%Manager%')
               ->orWhere('designation', 'LIKE', '%HR%')
               ->orWhere('designation', 'LIKE', '%Human Resource%')
@@ -1446,14 +1459,22 @@ class EmployeeController extends Controller
         DB::beginTransaction();
         try {
             // Multi-tenancy check for target company
-            if (!$user->isAdmin() && $user->employee_id && $validated['company_id'] != $user->employee->company_id) {
-                abort(403, 'Unauthorized. You can only transfer employees within your own branch.');
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            if (!$user->isAdmin() && !$assignedCompanyIds->contains((int)$validated['company_id'])) {
+                abort(403, 'Unauthorized. You can only transfer employees to an authorized branch.');
             }
 
-            // Verify all employees being transferred belong to the user's branch
-            if (!$user->isAdmin() && $user->employee_id) {
-                $unauthorizedCount = Employee::whereIn('id', $validated['employee_ids'])
-                    ->where('company_id', '!=', $user->employee->company_id)
+            // Verify all employees being transferred belong to the user's branch or report to user
+            if (!$user->isAdmin()) {
+                $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+                $unauthorizedCount = Employee::withoutGlobalScope('company')
+                    ->whereIn('id', $validated['employee_ids'])
+                    ->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                        $q->whereNotIn('company_id', $assignedCompanyIds);
+                        if ($subordinateIds->isNotEmpty()) {
+                            $q->whereNotIn('id', $subordinateIds);
+                        }
+                    })
                     ->count();
                 if ($unauthorizedCount > 0) {
                     abort(403, 'Unauthorized. One or more selected employees belong to another branch.');

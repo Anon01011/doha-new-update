@@ -35,7 +35,8 @@ class DashboardController extends Controller
 
         // For admin, HR, and manager - show admin dashboard
         $isSuperAdmin = $user->isAdmin();
-        $branchId = $user->employee_id && $user->employee ? $user->employee->company_id : null;
+        $assignedCompanyIds = $user->getAssignedCompanyIds();
+        $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
 
         $empQuery = Employee::query();
         $compQuery = Company::query();
@@ -52,24 +53,77 @@ class DashboardController extends Controller
         $evalQuery = EmployeeEvaluation::query();
 
         // Apply multi-tenancy scoping if not super admin
-        if (!$isSuperAdmin && $branchId) {
-            $empQuery->where('company_id', $branchId);
-            $compQuery->where('id', $branchId);
-            $shiftQuery->where('company_id', $branchId);
-            if ($attenQuery) {
-                $attenQuery->where('company_id', $branchId);
-            }
-            $leaveQuery->whereHas('employee', fn($q) => $q->where('company_id', $branchId));
-            $salaryQuery->whereHas('employee', fn($q) => $q->where('company_id', $branchId));
-            $loanQuery->whereHas('employee', fn($q) => $q->where('company_id', $branchId));
-            $advanceQuery->whereHas('employee', fn($q) => $q->where('company_id', $branchId));
-            $taskQuery->where('branch_id', $branchId);
-            $grievanceQuery->whereHas('employee', fn($q) => $q->where('company_id', $branchId));
-            $docQuery->whereHas('employee', fn($q) => $q->where('company_id', $branchId));
-            $deptQuery->whereHas('companies', function($q) use ($branchId) {
-                $q->where('companies.id', $branchId);
+        if (!$isSuperAdmin && $assignedCompanyIds->isNotEmpty()) {
+            $empQuery->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                $q->whereIn('company_id', $assignedCompanyIds);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('id', $subordinateIds);
+                }
             });
-            $evalQuery->where('company_id', $branchId);
+            $compQuery->whereIn('id', $assignedCompanyIds);
+            $shiftQuery->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                $q->whereIn('company_id', $assignedCompanyIds);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
+            });
+            if ($attenQuery) {
+                $attenQuery->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                    $q->whereIn('company_id', $assignedCompanyIds);
+                    if ($subordinateIds->isNotEmpty()) {
+                        $q->orWhereIn('employee_id', $subordinateIds);
+                    }
+                });
+            }
+            $leaveQuery->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                $q->whereIn('company_id', $assignedCompanyIds);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
+            });
+            $salaryQuery->whereHas('employee', function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                $q->whereIn('company_id', $assignedCompanyIds);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('id', $subordinateIds);
+                }
+            });
+            $loanQuery->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                $q->whereIn('company_id', $assignedCompanyIds);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
+            });
+            $advanceQuery->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                $q->whereIn('company_id', $assignedCompanyIds);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
+            });
+            $taskQuery->where(function ($q) use ($assignedCompanyIds) {
+                $q->whereIn('branch_id', $assignedCompanyIds);
+            });
+            $grievanceQuery->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                $q->whereIn('company_id', $assignedCompanyIds);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
+            });
+            $docQuery->whereHas('employee', function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                $q->whereIn('company_id', $assignedCompanyIds);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('id', $subordinateIds);
+                }
+            });
+            $deptQuery->where(function ($dq) use ($assignedCompanyIds) {
+                $dq->whereIn('departments.company_id', $assignedCompanyIds)
+                   ->orWhereHas('companies', fn($q) => $q->whereIn('companies.id', $assignedCompanyIds));
+            });
+            $evalQuery->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                $q->whereIn('company_id', $assignedCompanyIds);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
+            });
         }
 
         $totalEmployees = (clone $empQuery)->count();
@@ -87,10 +141,15 @@ class DashboardController extends Controller
             : collect();
         $companies = (clone $compQuery)->withCount('employees')->get(['id', 'name']);
 
-        // Users scoping: Only see users of their own branch
+        // Users scoping: Only see users of their own branch or subordinates
         $userQuery = User::query();
-        if (!$isSuperAdmin && $branchId) {
-            $userQuery->whereHas('employee', fn($q) => $q->where('company_id', $branchId));
+        if (!$isSuperAdmin && $assignedCompanyIds->isNotEmpty()) {
+            $userQuery->whereHas('employee', function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                $q->whereIn('company_id', $assignedCompanyIds);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('id', $subordinateIds);
+                }
+            });
         }
         $totalUsers = (clone $userQuery)->count();
         $recentUsers = (clone $userQuery)->orderBy('created_at', 'desc')->take(5)->get(['id', 'name', 'email', 'created_at']);

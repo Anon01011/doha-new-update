@@ -26,14 +26,15 @@ class LeaveRequestController extends Controller
         $query = LeaveRequest::with(['employee', 'leaveType']);
 
         // Role-based filtering (additional to global scope)
+        $subordinateIds = $user->getSubordinateEmployeeIds(true);
         if ($user->isEmployee() && $user->employee_id) {
-            // Employees/Managers should see their own requests AND requests waiting for their approval
-            $query->where(function ($q) use ($user) {
+            // Employees/Managers should see their own requests AND requests from their reporting subordinates
+            $query->where(function ($q) use ($user, $subordinateIds) {
                 $q->where('employee_id', $user->employee_id)
-                    ->orWhere(function ($q2) use ($user) {
-                        $q2->where('manager_id', $user->employee_id)
-                            ->where('manager_approval_status', 'pending');
-                    });
+                    ->orWhere('manager_id', $user->employee_id);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
             });
         }
 
@@ -59,17 +60,20 @@ class LeaveRequestController extends Controller
         // Leave statistics for administrative / team / personal overview
         $statsQuery = LeaveRequest::query();
         if ($user->isEmployee() && $user->employee_id) {
-            $statsQuery->where(function ($q) use ($user) {
+            $statsQuery->where(function ($q) use ($user, $subordinateIds) {
                 $q->where('employee_id', $user->employee_id)
-                    ->orWhere(function ($q2) use ($user) {
-                        $q2->where('manager_id', $user->employee_id)
-                            ->where('manager_approval_status', 'pending');
-                    });
+                    ->orWhere('manager_id', $user->employee_id);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
             });
         } elseif ($user->isManager() && !$user->isAdmin() && !$user->isHR()) {
-            $statsQuery->where(function ($q) use ($user) {
+            $statsQuery->where(function ($q) use ($user, $subordinateIds) {
                 $q->where('manager_id', $user->employee_id)
                     ->orWhere('employee_id', $user->employee_id);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
             });
         }
 
@@ -118,9 +122,16 @@ class LeaveRequestController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'code', 'max_days_per_year', 'min_notice_days', 'requires_approval', 'requires_attachment', 'is_paid', 'carry_forward_allowed']);
 
-        // Role-based employee selection (Global scope handles branch isolation)
+        // Role-based employee selection (Global scope handles branch isolation and subordinates)
         if ($user->isEmployee() && $user->employee_id) {
-            $employees = Employee::where('id', $user->employee_id)->get(['id', 'name', 'employee_code']);
+            $subordinateIds = $user->getSubordinateEmployeeIds(true);
+            if ($subordinateIds->isNotEmpty()) {
+                $employees = Employee::where(function ($q) use ($user, $subordinateIds) {
+                    $q->where('id', $user->employee_id)->orWhereIn('id', $subordinateIds);
+                })->orderBy('name')->get(['id', 'name', 'employee_code']);
+            } else {
+                $employees = Employee::where('id', $user->employee_id)->get(['id', 'name', 'employee_code']);
+            }
         } else {
             $employees = Employee::orderBy('name')->get(['id', 'name', 'employee_code']);
         }
@@ -156,23 +167,29 @@ class LeaveRequestController extends Controller
     private function employeeExistsRule($user): \Illuminate\Validation\Rules\Exists
     {
         return Rule::exists('employees', 'id')->where(function ($query) use ($user) {
-            // Admins are superusers across tenants - no restriction, exactly
-            // like the BelongsToCompany scope.
+            // Admins are superusers across tenants - no restriction
             if ($user->isAdmin()) {
                 return;
             }
 
-            $companyId = $this->companyIdFor($user);
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            $subordinateIds = $user->getSubordinateEmployeeIds(true);
 
-            if ($companyId === null) {
-                // A non-admin without any tenant context may not reference any
-                // employee. Deny by default rather than allow everything.
-                $query->whereRaw('1 = 0');
-
-                return;
-            }
-
-            $query->where('company_id', $companyId);
+            $query->where(function ($sub) use ($assignedCompanyIds, $subordinateIds) {
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $sub->whereIn('company_id', $assignedCompanyIds);
+                }
+                if ($subordinateIds->isNotEmpty()) {
+                    if ($assignedCompanyIds->isNotEmpty()) {
+                        $sub->orWhereIn('id', $subordinateIds);
+                    } else {
+                        $sub->whereIn('id', $subordinateIds);
+                    }
+                }
+                if ($assignedCompanyIds->isEmpty() && $subordinateIds->isEmpty()) {
+                    $sub->whereRaw('1 = 0');
+                }
+            });
         });
     }
 
@@ -814,7 +831,10 @@ class LeaveRequestController extends Controller
         $remarks = $request->input('remarks') ?? $request->input('approval_remarks');
 
         // If current user is the manager (and request is pending manager approval)
-        if ($user->employee_id == $leaveRequest->manager_id && $leaveRequest->manager_approval_status === 'pending') {
+        $isManager = ($user->employee_id && $user->employee_id == $leaveRequest->manager_id)
+            || ($leaveRequest->employee_id && $user->isReportingManagerFor($leaveRequest->employee_id));
+
+        if ($isManager && $leaveRequest->manager_approval_status === 'pending') {
             $leaveRequest->update([
                 'manager_approval_status' => 'approved',
                 'manager_approved_at' => now(),
@@ -897,7 +917,10 @@ class LeaveRequestController extends Controller
                 $leaveRequest = LeaveRequest::findOrFail($id);
 
                 // Check if user is the manager and the request is pending manager approval
-                if ($user->employee_id == $leaveRequest->manager_id && $leaveRequest->manager_approval_status === 'pending') {
+                $isManager = ($user->employee_id && $user->employee_id == $leaveRequest->manager_id)
+            || ($leaveRequest->employee_id && $user->isReportingManagerFor($leaveRequest->employee_id));
+
+        if ($isManager && $leaveRequest->manager_approval_status === 'pending') {
                     $leaveRequest->update([
                         'manager_approval_status' => 'approved',
                         'manager_approved_at'     => now(),
@@ -996,7 +1019,10 @@ class LeaveRequestController extends Controller
                 $leaveRequest = LeaveRequest::findOrFail($id);
 
                 // Check if user is manager and pending manager approval
-                if ($user->employee_id == $leaveRequest->manager_id && $leaveRequest->manager_approval_status === 'pending') {
+                $isManager = ($user->employee_id && $user->employee_id == $leaveRequest->manager_id)
+            || ($leaveRequest->employee_id && $user->isReportingManagerFor($leaveRequest->employee_id));
+
+        if ($isManager && $leaveRequest->manager_approval_status === 'pending') {
                     $leaveRequest->update([
                         'status' => 'rejected',
                         'manager_approval_status' => 'rejected',
@@ -1049,7 +1075,10 @@ class LeaveRequestController extends Controller
             'rejection_reason' => 'required|string',
         ]);
 
-        if ($user->employee_id == $leaveRequest->manager_id && $leaveRequest->manager_approval_status === 'pending') {
+        $isManager = ($user->employee_id && $user->employee_id == $leaveRequest->manager_id)
+            || ($leaveRequest->employee_id && $user->isReportingManagerFor($leaveRequest->employee_id));
+
+        if ($isManager && $leaveRequest->manager_approval_status === 'pending') {
             $leaveRequest->update([
                 'status' => 'rejected',
                 'manager_approval_status' => 'rejected',

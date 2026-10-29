@@ -361,4 +361,30 @@ class User extends Authenticatable
 
         return $ids->filter()->unique()->values();
     }
+
+    /**
+     * Determine if this user is the reporting manager for a given employee.
+     */
+    public function isReportingManagerFor($employee): bool
+    {
+        return \App\Services\EmployeeAuthorizationService::isReportingPerson($this, $employee);
+    }
+
+    /**
+     * Get all subordinate employee IDs for this user.
+     *
+     * @return \Illuminate\Support\Collection<int>
+     */
+    public function getSubordinateEmployeeIds(bool $recursive = true): \Illuminate\Support\Collection
+    {
+        return \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($this, $recursive);
+    }
+
+    /**
+     * Check if this user can manage the given employee for a specified action.
+     */
+    public function canManageEmployee($employee, string $action = 'view'): bool
+    {
+        return \App\Services\EmployeeAuthorizationService::canManageEmployee($this, $employee, $action);
+    }
 }

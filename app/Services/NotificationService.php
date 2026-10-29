@@ -203,19 +203,15 @@ class NotificationService
         $sentUserIds = [];
         $count = 0;
 
-        // 1. Direct Manager
+        // 1. Direct Reporting Manager (takes priority across all branches and departments)
         $manager = self::getReportingManagerUser($employee);
         if ($manager && (!$excludeUserId || $manager->id !== $excludeUserId)) {
-            $mCompany = $manager->company_id ?: ($manager->employee?->company_id);
-            // Managers must belong to same branch or be admin
-            if (!$companyId || !$mCompany || $mCompany == $companyId || $manager->isAdmin()) {
-                try {
-                    $manager->notify($notification);
-                    $sentUserIds[] = $manager->id;
-                    $count++;
-                } catch (\Throwable $e) {
-                    Log::error("Failed to notify manager {$manager->id}: " . $e->getMessage());
-                }
+            try {
+                $manager->notify($notification);
+                $sentUserIds[] = $manager->id;
+                $count++;
+            } catch (\Throwable $e) {
+                Log::error("Failed to notify manager {$manager->id}: " . $e->getMessage());
             }
         }
 

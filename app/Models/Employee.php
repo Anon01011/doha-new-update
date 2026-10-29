@@ -320,15 +320,15 @@ class Employee extends Model
      * Resolve an employee from either its slug or its primary key.
      *
      * The lookup conditions are grouped inside a nested where so the whole
-     * resolution stays intersected with the BelongsToCompany tenant scope.
-     * An ungrouped `where(...)->orWhere(...)` would place the OR branch
-     * outside the tenant predicate and could expose a cross-tenant record.
+     * resolution bypasses the BelongsToCompany tenant scope, allowing authorized
+     * users (e.g. a reporting manager from another branch) to access cross-branch
+     * employees. The controller performs authorization after resolution.
      */
     public function resolveRouteBinding($value, $field = null)
     {
         $value = (string) $value;
 
-        $employee = $this->where(function ($query) use ($value) {
+        $employee = $this->withoutGlobalScope('company')->where(function ($query) use ($value) {
             $query->where('slug', $value);
 
             if (ctype_digit($value)) {

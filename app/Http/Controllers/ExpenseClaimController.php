@@ -28,10 +28,21 @@ class ExpenseClaimController extends Controller
         $query = ExpenseClaim::with(['employee.company', 'employee.department', 'category', 'manager', 'financeReviewer', 'payer']);
 
         // Scope access
+        $subordinateIds = $user->getSubordinateEmployeeIds(true);
         if ($user->isEmployee()) {
-            $query->where('employee_id', $user->employee_id);
+            $query->where(function ($q) use ($user, $subordinateIds) {
+                $q->where('employee_id', $user->employee_id);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
+            });
         } elseif (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-            $query->where('company_id', $user->employee->company_id);
+            $query->where(function ($q) use ($user, $subordinateIds) {
+                $q->where('company_id', $user->employee->company_id);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
+            });
         }
 
         if ($request->filled('company_id') && ($user->isAdmin() || $user->isHR())) {
@@ -349,6 +360,10 @@ class ExpenseClaimController extends Controller
         }
 
         if ($user->isManager()) {
+            // Reporting person takes priority over branch
+            if ($user->isReportingManagerFor($expense->employee_id)) {
+                return [true, ''];
+            }
             $managerCompanyId = $user->employee ? $user->employee->company_id : $user->company_id;
             if ($managerCompanyId && $managerCompanyId != $expense->company_id) {
                 return [false, 'You can only review expense claims from your assigned Company.'];

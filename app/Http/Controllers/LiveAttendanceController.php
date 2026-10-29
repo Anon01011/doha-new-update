@@ -117,12 +117,24 @@ class LiveAttendanceController extends Controller
             $empQuery->where('company_id', $selectedCompanyId);
         } elseif (!$user->isAdmin()) {
             $userCompanyId = $user->company_id ?: $user->employee?->company_id;
-            if ($userCompanyId) {
-                $empQuery->where('company_id', $userCompanyId);
-            }
-            if ($user->isManager() && $user->employee?->department_id) {
-                $empQuery->where('department_id', $user->employee->department_id);
-            }
+            $subordinateIds = $user->getSubordinateEmployeeIds(true);
+            $empQuery->where(function ($q) use ($user, $userCompanyId, $subordinateIds) {
+                if ($userCompanyId) {
+                    $q->where(function ($subQ) use ($user, $userCompanyId) {
+                        $subQ->where('company_id', $userCompanyId);
+                        if ($user->isManager() && $user->employee?->department_id) {
+                            $subQ->where('department_id', $user->employee->department_id);
+                        }
+                    });
+                }
+                if ($subordinateIds->isNotEmpty()) {
+                    if ($userCompanyId) {
+                        $q->orWhereIn('id', $subordinateIds);
+                    } else {
+                        $q->whereIn('id', $subordinateIds);
+                    }
+                }
+            });
         }
 
         // Additional Request Filters

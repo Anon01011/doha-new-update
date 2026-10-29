@@ -44,6 +44,19 @@ class LeaveRequest extends Model
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
     ];
+    /**
+     * Resolve route binding without the BelongsToCompany global scope so that
+     * authorized users (e.g. a reporting manager in another branch) can access
+     * a leave request belonging to a cross-branch subordinate.
+     * The controller is responsible for authorization after resolution.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->withoutGlobalScope('company')
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->firstOrFail();
+    }
+
 
     public function getAttachmentUrlAttribute()
     {
