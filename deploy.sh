@@ -65,9 +65,62 @@ mkdir -p public/storage
 chown -R www:www storage bootstrap/cache 2>/dev/null || chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
 chmod -R 775 storage bootstrap/cache 2>/dev/null || true
 
-php artisan queue:restart
+# 8. Ensure Queue Worker & Scheduled Jobs are Active on Production
+echo -e "\033[33mConfiguring and verifying background jobs...\033[0m"
 
-# 8. Bring application back up
+# 8.1 Restart existing queue workers so they pick up new code
+php artisan queue:restart || true
+
+# 8.2 Verify and ensure queue worker is running
+WORKER_RUNNING=false
+if command -v supervisorctl >/dev/null 2>&1; then
+    if supervisorctl status 2>/dev/null | grep -iqE "worker|queue"; then
+        echo -e "\033[32mSupervisor detected with worker configuration. Restarting supervisor processes...\033[0m"
+        supervisorctl reread 2>/dev/null || true
+        supervisorctl update 2>/dev/null || true
+        supervisorctl restart all 2>/dev/null || true
+        WORKER_RUNNING=true
+    fi
+fi
+
+if [ "$WORKER_RUNNING" = false ] && command -v systemctl >/dev/null 2>&1; then
+    if systemctl is-active --quiet laravel-worker 2>/dev/null || systemctl is-active --quiet doha-worker 2>/dev/null; then
+        echo -e "\033[32mSystemd worker service active. Restarting...\033[0m"
+        systemctl restart laravel-worker 2>/dev/null || systemctl restart doha-worker 2>/dev/null || true
+        WORKER_RUNNING=true
+    fi
+fi
+
+# 8.3 If no supervisor or systemd worker is active, ensure a background daemon is running
+if [ "$WORKER_RUNNING" = false ]; then
+    if ! pgrep -f "artisan queue:work" >/dev/null 2>&1; then
+        echo -e "\033[33mQueue worker not running! Starting background worker process...\033[0m"
+        nohup php artisan queue:work --sleep=3 --tries=3 --max-time=3600 > storage/logs/worker.log 2>&1 &
+        sleep 1
+        if pgrep -f "artisan queue:work" >/dev/null 2>&1; then
+            echo -e "\033[32mBackground queue worker auto-started successfully (PID: $(pgrep -f "artisan queue:work" | tr '\n' ' ')).\033[0m"
+        else
+            echo -e "\033[31mWarning: Could not start background queue worker automatically. Check storage/logs/worker.log\033[0m"
+        fi
+    else
+        echo -e "\033[32mQueue worker is already active (PID: $(pgrep -f "artisan queue:work" | tr '\n' ' ')).\033[0m"
+    fi
+fi
+
+# 8.4 Ensure Laravel cron scheduler is registered in Crontab
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CRON_JOB="* * * * * cd $APP_DIR && php artisan schedule:run >> /dev/null 2>&1"
+if command -v crontab >/dev/null 2>&1; then
+    if ! crontab -l 2>/dev/null | grep -q "artisan schedule:run"; then
+        echo -e "\033[33mScheduler cron missing from crontab. Auto-installing cron job...\033[0m"
+        (crontab -l 2>/dev/null || true; echo "$CRON_JOB") | crontab -
+        echo -e "\033[32mArtisan schedule:run cron registered successfully.\033[0m"
+    else
+        echo -e "\033[32mArtisan schedule:run cron already active in crontab.\033[0m"
+    fi
+fi
+
+# 9. Bring application back up
 echo -e "\033[33mBringing application out of maintenance mode...\033[0m"
 php artisan up
 

@@ -65,7 +65,7 @@ export default function Dashboard({
     pendingLeaveRequests,
     approvedLeaveRequests,
     recentLeaveRequests,
-    leaveBalances,
+    leaveBalances = [],
     totalSalaryPostings,
     currentMonthSalary,
     recentSalaryPostings,
@@ -97,13 +97,26 @@ export default function Dashboard({
     totalReimbursedAmount = 0,
     recentExpenses = [],
     todayHoliday,
-activeOffboarding = null,
+    activeOffboarding = null,
     probationLifecycle = null,
     internshipLifecycle = null,
     contractLifecycle = null,
+    celebrationAppraisal = null,
 }) {
     const fileInput = useRef();
     const [isUploading, setIsUploading] = useState(false);
+    const [showAllBalances, setShowAllBalances] = useState(false);
+
+    const cleanLeaveName = (name) => {
+        if (!name) return 'Leave';
+        const trimmed = String(name).trim();
+        if (trimmed.toUpperCase() === 'PH') return 'Public Holiday (PH)';
+        if (trimmed.toUpperCase() === 'OT TO OFFSET') return 'OT to Offset';
+        if (trimmed === trimmed.toUpperCase() && trimmed.length > 2) {
+            return trimmed.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        }
+        return trimmed;
+    };
 
     const handleImageChange = (e) => {
         const file = e.target.files[0];
@@ -376,6 +389,82 @@ activeOffboarding = null,
     )}
 </div>
 )}
+
+                {/* Celebration Banner for Approved Appraisal / Increment / Promotion */}
+                {celebrationAppraisal && (
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 p-5 text-white shadow-xl border border-emerald-400/30">
+                        {/* Decorative background glow & particles */}
+                        <div className="absolute top-0 right-0 -mt-6 -mr-6 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+                        <div className="absolute bottom-0 left-1/3 -mb-8 w-40 h-40 bg-amber-400/10 rounded-full blur-xl pointer-events-none" />
+                        
+                        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div className="flex items-start gap-3.5">
+                                <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl text-amber-300 border border-white/20 shrink-0 shadow-inner animate-bounce">
+                                    <FiAward className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400 text-amber-950 shadow-xs">
+                                            🎉 Official Promotion & Appraisal
+                                        </span>
+                                        <span className="text-[11px] font-semibold text-emerald-100">
+                                            {celebrationAppraisal.cycle_type?.toUpperCase()} Cycle {celebrationAppraisal.year}
+                                        </span>
+                                    </div>
+                                    <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                                        Congratulations, {employee.name}!
+                                    </h3>
+                                    <p className="text-xs text-emerald-50 mt-1 max-w-xl leading-relaxed">
+                                        Your performance appraisal has been formally reviewed, approved, and recorded in the system.
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                                        {celebrationAppraisal.overall_score > 0 && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/15 backdrop-blur-xs text-xs font-bold text-white border border-white/15">
+                                                <FiStar className="w-3.5 h-3.5 text-amber-300" />
+                                                Score: {celebrationAppraisal.overall_score}%
+                                            </span>
+                                        )}
+                                        {celebrationAppraisal.increment_recommended > 0 ? (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/30 backdrop-blur-xs text-xs font-black text-white border border-emerald-300/40">
+                                                <FiTrendingUp className="w-3.5 h-3.5 text-emerald-300" />
+                                                +{formatCurrency(celebrationAppraisal.increment_recommended)} Basic Increment
+                                            </span>
+                                        ) : celebrationAppraisal.increment_percentage > 0 ? (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/30 backdrop-blur-xs text-xs font-black text-white border border-emerald-300/40">
+                                                <FiTrendingUp className="w-3.5 h-3.5 text-emerald-300" />
+                                                +{celebrationAppraisal.increment_percentage}% Salary Increment
+                                            </span>
+                                        ) : null}
+                                        {celebrationAppraisal.promotion_recommended && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/30 backdrop-blur-xs text-xs font-black text-white border border-indigo-300/40">
+                                                <FiBriefcase className="w-3.5 h-3.5 text-indigo-200" />
+                                                Promoted: {celebrationAppraisal.new_designation || 'New Title'}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto shrink-0 pt-2 md:pt-0">
+                                <a
+                                    href={route('evaluations.appraisal-letter', celebrationAppraisal.id)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white text-emerald-900 font-black text-xs shadow-lg hover:bg-emerald-50 hover:shadow-xl active:scale-95 transition-all"
+                                >
+                                    <FiDownload className="w-4 h-4 text-emerald-600" />
+                                    Download Appraisal Letter (PDF)
+                                </a>
+                                <Link
+                                    href={route('evaluations.show', celebrationAppraisal.id)}
+                                    className="inline-flex items-center justify-center gap-1 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white transition-all"
+                                >
+                                    Review Details →
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Offboarding / Resignation Active Status Alert */}
                 {activeOffboarding && !['cancelled'].includes(activeOffboarding.status) && (
                     <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-md border border-indigo-900/50 relative overflow-hidden">
@@ -703,35 +792,65 @@ activeOffboarding = null,
                             title="Leave Balances"
                             icon={FiPieChart}
                             action={
-                                <Link
-                                    href={route('leave-requests.create')}
-                                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1"
-                                >
-                                    <FiPlus className="w-3 h-3" /> Apply
-                                </Link>
+                                <div className="flex items-center gap-1.5">
+                                    <Link
+                                        href={route('leave-requests.index')}
+                                        className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+                                    >
+                                        View All
+                                    </Link>
+                                    <Link
+                                        href={route('leave-requests.create')}
+                                        className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1"
+                                    >
+                                        <FiPlus className="w-3 h-3" /> Apply
+                                    </Link>
+                                </div>
                             }
                         >
                             <div className="space-y-3">
-                                {leaveBalances.map((bal, idx) => {
-                                    const pct = bal.total_days > 0 ? (bal.remaining_days / bal.total_days) * 100 : 0;
+                                {(leaveBalances || []).length > 0 && (
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 text-[11px]">
+                                        <span className="text-slate-500 font-medium">Total Available</span>
+                                        <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded font-mono">
+                                            {(leaveBalances || []).reduce((acc, b) => acc + (parseFloat(b.remaining_days) || 0), 0)} / {(leaveBalances || []).reduce((acc, b) => acc + (parseFloat(b.total_days) || 0), 0)}d
+                                        </span>
+                                    </div>
+                                )}
+                                {((leaveBalances || []).length > 4 && !showAllBalances
+                                    ? (leaveBalances || []).slice(0, 4)
+                                    : (leaveBalances || [])
+                                ).map((bal, idx) => {
+                                    const rem = parseFloat(bal.remaining_days) || 0;
+                                    const tot = parseFloat(bal.total_days) || 0;
+                                    const pct = tot > 0 ? (rem / tot) * 100 : 0;
                                     return (
-                                        <div key={idx}>
-                                            <div className="flex justify-between text-xs font-semibold text-slate-700 mb-1">
-                                                <span>{bal.leave_type?.name}</span>
-                                                <span className="text-slate-500 font-mono text-[11px]">
-                                                    {bal.remaining_days} / {bal.total_days}d
+                                        <div key={idx} className="space-y-1">
+                                            <div className="flex justify-between text-xs font-semibold text-slate-700">
+                                                <span className="truncate pr-2" title={bal.leave_type?.name}>{cleanLeaveName(bal.leave_type?.name)}</span>
+                                                <span className="text-slate-500 font-mono text-[11px] shrink-0">
+                                                    {rem} / {tot}d
                                                 </span>
                                             </div>
                                             <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                                 <div
-                                                    className={`h-full rounded-full ${pct > 40 ? 'bg-emerald-500' : pct > 15 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                                                    style={{ width: `${pct}%` }}
+                                                    className={`h-full rounded-full transition-all duration-300 ${pct > 40 ? 'bg-emerald-500' : pct > 15 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                                    style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
                                                 />
                                             </div>
                                         </div>
                                     );
                                 })}
-                                {leaveBalances.length === 0 && (
+                                {(leaveBalances || []).length > 4 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAllBalances(!showAllBalances)}
+                                        className="w-full py-1 text-center text-[11px] font-semibold text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-100"
+                                    >
+                                        {showAllBalances ? 'Show Less' : `View All (${leaveBalances.length} Categories)`}
+                                    </button>
+                                )}
+                                {(leaveBalances || []).length === 0 && (
                                     <p className="text-xs text-slate-400 italic text-center py-3">No leave quotas allocated.</p>
                                 )}
                             </div>

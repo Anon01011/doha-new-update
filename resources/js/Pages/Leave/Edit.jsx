@@ -13,6 +13,7 @@ export default function Edit({ leaveRequest, employees, leaveTypes, userRole = '
     };
 
     const { data, setData, post, processing, errors } = useForm({
+        _method: 'PUT',
         employee_id: leaveRequest.employee_id || '',
         leave_type_id: leaveRequest.leave_type_id || '',
         start_date: formatDate(leaveRequest.start_date),
@@ -50,10 +51,14 @@ export default function Edit({ leaveRequest, employees, leaveTypes, userRole = '
 
     const handleSubmit = (e) => {
         e.preventDefault();
+<<<<<<< HEAD
         router.post(route('leave-requests.update', leaveRequest.id), {
             ...data,
             _method: 'PUT',
         }, {
+=======
+        post(route('leave-requests.update', leaveRequest.id), {
+>>>>>>> 770a7ba64281fa038455d1fa3c2ce3321a47757a
             forceFormData: true,
         });
     };

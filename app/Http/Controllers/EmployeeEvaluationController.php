@@ -240,6 +240,9 @@ class EmployeeEvaluationController extends Controller
             'training_recommended' => $validated['training_recommended'] ?? [],
         ]);
 
+        // Notify the employee that an appraisal cycle has been initiated
+        \App\Services\NotificationService::notifyEmployee($employee, new \App\Notifications\AppraisalInitiatedNotification($evaluation));
+
         return redirect()->route('evaluations.index')->with('success', 'Performance appraisal cycle initiated successfully.');
     }
 
@@ -307,6 +310,21 @@ class EmployeeEvaluationController extends Controller
             return redirect()->back()->with('error', 'This evaluation is finalized and locked.');
         }
 
+        // Standard employees may only update self-assessment fields
+        if ($user->isEmployee()) {
+            $validated = $request->validate([
+                'self_scores'       => 'nullable|array',
+                'self_comments'     => 'nullable|string',
+                'achievements'      => 'nullable|string',
+                'development_needs' => 'nullable|string',
+                'goals'             => 'nullable|array',
+            ]);
+
+            $evaluation->update($validated);
+            return redirect()->route('evaluations.show', $evaluation)->with('success', 'Self-assessment updated successfully.');
+        }
+
+        // Managers, HR, and Admins can update evaluation metrics and recommendations
         $validated = $request->validate([
             'criteria_scores'          => 'nullable|array',
             'self_scores'              => 'nullable|array',
@@ -365,10 +383,24 @@ class EmployeeEvaluationController extends Controller
         $evaluation->update([
             'self_scores' => $validated['self_scores'],
             'self_comments' => $validated['self_comments'] ?? null,
-            'achievements' => $validated['achievements'] ?? null,
-            'development_needs' => $validated['development_needs'] ?? null,
+            'achievements' => $achievements ?? ($validated['achievements'] ?? null),
+            'development_needs' => $developmentNeeds ?? ($validated['development_needs'] ?? null),
             'status' => 'manager_review',
         ]);
+
+        // Notify reporting manager and HR that self-assessment has been submitted
+        if ($evaluation->employee) {
+            \App\Services\NotificationService::notifyApprovers(
+                $evaluation->employee,
+                new \App\Notifications\GenericHrNotification(
+                    'Appraisal Self-Assessment Submitted',
+                    "{$evaluation->employee->name} has submitted their performance self-assessment for review.",
+                    route('evaluations.show', $evaluation),
+                    'appraisal_initiated'
+                ),
+                auth()->id()
+            );
+        }
 
         return redirect()->back()->with('success', 'Self-assessment submitted successfully! Your manager will now review.');
     }
@@ -483,6 +515,11 @@ class EmployeeEvaluationController extends Controller
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::warning('Appraisal letter email sending failed: ' . $e->getMessage());
             }
+        }
+
+        // In-app system notification for employee
+        if ($employee) {
+            \App\Services\NotificationService::notifyEmployee($employee, new \App\Notifications\AppraisalApprovedNotification($evaluation));
         }
 
         return redirect()->back()->with('success', 'Performance appraisal approved, outcomes linked, appraisal letter generated, and record locked.');

@@ -15,16 +15,17 @@ class StoreTaskRequest extends FormRequest
     {
         $user = Auth::user();
         $projectId = $this->input('project_id');
+        $isEmp = $user && ($user->isEmployee() || $user->role === 'employee');
 
         $isProjectLead = false;
-        if ($projectId && $user && $user->role === 'employee' && $user->employee_id) {
+        if ($projectId && $isEmp && $user->employee_id) {
             $isProjectLead = \App\Models\ProjectMember::where('project_id', $projectId)
                 ->where('employee_id', $user->employee_id)
                 ->where('role', 'lead')
                 ->exists();
         }
 
-        if ($user && $user->role === 'employee' && !$isProjectLead) {
+        if ($isEmp && !$isProjectLead) {
             return false;
         }
 

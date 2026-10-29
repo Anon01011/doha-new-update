@@ -124,13 +124,6 @@ class WarningLetterController extends Controller
      */
     private function notifyEmployee($employeeId, $notification)
     {
-        $employee = Employee::find($employeeId);
-        if ($employee && $employee->user) {
-            try {
-                $employee->user->notify($notification);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Notification failed: ' . $e->getMessage());
-            }
-        }
+        \App\Services\NotificationService::notifyEmployee($employeeId, $notification);
     }
 }

@@ -104,11 +104,16 @@ class EmployeeController extends Controller
         // Calculate stats before applying status filter
         $statsQuery = clone $query;
         $deptCountQuery = Department::query();
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-            $companyId = $user->employee->company_id;
-            $deptCountQuery->whereHas('companies', function ($q) use ($companyId) {
-                $q->where('companies.id', $companyId);
-            });
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            if ($assignedCompanyIds->isNotEmpty()) {
+                $deptCountQuery->where(function ($dq) use ($assignedCompanyIds) {
+                    $dq->whereIn('departments.company_id', $assignedCompanyIds)
+                       ->orWhereHas('companies', function ($q) use ($assignedCompanyIds) {
+                           $q->whereIn('companies.id', $assignedCompanyIds);
+                       });
+                });
+            }
         }
         $now = now();
         $stats = [
@@ -206,17 +211,28 @@ class EmployeeController extends Controller
             abort(403, 'Unauthorized. You do not have permission to create employees.');
         }
 
-        $companies = Company::orderBy('name')->get(['id', 'name']);
+        $assignedCompanyIds = $user->getAssignedCompanyIds();
+        $companiesQuery = Company::orderBy('name');
+        if (!$user->isAdmin() && $assignedCompanyIds->isNotEmpty()) {
+            $companiesQuery->whereIn('id', $assignedCompanyIds);
+        }
+        $companies = $companiesQuery->get(['id', 'name']);
+
         // Branch-scope departments
         $departmentsQuery = Department::orderBy('name');
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-            $companyId = $user->employee->company_id;
-            $departmentsQuery->where(function ($q) use ($companyId) {
-                $q->where('departments.company_id', $companyId)
-                  ->orWhereHas('companies', function ($sub) use ($companyId) {
-                      $sub->where('companies.id', $companyId);
-                  });
-            });
+        if (!$user->isAdmin()) {
+            if ($assignedCompanyIds->isNotEmpty()) {
+                $departmentsQuery->where(function ($q) use ($assignedCompanyIds) {
+                    $q->whereIn('departments.company_id', $assignedCompanyIds)
+                      ->orWhereHas('companies', function ($sub) use ($assignedCompanyIds) {
+                          $sub->whereIn('companies.id', $assignedCompanyIds);
+                      });
+                });
+            }
+            $assignedDepartmentIds = $user->getAssignedDepartmentIds();
+            if ($assignedDepartmentIds->isNotEmpty()) {
+                $departmentsQuery->whereIn('departments.id', $assignedDepartmentIds);
+            }
         }
         $departments = $departmentsQuery->distinct()->get(['departments.id', 'name']);
         $salaryComponents = \App\Models\SalaryComponent::where('is_active', true)->get();
@@ -526,14 +542,18 @@ class EmployeeController extends Controller
         $user = auth()->user();
 
         // Multi-tenancy check: BelongsToCompany handles global filtering.
-        // We only need to check if an employee is trying to see someone else's record.
-        if ($user->isEmployee() && $user->employee_id !== $employee->id) {
-            abort(403, 'Unauthorized access.');
+        // Plain employees can view their own profile or their reporting subordinates.
+        if ($user->isEmployee() && (int) $user->employee_id !== (int) $employee->id) {
+            if (!$user->isReportingManagerFor($employee) && !$user->canManageEmployee($employee, 'view')) {
+                abort(403, 'Unauthorized access.');
+            }
         }
 
-        // Non-employees with no view permission also denied
+        // Non-employees with no view permission also denied unless they are the reporting manager
         if (!$user->isEmployee() && !$user->isAdmin() && !$user->hasPermission('view-employees')) {
-            abort(403, 'Unauthorized access.');
+            if (!$user->isReportingManagerFor($employee)) {
+                abort(403, 'Unauthorized access.');
+            }
         }
 
         $employee->load(['company', 'companies', 'department', 'departments', 'salaryStructures.component', 'user.roles', 'evaluations.evaluator', 'weeklyOffs', 'expenseClaims.category', 'documents.documentType']);
@@ -588,10 +608,10 @@ class EmployeeController extends Controller
         $internshipLifecycle = $employee->getInternshipLifecycle();
         $contractLifecycle   = $employee->getContractLifecycle();
 
-        // Salary privacy: the employee viewing their own profile is the only
-        // role allowed to see pay data on this page. Admin / HR / manager use
-        // the payroll and salary-structure modules instead.
-        $canSeeSalary = $linkedUser !== null && (int) $linkedUser->id === (int) $user->id;
+        // Salary visibility is strictly controlled by the 'view-employee-salary' permission.
+        // It does not bypass for admin or HR: if the permission is unchecked on a role,
+        // users with that role will not be able to see salary on this profile page.
+        $canSeeSalary = $user->hasPermission('view-employee-salary', false);
 
 
         // Redact pay data at the source so it never reaches the browser for
@@ -624,6 +644,8 @@ class EmployeeController extends Controller
                 'departments_list' => $departmentsList,
                 'role_name' => $roleName,
                 'role_slug' => $roleSlug,
+                'leave_status' => $employee->current_leave_status,
+                'shift' => $employee->current_shift,
             ]),
             'probationLifecycle'  => $probationLifecycle,
             'internshipLifecycle' => $internshipLifecycle,
@@ -645,17 +667,28 @@ class EmployeeController extends Controller
         }
 
         $employee->load(['salaryStructures.component', 'weeklyOffs', 'user.roles', 'companies', 'departments']);
-        $companies = Company::orderBy('name')->get(['id', 'name']);
+        $assignedCompanyIds = $user->getAssignedCompanyIds();
+        $companiesQuery = Company::orderBy('name');
+        if (!$user->isAdmin() && $assignedCompanyIds->isNotEmpty()) {
+            $companiesQuery->whereIn('id', $assignedCompanyIds);
+        }
+        $companies = $companiesQuery->get(['id', 'name']);
+
         // Branch-scope departments
         $departmentsQuery = Department::orderBy('name');
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-            $companyId = $user->employee->company_id;
-            $departmentsQuery->where(function ($q) use ($companyId) {
-                $q->where('departments.company_id', $companyId)
-                  ->orWhereHas('companies', function ($sub) use ($companyId) {
-                      $sub->where('companies.id', $companyId);
-                  });
-            });
+        if (!$user->isAdmin()) {
+            if ($assignedCompanyIds->isNotEmpty()) {
+                $departmentsQuery->where(function ($q) use ($assignedCompanyIds) {
+                    $q->whereIn('departments.company_id', $assignedCompanyIds)
+                      ->orWhereHas('companies', function ($sub) use ($assignedCompanyIds) {
+                          $sub->whereIn('companies.id', $assignedCompanyIds);
+                      });
+                });
+            }
+            $assignedDepartmentIds = $user->getAssignedDepartmentIds();
+            if ($assignedDepartmentIds->isNotEmpty()) {
+                $departmentsQuery->whereIn('departments.id', $assignedDepartmentIds);
+            }
         }
         $departments = $departmentsQuery->distinct()->get(['departments.id', 'name']);
         $salaryComponents = \App\Models\SalaryComponent::where('is_active', true)->get();
@@ -769,9 +802,21 @@ class EmployeeController extends Controller
         // the profile page, exports and reports keep working unchanged.
         $this->syncReportingPerson($validated);
 
+<<<<<<< HEAD
         $managerId = $validated['reports_to_id'] ?? null;
         if ($managerId && (int) $managerId === (int) $employee->id) {
             return back()->withErrors(['reports_to_id' => 'An employee cannot report to themselves.']);
+=======
+            if ($manager && (int) $manager->id === (int) $employee->id) {
+                return back()->withErrors(['reports_to_id' => 'An employee cannot report to themselves.']);
+            }
+
+            if ($manager && \App\Services\EmployeeAuthorizationService::detectReportingCycle((int) $employee->id, (int) $manager->id)) {
+                return back()->withErrors(['reports_to_id' => 'Circular reporting detected. An employee cannot report to someone who reports to them.']);
+            }
+
+            $validated['reported_to'] = $manager ? $manager->name : null;
+>>>>>>> 770a7ba64281fa038455d1fa3c2ce3321a47757a
         }
 
         // Remove file fields from validated data so they don't overwrite with null if not uploaded
@@ -1206,8 +1251,27 @@ class EmployeeController extends Controller
     public function getByDepartment(Request $request)
     {
         try {
+<<<<<<< HEAD
             $companyIds = array_filter((array) ($request->input('company_ids') ?: ($request->input('company_id') ? [$request->input('company_id')] : [])));
             $departmentIds = array_filter((array) ($request->input('department_ids') ?: ($request->input('department_id') ? [$request->input('department_id')] : [])));
+=======
+            $user = auth()->user();
+            if (!$user) {
+                return response()->json(['error' => 'Unauthenticated.'], 401);
+            }
+
+            $departmentId = $request->input('department_id');
+            $companyId = $request->input('company_id');
+>>>>>>> 770a7ba64281fa038455d1fa3c2ce3321a47757a
+
+            // Multi-tenancy check: non-admins are restricted to their own branch
+            if (!$user->isAdmin()) {
+                $userCompanyId = $user->employee?->company_id;
+                if ($companyId && (int)$companyId !== (int)$userCompanyId) {
+                    abort(403, 'Unauthorized access to another branch employees.');
+                }
+                $companyId = $userCompanyId ?: $companyId;
+            }
 
             $departmentEmployees = collect();
             if (!empty($departmentIds)) {
@@ -1295,6 +1359,7 @@ class EmployeeController extends Controller
 
     private function getLeadershipEmployees()
     {
+<<<<<<< HEAD
         $leadership = Employee::withoutGlobalScope('company')
             ->with('company:id,name')
             ->where(function ($q) {
@@ -1309,6 +1374,20 @@ class EmployeeController extends Controller
             ->active()
             ->orderBy('name')
             ->get(['id', 'name', 'designation', 'company_id']);
+=======
+        $leadership = Employee::withoutGlobalScope('company')->where(function ($q) {
+            $q->where('designation', 'LIKE', '%CEO%')
+              ->orWhere('designation', 'LIKE', '%Founder%')
+              ->orWhere('designation', 'LIKE', '%Owner%')
+              ->orWhere('designation', 'LIKE', '%COO%')
+              ->orWhere('designation', 'LIKE', '%Chief Operating Officer%')
+              ->orWhere('designation', 'LIKE', '%Director%')
+              ->orWhere('designation', 'LIKE', '%General Manager%');
+        })
+        ->active()
+        ->orderBy('name')
+        ->get(['id', 'name', 'designation', 'company_id']);
+>>>>>>> 770a7ba64281fa038455d1fa3c2ce3321a47757a
 
         // Fallback: If no employee with CEO/Founder designation exists yet, include admin users
         if ($leadership->isEmpty()) {
@@ -1339,6 +1418,7 @@ class EmployeeController extends Controller
      */
     private function getManagerAndHrEmployees()
     {
+<<<<<<< HEAD
         $employees = Employee::withoutGlobalScope('company')
             ->with(['company:id,name', 'department:id,name'])
             ->where(function ($q) {
@@ -1408,6 +1488,24 @@ class EmployeeController extends Controller
             }
             return 'name:' . strtolower((string) $item->name);
         })->values();
+=======
+        return Employee::withoutGlobalScope('company')->where(function ($q) {
+            $q->where('designation', 'LIKE', '%Manager%')
+              ->orWhere('designation', 'LIKE', '%HR%')
+              ->orWhere('designation', 'LIKE', '%Human Resource%')
+              ->orWhere('designation', 'LIKE', '%Supervisor%')
+              ->orWhere('designation', 'LIKE', '%Lead%');
+        })
+        ->orWhereHas('user', function ($q) {
+            $q->whereIn('role', ['hr', 'manager'])
+              ->orWhereHas('roles', function ($rq) {
+                  $rq->whereIn('slug', ['hr', 'manager', 'branch-manager']);
+              });
+        })
+        ->active()
+        ->orderBy('name')
+        ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
+>>>>>>> 770a7ba64281fa038455d1fa3c2ce3321a47757a
     }
 
     private function getConstants()
@@ -1500,14 +1598,22 @@ class EmployeeController extends Controller
         DB::beginTransaction();
         try {
             // Multi-tenancy check for target company
-            if (!$user->isAdmin() && $user->employee_id && $validated['company_id'] != $user->employee->company_id) {
-                abort(403, 'Unauthorized. You can only transfer employees within your own branch.');
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            if (!$user->isAdmin() && !$assignedCompanyIds->contains((int)$validated['company_id'])) {
+                abort(403, 'Unauthorized. You can only transfer employees to an authorized branch.');
             }
 
-            // Verify all employees being transferred belong to the user's branch
-            if (!$user->isAdmin() && $user->employee_id) {
-                $unauthorizedCount = Employee::whereIn('id', $validated['employee_ids'])
-                    ->where('company_id', '!=', $user->employee->company_id)
+            // Verify all employees being transferred belong to the user's branch or report to user
+            if (!$user->isAdmin()) {
+                $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+                $unauthorizedCount = Employee::withoutGlobalScope('company')
+                    ->whereIn('id', $validated['employee_ids'])
+                    ->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                        $q->whereNotIn('company_id', $assignedCompanyIds);
+                        if ($subordinateIds->isNotEmpty()) {
+                            $q->whereNotIn('id', $subordinateIds);
+                        }
+                    })
                     ->count();
                 if ($unauthorizedCount > 0) {
                     abort(403, 'Unauthorized. One or more selected employees belong to another branch.');

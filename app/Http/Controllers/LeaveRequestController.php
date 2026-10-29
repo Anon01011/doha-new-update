@@ -26,14 +26,15 @@ class LeaveRequestController extends Controller
         $query = LeaveRequest::with(['employee', 'leaveType']);
 
         // Role-based filtering (additional to global scope)
+        $subordinateIds = $user->getSubordinateEmployeeIds(true);
         if ($user->isEmployee() && $user->employee_id) {
-            // Employees/Managers should see their own requests AND requests waiting for their approval
-            $query->where(function ($q) use ($user) {
+            // Employees/Managers should see their own requests AND requests from their reporting subordinates
+            $query->where(function ($q) use ($user, $subordinateIds) {
                 $q->where('employee_id', $user->employee_id)
-                    ->orWhere(function ($q2) use ($user) {
-                        $q2->where('manager_id', $user->employee_id)
-                            ->where('manager_approval_status', 'pending');
-                    });
+                    ->orWhere('manager_id', $user->employee_id);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
             });
         }
 
@@ -56,7 +57,41 @@ class LeaveRequestController extends Controller
 
         $leaveRequests = $query->latest()->paginate(10)->withQueryString();
 
-        // Get leave balances for employee
+        // Leave statistics for administrative / team / personal overview
+        $statsQuery = LeaveRequest::query();
+        if ($user->isEmployee() && $user->employee_id) {
+            $statsQuery->where(function ($q) use ($user, $subordinateIds) {
+                $q->where('employee_id', $user->employee_id)
+                    ->orWhere('manager_id', $user->employee_id);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
+            });
+        } elseif ($user->isManager() && !$user->isAdmin() && !$user->isHR()) {
+            $statsQuery->where(function ($q) use ($user, $subordinateIds) {
+                $q->where('manager_id', $user->employee_id)
+                    ->orWhere('employee_id', $user->employee_id);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
+            });
+        }
+
+        $today = now()->toDateString();
+        $stats = [
+            'total'          => (clone $statsQuery)->count(),
+            'pending'        => (clone $statsQuery)->where('status', 'pending')->count(),
+            'approved'       => (clone $statsQuery)->where('status', 'approved')->count(),
+            'rejected'       => (clone $statsQuery)->where('status', 'rejected')->count(),
+            'on_leave_today' => (clone $statsQuery)
+                ->where('status', 'approved')
+                ->whereDate('start_date', '<=', $today)
+                ->whereDate('end_date', '>=', $today)
+                ->count(),
+        ];
+
+        // Get leave balances for employee — show ALL active leave types,
+        // including those without an allocated balance record.
         $leaveBalances = [];
         $empId = $user->employee_id ?: ($user->employee ? $user->employee->id : null);
         if ($empId) {
@@ -69,9 +104,10 @@ class LeaveRequestController extends Controller
         return Inertia::render('Leave/Index', [
             'leaveRequests' => $leaveRequests,
             'leaveBalances' => $leaveBalances,
-            'status' => $status,
-            'search' => $search,
-            'userRole' => $user->role,
+            'stats'         => $stats,
+            'status'        => $status,
+            'search'        => $search,
+            'userRole'      => $user->role,
         ]);
     }
 
@@ -86,9 +122,16 @@ class LeaveRequestController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'code', 'max_days_per_year', 'min_notice_days', 'requires_approval', 'requires_attachment', 'is_paid', 'carry_forward_allowed']);
 
-        // Role-based employee selection (Global scope handles branch isolation)
+        // Role-based employee selection (Global scope handles branch isolation and subordinates)
         if ($user->isEmployee() && $user->employee_id) {
-            $employees = Employee::where('id', $user->employee_id)->get(['id', 'name', 'employee_code']);
+            $subordinateIds = $user->getSubordinateEmployeeIds(true);
+            if ($subordinateIds->isNotEmpty()) {
+                $employees = Employee::where(function ($q) use ($user, $subordinateIds) {
+                    $q->where('id', $user->employee_id)->orWhereIn('id', $subordinateIds);
+                })->orderBy('name')->get(['id', 'name', 'employee_code']);
+            } else {
+                $employees = Employee::where('id', $user->employee_id)->get(['id', 'name', 'employee_code']);
+            }
         } else {
             $employees = Employee::orderBy('name')->get(['id', 'name', 'employee_code']);
         }
@@ -124,23 +167,29 @@ class LeaveRequestController extends Controller
     private function employeeExistsRule($user): \Illuminate\Validation\Rules\Exists
     {
         return Rule::exists('employees', 'id')->where(function ($query) use ($user) {
-            // Admins are superusers across tenants - no restriction, exactly
-            // like the BelongsToCompany scope.
+            // Admins are superusers across tenants - no restriction
             if ($user->isAdmin()) {
                 return;
             }
 
-            $companyId = $this->companyIdFor($user);
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            $subordinateIds = $user->getSubordinateEmployeeIds(true);
 
-            if ($companyId === null) {
-                // A non-admin without any tenant context may not reference any
-                // employee. Deny by default rather than allow everything.
-                $query->whereRaw('1 = 0');
-
-                return;
-            }
-
-            $query->where('company_id', $companyId);
+            $query->where(function ($sub) use ($assignedCompanyIds, $subordinateIds) {
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $sub->whereIn('company_id', $assignedCompanyIds);
+                }
+                if ($subordinateIds->isNotEmpty()) {
+                    if ($assignedCompanyIds->isNotEmpty()) {
+                        $sub->orWhereIn('id', $subordinateIds);
+                    } else {
+                        $sub->whereIn('id', $subordinateIds);
+                    }
+                }
+                if ($assignedCompanyIds->isEmpty() && $subordinateIds->isEmpty()) {
+                    $sub->whereRaw('1 = 0');
+                }
+            });
         });
     }
 
@@ -198,6 +247,9 @@ class LeaveRequestController extends Controller
             $employeeIds = [$validated['employee_id']];
         }
 
+        $isAdminOrHR = $user->isAdmin() || $user->isHR();
+        $canCreateForOthers = $user->isManager() || $user->hasPermission('create-leave-requests');
+
         // If user is employee, automatically use their own employee_id
         if (empty($employeeIds) && ($user->isEmployee() || (!$isAdminOrHR && !$canCreateForOthers))) {
             $empId = $user->employee_id ?: ($user->employee ? $user->employee->id : null);
@@ -212,21 +264,6 @@ class LeaveRequestController extends Controller
 
         $startDate = Carbon::parse($validated['start_date']);
         $endDate = Carbon::parse($validated['end_date']);
-        $isAdminOrHR = $user->isAdmin() || $user->isHR();
-
-        // BUG FIX: the previous check rejected EVERY non-HR user, including
-        // managers who legitimately create leave requests on behalf of their
-        // team. The frontend already renders a multi-employee picker for
-        // non-employees, so the backend and the UI disagreed and managers
-        // always received a 403.
-        //
-        // The rule is now:
-        //   * employees may only request for themselves;
-        //   * managers (and anyone holding `create-leave-requests`) may request
-        //     for other employees, but ONLY within their own tenant.
-        // Tenant isolation itself is enforced by the scoped validation rule
-        // above and by the scoped Employee lookup further down.
-        $canCreateForOthers = $user->isManager() || $user->hasPermission('create-leave-requests');
 
         if (!$isAdminOrHR && !$canCreateForOthers) {
             if (count($employeeIds) > 1 || (int) $employeeIds[0] !== (int) $user->employee_id) {
@@ -427,10 +464,17 @@ class LeaveRequestController extends Controller
                     $this->createAttendanceFromLeave($leaveRequest);
                 }
 
-                // Notify Manager if exists
-                if ($leaveRequest->manager_id && !$isAdminOrHR) {
-                    $this->notifyEmployee($leaveRequest->manager_id, new \App\Notifications\LeaveRequested($leaveRequest, $employee->name));
-                } elseif ($isAdminOrHR) {
+                // Notify Approvers:
+                // - Admin (receives notifications across all branches)
+                // - HR (strictly same branch / company)
+                // - Manager (strictly same branch / reporting & dept managers)
+                if (!$isAdminOrHR) {
+                    \App\Services\NotificationService::notifyApprovers(
+                        $employee,
+                        new \App\Notifications\LeaveRequested($leaveRequest, $employee->name),
+                        auth()->id()
+                    );
+                } else {
                     // HR/Admin submitted on behalf of employee — notify employee
                     $this->notifyEmployee($leaveRequest->employee_id, new \App\Notifications\LeaveRequested($leaveRequest, $employee->name));
                 }
@@ -517,13 +561,18 @@ class LeaveRequestController extends Controller
         }
 
         $validated = $request->validate([
-            'employee_id'   => 'required|exists:employees,id',
+            'employee_id'   => ['required', $this->employeeExistsRule($user)],
             'leave_type_id' => 'required|exists:leave_types,id',
             'start_date'    => 'required|date',
             'end_date'      => 'required|date|after_or_equal:start_date',
             'reason'        => 'required|string|max:2000',
             'attachment'    => 'nullable|file|max:51200',
         ]);
+
+        // Security: non-admin employees can never reassign employee_id
+        if ($user->isEmployee()) {
+            $validated['employee_id'] = $leaveRequest->employee_id;
+        }
 
         $startDate = Carbon::parse($validated['start_date']);
         $endDate = Carbon::parse($validated['end_date']);
@@ -550,9 +599,11 @@ class LeaveRequestController extends Controller
             }
         }
 
-        // Calculate days excluding holidays
+        // Calculate days excluding holidays scoped to company
         $daysRequested = 0;
         $currentDate = $startDate->copy();
+        $targetEmployee = Employee::find($validated['employee_id']) ?: $leaveRequest->employee;
+        $empCompanyId = $targetEmployee?->company_id;
 
         $holidayRecords = \App\Models\Holiday::where(function ($q) use ($startDate, $endDate) {
             $q->where(function ($q2) use ($startDate, $endDate) {
@@ -562,7 +613,9 @@ class LeaveRequestController extends Controller
             })->orWhere(function ($q2) use ($startDate, $endDate) {
                 $q2->where('start_date', '<=', $startDate)->where('end_date', '>=', $endDate);
             });
-        })->get();
+        })
+        ->when($empCompanyId, fn($q) => $q->where('company_id', $empCompanyId))
+        ->get();
 
         $holidayDates = [];
         foreach ($holidayRecords as $holiday) {
@@ -635,10 +688,11 @@ class LeaveRequestController extends Controller
             }
         }
 
-        // If it was already approved, we need to restore the balance and remove attendance records
+        // If it was already approved, we need to restore the balance, remove attendance records, and restore rosters
         if ($leaveRequest->status === 'approved') {
             $this->restoreLeaveBalance($leaveRequest);
             $this->removeAttendanceRecords($leaveRequest);
+            $this->restoreRosterFromLeave($leaveRequest);
         }
 
         $leaveRequest->delete();
@@ -664,9 +718,10 @@ class LeaveRequestController extends Controller
             return back()->with('error', 'Cannot cancel a leave that has already started.');
         }
 
-        // Restore balance and remove attendance
+        // Restore balance, remove attendance, and restore rosters
         $this->restoreLeaveBalance($leaveRequest);
         $this->removeAttendanceRecords($leaveRequest);
+        $this->restoreRosterFromLeave($leaveRequest);
 
         $leaveRequest->update([
             'status' => 'cancelled',
@@ -700,6 +755,70 @@ class LeaveRequestController extends Controller
             ->delete();
     }
 
+    /**
+     * Synchronize any existing shift rosters (pending or approved) with an approved leave.
+     */
+    private function syncRosterWithLeave(LeaveRequest $leaveRequest): void
+    {
+        $startDate = Carbon::parse($leaveRequest->start_date);
+        $endDate = Carbon::parse($leaveRequest->end_date);
+        $currentDate = $startDate->copy();
+        $leaveTypeName = $leaveRequest->leaveType?->name ?? 'Leave';
+
+        while ($currentDate->lte($endDate)) {
+            $weekStart = $currentDate->copy()->startOfWeek(Carbon::MONDAY)->toDateString();
+            $dayName = $currentDate->format('l');
+
+            // Find any shift roster entry for this employee on this week and day
+            $rosterEntries = \App\Models\ShiftRoster::where('employee_id', $leaveRequest->employee_id)
+                ->where('week_start', $weekStart)
+                ->where('day', $dayName)
+                ->get();
+
+            foreach ($rosterEntries as $entry) {
+                $entry->update([
+                    'shift_time' => 'On Leave',
+                    'shift_type' => 'Leave',
+                    'notes'      => 'Approved ' . $leaveTypeName,
+                ]);
+            }
+
+            $currentDate->addDay();
+        }
+    }
+
+    /**
+     * Reset shift rosters when an approved leave is cancelled or removed.
+     */
+    private function restoreRosterFromLeave(LeaveRequest $leaveRequest): void
+    {
+        $startDate = Carbon::parse($leaveRequest->start_date);
+        $endDate = Carbon::parse($leaveRequest->end_date);
+        $currentDate = $startDate->copy();
+
+        while ($currentDate->lte($endDate)) {
+            $weekStart = $currentDate->copy()->startOfWeek(Carbon::MONDAY)->toDateString();
+            $dayName = $currentDate->format('l');
+
+            $rosterEntries = \App\Models\ShiftRoster::where('employee_id', $leaveRequest->employee_id)
+                ->where('week_start', $weekStart)
+                ->where('day', $dayName)
+                ->where('shift_type', 'Leave')
+                ->where('shift_time', 'On Leave')
+                ->get();
+
+            foreach ($rosterEntries as $entry) {
+                $entry->update([
+                    'shift_time' => '',
+                    'shift_type' => null,
+                    'notes'      => 'Leave Cancelled / Removed',
+                ]);
+            }
+
+            $currentDate->addDay();
+        }
+    }
+
     public function approve(Request $request, LeaveRequest $leaveRequest)
     {
         $user = auth()->user();
@@ -712,7 +831,10 @@ class LeaveRequestController extends Controller
         $remarks = $request->input('remarks') ?? $request->input('approval_remarks');
 
         // If current user is the manager (and request is pending manager approval)
-        if ($user->employee_id == $leaveRequest->manager_id && $leaveRequest->manager_approval_status === 'pending') {
+        $isManager = ($user->employee_id && $user->employee_id == $leaveRequest->manager_id)
+            || ($leaveRequest->employee_id && $user->isReportingManagerFor($leaveRequest->employee_id));
+
+        if ($isManager && $leaveRequest->manager_approval_status === 'pending') {
             $leaveRequest->update([
                 'manager_approval_status' => 'approved',
                 'manager_approved_at' => now(),
@@ -722,11 +844,24 @@ class LeaveRequestController extends Controller
             // If now approved by manager, it goes to HR (status remains pending overall, but HR status is pending)
             $this->notifyEmployee($leaveRequest->employee_id, new \App\Notifications\LeaveStatusUpdated($leaveRequest, 'approved by Manager', 'Your leave request has been approved by your manager and is now awaiting HR approval.'));
 
+            // Notify Branch HR and Admins that manager has approved and request awaits HR action
+            $leaveRequest->loadMissing('employee');
+            \App\Services\NotificationService::notifyHrAndAdmins(
+                new \App\Notifications\LeaveRequested(
+                    $leaveRequest,
+                    $leaveRequest->employee?->name,
+                    'Leave Request Pending HR Approval',
+                    "Manager approved {$leaveRequest->employee?->name}'s leave request. Final HR approval required."
+                ),
+                $leaveRequest->employee?->company_id,
+                auth()->id()
+            );
+
             return redirect()->back()->with('success', 'Leave request approved! Awaiting HR approval.');
         }
 
         // If current user is HR/Admin (and manager has approved or no manager)
-        if (in_array($user->role, ['admin', 'hr'])) {
+        if ($user->isAdmin() || $user->isHR() || in_array($user->role, ['admin', 'hr'])) {
             $leaveRequest->update([
                 'status' => 'approved',
                 'hr_approval_status' => 'approved',
@@ -740,6 +875,16 @@ class LeaveRequestController extends Controller
 
             // Create attendance records for the leave duration
             $this->createAttendanceFromLeave($leaveRequest);
+
+            // Synchronize shift rosters for this employee over the leave duration
+            $this->syncRosterWithLeave($leaveRequest);
+
+            // Dynamic leave_status update on employee if leave covers today
+            $today = now()->toDateString();
+            if ($leaveRequest->start_date <= $today && $leaveRequest->end_date >= $today) {
+                $typeName = $leaveRequest->leaveType?->name ?? 'Leave';
+                $leaveRequest->employee?->update(['leave_status' => "On Leave ({$typeName})"]);
+            }
 
             $this->notifyEmployee($leaveRequest->employee_id, new \App\Notifications\LeaveStatusUpdated($leaveRequest, 'approved'));
 
@@ -757,6 +902,7 @@ class LeaveRequestController extends Controller
         }
 
         $validated = $request->validate([
+<<<<<<< HEAD
             'ids' => 'required|array',
             'ids.*' => 'exists:leave_requests,id',
             'remarks' => 'nullable|string',
@@ -764,6 +910,14 @@ class LeaveRequestController extends Controller
         ]);
 
         $remarks = $request->input('remarks') ?? $request->input('approval_remarks');
+=======
+            'ids'     => 'required|array',
+            'ids.*'   => 'exists:leave_requests,id',
+            'remarks' => 'nullable|string|max:1000',
+        ]);
+
+        $remarks = $request->input('remarks');
+>>>>>>> 770a7ba64281fa038455d1fa3c2ce3321a47757a
         $approvedCount = 0;
         $managerApprovedCount = 0;
 
@@ -773,24 +927,52 @@ class LeaveRequestController extends Controller
                 $leaveRequest = LeaveRequest::findOrFail($id);
 
                 // Check if user is the manager and the request is pending manager approval
-                if ($user->employee_id == $leaveRequest->manager_id && $leaveRequest->manager_approval_status === 'pending') {
+                $isManager = ($user->employee_id && $user->employee_id == $leaveRequest->manager_id)
+            || ($leaveRequest->employee_id && $user->isReportingManagerFor($leaveRequest->employee_id));
+
+        if ($isManager && $leaveRequest->manager_approval_status === 'pending') {
                     $leaveRequest->update([
                         'manager_approval_status' => 'approved',
+<<<<<<< HEAD
                         'manager_approved_at' => now(),
                         'approval_remarks' => $remarks ?: $leaveRequest->approval_remarks,
+=======
+                        'manager_approved_at'     => now(),
+                        'approval_remarks'        => $remarks,
+>>>>>>> 770a7ba64281fa038455d1fa3c2ce3321a47757a
                     ]);
                     $this->notifyEmployee($leaveRequest->employee_id, new \App\Notifications\LeaveStatusUpdated($leaveRequest, 'approved by Manager', 'Your leave request has been approved by your manager and is now awaiting HR approval.'));
+
+                    // Notify Branch HR and Admins for bulk action
+                    $leaveRequest->loadMissing('employee');
+                    \App\Services\NotificationService::notifyHrAndAdmins(
+                        new \App\Notifications\LeaveRequested(
+                            $leaveRequest,
+                            $leaveRequest->employee?->name,
+                            'Leave Request Pending HR Approval',
+                            "Manager approved {$leaveRequest->employee?->name}'s leave request. Final HR approval required."
+                        ),
+                        $leaveRequest->employee?->company_id,
+                        auth()->id()
+                    );
+
                     $managerApprovedCount++;
                 }
                 // Check if user is HR/Admin
-                elseif (in_array($user->role, ['admin', 'hr'])) {
+                elseif ($user->isAdmin() || $user->isHR() || in_array($user->role, ['admin', 'hr'])) {
                     if ($leaveRequest->status !== 'approved') {
                         $leaveRequest->update([
-                            'status' => 'approved',
+                            'status'           => 'approved',
                             'hr_approval_status' => 'approved',
+<<<<<<< HEAD
                             'approved_by' => auth()->id(),
                             'approved_at' => now(),
                             'approval_remarks' => $remarks ?: $leaveRequest->approval_remarks,
+=======
+                            'approved_by'      => auth()->id(),
+                            'approved_at'      => now(),
+                            'approval_remarks' => $remarks,
+>>>>>>> 770a7ba64281fa038455d1fa3c2ce3321a47757a
                         ]);
 
                         // Update leave balance
@@ -798,6 +980,16 @@ class LeaveRequestController extends Controller
 
                         // Create attendance records
                         $this->createAttendanceFromLeave($leaveRequest);
+
+                        // Synchronize shift rosters for this employee over the leave duration
+                        $this->syncRosterWithLeave($leaveRequest);
+
+                        // Dynamic leave_status update on employee if leave covers today
+                        $today = now()->toDateString();
+                        if ($leaveRequest->start_date <= $today && $leaveRequest->end_date >= $today) {
+                            $typeName = $leaveRequest->leaveType?->name ?? 'Leave';
+                            $leaveRequest->employee?->update(['leave_status' => "On Leave ({$typeName})"]);
+                        }
 
                         $this->notifyEmployee($leaveRequest->employee_id, new \App\Notifications\LeaveStatusUpdated($leaveRequest, 'approved'));
                         $approvedCount++;
@@ -848,7 +1040,10 @@ class LeaveRequestController extends Controller
                 $leaveRequest = LeaveRequest::findOrFail($id);
 
                 // Check if user is manager and pending manager approval
-                if ($user->employee_id == $leaveRequest->manager_id && $leaveRequest->manager_approval_status === 'pending') {
+                $isManager = ($user->employee_id && $user->employee_id == $leaveRequest->manager_id)
+            || ($leaveRequest->employee_id && $user->isReportingManagerFor($leaveRequest->employee_id));
+
+        if ($isManager && $leaveRequest->manager_approval_status === 'pending') {
                     $leaveRequest->update([
                         'status' => 'rejected',
                         'manager_approval_status' => 'rejected',
@@ -901,7 +1096,10 @@ class LeaveRequestController extends Controller
             'rejection_reason' => 'required|string',
         ]);
 
-        if ($user->employee_id == $leaveRequest->manager_id && $leaveRequest->manager_approval_status === 'pending') {
+        $isManager = ($user->employee_id && $user->employee_id == $leaveRequest->manager_id)
+            || ($leaveRequest->employee_id && $user->isReportingManagerFor($leaveRequest->employee_id));
+
+        if ($isManager && $leaveRequest->manager_approval_status === 'pending') {
             $leaveRequest->update([
                 'status' => 'rejected',
                 'manager_approval_status' => 'rejected',
@@ -969,18 +1167,8 @@ class LeaveRequestController extends Controller
             $currentDate->addDay();
         }
     }
-    /**
-     * Helper to notify employee
-     */
     private function notifyEmployee($employeeId, $notification)
     {
-        $employee = Employee::find($employeeId);
-        if ($employee && $employee->user) {
-            try {
-                $employee->user->notify($notification);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Notification failed: ' . $e->getMessage());
-            }
-        }
+        \App\Services\NotificationService::notifyEmployee($employeeId, $notification);
     }
 }

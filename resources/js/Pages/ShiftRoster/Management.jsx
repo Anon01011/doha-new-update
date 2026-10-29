@@ -51,6 +51,8 @@ export default function Management({
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [fromDate, setFromDate] = useState(filters.from_date || '');
     const [toDate, setToDate] = useState(filters.to_date || '');
+    const [period, setPeriod] = useState(filters.period || 'all');
+    const [sortBy, setSortBy] = useState(filters.sort_by || 'date_desc');
 
     // Details Modal State & In-Modal Filters
     const [detailsModal, setDetailsModal] = useState({
@@ -91,6 +93,8 @@ export default function Management({
             search: newFilters.search ?? searchTerm,
             from_date: newFilters.from_date ?? fromDate,
             to_date: newFilters.to_date ?? toDate,
+            period: newFilters.period ?? period,
+            sort_by: newFilters.sort_by ?? sortBy,
         };
 
         // Remove empty keys
@@ -112,6 +116,8 @@ export default function Management({
         setSearchTerm('');
         setFromDate('');
         setToDate('');
+        setPeriod('all');
+        setSortBy('date_desc');
         router.get(route('shift-rosters.management'), {}, {
             preserveState: true,
             replace: true
@@ -622,7 +628,7 @@ export default function Management({
                             ))}
                         </div>
 
-                        {(selectedCompany || selectedDepartment || searchTerm || fromDate || toDate || selectedStatus !== 'all') && (
+                        {(selectedCompany || selectedDepartment || searchTerm || fromDate || toDate || selectedStatus !== 'all' || period !== 'all' || sortBy !== 'date_desc') && (
                             <button
                                 onClick={resetFilters}
                                 className="text-xs text-gray-500 hover:text-indigo-600 flex items-center gap-1.5 font-medium px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors"
@@ -634,17 +640,17 @@ export default function Management({
                     </div>
 
                     {/* Filter Inputs Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                         {/* Company Filter */}
                         <div>
-                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Company / Branch</label>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Branch / Company</label>
                             <select
                                 value={selectedCompany}
                                 onChange={e => {
                                     setSelectedCompany(e.target.value);
                                     handleFilterChange({ company_id: e.target.value, department_id: '' });
                                 }}
-                                className="w-full text-xs rounded-xl border-gray-200 bg-gray-50/70 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 py-2.5 transition-all"
+                                className="w-full text-xs rounded-xl border-gray-200 bg-gray-50/70 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 py-2.5 transition-all font-medium text-gray-700"
                             >
                                 <option value="">All Branches</option>
                                 {companies.map(c => (
@@ -662,12 +668,52 @@ export default function Management({
                                     setSelectedDepartment(e.target.value);
                                     handleFilterChange({ department_id: e.target.value });
                                 }}
-                                className="w-full text-xs rounded-xl border-gray-200 bg-gray-50/70 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 py-2.5 transition-all"
+                                className="w-full text-xs rounded-xl border-gray-200 bg-gray-50/70 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 py-2.5 transition-all font-medium text-gray-700"
                             >
                                 <option value="">All Departments</option>
                                 {departments.map(d => (
                                     <option key={d.id} value={d.id}>{d.name}</option>
                                 ))}
+                            </select>
+                        </div>
+
+                        {/* Period Filter (Date / Week / Month Presets) */}
+                        <div>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Schedule Period</label>
+                            <select
+                                value={period}
+                                onChange={e => {
+                                    setPeriod(e.target.value);
+                                    handleFilterChange({ period: e.target.value });
+                                }}
+                                className="w-full text-xs rounded-xl border-gray-200 bg-gray-50/70 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 py-2.5 transition-all font-medium text-gray-700"
+                            >
+                                <option value="all">All Dates & Weeks</option>
+                                <option value="this_week">Current Week</option>
+                                <option value="next_week">Next Week</option>
+                                <option value="this_month">This Month</option>
+                                <option value="last_month">Last Month</option>
+                                <option value="custom">Custom Date Range</option>
+                            </select>
+                        </div>
+
+                        {/* Sort Filter */}
+                        <div>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Sort Schedules By</label>
+                            <select
+                                value={sortBy}
+                                onChange={e => {
+                                    setSortBy(e.target.value);
+                                    handleFilterChange({ sort_by: e.target.value });
+                                }}
+                                className="w-full text-xs rounded-xl border-gray-200 bg-gray-50/70 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 py-2.5 transition-all font-medium text-gray-700"
+                            >
+                                <option value="date_desc">Week Date: Newest First</option>
+                                <option value="date_asc">Week Date: Oldest First</option>
+                                <option value="shifts_desc">Shifts: Most First</option>
+                                <option value="shifts_asc">Shifts: Fewest First</option>
+                                <option value="employees_desc">Staff Count: Most First</option>
+                                <option value="pending_desc">Pending Approvals First</option>
                             </select>
                         </div>
 
@@ -677,42 +723,44 @@ export default function Management({
                             <div className="relative">
                                 <input
                                     type="text"
-                                    placeholder="Search by branch or week..."
+                                    placeholder="Search branch or week..."
                                     value={searchTerm}
                                     onChange={e => {
                                         setSearchTerm(e.target.value);
                                         handleFilterChange({ search: e.target.value });
                                     }}
-                                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border-gray-200 bg-gray-50/70 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border-gray-200 bg-gray-50/70 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
                                 />
                                 <FiSearch className="absolute left-3 top-3 text-gray-400 w-3.5 h-3.5" />
                             </div>
                         </div>
 
                         {/* Date From - To */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                             <div className="flex-1">
-                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">From Week</label>
+                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">From Date</label>
                                 <input
                                     type="date"
                                     value={fromDate}
                                     onChange={e => {
                                         setFromDate(e.target.value);
-                                        handleFilterChange({ from_date: e.target.value });
+                                        setPeriod('custom');
+                                        handleFilterChange({ from_date: e.target.value, period: 'custom' });
                                     }}
-                                    className="w-full text-xs rounded-xl border-gray-200 bg-gray-50/70 focus:bg-white py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="w-full text-xs rounded-xl border-gray-200 bg-gray-50/70 focus:bg-white py-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium"
                                 />
                             </div>
                             <div className="flex-1">
-                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">To Week</label>
+                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">To Date</label>
                                 <input
                                     type="date"
                                     value={toDate}
                                     onChange={e => {
                                         setToDate(e.target.value);
-                                        handleFilterChange({ to_date: e.target.value });
+                                        setPeriod('custom');
+                                        handleFilterChange({ to_date: e.target.value, period: 'custom' });
                                     }}
-                                    className="w-full text-xs rounded-xl border-gray-200 bg-gray-50/70 focus:bg-white py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="w-full text-xs rounded-xl border-gray-200 bg-gray-50/70 focus:bg-white py-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium"
                                 />
                             </div>
                         </div>

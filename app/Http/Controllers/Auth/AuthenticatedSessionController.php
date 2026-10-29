@@ -74,7 +74,7 @@ class AuthenticatedSessionController extends Controller
             if ($attendance && $attendance->from_time) {
                 $toTime = now();
                 $fromTime = \Carbon\Carbon::parse($attendance->from_time);
-                $diffInMinutes = $toTime->diffInMinutes($fromTime);
+                $diffInMinutes = (int) round($toTime->diffInMinutes($fromTime, true));
                 $totalBreakMinutes = $attendance->total_break_minutes ?: 0;
                 $workMinutes = $diffInMinutes - $totalBreakMinutes;
                 $hoursWorked = round($workMinutes / 60, 2);

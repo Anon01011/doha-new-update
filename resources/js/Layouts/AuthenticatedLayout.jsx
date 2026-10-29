@@ -14,10 +14,11 @@ import {
     InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 import { Link, router, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     FiAlertCircle,
     FiAward,
+    FiActivity,
     FiBookOpen,
     FiBriefcase,
     FiCalendar,
@@ -37,6 +38,8 @@ import {
     FiShield,
     FiUserMinus,
     FiUsers,
+    FiVolume2,
+    FiVolumeX,
     FiX,
 } from 'react-icons/fi';
 
@@ -75,10 +78,16 @@ export default function AuthenticatedLayout({ header, children }) {
     const getNotificationStyles = (type) => {
         switch (type) {
             case 'task_assigned':
+            case 'task_completed':
                 return {
                     icon: <ClipboardDocumentCheckIcon className="h-5 w-5" />,
                     classes:
                         'bg-emerald-50 text-emerald-600 border-emerald-100',
+                };
+            case 'task_comment':
+                return {
+                    icon: <FiFileText className="h-5 w-5" />,
+                    classes: 'bg-teal-50 text-teal-600 border-teal-100',
                 };
             case 'project_assigned':
                 return {
@@ -86,6 +95,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     classes: 'bg-indigo-50 text-indigo-600 border-indigo-100',
                 };
             case 'salary_generated':
+            case 'salary_approved':
                 return {
                     icon: <BanknotesIcon className="h-5 w-5" />,
                     classes: 'bg-amber-50 text-amber-600 border-amber-100',
@@ -95,6 +105,49 @@ export default function AuthenticatedLayout({ header, children }) {
                 return {
                     icon: <FiCalendar className="h-5 w-5" />,
                     classes: 'bg-purple-50 text-purple-600 border-purple-100',
+                };
+            case 'shift_roster_created':
+                return {
+                    icon: <FiClock className="h-5 w-5" />,
+                    classes: 'bg-sky-50 text-sky-600 border-sky-100',
+                };
+            case 'shift_roster_approved':
+                return {
+                    icon: <FiClock className="h-5 w-5" />,
+                    classes: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+                };
+            case 'shift_roster_updated':
+            case 'shift_roster_rejected':
+                return {
+                    icon: <FiClock className="h-5 w-5" />,
+                    classes: 'bg-amber-50 text-amber-600 border-amber-100',
+                };
+            case 'attendance_event':
+            case 'attendance_updated':
+                return {
+                    icon: <FiClock className="h-5 w-5" />,
+                    classes: 'bg-teal-50 text-teal-600 border-teal-100',
+                };
+            case 'document_expiring':
+                return {
+                    icon: <FiAlertCircle className="h-5 w-5" />,
+                    classes: 'bg-amber-50 text-amber-600 border-amber-100',
+                };
+            case 'offboarding_requested':
+            case 'offboarding_status_updated':
+                return {
+                    icon: <FiUserMinus className="h-5 w-5" />,
+                    classes: 'bg-rose-50 text-rose-600 border-rose-100',
+                };
+            case 'appraisal_initiated':
+                return {
+                    icon: <FiAward className="h-5 w-5" />,
+                    classes: 'bg-indigo-50 text-indigo-600 border-indigo-100',
+                };
+            case 'appraisal_approved':
+                return {
+                    icon: <FiAward className="h-5 w-5" />,
+                    classes: 'bg-emerald-50 text-emerald-600 border-emerald-100',
                 };
             case 'grievance_submitted':
             case 'grievance_status_updated':
@@ -130,6 +183,128 @@ export default function AuthenticatedLayout({ header, children }) {
                     classes: 'bg-slate-50 text-slate-600 border-slate-100',
                 };
         }
+    };
+
+    // Notification state for real-time reactivity without page reload
+    const [unreadCount, setUnreadCount] = useState(user?.unreadNotifications?.length || 0);
+    const [notificationsList, setNotificationsList] = useState(user?.unreadNotifications || []);
+    const [activeToast, setActiveToast] = useState(null);
+
+    // Sync with page props whenever Inertia updates user.unreadNotifications
+    useEffect(() => {
+        if (Array.isArray(user?.unreadNotifications)) {
+            setNotificationsList(user.unreadNotifications);
+            setUnreadCount(user.unreadNotifications.length);
+        }
+    }, [user?.unreadNotifications]);
+
+    // System Notification Audio & Auto-Polling Hook
+    const [soundMuted, setSoundMuted] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('notification_sound_muted') === '1';
+        }
+        return false;
+    });
+
+    const toggleSoundMute = (e) => {
+        if (e) e.stopPropagation();
+        setSoundMuted((prev) => {
+            const next = !prev;
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('notification_sound_muted', next ? '1' : '0');
+            }
+            return next;
+        });
+    };
+
+    const prevCountRef = useRef(user?.unreadNotifications?.length || 0);
+
+    const playNotificationSound = useCallback(() => {
+        const soundEnabled = appSettings?.notification_sound_enabled !== false;
+        const soundFile = appSettings?.notification_sound_file || '/sounds/notification.mp3';
+
+        if (soundEnabled && !soundMuted) {
+            try {
+                const audio = new Audio(soundFile);
+                audio.volume = 0.8;
+                audio.play().catch((err) => {
+                    console.log('Notification chime muted pending interaction:', err?.message);
+                });
+            } catch (e) {
+                console.error('Notification sound error:', e);
+            }
+        }
+    }, [soundMuted, appSettings?.notification_sound_enabled, appSettings?.notification_sound_file]);
+
+    // Live background polling for new notifications (every 4.5s when tab is active)
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const pollNotifications = async () => {
+            if (typeof document === 'undefined' || document.hidden) return;
+
+            try {
+                const response = await fetch(route('notifications.poll'), {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin',
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const newCount = Number(data.unreadCount || 0);
+
+                    if (newCount > prevCountRef.current) {
+                        playNotificationSound();
+
+                        if (data.latest) {
+                            setActiveToast(data.latest);
+                        }
+                    }
+
+                    prevCountRef.current = newCount;
+                    setUnreadCount(newCount);
+                    setNotificationsList(data.notifications || []);
+                }
+            } catch (err) {
+                // Background poll silent catch
+            }
+        };
+
+        const pollInterval = setInterval(pollNotifications, 4500);
+        return () => clearInterval(pollInterval);
+    }, [user?.id, playNotificationSound]);
+
+    // Auto-dismiss floating toast alert after 6 seconds
+    useEffect(() => {
+        if (!activeToast) return;
+        const timer = setTimeout(() => {
+            setActiveToast(null);
+        }, 6000);
+        return () => clearTimeout(timer);
+    }, [activeToast]);
+
+    const handleMarkAllAsRead = (e) => {
+        if (e) e.preventDefault();
+        setUnreadCount(0);
+        setNotificationsList([]);
+        prevCountRef.current = 0;
+        router.post(route('notifications.markAllAsRead'), {}, {
+            preserveScroll: true,
+            preserveState: true,
+        });
+    };
+
+    const handleMarkAsRead = (id) => {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+        setNotificationsList((prev) => prev.filter((n) => n.id !== id));
+        prevCountRef.current = Math.max(0, prevCountRef.current - 1);
+        router.post(route('notifications.markAsRead', id), {}, {
+            preserveScroll: true,
+            preserveState: true,
+        });
     };
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -279,20 +454,20 @@ export default function AuthenticatedLayout({ header, children }) {
             title: 'TIME & ATTENDANCE',
             items: [
                 {
-                    name: 'Attendance',
+                    name: userRole === 'employee' ? 'My Attendance' : 'Attendance',
                     href: route('employee-attendances.index'),
                     icon: <FiClock className="h-4 w-4" />,
                     current: route().current('employee-attendances.*'),
-                    permissions: ['view-attendance'],
-                    roles: ['admin', 'hr', 'manager'],
+                    permissions: userRole === 'employee' ? [] : ['view-attendance'],
+                    roles: ['admin', 'hr', 'manager', 'employee'],
                 },
                 {
-                    name: 'Shift Roster',
+                    name: userRole === 'employee' ? 'My Shift Roster' : 'Shift Roster',
                     href: route('shift-rosters.index'),
                     icon: <FiCalendar className="h-4 w-4" />,
                     current: route().current('shift-rosters.*'),
-                    permissions: ['view-shift-rosters'],
-                    roles: ['admin', 'hr', 'manager'],
+                    permissions: userRole === 'employee' ? [] : ['view-shift-rosters'],
+                    roles: ['admin', 'hr', 'manager', 'employee'],
                     subMenu: [
                         {
                             name: 'Roster Schedule',
@@ -300,7 +475,8 @@ export default function AuthenticatedLayout({ header, children }) {
                             current:
                                 route().current('shift-rosters.index') ||
                                 route().current('shift-rosters.create'),
-                            permissions: ['view-shift-rosters'],
+                            permissions: userRole === 'employee' ? [] : ['view-shift-rosters'],
+                            roles: ['admin', 'hr', 'manager', 'employee'],
                         },
                         {
                             name: 'Approvals & Schedules',
@@ -347,6 +523,14 @@ export default function AuthenticatedLayout({ header, children }) {
                             permissions: ['view-holidays'],
                         },
                     ],
+                },
+                {
+                    name: 'Live Feed',
+                    href: route('attendance.live-feed'),
+                    icon: <FiActivity className="h-4 w-4" />,
+                    current: route().current('attendance.live-feed.*'),
+                    permissions: ['view-live-attendance'],
+                    roles: ['admin', 'hr', 'manager'],
                 },
             ],
         },
@@ -516,7 +700,10 @@ export default function AuthenticatedLayout({ header, children }) {
                     href: route('offboarding.index'),
                     icon: <FiUserMinus className="h-4 w-4" />,
                     current: route().current('offboarding.*'),
-                    permissions: ['view-offboarding', 'create-offboarding'],
+                    permissions:
+                        userRole === 'employee'
+                            ? []
+                            : ['view-offboarding', 'create-offboarding'],
                     roles: ['admin', 'hr', 'manager', 'employee'],
                 },
             ],
@@ -1553,6 +1740,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                         hour: '2-digit',
                                         minute: '2-digit',
                                         second: '2-digit',
+                                        timeZone: appSettings?.timezone || undefined,
                                     })}
                                 </div>
                                 <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">
@@ -1560,6 +1748,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                         weekday: 'short',
                                         month: 'short',
                                         day: 'numeric',
+                                        timeZone: appSettings?.timezone || undefined,
                                     })}
                                 </div>
                             </div>
@@ -1879,14 +2068,11 @@ export default function AuthenticatedLayout({ header, children }) {
                                             View notifications
                                         </span>
                                         <BellIcon className="h-5 w-5" />
-                                        {user.unreadNotifications?.length >
-                                            0 && (
+                                        {unreadCount > 0 && (
                                             <span className="absolute right-1.5 top-1.5 flex h-4 w-4 animate-bounce items-center justify-center rounded-full border-2 border-white bg-rose-500 text-[8px] font-black text-white transition-transform group-hover:scale-110">
-                                                {user.unreadNotifications
-                                                    .length > 9
+                                                {unreadCount > 9
                                                     ? '9+'
-                                                    : user.unreadNotifications
-                                                          .length}
+                                                    : unreadCount}
                                             </span>
                                         )}
                                     </button>
@@ -1905,29 +2091,34 @@ export default function AuthenticatedLayout({ header, children }) {
                                                 System Signals & Directives
                                             </p>
                                         </div>
-                                        {user.unreadNotifications?.length >
-                                            0 && (
+                                        <div className="flex items-center gap-2">
                                             <button
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    router.post(
-                                                        route(
-                                                            'notifications.markAllAsRead',
-                                                        ),
-                                                    );
-                                                }}
-                                                className="rounded-md bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-indigo-600 transition-colors hover:text-indigo-800"
+                                                type="button"
+                                                onClick={toggleSoundMute}
+                                                className={`p-1 rounded-md text-xs transition-colors ${
+                                                    soundMuted
+                                                        ? 'text-slate-400 hover:text-slate-600 bg-slate-100'
+                                                        : 'text-indigo-600 hover:text-indigo-800 bg-indigo-50'
+                                                }`}
+                                                title={soundMuted ? 'Notification sound muted (click to unmute)' : 'Notification sound active (click to mute)'}
                                             >
-                                                Purge All
+                                                {soundMuted ? <FiVolumeX className="h-3.5 w-3.5" /> : <FiVolume2 className="h-3.5 w-3.5" />}
                                             </button>
-                                        )}
+                                            {unreadCount > 0 && (
+                                                <button
+                                                    onClick={handleMarkAllAsRead}
+                                                    className="rounded-md bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-indigo-600 transition-colors hover:text-indigo-800"
+                                                >
+                                                    Purge All
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div className="custom-scrollbar max-h-[400px] overflow-y-auto">
-                                        {user.unreadNotifications?.length >
-                                        0 ? (
+                                        {notificationsList?.length > 0 ? (
                                             <div className="divide-y divide-slate-50">
-                                                {user.unreadNotifications.map(
+                                                {notificationsList.map(
                                                     (notification) => (
                                                         <div
                                                             key={
@@ -1937,21 +2128,21 @@ export default function AuthenticatedLayout({ header, children }) {
                                                         >
                                                             <div className="flex gap-3">
                                                                 <div
-                                                                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm ${getNotificationStyles(notification.data.type).classes}`}
+                                                                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm ${getNotificationStyles(notification.data?.type).classes}`}
                                                                 >
                                                                     {
                                                                         getNotificationStyles(
                                                                             notification
                                                                                 .data
-                                                                                .type,
+                                                                                ?.type,
                                                                         ).icon
                                                                     }
                                                                 </div>
                                                                 <div className="min-w-0 flex-1">
                                                                     <div className="mb-1 flex items-center justify-between gap-2">
                                                                         <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                                                                            {notification.data.type?.replace(
-                                                                                '_',
+                                                                            {notification.data?.type?.replace(
+                                                                                /_/g,
                                                                                 ' ',
                                                                             ) ||
                                                                                 'Alert'}
@@ -1962,17 +2153,22 @@ export default function AuthenticatedLayout({ header, children }) {
                                                                             }
                                                                         </span>
                                                                     </div>
-                                                                    <p className="line-clamp-2 text-[11px] font-bold leading-snug text-slate-700">
+                                                                    {notification.data?.title && (
+                                                                        <h4 className="text-[11px] font-black text-slate-800 leading-tight mb-0.5">
+                                                                            {notification.data.title}
+                                                                        </h4>
+                                                                    )}
+                                                                    <p className="line-clamp-2 text-[11px] font-medium leading-snug text-slate-600">
                                                                         {
                                                                             notification
                                                                                 .data
-                                                                                .message
+                                                                                ?.message
                                                                         }
                                                                     </p>
                                                                     <div className="mt-3 flex items-center gap-2">
                                                                         {notification
                                                                             .data
-                                                                            .action_url ? (
+                                                                            ?.action_url ? (
                                                                             <Link
                                                                                 href={
                                                                                     notification
@@ -1980,11 +2176,8 @@ export default function AuthenticatedLayout({ header, children }) {
                                                                                         .action_url
                                                                                 }
                                                                                 onClick={() =>
-                                                                                    router.post(
-                                                                                        route(
-                                                                                            'notifications.markAsRead',
-                                                                                            notification.id,
-                                                                                        ),
+                                                                                    handleMarkAsRead(
+                                                                                        notification.id,
                                                                                     )
                                                                                 }
                                                                                 className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-white transition-all hover:bg-black"
@@ -1995,17 +2188,13 @@ export default function AuthenticatedLayout({ header, children }) {
                                                                         ) : (
                                                                             <button
                                                                                 onClick={() =>
-                                                                                    router.post(
-                                                                                        route(
-                                                                                            'notifications.markAsRead',
-                                                                                            notification.id,
-                                                                                        ),
+                                                                                    handleMarkAsRead(
+                                                                                        notification.id,
                                                                                     )
                                                                                 }
                                                                                 className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-white transition-all hover:bg-black"
                                                                             >
-                                                                                Mark
-                                                                                Resolve
+                                                                                Mark Resolve
                                                                             </button>
                                                                         )}
                                                                     </div>
@@ -2030,13 +2219,15 @@ export default function AuthenticatedLayout({ header, children }) {
                                         )}
                                     </div>
 
-                                    {user.unreadNotifications?.length > 0 && (
-                                        <div className="border-t border-slate-50 bg-slate-50/50 px-5 py-3 text-center">
-                                            <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">
-                                                End of Directive Stream
-                                            </p>
-                                        </div>
-                                    )}
+                                    <div className="border-t border-slate-100 bg-slate-50 p-2.5 text-center">
+                                        <Link
+                                            href={route('notifications.index')}
+                                            className="inline-flex items-center justify-center gap-1.5 w-full py-1 text-[10px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-800 transition-colors"
+                                        >
+                                            <span>Open Notification Center</span>
+                                            <FiExternalLink className="h-3 w-3" />
+                                        </Link>
+                                    </div>
                                 </Dropdown.Content>
                             </Dropdown>
 
@@ -2138,6 +2329,67 @@ export default function AuthenticatedLayout({ header, children }) {
                     </div>
                 </main>
             </div>
+
+            {/* Real-time floating Notification Toast Banner */}
+            {activeToast && (
+                <div className="fixed top-5 right-5 z-[9999] max-w-sm w-full animate-in slide-in-from-top-4 fade-in duration-300 drop-shadow-2xl">
+                    <div className="rounded-2xl border border-indigo-100 bg-white/95 backdrop-blur-md p-4 shadow-2xl ring-1 ring-black/5">
+                        <div className="flex items-start gap-3">
+                            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border shadow-sm ${getNotificationStyles(activeToast.data?.type).classes}`}>
+                                {getNotificationStyles(activeToast.data?.type).icon}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-1">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600">
+                                        {activeToast.data?.type?.replace(/_/g, ' ') || 'System Signal'}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveToast(null)}
+                                        className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                                    >
+                                        <span className="sr-only">Close</span>
+                                        <FiX className="h-4 w-4" />
+                                    </button>
+                                </div>
+                                {activeToast.data?.title && (
+                                    <h4 className="text-xs font-black text-slate-800 leading-snug mt-0.5">
+                                        {activeToast.data.title}
+                                    </h4>
+                                )}
+                                <p className="mt-1 line-clamp-2 text-xs text-slate-600 leading-relaxed font-medium">
+                                    {activeToast.data?.message}
+                                </p>
+                                <div className="mt-3 flex items-center gap-2">
+                                    {activeToast.data?.action_url && (
+                                        <Link
+                                            href={activeToast.data.action_url}
+                                            onClick={() => {
+                                                handleMarkAsRead(activeToast.id);
+                                                setActiveToast(null);
+                                            }}
+                                            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white shadow-sm hover:bg-indigo-700 transition-colors"
+                                        >
+                                            <span>View Details</span>
+                                            <FiExternalLink className="h-3 w-3" />
+                                        </Link>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            handleMarkAsRead(activeToast.id);
+                                            setActiveToast(null);
+                                        }}
+                                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50 transition-colors"
+                                    >
+                                        Dismiss
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

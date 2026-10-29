@@ -37,6 +37,19 @@ class ShiftRoster extends Model
     ];
 
     /**
+     * Resolve route binding without the BelongsToCompany global scope so that
+     * authorized users (e.g. a reporting manager in another branch) can access
+     * a roster entry belonging to a cross-branch subordinate.
+     * The controller is responsible for authorization after resolution.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->withoutGlobalScope('company')
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->firstOrFail();
+    }
+
+    /**
      * Get the employee that owns the roster entry.
      */
     public function employee(): BelongsTo

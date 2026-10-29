@@ -13,6 +13,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Carbon\Carbon;
+use App\Services\NotificationService;
+use App\Notifications\ExpenseClaimNotification;
 
 class ExpenseClaimController extends Controller
 {
@@ -26,10 +28,21 @@ class ExpenseClaimController extends Controller
         $query = ExpenseClaim::with(['employee.company', 'employee.department', 'category', 'manager', 'financeReviewer', 'payer']);
 
         // Scope access
+        $subordinateIds = $user->getSubordinateEmployeeIds(true);
         if ($user->isEmployee()) {
-            $query->where('employee_id', $user->employee_id);
+            $query->where(function ($q) use ($user, $subordinateIds) {
+                $q->where('employee_id', $user->employee_id);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
+            });
         } elseif (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-            $query->where('company_id', $user->employee->company_id);
+            $query->where(function ($q) use ($user, $subordinateIds) {
+                $q->where('company_id', $user->employee->company_id);
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
+            });
         }
 
         if ($request->filled('company_id') && ($user->isAdmin() || $user->isHR())) {
@@ -272,6 +285,18 @@ class ExpenseClaimController extends Controller
             'violation_reason' => $violationReason,
         ]);
 
+        if ($status === 'submitted') {
+            NotificationService::notifyApprovers(
+                $employee->id,
+                new ExpenseClaimNotification(
+                    $claim,
+                    'Expense Claim Submitted',
+                    "Expense claim {$claim->claim_number} ({$claim->amount}) submitted by {$employee->name}.",
+                    'expense_submitted'
+                )
+            );
+        }
+
         return redirect()->route('expenses.show', $claim->id)
             ->with('success', $status === 'submitted' ? 'Expense claim submitted for review successfully.' : 'Expense claim saved as draft.');
     }
@@ -335,6 +360,10 @@ class ExpenseClaimController extends Controller
         }
 
         if ($user->isManager()) {
+            // Reporting person takes priority over branch
+            if ($user->isReportingManagerFor($expense->employee_id)) {
+                return [true, ''];
+            }
             $managerCompanyId = $user->employee ? $user->employee->company_id : $user->company_id;
             if ($managerCompanyId && $managerCompanyId != $expense->company_id) {
                 return [false, 'You can only review expense claims from your assigned Company.'];
@@ -462,6 +491,16 @@ class ExpenseClaimController extends Controller
             'status' => 'submitted',
         ]);
 
+        NotificationService::notifyApprovers(
+            $expense->employee_id,
+            new ExpenseClaimNotification(
+                $expense,
+                'Expense Claim Submitted',
+                "Expense claim {$expense->claim_number} ({$expense->amount}) has been submitted for review.",
+                'expense_submitted'
+            )
+        );
+
         return redirect()->back()->with('success', 'Expense claim submitted for approval.');
     }
 
@@ -486,6 +525,16 @@ class ExpenseClaimController extends Controller
             'manager_approved_at' => now(),
             'manager_comments' => $validated['manager_comments'] ?? null,
         ]);
+
+        NotificationService::notifyEmployee(
+            $expense->employee_id,
+            new ExpenseClaimNotification(
+                $expense,
+                'Expense Claim Approved by Manager',
+                "Your expense claim {$expense->claim_number} has been verified and approved by your manager.",
+                'expense_manager_approved'
+            )
+        );
 
         return redirect()->back()->with('success', 'Expense claim verified and approved.');
     }
@@ -512,6 +561,16 @@ class ExpenseClaimController extends Controller
             'is_locked' => true,
         ]);
 
+        NotificationService::notifyEmployee(
+            $expense->employee_id,
+            new ExpenseClaimNotification(
+                $expense,
+                'Expense Claim Rejected',
+                "Your expense claim {$expense->claim_number} was rejected by manager: {$validated['manager_comments']}",
+                'expense_rejected'
+            )
+        );
+
         return redirect()->back()->with('success', 'Expense claim rejected.');
     }
 
@@ -534,6 +593,16 @@ class ExpenseClaimController extends Controller
             'status' => 'returned_to_employee',
             'manager_comments' => $validated['comments'],
         ]);
+
+        NotificationService::notifyEmployee(
+            $expense->employee_id,
+            new ExpenseClaimNotification(
+                $expense,
+                'Expense Claim Returned',
+                "Your expense claim {$expense->claim_number} has been returned for corrections: {$validated['comments']}",
+                'expense_returned'
+            )
+        );
 
         return redirect()->back()->with('success', 'Claim returned to employee for necessary corrections.');
     }
@@ -571,6 +640,16 @@ class ExpenseClaimController extends Controller
             'tax_amount' => $validated['tax_amount'] ?? $expense->tax_amount,
         ]);
 
+        NotificationService::notifyEmployee(
+            $expense->employee_id,
+            new ExpenseClaimNotification(
+                $expense,
+                'Expense Claim Approved by Finance',
+                "Your expense claim {$expense->claim_number} has been approved by Finance for reimbursement.",
+                'expense_finance_approved'
+            )
+        );
+
         return redirect()->back()->with('success', 'Expense claim approved by finance for reimbursement.');
     }
 
@@ -594,6 +673,16 @@ class ExpenseClaimController extends Controller
             'finance_comments' => $validated['finance_comments'],
             'is_locked' => true,
         ]);
+
+        NotificationService::notifyEmployee(
+            $expense->employee_id,
+            new ExpenseClaimNotification(
+                $expense,
+                'Expense Claim Rejected by Finance',
+                "Your expense claim {$expense->claim_number} was rejected by finance: {$validated['finance_comments']}",
+                'expense_finance_rejected'
+            )
+        );
 
         return redirect()->back()->with('success', 'Expense claim rejected by finance.');
     }

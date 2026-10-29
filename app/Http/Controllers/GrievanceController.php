@@ -165,12 +165,12 @@ class GrievanceController extends Controller
         $validated['submitted_date'] = now()->toDateString();
 
         $grievance = Grievance::create($validated);
-        
-        // Notify Admins or branch HR
-        $admins = User::where('role', 'admin')->get();
-        foreach ($admins as $admin) {
-            $admin->notify(new \App\Notifications\GrievanceSubmitted($grievance, $employee->name));
-        }
+        // Notify Branch HR, Admins across all branches, and reporting managers
+        \App\Services\NotificationService::notifyApprovers(
+            $employee,
+            new \App\Notifications\GrievanceSubmitted($grievance, $employee->name),
+            auth()->id()
+        );
 
         return redirect()->route('grievances.index')->with('success', 'Grievance submitted successfully!');
     }
@@ -259,6 +259,11 @@ class GrievanceController extends Controller
             'attachments' => 'nullable|array',
         ]);
 
+        $targetEmployee = Employee::findOrFail($validated['employee_id']);
+        if ($targetEmployee->company_id !== $grievance->company_id) {
+            return back()->withErrors(['employee_id' => 'The selected employee must belong to the same branch.'])->withInput();
+        }
+
         if ($validated['status'] === 'resolved' && !$grievance->resolved_date) {
             $validated['resolved_date'] = now()->toDateString();
         }
@@ -310,9 +315,6 @@ class GrievanceController extends Controller
      */
     private function notifyEmployee($employeeId, $notification)
     {
-        $employee = Employee::find($employeeId);
-        if ($employee && $employee->user) {
-            $this->notifyUser($employee->user->id, $notification);
-        }
+        \App\Services\NotificationService::notifyEmployee($employeeId, $notification);
     }
 }

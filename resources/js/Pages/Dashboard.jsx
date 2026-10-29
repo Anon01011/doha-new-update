@@ -369,7 +369,7 @@ const CustomizationDrawer = ({ isOpen, onClose, layout, onUpdateLayout, onReset,
     return (
         <div className="fixed inset-0 z-[60] flex justify-end">
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
-            <div className="relative w-80 bg-white shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="relative w-full max-w-xs sm:w-80 bg-white shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300">
                 <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
                 <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                     <div>

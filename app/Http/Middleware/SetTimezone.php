@@ -18,29 +18,16 @@ class SetTimezone
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        $timezone = config('app.timezone');
-
-        if ($user) {
-            $companyId = $user->employee && $user->employee->company_id ? $user->employee->company_id : null;
-
-            // Try to get per-company timezone
-            if ($companyId) {
-                $companyTimezone = Setting::get('app_timezone', null, $companyId);
-                if ($companyTimezone) {
-                    $timezone = $companyTimezone;
-                }
-            } else {
-                // Try to get global database setting
-                $globalTimezone = Setting::get('app_timezone');
-                if ($globalTimezone) {
-                    $timezone = $globalTimezone;
-                }
-            }
-        }
+        $companyId = $user ? ($user->company_id ?: $user->employee?->company_id) : null;
+        $timezone = Setting::get('app_timezone', config('app.timezone', 'UTC'), $companyId);
 
         if ($timezone) {
-            date_default_timezone_set($timezone);
-            Config::set('app.timezone', $timezone);
+            try {
+                date_default_timezone_set($timezone);
+                Config::set('app.timezone', $timezone);
+            } catch (\Throwable $e) {
+                // Keep default if invalid
+            }
         }
 
         return $next($request);

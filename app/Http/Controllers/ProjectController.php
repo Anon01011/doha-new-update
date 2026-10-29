@@ -89,6 +89,20 @@ class ProjectController extends Controller
             }
         }
 
+        // Notify Management Stakeholders (Admins across all branches, HR, and Department/Branch Managers)
+        $user = Auth::user();
+        \App\Services\NotificationService::notifyManagementStakeholders(
+            new \App\Notifications\GenericHrNotification(
+                'Project Created',
+                "{$user->name} created project '{$project->name}'.",
+                route('projects.show', $project),
+                'project_assigned'
+            ),
+            $project->branch_id,
+            null,
+            $user->id
+        );
+
         return redirect()->route('projects.index')->with('success', 'Project created successfully!');
     }
 
@@ -247,6 +261,20 @@ class ProjectController extends Controller
             }
         }
 
+        // Notify Management Stakeholders (Admins across all branches, HR, and Department/Branch Managers)
+        $user = Auth::user();
+        \App\Services\NotificationService::notifyManagementStakeholders(
+            new \App\Notifications\GenericHrNotification(
+                'Project Updated',
+                "{$user->name} updated project '{$project->name}'.",
+                route('projects.show', $project),
+                'project_assigned'
+            ),
+            $project->branch_id,
+            null,
+            $user->id
+        );
+
         return redirect()->route('projects.index')->with('success', 'Project updated successfully!');
     }
 
@@ -265,13 +293,6 @@ class ProjectController extends Controller
      */
     private function notifyEmployee($employeeId, $notification)
     {
-        $employee = Employee::find($employeeId);
-        if ($employee && $employee->user) {
-            try {
-                $employee->user->notify($notification);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Notification failed: ' . $e->getMessage());
-            }
-        }
+        \App\Services\NotificationService::notifyEmployee($employeeId, $notification);
     }
 }

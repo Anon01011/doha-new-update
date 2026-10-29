@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -50,11 +50,12 @@ return new class extends Migration
             }
         }
 
-        // Backfill existing Probation employees
-        DB::statement("UPDATE employees SET probation_start_date = joined_date WHERE employee_category = 'Probation' AND joined_date IS NOT NULL AND probation_start_date IS NULL");
-        DB::statement("UPDATE employees SET probation_end_date = DATE_ADD(joined_date, INTERVAL 3 MONTH) WHERE employee_category = 'Probation' AND joined_date IS NOT NULL AND probation_end_date IS NULL");
-        // Backfill Intern employees
-        DB::statement("UPDATE employees SET internship_start_date = joined_date WHERE employee_category = 'Intern' AND joined_date IS NOT NULL AND internship_start_date IS NULL");
+        // Backfill existing Probation employees (MySQL driver only)
+        if (\Illuminate\Support\Facades\DB::getDriverName() === 'mysql') {
+            DB::statement("UPDATE employees SET probation_start_date = joined_date WHERE employee_category = 'Probation' AND joined_date IS NOT NULL AND probation_start_date IS NULL");
+            DB::statement("UPDATE employees SET probation_end_date = DATE_ADD(joined_date, INTERVAL 3 MONTH) WHERE employee_category = 'Probation' AND joined_date IS NOT NULL AND probation_end_date IS NULL");
+            DB::statement("UPDATE employees SET internship_start_date = joined_date WHERE employee_category = 'Intern' AND joined_date IS NOT NULL AND internship_start_date IS NULL");
+        }
     }
 
     public function down(): void

@@ -320,15 +320,15 @@ class Employee extends Model
      * Resolve an employee from either its slug or its primary key.
      *
      * The lookup conditions are grouped inside a nested where so the whole
-     * resolution stays intersected with the BelongsToCompany tenant scope.
-     * An ungrouped `where(...)->orWhere(...)` would place the OR branch
-     * outside the tenant predicate and could expose a cross-tenant record.
+     * resolution bypasses the BelongsToCompany tenant scope, allowing authorized
+     * users (e.g. a reporting manager from another branch) to access cross-branch
+     * employees. The controller performs authorization after resolution.
      */
     public function resolveRouteBinding($value, $field = null)
     {
         $value = (string) $value;
 
-        $employee = $this->where(function ($query) use ($value) {
+        $employee = $this->withoutGlobalScope('company')->where(function ($query) use ($value) {
             $query->where('slug', $value);
 
             if (ctype_digit($value)) {
@@ -403,6 +403,53 @@ class Employee extends Model
     public function getJoiningDateAttribute()
     {
         return $this->attributes['joined_date'] ?? null;
+    }
+
+    /**
+     * Dynamic current leave status (e.g. "On Leave (Sick Leave)" or "Available").
+     */
+    public function getCurrentLeaveStatusAttribute(): string
+    {
+        $today = now()->toDateString();
+        $activeLeave = $this->leaveRequests()
+            ->where('status', 'approved')
+            ->where('start_date', '<=', $today)
+            ->where('end_date', '>=', $today)
+            ->with('leaveType')
+            ->first();
+
+        if ($activeLeave) {
+            $typeName = $activeLeave->leaveType?->name ?? 'Leave';
+            return "On Leave ({$typeName})";
+        }
+
+        return $this->attributes['leave_status'] ?: 'Available';
+    }
+
+    /**
+     * Dynamic current shift based on approved ShiftRoster for today.
+     */
+    public function getCurrentShiftAttribute(): string
+    {
+        $today = now();
+        $weekStart = $today->copy()->startOfWeek(\Carbon\Carbon::MONDAY)->toDateString();
+        $dayName = $today->format('l');
+
+        $todayRoster = $this->shiftRosters()
+            ->where('week_start', $weekStart)
+            ->where('day', $dayName)
+            ->where('status', 'approved')
+            ->first();
+
+        if ($todayRoster) {
+            $details = $todayRoster->shift_time;
+            if ($todayRoster->shift_type && $todayRoster->shift_type !== $todayRoster->shift_time) {
+                $details .= " ({$todayRoster->shift_type})";
+            }
+            return $details;
+        }
+
+        return $this->attributes['shift'] ?: 'Not Scheduled';
     }
 
     public function leaveRequests()

@@ -14,17 +14,18 @@ class UpdateTaskRequest extends FormRequest
     {
         $user = Auth::user();
         $task = $this->route('task');
+        $isEmp = $user && ($user->isEmployee() || $user->role === 'employee');
 
         // Project Lead check
         $isProjectLead = false;
-        if ($task->project_id && $user && $user->role === 'employee' && $user->employee_id) {
+        if ($task->project_id && $isEmp && $user->employee_id) {
             $isProjectLead = \App\Models\ProjectMember::where('project_id', $task->project_id)
                 ->where('employee_id', $user->employee_id)
                 ->where('role', 'lead')
                 ->exists();
         }
 
-        if ($user && $user->role === 'employee' && !$isProjectLead) {
+        if ($isEmp && !$isProjectLead) {
             return false;
         }
 

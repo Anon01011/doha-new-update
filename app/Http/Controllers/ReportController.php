@@ -50,10 +50,18 @@ class ReportController extends Controller
             ->whereBetween('date', [$startDate, $endDate]);
 
         $companyIds = [];
-        if (!$user->isAdmin() && $user->employee_id) {
-            $companyId = $user->employee->company_id;
-            $companyIds = [$companyId];
-            $query->where('company_id', $companyId);
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+            $query->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $q->whereIn('company_id', $assignedCompanyIds);
+                }
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
+            });
+            $companyIds = $assignedCompanyIds->all();
         } elseif (!empty($companyId) && $user->isAdmin()) {
             $companyIds = is_array($companyId) ? $companyId : explode(',', $companyId);
             $companyIds = array_filter($companyIds);
@@ -98,12 +106,20 @@ class ReportController extends Controller
             'companyId' => $companyId,
             'employeeId' => $employeeId,
             'companies' => $user->isAdmin() ? Company::orderBy('name')->get(['id', 'name']) : [],
-            'employees' => !empty($companyIds)
-                ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id'])
-                : ($user->isAdmin()
-                    ? []
-                    : Employee::where('company_id', $user->employee->company_id)->orderBy('name')->get(['id', 'name', 'company_id'])
-                ),
+            'employees' => $user->isAdmin()
+                ? (!empty($companyIds)
+                    ? Employee::whereIn('company_id', $companyIds)->orderBy('name')->get(['id', 'name', 'company_id'])
+                    : [])
+                : Employee::withoutGlobalScope('company')->where(function ($q) use ($user) {
+                    $assigned = $user->getAssignedCompanyIds();
+                    $subs = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+                    if ($assigned->isNotEmpty()) {
+                        $q->whereIn('company_id', $assigned);
+                    }
+                    if ($subs->isNotEmpty()) {
+                        $q->orWhereIn('id', $subs);
+                    }
+                })->orderBy('name')->get(['id', 'name', 'company_id']),
             'settings' => [
                 'standard_working_hours' => Setting::get('standard_working_hours', 9, !empty($companyIds) ? reset($companyIds) : null)
             ],
@@ -121,9 +137,16 @@ class ReportController extends Controller
         $query = LeaveRequest::with(['employee', 'leaveType'])
             ->whereBetween('start_date', [$startDate, $endDate]);
 
-        if ($user->role !== 'admin' && $user->employee_id) {
-            $query->whereHas('employee', function ($q) use ($user) {
-                $q->where('company_id', $user->employee->company_id);
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+            $query->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $q->whereIn('company_id', $assignedCompanyIds);
+                }
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
             });
         }
 
@@ -413,9 +436,16 @@ class ReportController extends Controller
         $user = auth()->user();
         $query = Grievance::with(['employee']);
 
-        if ($user->role !== 'admin' && $user->employee_id) {
-            $query->whereHas('employee', function ($q) use ($user) {
-                $q->where('company_id', $user->employee->company_id);
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+            $query->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $q->whereIn('company_id', $assignedCompanyIds);
+                }
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
             });
         }
 
@@ -457,9 +487,16 @@ class ReportController extends Controller
         $query = Advance::with(['employee'])
             ->whereBetween('request_date', [$startDate, $endDate]);
 
-        if ($user->role !== 'admin' && $user->employee_id) {
-            $query->whereHas('employee', function ($q) use ($user) {
-                $q->where('company_id', $user->employee->company_id);
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+            $query->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $q->whereIn('company_id', $assignedCompanyIds);
+                }
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
             });
         }
 
@@ -1366,9 +1403,16 @@ class ReportController extends Controller
         $query = LeaveRequest::with(['employee', 'leaveType'])
             ->whereBetween('start_date', [$startDate, $endDate]);
 
-        if ($user->role !== 'admin' && $user->employee_id) {
-            $query->whereHas('employee', function ($q) use ($user) {
-                $q->where('company_id', $user->employee->company_id);
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+            $query->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $q->whereIn('company_id', $assignedCompanyIds);
+                }
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
             });
         }
 
@@ -1411,9 +1455,16 @@ class ReportController extends Controller
         $query = LeaveRequest::with(['employee', 'leaveType'])
             ->whereBetween('start_date', [$startDate, $endDate]);
 
-        if ($user->role !== 'admin' && $user->employee_id) {
-            $query->whereHas('employee', function ($q) use ($user) {
-                $q->where('company_id', $user->employee->company_id);
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+            $query->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $q->whereIn('company_id', $assignedCompanyIds);
+                }
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
             });
         }
 
@@ -2172,9 +2223,16 @@ class ReportController extends Controller
         $user = auth()->user();
         $query = Grievance::with(['employee']);
 
-        if ($user->role !== 'admin' && $user->employee_id) {
-            $query->whereHas('employee', function ($q) use ($user) {
-                $q->where('company_id', $user->employee->company_id);
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+            $query->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $q->whereIn('company_id', $assignedCompanyIds);
+                }
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
             });
         }
 
@@ -2212,9 +2270,16 @@ class ReportController extends Controller
         $user = auth()->user();
         $query = Grievance::with(['employee']);
 
-        if ($user->role !== 'admin' && $user->employee_id) {
-            $query->whereHas('employee', function ($q) use ($user) {
-                $q->where('company_id', $user->employee->company_id);
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+            $query->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $q->whereIn('company_id', $assignedCompanyIds);
+                }
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
             });
         }
 
@@ -2268,9 +2333,16 @@ class ReportController extends Controller
         $query = Advance::with(['employee'])
             ->whereBetween('request_date', [$startDate, $endDate]);
 
-        if ($user->role !== 'admin' && $user->employee_id) {
-            $query->whereHas('employee', function ($q) use ($user) {
-                $q->where('company_id', $user->employee->company_id);
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+            $query->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $q->whereIn('company_id', $assignedCompanyIds);
+                }
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
             });
         }
 
@@ -2311,9 +2383,16 @@ class ReportController extends Controller
         $query = Advance::with(['employee'])
             ->whereBetween('request_date', [$startDate, $endDate]);
 
-        if ($user->role !== 'admin' && $user->employee_id) {
-            $query->whereHas('employee', function ($q) use ($user) {
-                $q->where('company_id', $user->employee->company_id);
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            $subordinateIds = \App\Services\EmployeeAuthorizationService::getSubordinateEmployeeIds($user, true);
+            $query->where(function ($q) use ($assignedCompanyIds, $subordinateIds) {
+                if ($assignedCompanyIds->isNotEmpty()) {
+                    $q->whereIn('company_id', $assignedCompanyIds);
+                }
+                if ($subordinateIds->isNotEmpty()) {
+                    $q->orWhereIn('employee_id', $subordinateIds);
+                }
             });
         }
 

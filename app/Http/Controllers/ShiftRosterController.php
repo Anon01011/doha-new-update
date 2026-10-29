@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\DB;
 use App\Mail\EmployeeRosterMail;
 use Illuminate\Support\Facades\Mail;
 use App\Services\WeeklyOffService;
+use App\Models\Setting;
+use App\Jobs\SendWhatsAppRosterNotification;
+use App\Jobs\SendRosterSmsNotification;
 
 class ShiftRosterController extends Controller
 {
@@ -49,21 +52,20 @@ class ShiftRosterController extends Controller
                 $company_id = $user->employee->company_id;
             }
 
-            $assignedCompanyIds = collect();
             $companiesQuery = Company::withoutGlobalScope('company')->orderBy('name');
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                // Support multi-branch assignments: include both the primary company_id
-                // and any additional companies linked via the employee_company pivot table.
-                $employee = $user->employee;
-                $assignedCompanyIds = collect([$employee->company_id]);
-
-                // Check if the employee has additional companies via pivot
-                $pivotIds = \Illuminate\Support\Facades\DB::table('employee_company')
-                    ->where('employee_id', $employee->id)
-                    ->pluck('company_id');
-                $assignedCompanyIds = $assignedCompanyIds->merge($pivotIds)->unique()->filter()->values();
-
-                $companiesQuery->whereIn('id', $assignedCompanyIds);
+            if (!$user->isAdmin()) {
+                $assignedCompanyIds = $user->getAssignedCompanyIds();
+                $subordinateCompanyIds = \Illuminate\Support\Facades\DB::table('employees')
+                    ->whereIn('id', $user->getSubordinateEmployeeIds(true))
+                    ->pluck('company_id')
+                    ->filter()
+                    ->unique();
+                $accessibleCompanyIds = $assignedCompanyIds->merge($subordinateCompanyIds)->unique()->values();
+                if ($accessibleCompanyIds->isNotEmpty()) {
+                    $companiesQuery->whereIn('id', $accessibleCompanyIds);
+                }
+            } else {
+                $assignedCompanyIds = collect();
             }
             $companies = $companiesQuery->get(['id', 'name', 'slug']);
 
@@ -109,14 +111,8 @@ class ShiftRosterController extends Controller
 
             // Multi-department support: include departments from employee_department pivot
             $assignedDepartmentIds = collect();
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                $employee = $user->employee;
-                $assignedDepartmentIds = collect([$employee->department_id]);
-
-                $pivotDeptIds = \Illuminate\Support\Facades\DB::table('employee_department')
-                    ->where('employee_id', $employee->id)
-                    ->pluck('department_id');
-                $assignedDepartmentIds = $assignedDepartmentIds->merge($pivotDeptIds)->unique()->filter()->values();
+            if (!$user->isAdmin()) {
+                $assignedDepartmentIds = $user->getAssignedDepartmentIds();
             }
 
 
@@ -136,8 +132,14 @@ class ShiftRosterController extends Controller
                 $employeesQuery->where('id', $user->employee_id);
             }
 
-            $employees = $employeesQuery->with(['weeklyOffs', 'company'])->get();
-            $rosters = $this->getRosterData($request, $effectiveCompanyIds);
+            $employees = $employeesQuery->with([
+                'weeklyOffs:id,employee_id,weekly_off_day,effective_date',
+                'company:id,name,weekly_off_days'
+            ])->select([
+                'id', 'name', 'employee_code', 'designation', 'department_id', 'company_id', 'employee_image'
+            ])->get();
+
+            $rosters = $this->getRosterData($request, $effectiveCompanyIds, $employees);
 
             // If employee without permission, filter rosters to only their own
             if ($user->isEmployee() && $user->employee_id && !$user->hasPermission('view-shift-rosters') && !$user->hasPermission('view-rosters') && isset($rosters)) {
@@ -154,23 +156,38 @@ class ShiftRosterController extends Controller
                 || $user->hasRole('shift-manager')
                 || $user->hasPermission('approve-shift-rosters');
 
-            // Compute week-level approval status (for the currently-viewed week/filter)
+            // Compute week-level approval status efficiently using single aggregate query
             $weekApprovalStatus = null;
-            $currentWeekStart = $request->input('week_start', now()->startOfWeek()->toDateString());
+            $currentWeekStart = Carbon::parse($request->input('week_start', now()->startOfWeek(Carbon::MONDAY)->toDateString()))->startOfWeek(Carbon::MONDAY)->toDateString();
             if ($company_id && !$user->isEmployee()) {
-                $weekRosters = \App\Models\ShiftRoster::withoutGlobalScope('company')->where('company_id', $company_id)
+                $weekStatsQuery = \App\Models\ShiftRoster::withoutGlobalScope('company')
+                    ->where('company_id', $company_id)
                     ->where('week_start', $currentWeekStart);
+
                 if ($department_id) {
                     $deptEmployeeIds = \App\Models\Employee::withoutGlobalScope('company')->where('department_id', $department_id)->pluck('id');
-                    $weekRosters->whereIn('employee_id', $deptEmployeeIds);
+                    $weekStatsQuery->whereIn('employee_id', $deptEmployeeIds);
                 }
-                $weekRosters = $weekRosters->with('approvedByUser:id,name')->get();
-                $total    = $weekRosters->count();
-                $approved = $weekRosters->where('status', 'approved')->count();
-                $pending  = $weekRosters->where('status', 'pending')->count();
-                $rejected = $weekRosters->where('status', 'rejected')->count();
-                $lastApproved = $weekRosters->whereNotNull('approved_by')->first();
-                $lastRejected = $weekRosters->where('status', 'rejected')->whereNotNull('rejection_reason')->first();
+
+                $weekStats = $weekStatsQuery->selectRaw("
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                    SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+                    MAX(approved_by) as approved_by,
+                    MAX(approved_at) as approved_at,
+                    MAX(rejection_reason) as rejection_reason
+                ")->first();
+
+                $total    = (int) ($weekStats?->total ?? 0);
+                $approved = (int) ($weekStats?->approved ?? 0);
+                $pending  = (int) ($weekStats?->pending ?? 0);
+                $rejected = (int) ($weekStats?->rejected ?? 0);
+
+                $approvedByName = null;
+                if ($weekStats?->approved_by) {
+                    $approvedByName = \App\Models\User::where('id', $weekStats->approved_by)->value('name');
+                }
 
                 $weekApprovalStatus = [
                     'total'            => $total,
@@ -181,9 +198,9 @@ class ShiftRosterController extends Controller
                     'has_pending'      => $pending > 0,
                     'has_rejected'     => $rejected > 0,
                     'status'           => ($total === 0) ? 'empty' : ($rejected > 0 ? 'rejected' : ($pending > 0 ? 'pending' : 'approved')),
-                    'approved_by_name' => $lastApproved?->approvedByUser?->name,
-                    'approved_at'      => $lastApproved?->approved_at?->format('M d, Y h:i A'),
-                    'rejection_reason' => $lastRejected?->rejection_reason,
+                    'approved_by_name' => $approvedByName,
+                    'approved_at'      => $weekStats?->approved_at ? Carbon::parse($weekStats->approved_at)->format('M d, Y h:i A') : null,
+                    'rejection_reason' => $weekStats?->rejection_reason,
                 ];
             }
 
@@ -204,6 +221,8 @@ class ShiftRosterController extends Controller
                 'assignedCompanyIds'    => $assignedCompanyIds->values()->all(),
                 'weekApprovalStatus' => $weekApprovalStatus,
             ]);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster index error: ' . $e->getMessage());
             return back()->with('error', 'Error loading roster data: ' . $e->getMessage());
@@ -218,30 +237,33 @@ class ShiftRosterController extends Controller
                 abort(403, 'Unauthorized.');
             }
             $companiesQuery = Company::withoutGlobalScope('company')->orderBy('name');
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                // Support multi-branch assignments: include both the primary company_id
-                // and any additional companies linked via the employee_company pivot table.
-                $employee = $user->employee;
-                $assignedCompanyIds = collect([$employee->company_id]);
-
-                // Check if the employee has additional companies via pivot
-                $pivotIds = \Illuminate\Support\Facades\DB::table('employee_company')
-                    ->where('employee_id', $employee->id)
-                    ->pluck('company_id');
-                $assignedCompanyIds = $assignedCompanyIds->merge($pivotIds)->unique()->filter()->values();
-
-                $companiesQuery->whereIn('id', $assignedCompanyIds);
+            if (!$user->isAdmin()) {
+                $assignedCompanyIds = $user->getAssignedCompanyIds();
+                $subordinateCompanyIds = \Illuminate\Support\Facades\DB::table('employees')
+                    ->whereIn('id', $user->getSubordinateEmployeeIds(true))
+                    ->pluck('company_id')
+                    ->filter()
+                    ->unique();
+                $accessibleCompanyIds = $assignedCompanyIds->merge($subordinateCompanyIds)->unique()->values();
+                if ($accessibleCompanyIds->isNotEmpty()) {
+                    $companiesQuery->whereIn('id', $accessibleCompanyIds);
+                }
             }
             $companies = $companiesQuery->get(['id', 'name', 'slug']);
             $companyParam = $request->input('company');
             $departmentParam = $request->input('department');
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id) {
+            // Multi-tenancy check: for plain employees force their branch; HR/Manager can pick freely within assigned
+            if (!$user->isAdmin() && !$user->isHR() && !$user->isManager() && $user->employee_id) {
                 $companyParam = $user->employee->company_id;
             }
 
-            $employeesQuery = Employee::with(['company:id,slug,weekly_off_days', 'weeklyOffs'])->orderBy('name');
+            $employeesQuery = Employee::active()
+                ->with([
+                    'company:id,slug,weekly_off_days',
+                    'weeklyOffs:id,employee_id,weekly_off_day,effective_date'
+                ])
+                ->orderBy('name');
             $selectedCompany = '';
             $selectedDepartment = '';
             $company_id = null;
@@ -286,6 +308,36 @@ class ShiftRosterController extends Controller
 
             $employees = $employeesQuery->get(['id', 'name', 'designation', 'company_id', 'department_id', 'employee_image']);
 
+            // Preload approved leaves for this week so the grid displays and protects leaves
+            $weekStartParam = $request->input('week_start', now()->startOfWeek(Carbon::MONDAY)->toDateString());
+            $currentWeekStart = Carbon::parse($weekStartParam)->startOfWeek(Carbon::MONDAY);
+            $currentWeekEnd = $currentWeekStart->copy()->endOfWeek(Carbon::SUNDAY);
+            $employeeIds = $employees->pluck('id');
+
+            $approvedLeaves = collect();
+            if ($employeeIds->isNotEmpty()) {
+                $approvedLeaves = \App\Models\LeaveRequest::with('leaveType:id,name')
+                    ->whereIn('employee_id', $employeeIds)
+                    ->where('status', 'approved')
+                    ->where(function ($q) use ($currentWeekStart, $currentWeekEnd) {
+                        $q->whereBetween('start_date', [$currentWeekStart->toDateString(), $currentWeekEnd->toDateString()])
+                          ->orWhereBetween('end_date', [$currentWeekStart->toDateString(), $currentWeekEnd->toDateString()])
+                          ->orWhere(function ($sub) use ($currentWeekStart, $currentWeekEnd) {
+                              $sub->where('start_date', '<=', $currentWeekStart->toDateString())
+                                  ->where('end_date', '>=', $currentWeekEnd->toDateString());
+                          });
+                    })
+                    ->select(['id', 'employee_id', 'leave_type_id', 'start_date', 'end_date'])
+                    ->get()
+                    ->map(fn($l) => [
+                        'id'          => $l->id,
+                        'employee_id' => $l->employee_id,
+                        'leave_type'  => $l->leaveType?->name ?? 'Leave',
+                        'start_date'  => is_string($l->start_date) ? substr($l->start_date, 0, 10) : $l->start_date->toDateString(),
+                        'end_date'    => is_string($l->end_date) ? substr($l->end_date, 0, 10) : $l->end_date->toDateString(),
+                    ]);
+            }
+
             // Fetch dynamic shift types
             $shiftTypes = \App\Models\DropdownOption::where('category', 'Shift')
                 ->where('is_active', true)
@@ -293,17 +345,135 @@ class ShiftRosterController extends Controller
                 ->pluck('value');
 
             return Inertia::render('ShiftRoster/Create', [
-                'companies' => $companies,
-                'departments' => $departments,
-                'employees' => $employees,
-                'shiftTemplates' => $this->shiftTemplates,
-                'selectedCompany' => $selectedCompany,
+                'companies'          => $companies,
+                'departments'        => $departments,
+                'employees'          => $employees,
+                'shiftTemplates'     => $this->shiftTemplates,
+                'selectedCompany'    => $selectedCompany,
                 'selectedDepartment' => $selectedDepartment,
-                'shiftTypes' => $shiftTypes,
+                'shiftTypes'         => $shiftTypes,
+                'approvedLeaves'     => $approvedLeaves,
             ]);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster create error: ' . $e->getMessage());
             return back()->with('error', 'Error loading create form: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Check if roster entries conflict with existing shifts (approved or pending).
+     */
+    public function checkConflicts(Request $request)
+    {
+        try {
+            $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('create-shift-rosters') && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $companyId = $request->input('company_id');
+            $entries = $request->input('entries', []);
+
+            if (empty($entries) || !is_array($entries)) {
+                return response()->json([
+                    'has_conflicts' => false,
+                    'total_conflicts' => 0,
+                    'approved_count' => 0,
+                    'pending_count' => 0,
+                    'rejected_count' => 0,
+                    'conflicts' => [],
+                ]);
+            }
+
+            // Filter entries with non-empty shift_time
+            $entriesCollection = collect($entries)->filter(fn($e) => !empty(trim($e['shift_time'] ?? '')));
+            $employeeIds = $entriesCollection->pluck('employee_id')->unique()->values();
+
+            if ($employeeIds->isEmpty()) {
+                return response()->json([
+                    'has_conflicts' => false,
+                    'total_conflicts' => 0,
+                    'approved_count' => 0,
+                    'pending_count' => 0,
+                    'rejected_count' => 0,
+                    'conflicts' => [],
+                ]);
+            }
+
+            // Build lookup keys for requested entries: employeeId_weekStart_day
+            $lookupKeys = [];
+            $weekStarts = [];
+            foreach ($entriesCollection as $entry) {
+                $ws = $entry['week_start'] ?? $request->input('week_start');
+                if ($ws && !empty($entry['day'])) {
+                    $normalizedWs = Carbon::parse($ws)->startOfWeek(Carbon::MONDAY)->toDateString();
+                    $lookupKeys[$entry['employee_id'] . '_' . $normalizedWs . '_' . $entry['day']] = true;
+                    $weekStarts[] = $normalizedWs;
+                }
+            }
+            $weekStarts = array_unique($weekStarts);
+
+            $existing = ShiftRoster::whereIn('employee_id', $employeeIds)
+                ->whereIn('week_start', $weekStarts)
+                ->with('employee:id,name,designation')
+                ->get();
+
+            $conflicts = [];
+            $approvedCount = 0;
+            $pendingCount = 0;
+            $rejectedCount = 0;
+
+            foreach ($existing as $roster) {
+                $rosterWs = Carbon::parse($roster->week_start)->toDateString();
+                $key = $roster->employee_id . '_' . $rosterWs . '_' . $roster->day;
+
+                if (isset($lookupKeys[$key])) {
+                    if ($roster->status === 'approved') {
+                        $approvedCount++;
+                    } elseif ($roster->status === 'rejected') {
+                        $rejectedCount++;
+                    } else {
+                        $pendingCount++;
+                    }
+
+                    $empName = $roster->employee ? $roster->employee->name : "Employee #{$roster->employee_id}";
+                    if (!isset($conflicts[$roster->employee_id])) {
+                        $conflicts[$roster->employee_id] = [
+                            'employee_id' => $roster->employee_id,
+                            'employee_name' => $empName,
+                            'designation' => $roster->employee?->designation,
+                            'shifts' => [],
+                        ];
+                    }
+
+                    $conflicts[$roster->employee_id]['shifts'][] = [
+                        'day' => $roster->day,
+                        'week_start' => $rosterWs,
+                        'shift_time' => $roster->shift_time,
+                        'shift_type' => $roster->shift_type,
+                        'status' => $roster->status,
+                    ];
+                }
+            }
+
+            $totalConflicts = $approvedCount + $pendingCount + $rejectedCount;
+
+            return response()->json([
+                'has_conflicts' => $totalConflicts > 0,
+                'total_conflicts' => $totalConflicts,
+                'approved_count' => $approvedCount,
+                'pending_count' => $pendingCount,
+                'rejected_count' => $rejectedCount,
+                'conflicts' => array_values($conflicts),
+            ]);
+
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            Log::error('checkConflicts error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
@@ -317,9 +487,10 @@ class ShiftRosterController extends Controller
             // SECURITY: Do NOT log $request->all() — it may contain sensitive shift/employee data.
             Log::info('ShiftRoster store initiated', ['user_id' => auth()->id()]);
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($request->input('company_id') && $request->input('company_id') != $user->employee->company_id) {
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin()) {
+                $targetCompanyId = $request->input('company_id');
+                if ($targetCompanyId && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $targetCompanyId)) {
                     abort(403, 'Unauthorized access to another branch.');
                 }
             }
@@ -329,6 +500,33 @@ class ShiftRosterController extends Controller
 
             // Send WhatsApp notifications after successful save
             $this->sendBulkAutomaticNotifications($data);
+
+            // In-app notification to affected employees that their roster has been created and assigned
+            $startDate = !empty($data['week_start'])
+                ? $data['week_start']
+                : (!empty($data['entries']) ? (collect($data['entries'])->min('date') ?: now()->toDateString()) : now()->toDateString());
+            $endDate = !empty($data['entries'])
+                ? (collect($data['entries'])->max('date') ?: \Carbon\Carbon::parse($startDate)->addDays(6)->toDateString())
+                : \Carbon\Carbon::parse($startDate)->addDays(6)->toDateString();
+            $affectedEmpIds = collect($data['entries'] ?? [])->pluck('employee_id')->filter()->unique();
+            foreach ($affectedEmpIds as $empId) {
+                \App\Services\NotificationService::notifyEmployee(
+                    $empId,
+                    new \App\Notifications\ShiftAssignedNotification($startDate, $endDate)
+                );
+            }
+
+            // Notify Management Stakeholders (Admins across all branches, HR, and Department/Branch Managers)
+            $company = Company::find($data['company_id']);
+            if ($company) {
+                $shiftsCount = count($data['entries'] ?? []);
+                \App\Services\NotificationService::notifyManagementStakeholders(
+                    new \App\Notifications\ShiftRosterCreatedNotification($company, $startDate, $shiftsCount, $user->name),
+                    $company->id,
+                    $data['department_id'] ?? null,
+                    $user->id
+                );
+            }
 
             // Redirect with the correct parameters to show the saved data
             $redirectParams = [
@@ -347,6 +545,8 @@ class ShiftRosterController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('ShiftRoster validation error: ' . json_encode($e->errors()));
             return back()->withErrors($e->errors())->withInput();
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster store error: ' . $e->getMessage());
             Log::error('Stack trace: ' . $e->getTraceAsString());
@@ -368,6 +568,8 @@ class ShiftRosterController extends Controller
                 'roster' => $shiftRoster,
                 'shiftTemplates' => $this->shiftTemplates,
             ]);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster show error: ' . $e->getMessage());
             return back()->with('error', 'Error loading roster details: ' . $e->getMessage());
@@ -394,6 +596,8 @@ class ShiftRosterController extends Controller
                 'shiftTemplates' => $this->shiftTemplates,
                 'shiftTypes' => $shiftTypes,
             ]);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster edit error: ' . $e->getMessage());
             return back()->with('error', 'Error loading edit form: ' . $e->getMessage());
@@ -408,11 +612,9 @@ class ShiftRosterController extends Controller
                 abort(403, 'Unauthorized.');
             }
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($shiftRoster->company_id != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, $shiftRoster)) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             $data = $request->validate([
@@ -431,6 +633,33 @@ class ShiftRosterController extends Controller
             $shiftRoster->update($data);
             $this->sendAutomaticNotification($shiftRoster);
 
+            // In-app real-time notification to affected employee
+            if ($shiftRoster->employee_id) {
+                \App\Services\NotificationService::notifyEmployee(
+                    $shiftRoster->employee_id,
+                    new \App\Notifications\ShiftRosterUpdatedNotification(
+                        'Shift Schedule Updated',
+                        "Your shift for {$shiftRoster->date} has been updated to {$shiftRoster->shift_time} by {$user->name}.",
+                        route('shift-rosters.index', ['week_start' => $shiftRoster->week_start]),
+                        'shift_roster_updated'
+                    )
+                );
+            }
+
+            // In-app real-time notification to Management Stakeholders (HR, Manager, Admin)
+            $shiftRoster->loadMissing('employee');
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\ShiftRosterUpdatedNotification(
+                    'Shift Schedule Updated',
+                    "{$user->name} updated the shift schedule for {$shiftRoster->employee?->name} ({$shiftRoster->date}: {$shiftRoster->shift_time}).",
+                    route('shift-rosters.index', ['week_start' => $shiftRoster->week_start, 'company_id' => $shiftRoster->company_id]),
+                    'shift_roster_updated'
+                ),
+                $shiftRoster->company_id,
+                $shiftRoster->employee?->department_id,
+                $user->id
+            );
+
             Log::info('ShiftRoster updated', ['id' => $shiftRoster->id]);
 
             // Return redirect for both regular and AJAX (Inertia) requests
@@ -448,6 +677,8 @@ class ShiftRosterController extends Controller
             }
 
             return back()->withErrors($e->errors())->withInput();
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster update error: ' . $e->getMessage());
 
@@ -495,11 +726,9 @@ class ShiftRosterController extends Controller
 
             $user = auth()->user();
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($data['company_id'] != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $data['company_id'])) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             $query = ShiftRoster::where('company_id', $data['company_id'])
@@ -511,12 +740,65 @@ class ShiftRosterController extends Controller
                 $query->whereIn('employee_id', $deptEmployeeIds);
             }
 
-            $count = $query->update([
-                'status'      => 'approved',
-                'approved_by' => $user->id,
-                'approved_at' => now(),
-                'rejection_reason' => null,
-            ]);
+            $pendingEntries = $query->get();
+
+            if ($pendingEntries->isEmpty()) {
+                return back()->with('info', 'No pending roster entries found to approve.');
+            }
+
+            // Pre-fetch approved leaves for these employees during the target week range
+            $weekStartCarbon = Carbon::parse($data['week_start'])->startOfWeek(Carbon::MONDAY);
+            $minDate = $weekStartCarbon->toDateString();
+            $maxDate = $weekStartCarbon->copy()->endOfWeek(Carbon::SUNDAY)->toDateString();
+            $employeeIds = $pendingEntries->pluck('employee_id')->unique();
+
+            $approvedLeaves = \App\Models\LeaveRequest::with('leaveType')
+                ->whereIn('employee_id', $employeeIds)
+                ->where('status', 'approved')
+                ->where(function ($q) use ($minDate, $maxDate) {
+                    $q->whereBetween('start_date', [$minDate, $maxDate])
+                      ->orWhereBetween('end_date', [$minDate, $maxDate])
+                      ->orWhere(function ($sub) use ($minDate, $maxDate) {
+                          $sub->where('start_date', '<=', $minDate)
+                              ->where('end_date', '>=', $maxDate);
+                      });
+                })
+                ->get()
+                ->groupBy('employee_id');
+
+            $dayOffsets = ['Monday' => 0, 'Tuesday' => 1, 'Wednesday' => 2, 'Thursday' => 3,
+                           'Friday' => 4, 'Saturday' => 5, 'Sunday' => 6];
+
+            $count = 0;
+            foreach ($pendingEntries as $entry) {
+                $dayOffset = $dayOffsets[$entry->day] ?? 0;
+                $actualDateStr = $weekStartCarbon->copy()->addDays($dayOffset)->toDateString();
+
+                $empLeaves = $approvedLeaves->get($entry->employee_id, collect());
+                $matchingLeave = $empLeaves->first(function ($leave) use ($actualDateStr) {
+                    $s = is_string($leave->start_date) ? substr($leave->start_date, 0, 10) : $leave->start_date->toDateString();
+                    $e = is_string($leave->end_date) ? substr($leave->end_date, 0, 10) : $leave->end_date->toDateString();
+                    return $actualDateStr >= $s && $actualDateStr <= $e;
+                });
+
+                $updateData = [
+                    'status'           => 'approved',
+                    'approved_by'      => $user->id,
+                    'approved_at'      => now(),
+                    'rejection_reason' => null,
+                ];
+
+                // If employee is on approved leave on this day, ensure shift remains/sets to On Leave
+                if ($matchingLeave) {
+                    $leaveName = $matchingLeave->leaveType->name ?? 'Leave';
+                    $updateData['shift_time'] = 'On Leave';
+                    $updateData['shift_type'] = 'Leave';
+                    $updateData['notes']      = 'Approved ' . $leaveName;
+                }
+
+                $entry->update($updateData);
+                $count++;
+            }
 
             Log::info('ShiftRoster approved', [
                 'approved_by' => $user->id,
@@ -525,11 +807,173 @@ class ShiftRosterController extends Controller
                 'count'       => $count,
             ]);
 
-            return back()->with('success', "✅ {$count} roster entries approved successfully! You can now broadcast to employees.");
+            // Automatic notification dispatch upon approval (Email, SMS, WhatsApp as per company settings)
+            $notifStatus = '';
+            if ($count > 0) {
+                $company = Company::find($data['company_id']);
+                if ($company) {
+                    try {
+                        $dispatchResult = $this->dispatchRosterNotifications($company, $data['week_start'], $data['department_id'] ?? null);
+                        if ($dispatchResult['dispatched']) {
+                            $channelsList = implode(', ', $dispatchResult['channels']);
+                            $notifStatus = " Notifications dispatched automatically via: {$channelsList} to {$dispatchResult['recipients_count']} employees.";
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning('Roster approval notification dispatch warning: ' . $e->getMessage());
+                        $notifStatus = " (⚠️ Email notification could not be sent: SMTP is not configured or proc_open is disabled on server.)";
+                    }
+                }
+            }
 
-        } catch (\Exception $e) {
+            // In-app system notification to assigned employees
+            if ($count > 0 && isset($employeeIds) && $employeeIds->isNotEmpty()) {
+                $compName = isset($company) && $company ? $company->name : 'Company';
+                foreach ($employeeIds as $empId) {
+                    \App\Services\NotificationService::notifyEmployee(
+                        $empId,
+                        new \App\Notifications\ShiftRosterApprovedNotification($data['week_start'], $compName)
+                    );
+                }
+
+                // In-app system notification to Management Stakeholders (Admins, HR, Managers)
+                \App\Services\NotificationService::notifyManagementStakeholders(
+                    new \App\Notifications\ShiftRosterUpdatedNotification(
+                        'Shift Roster Approved',
+                        "{$user->name} approved the weekly shift roster for {$compName} (Week: {$data['week_start']}).",
+                        route('shift-rosters.index', ['week_start' => $data['week_start'], 'company_id' => $data['company_id']]),
+                        'shift_roster_approved'
+                    ),
+                    $data['company_id'],
+                    $data['department_id'] ?? null,
+                    $user->id
+                );
+            }
+
+            return back()->with('success', "✅ {$count} roster entries approved successfully!{$notifStatus}");
+
+        } catch (\Throwable $e) {
             Log::error('ShiftRoster approve error: ' . $e->getMessage());
             return back()->with('error', 'Error approving roster: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Dispatch roster notifications to employees across enabled channels (Email, WhatsApp, SMS).
+     */
+    public function dispatchRosterNotifications(Company $company, string $weekStart, ?int $departmentId = null): array
+    {
+        try {
+            $companyId = $company->id;
+
+            $sendEmail    = Setting::get('roster_send_email', true, $companyId);
+            $sendWhatsapp = Setting::get('roster_send_whatsapp', false, $companyId);
+            $sendSms      = Setting::get('roster_send_sms', false, $companyId);
+
+            $enabledChannels = [];
+            if ($sendEmail) $enabledChannels[] = 'Email';
+            if ($sendWhatsapp) $enabledChannels[] = 'WhatsApp';
+            if ($sendSms) $enabledChannels[] = 'SMS';
+
+            if (empty($enabledChannels)) {
+                Log::info("dispatchRosterNotifications: No notification channels enabled for company {$companyId}");
+                return ['dispatched' => false, 'channels' => [], 'recipients_count' => 0];
+            }
+
+            $startDate = Carbon::parse($weekStart);
+            $endDate   = $startDate->copy()->addDays(6);
+            $dateRange = $startDate->format('M d, Y') . ' - ' . $endDate->format('M d, Y');
+
+            $query = ShiftRoster::where('company_id', $companyId)
+                ->where('week_start', $weekStart)
+                ->where('status', 'approved');
+
+            if ($departmentId) {
+                $deptEmployeeIds = Employee::where('department_id', $departmentId)->pluck('id');
+                $query->whereIn('employee_id', $deptEmployeeIds);
+            }
+
+            $rosters = $query->get();
+
+            if ($rosters->isEmpty()) {
+                return ['dispatched' => false, 'channels' => $enabledChannels, 'recipients_count' => 0];
+            }
+
+            $employeeIds = $rosters->pluck('employee_id')->unique();
+            $employees = Employee::whereIn('id', $employeeIds)->get();
+
+            $dispatchedCount = 0;
+
+            foreach ($employees as $employee) {
+                $employeeRoster = $rosters->where('employee_id', $employee->id)->map(function ($r) {
+                    return [
+                        'day'         => $r->day,
+                        'date'        => Carbon::parse($r->week_start)->addDays($this->getDayOffset($r->day))->format('M d, Y'),
+                        'shift_time'  => $r->shift_time,
+                        'shift_type'  => $r->shift_type,
+                        'designation' => $r->designation,
+                        'notes'       => $r->notes,
+                    ];
+                })->values()->toArray();
+
+                if (empty($employeeRoster)) {
+                    continue;
+                }
+
+                $sentToEmployee = false;
+
+                // 1. Email Channel
+                if ($sendEmail && !empty($employee->email)) {
+                    if (config('mail.default') === 'sendmail' && !function_exists('proc_open')) {
+                        Log::warning("proc_open is disabled on this server; skipping email dispatch for {$employee->name}.");
+                    } else {
+                        try {
+                            Mail::to($employee->email)->queue(new EmployeeRosterMail($employee, $company, $employeeRoster, $dateRange));
+                            $sentToEmployee = true;
+                        } catch (\Throwable $e) {
+                            Log::warning("Failed to queue email for {$employee->name}: " . $e->getMessage());
+                        }
+                    }
+                }
+
+                // 2. WhatsApp Channel
+                if ($sendWhatsapp && !empty($employee->mobile)) {
+                    try {
+                        \App\Jobs\SendWhatsAppRosterNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
+                        $sentToEmployee = true;
+                    } catch (\Throwable $e) {
+                        Log::error("Failed to dispatch WhatsApp for {$employee->name}: " . $e->getMessage());
+                    }
+                }
+
+                // 3. SMS Channel
+                if ($sendSms && !empty($employee->mobile)) {
+                    try {
+                        \App\Jobs\SendRosterSmsNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
+                        $sentToEmployee = true;
+                    } catch (\Throwable $e) {
+                        Log::error("Failed to dispatch SMS for {$employee->name}: " . $e->getMessage());
+                    }
+                }
+
+                if ($sentToEmployee) {
+                    $dispatchedCount++;
+                }
+            }
+
+            Log::info("Automatic roster notifications dispatched for week {$weekStart}", [
+                'company_id'       => $companyId,
+                'channels'         => $enabledChannels,
+                'recipients_count' => $dispatchedCount,
+            ]);
+
+            return [
+                'dispatched'       => $dispatchedCount > 0,
+                'channels'         => $enabledChannels,
+                'recipients_count' => $dispatchedCount,
+            ];
+        } catch (\Throwable $e) {
+            Log::error('dispatchRosterNotifications error: ' . $e->getMessage());
+            return ['dispatched' => false, 'channels' => [], 'recipients_count' => 0];
         }
     }
 
@@ -581,8 +1025,23 @@ class ShiftRosterController extends Controller
                 'count'       => $count,
             ]);
 
+            // In-app notification to Management Stakeholders (HR, Manager, Admin)
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\ShiftRosterUpdatedNotification(
+                    'Shift Roster Rejected',
+                    "{$user->name} rejected the shift roster for Week: {$data['week_start']}. Reason: " . ($data['rejection_reason'] ?? 'Needs revision'),
+                    route('shift-rosters.management', ['from_date' => $data['week_start'], 'company_id' => $data['company_id']]),
+                    'shift_roster_rejected'
+                ),
+                $data['company_id'],
+                $data['department_id'] ?? null,
+                $user->id
+            );
+
             return back()->with('success', "❌ {$count} roster entries rejected. Creator can revise and resubmit.");
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster reject error: ' . $e->getMessage());
             return back()->with('error', 'Error rejecting roster: ' . $e->getMessage());
@@ -596,7 +1055,7 @@ class ShiftRosterController extends Controller
     {
         try {
             $user = auth()->user();
-            if (!$user->isAdmin() && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
+            if (!$this->canApproveRosters() && !$user->hasPermission('manage-shift-rosters') && !$user->hasPermission('manage-rosters')) {
                 return back()->with('error', 'Unauthorized.');
             }
 
@@ -623,6 +1082,8 @@ class ShiftRosterController extends Controller
 
             return back()->with('success', "{$count} roster entries reset to pending.");
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster reset error: ' . $e->getMessage());
             return back()->with('error', 'Error resetting roster: ' . $e->getMessage());
@@ -650,24 +1111,22 @@ class ShiftRosterController extends Controller
 
             // Multi-tenancy scoping
             $company_id = $request->input('company_id');
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
+            if (!$user->isAdmin() && !$user->isHR() && !$user->isManager() && $user->employee_id && $user->employee) {
                 $company_id = $user->employee->company_id;
             }
 
             $companiesQuery = Company::withoutGlobalScope('company')->orderBy('name');
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                // Support multi-branch assignments: include both the primary company_id
-                // and any additional companies linked via the employee_company pivot table.
-                $employee = $user->employee;
-                $assignedCompanyIds = collect([$employee->company_id]);
-
-                // Check if the employee has additional companies via pivot
-                $pivotIds = \Illuminate\Support\Facades\DB::table('employee_company')
-                    ->where('employee_id', $employee->id)
-                    ->pluck('company_id');
-                $assignedCompanyIds = $assignedCompanyIds->merge($pivotIds)->unique()->filter()->values();
-
-                $companiesQuery->whereIn('id', $assignedCompanyIds);
+            if (!$user->isAdmin()) {
+                $assignedCompanyIds = $user->getAssignedCompanyIds();
+                $subordinateCompanyIds = \Illuminate\Support\Facades\DB::table('employees')
+                    ->whereIn('id', $user->getSubordinateEmployeeIds(true))
+                    ->pluck('company_id')
+                    ->filter()
+                    ->unique();
+                $accessibleCompanyIds = $assignedCompanyIds->merge($subordinateCompanyIds)->unique()->values();
+                if ($accessibleCompanyIds->isNotEmpty()) {
+                    $companiesQuery->whereIn('id', $accessibleCompanyIds);
+                }
             }
             $companies = $companiesQuery->get(['id', 'name', 'slug']);
 
@@ -684,8 +1143,13 @@ class ShiftRosterController extends Controller
             // Base query for schedule batches
             $query = ShiftRoster::withoutGlobalScope('company')->newQuery();
 
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                $query->where('company_id', $user->employee->company_id);
+            if (!$user->isAdmin()) {
+                $assignedIds = $user->getAssignedCompanyIds();
+                if ($company_id) {
+                    $query->where('company_id', $company_id);
+                } elseif ($assignedIds->isNotEmpty()) {
+                    $query->whereIn('company_id', $assignedIds);
+                }
             } elseif ($company_id) {
                 $query->where('company_id', $company_id);
             }
@@ -695,12 +1159,29 @@ class ShiftRosterController extends Controller
                 $query->whereIn('employee_id', $deptEmployeeIds);
             }
 
-            if ($request->filled('from_date')) {
-                $query->where('week_start', '>=', $request->from_date);
-            }
+            $period = $request->input('period', 'all');
+            if ($period === 'this_week') {
+                $ws = now()->startOfWeek(Carbon::MONDAY)->toDateString();
+                $query->where('week_start', $ws);
+            } elseif ($period === 'next_week') {
+                $ws = now()->addWeek()->startOfWeek(Carbon::MONDAY)->toDateString();
+                $query->where('week_start', $ws);
+            } elseif ($period === 'this_month') {
+                $ms = now()->startOfMonth()->startOfWeek(Carbon::MONDAY)->toDateString();
+                $me = now()->endOfMonth()->startOfWeek(Carbon::MONDAY)->toDateString();
+                $query->whereBetween('week_start', [$ms, $me]);
+            } elseif ($period === 'last_month') {
+                $ms = now()->subMonth()->startOfMonth()->startOfWeek(Carbon::MONDAY)->toDateString();
+                $me = now()->subMonth()->endOfMonth()->startOfWeek(Carbon::MONDAY)->toDateString();
+                $query->whereBetween('week_start', [$ms, $me]);
+            } else {
+                if ($request->filled('from_date')) {
+                    $query->where('week_start', '>=', $request->from_date);
+                }
 
-            if ($request->filled('to_date')) {
-                $query->where('week_start', '<=', $request->to_date);
+                if ($request->filled('to_date')) {
+                    $query->where('week_start', '<=', $request->to_date);
+                }
             }
 
             // Aggregate by company_id and week_start
@@ -790,6 +1271,22 @@ class ShiftRosterController extends Controller
                 })->values();
             }
 
+            // Sort batches according to sort_by filter
+            $sortBy = $request->input('sort_by', 'date_desc');
+            if ($sortBy === 'date_asc') {
+                $batches = $batches->sortBy('week_start')->values();
+            } elseif ($sortBy === 'shifts_desc') {
+                $batches = $batches->sortByDesc('total_shifts')->values();
+            } elseif ($sortBy === 'shifts_asc') {
+                $batches = $batches->sortBy('total_shifts')->values();
+            } elseif ($sortBy === 'employees_desc') {
+                $batches = $batches->sortByDesc('total_employees')->values();
+            } elseif ($sortBy === 'pending_desc') {
+                $batches = $batches->sortByDesc('pending_count')->values();
+            } else {
+                $batches = $batches->sortByDesc('week_start')->values();
+            }
+
             $canApprove = $user->isAdmin() || $user->isHR() || $user->isManager()
                 || $user->hasRole('shift-manager')
                 || $user->hasPermission('approve-shift-rosters');
@@ -806,11 +1303,15 @@ class ShiftRosterController extends Controller
                     'search'        => $request->search,
                     'from_date'     => $request->from_date,
                     'to_date'       => $request->to_date,
+                    'period'        => $period,
+                    'sort_by'       => $sortBy,
                 ],
                 'canApprove'   => $canApprove,
                 'userRole'     => $user->role,
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster managementIndex error: ' . $e->getMessage());
             return back()->with('error', 'Error loading roster management: ' . $e->getMessage());
@@ -842,11 +1343,9 @@ class ShiftRosterController extends Controller
             $company_id = $request->company_id;
             $week_start = $request->week_start;
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && !$user->isHR() && $user->employee_id && $user->employee) {
-                if ($company_id != $user->employee->company_id) {
-                    return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
-                }
+            // Multi-tenancy & reporting check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $company_id)) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
             }
 
             $company = Company::findOrFail($company_id);
@@ -961,6 +1460,8 @@ class ShiftRosterController extends Controller
                 ]
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster getBatchDetails error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Error loading details: ' . $e->getMessage()], 500);
@@ -975,17 +1476,17 @@ class ShiftRosterController extends Controller
                 abort(403, 'Unauthorized.');
             }
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($shiftRoster->company_id != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, $shiftRoster)) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             $shiftRoster->delete();
             Log::info('ShiftRoster deleted', ['id' => $shiftRoster->id]);
 
             return back()->with('success', 'Roster deleted successfully!');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster destroy error: ' . $e->getMessage());
             return back()->with('error', 'Error deleting roster: ' . $e->getMessage());
@@ -1012,11 +1513,9 @@ class ShiftRosterController extends Controller
                 'notes' => 'nullable|string|max:1000',
             ]);
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($data['company_id'] != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $data['company_id'])) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             // Ensure week_start is normalized to Monday
@@ -1055,6 +1554,31 @@ class ShiftRosterController extends Controller
             );
             $this->sendAutomaticNotification($shiftRoster);
 
+            // In-app notification to affected employee
+            \App\Services\NotificationService::notifyEmployee(
+                $shiftRoster->employee_id,
+                new \App\Notifications\ShiftRosterUpdatedNotification(
+                    'Shift Schedule Assigned',
+                    "Your shift for {$shiftRoster->date} has been scheduled as {$shiftRoster->shift_time} by {$user->name}.",
+                    route('shift-rosters.index', ['week_start' => $shiftRoster->week_start]),
+                    'shift_roster_updated'
+                )
+            );
+
+            // In-app notification to Management Stakeholders (HR, Manager, Admin)
+            $shiftRoster->loadMissing('employee');
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\ShiftRosterUpdatedNotification(
+                    'Shift Schedule Updated',
+                    "{$user->name} saved shift for {$shiftRoster->employee?->name} ({$shiftRoster->date}: {$shiftRoster->shift_time}).",
+                    route('shift-rosters.index', ['week_start' => $shiftRoster->week_start, 'company_id' => $shiftRoster->company_id]),
+                    'shift_roster_updated'
+                ),
+                $shiftRoster->company_id,
+                $shiftRoster->employee?->department_id,
+                $user->id
+            );
+
             Log::info('ShiftRoster created/updated from inline editor', ['id' => $shiftRoster->id]);
 
             return back()->with('success', 'Shift saved successfully!');
@@ -1062,6 +1586,8 @@ class ShiftRosterController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('ShiftRoster create shift validation error: ' . json_encode($e->errors()));
             return back()->withErrors($e->errors());
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster create shift error: ' . $e->getMessage());
             return back()->with('error', 'Error creating shift: ' . $e->getMessage());
@@ -1083,14 +1609,12 @@ class ShiftRosterController extends Controller
 
             $data = $this->validateRosterData($request);
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($data['company_id'] != $user->employee->company_id) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Unauthorized access to another branch.'
-                    ], 403);
-                }
+            // Multi-tenancy & reporting check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $data['company_id'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized access to another branch.'
+                ], 403);
             }
 
             $result = $this->processRosterEntries($data);
@@ -1101,6 +1625,8 @@ class ShiftRosterController extends Controller
                 'data' => $result
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster bulk store error: ' . $e->getMessage());
             return response()->json([
@@ -1133,11 +1659,9 @@ class ShiftRosterController extends Controller
             $data['source_week'] = Carbon::parse($data['source_week'])->startOfWeek(Carbon::MONDAY)->toDateString();
             $data['target_week'] = Carbon::parse($data['target_week'])->startOfWeek(Carbon::MONDAY)->toDateString();
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($data['company_id'] != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $data['company_id'])) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             $query = ShiftRoster::where('company_id', $data['company_id'])
@@ -1152,7 +1676,27 @@ class ShiftRosterController extends Controller
             $sourceRosters = $query->get();
 
             if ($sourceRosters->isEmpty()) {
-                return back()->with('error', 'No shifts found in the source week to duplicate.');
+                return $request->boolean('check_conflicts')
+                    ? response()->json(['has_conflicts' => false, 'total_conflicts' => 0, 'approved_count' => 0, 'pending_count' => 0])
+                    : back()->with('error', 'No shifts found in the source week to duplicate.');
+            }
+
+            // Target week conflict check
+            if ($request->boolean('check_conflicts')) {
+                $targetQuery = ShiftRoster::where('company_id', $data['company_id'])
+                    ->where('week_start', $data['target_week']);
+                if ($request->has('department_id') && $request->department_id) {
+                    $targetQuery->whereIn('employee_id', $employeeIds);
+                }
+                $existingCount = (clone $targetQuery)->count();
+                $approvedCount = (clone $targetQuery)->where('status', 'approved')->count();
+                $pendingCount = (clone $targetQuery)->where('status', 'pending')->count();
+                return response()->json([
+                    'has_conflicts' => $existingCount > 0,
+                    'total_conflicts' => $existingCount,
+                    'approved_count' => $approvedCount,
+                    'pending_count' => $pendingCount,
+                ]);
             }
 
             $duplicatedCount = 0;
@@ -1218,10 +1762,14 @@ class ShiftRosterController extends Controller
                 DB::commit();
                 return back()->with('success', "Successfully duplicated {$duplicatedCount} roster entries to week starting {$data['target_week']}");
 
-            } catch (\Exception $e) {
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
+        } catch (\Exception $e) {
                 DB::rollBack();
                 throw $e;
             }
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster duplicate week error: ' . $e->getMessage());
             return back()->with('error', 'Error duplicating week: ' . $e->getMessage());
@@ -1241,11 +1789,9 @@ class ShiftRosterController extends Controller
                 'company_id' => 'required|exists:companies,id',
             ]);
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($data['company_id'] != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $data['company_id'])) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             $query = ShiftRoster::where('company_id', $data['company_id'])
@@ -1261,6 +1807,8 @@ class ShiftRosterController extends Controller
 
             return back()->with('success', "Successfully cleared {$deletedCount} roster entries");
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster clear week error: ' . $e->getMessage());
             return back()->with('error', 'Error clearing week: ' . $e->getMessage());
@@ -1280,11 +1828,9 @@ class ShiftRosterController extends Controller
                 'company_id' => 'required|exists:companies,id',
             ]);
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($data['company_id'] != $user->employee->company_id) {
-                    abort(403, 'Unauthorized access to another branch.');
-                }
+            // Multi-tenancy & reporting relationship check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $data['company_id'])) {
+                abort(403, 'Unauthorized access to another branch.');
             }
 
             $weekStart = Carbon::parse($data['week_start']);
@@ -1494,6 +2040,8 @@ class ShiftRosterController extends Controller
                 'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             ])->deleteFileAfterSend(true);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('ShiftRoster export week error: ' . $e->getMessage());
             return response()->json([
@@ -1518,11 +2066,23 @@ class ShiftRosterController extends Controller
             // APPROVAL GATE: Only allow broadcast if roster is approved
             // ----------------------------------------------------------------
             if ($week_start && $company_id) {
-                $pendingCount = ShiftRoster::where('company_id', $company_id)
-                    ->where('week_start', $week_start)
-                    ->where('status', 'pending')
-                    ->count();
+                $department_id = $request->input('department_id');
 
+                $pendingQuery = ShiftRoster::where('company_id', $company_id)
+                    ->where('week_start', $week_start)
+                    ->where('status', 'pending');
+
+                $rejectedQuery = ShiftRoster::where('company_id', $company_id)
+                    ->where('week_start', $week_start)
+                    ->where('status', 'rejected');
+
+                if ($department_id) {
+                    $deptEmployeeIds = Employee::where('department_id', $department_id)->pluck('id');
+                    $pendingQuery->whereIn('employee_id', $deptEmployeeIds);
+                    $rejectedQuery->whereIn('employee_id', $deptEmployeeIds);
+                }
+
+                $pendingCount = $pendingQuery->count();
                 if ($pendingCount > 0) {
                     return response()->json([
                         'success' => false,
@@ -1531,11 +2091,7 @@ class ShiftRosterController extends Controller
                     ], 422);
                 }
 
-                $rejectedCount = ShiftRoster::where('company_id', $company_id)
-                    ->where('week_start', $week_start)
-                    ->where('status', 'rejected')
-                    ->count();
-
+                $rejectedCount = $rejectedQuery->count();
                 if ($rejectedCount > 0) {
                     return response()->json([
                         'success' => false,
@@ -1554,11 +2110,9 @@ class ShiftRosterController extends Controller
                 return response()->json(['success' => false, 'message' => 'Company ID is required.'], 422);
             }
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($company_id != $user->employee->company_id) {
-                    return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
-                }
+            // Multi-tenancy & reporting check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $company_id)) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
             }
 
             $company = Company::findOrFail($company_id);
@@ -1769,18 +2323,7 @@ class ShiftRosterController extends Controller
                     }
 
                     if ($sendSms && !empty($employee->mobile)) {
-                        $smsMessage = "Hi {$employee->name},\nYour shift roster for {$dateRange} at {$company->name}:\n";
-                        foreach ($employeeRoster as $shift) {
-                            $smsMessage .= "- {$shift['date']} ({$shift['day']}): {$shift['shift_time']} ({$shift['designation']})\n";
-                        }
-                        $smsMessage .= "Please arrive 10 mins early. Contact HR for queries.";
-
-                        // TODO: Implement actual SMS API call (Twilio or Custom)
-                        Log::info('SMS roster notification queued', [
-                            'employee_id' => $employee->id,
-                            'mobile' => $employee->mobile,
-                            'message_preview' => $smsMessage
-                        ]);
+                        \App\Jobs\SendRosterSmsNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
                     }
 
                     $sent++;
@@ -1801,7 +2344,9 @@ class ShiftRosterController extends Controller
                         ],
                         'shifts_count' => count($employeeRoster)
                     ]);
-                } catch (\Exception $e) {
+                } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
+        } catch (\Exception $e) {
                     $failed++;
                     $results[] = [
                         'employee' => $employee->name,
@@ -1840,6 +2385,8 @@ class ShiftRosterController extends Controller
                 ]
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Error sending roster emails: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
@@ -1883,11 +2430,9 @@ class ShiftRosterController extends Controller
             $start_date = $request->input('start_date');
             $end_date = $request->input('end_date');
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($company_id != $user->employee->company_id) {
-                    return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
-                }
+            // Multi-tenancy & reporting check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $company_id)) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
             }
 
             $company = Company::findOrFail($company_id);
@@ -2009,11 +2554,7 @@ class ShiftRosterController extends Controller
                     }
 
                     if ($sendSms && !empty($employee->mobile)) {
-                        // TODO: Implement actual SMS API call
-                        Log::info('SMS roster notification queued (selected)', [
-                            'employee_id' => $employee->id,
-                            'mobile' => $employee->mobile
-                        ]);
+                        \App\Jobs\SendRosterSmsNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
                     }
 
                     $sent++;
@@ -2023,7 +2564,7 @@ class ShiftRosterController extends Controller
                         'status' => 'sent',
                         'shifts_count' => count($employeeRoster)
                     ];
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     $failed++;
                     $results[] = [
                         'employee' => $employee->name,
@@ -2055,7 +2596,7 @@ class ShiftRosterController extends Controller
                 ]
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Error sending roster emails to selected employees: ' . $e->getMessage());
 
             return response()->json([
@@ -2094,11 +2635,9 @@ class ShiftRosterController extends Controller
             $start_date = $request->input('start_date');
             $end_date = $request->input('end_date');
 
-            // Multi-tenancy check
-            if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-                if ($company_id != $user->employee->company_id) {
-                    return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
-                }
+            // Multi-tenancy & reporting check
+            if (!$user->isAdmin() && !\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $company_id)) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
             }
 
             $company = Company::findOrFail($company_id);
@@ -2225,7 +2764,7 @@ class ShiftRosterController extends Controller
                         'shifts_count' => count($employeeRoster)
                     ]
                 ]);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 Log::error('Failed to send roster notification to single employee', [
                     'employee_id' => $employee->id,
                     'employee_name' => $employee->name,
@@ -2236,10 +2775,12 @@ class ShiftRosterController extends Controller
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Failed to send email: ' . $e->getMessage()
+                    'message' => 'Failed to send email (SMTP or server mail error): ' . $e->getMessage()
                 ], 500);
             }
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Error sending roster email to single employee: ' . $e->getMessage());
 
@@ -2293,7 +2834,9 @@ class ShiftRosterController extends Controller
                 ];
 
                 \App\Jobs\SendWhatsAppRosterNotification::dispatch($shiftRoster->employee, $shiftRoster->company, $employeeRoster, $dateRange);
-            } catch (\Exception $e) {
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
+        } catch (\Exception $e) {
                 Log::error('Auto-WhatsApp notification failed: ' . $e->getMessage());
             }
         }
@@ -2411,10 +2954,14 @@ class ShiftRosterController extends Controller
                 try {
                     \App\Jobs\SendWhatsAppRosterNotification::dispatch($employee, $company, $employeeRoster, $dateRange);
                     Log::info("sendBulkAutomaticNotifications: WhatsApp queued for {$employee->name} (ID: {$empId}), shifts: " . count($employeeRoster));
-                } catch (\Exception $e) {
+                } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
+        } catch (\Exception $e) {
                     Log::error("sendBulkAutomaticNotifications: Failed for employee {$empId}: " . $e->getMessage());
                 }
             }
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             // Never break the save flow — just log
             Log::error('sendBulkAutomaticNotifications error: ' . $e->getMessage());
@@ -2451,6 +2998,8 @@ class ShiftRosterController extends Controller
                 ]
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -2507,6 +3056,8 @@ class ShiftRosterController extends Controller
                 ]
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -2575,7 +3126,7 @@ class ShiftRosterController extends Controller
 
     // Private Helper Methods
 
-    private function getRosterData(Request $request, $companyIds)
+    private function getRosterData(Request $request, $companyIds, $preloadedEmployees = null)
     {
         $query = ShiftRoster::withoutGlobalScope('company')->newQuery();
 
@@ -2644,10 +3195,18 @@ class ShiftRosterController extends Controller
         // referenceDate: use the actual start of the period being viewed (not always current week)
         $weeklyOffService = app(WeeklyOffService::class);
         $employeeIds = $rosters->pluck('employee_id')->unique()->values();
-        $employees = Employee::with(['weeklyOffs', 'company'])
+
+        if ($preloadedEmployees instanceof \Illuminate\Support\Collection && $preloadedEmployees->isNotEmpty()) {
+            $employees = $preloadedEmployees->whereIn('id', $employeeIds)->keyBy('id');
+        } else {
+            $employees = Employee::with([
+                'weeklyOffs:id,employee_id,weekly_off_day,effective_date',
+                'company:id,weekly_off_days'
+            ])
             ->whereIn('id', $employeeIds)
-            ->get()
+            ->get(['id', 'company_id'])
             ->keyBy('id');
+        }
 
         // Pick correct reference date based on view mode
         if ($request->has('month') && $request->has('year')) {
@@ -2704,6 +3263,7 @@ class ShiftRosterController extends Controller
             'entries.*.designation' => 'nullable|string|max:255',
             'entries.*.notes' => 'nullable|string|max:1000',
             'entries.*.week_start' => 'nullable|date',
+            'confirm_override' => 'nullable|boolean',
         ]);
     }
 
@@ -2746,6 +3306,25 @@ class ShiftRosterController extends Controller
             $referenceDate = Carbon::parse($topLevelWs ?? now());
             $weeklyOffMap = $weeklyOffService->buildWeeklyOffMap($validEmployeesCollection, $referenceDate);
 
+            // Pre-fetch approved leaves for these employees during the target week range
+            $minDate = $referenceDate->copy()->startOfWeek(Carbon::MONDAY)->toDateString();
+            $maxDate = $referenceDate->copy()->endOfWeek(Carbon::SUNDAY)->toDateString();
+
+            $approvedLeaves = \App\Models\LeaveRequest::with('leaveType')
+                ->whereIn('employee_id', $validEmployeeIds)
+                ->where('status', 'approved')
+                ->where(function ($q) use ($minDate, $maxDate) {
+                    $q->whereBetween('start_date', [$minDate, $maxDate])
+                      ->orWhereBetween('end_date', [$minDate, $maxDate])
+                      ->orWhere(function ($sub) use ($minDate, $maxDate) {
+                          $sub->where('start_date', '<=', $minDate)
+                              ->where('end_date', '>=', $maxDate);
+                      });
+                })
+                ->get();
+
+            $leavesMap = $approvedLeaves->groupBy('employee_id');
+
             // Day-offset map for computing actual dates
             $dayOffsets = ['Monday' => 0, 'Tuesday' => 1, 'Wednesday' => 2, 'Thursday' => 3,
                            'Friday' => 4, 'Saturday' => 5, 'Sunday' => 6];
@@ -2778,12 +3357,26 @@ class ShiftRosterController extends Controller
 
                 $dayOffset = $dayOffsets[$entry['day']] ?? 0;
                 $actualDate = $wsCarbonCache[$ws]->copy()->addDays($dayOffset);
+                $actualDateStr = $actualDate->toDateString();
+
+                // Check if employee has an approved leave on this date
+                $empLeaves = $leavesMap->get($entry['employee_id'], collect());
+                $matchingLeave = $empLeaves->first(function ($leave) use ($actualDateStr) {
+                    $s = is_string($leave->start_date) ? substr($leave->start_date, 0, 10) : $leave->start_date->toDateString();
+                    $e = is_string($leave->end_date) ? substr($leave->end_date, 0, 10) : $leave->end_date->toDateString();
+                    return $actualDateStr >= $s && $actualDateStr <= $e;
+                });
 
                 // Check if this day is a weekly off for the employee
                 $isWeeklyOff = $weeklyOffService->isWeeklyOffFromMap($entry['employee_id'], $actualDate, $weeklyOffMap);
 
-                // Override shift details if it is a weekly off day
-                if ($isWeeklyOff) {
+                // Auto-sync shift details: Leave takes highest priority, followed by Weekly Off
+                if ($matchingLeave) {
+                    $leaveName = $matchingLeave->leaveType->name ?? 'Leave';
+                    $time = 'On Leave';
+                    $shiftType = 'Leave';
+                    $notes = 'Approved ' . $leaveName;
+                } elseif ($isWeeklyOff) {
                     $time = 'Weekly Off';
                     $shiftType = 'Weekly Off';
                     $notes = 'Auto: Weekly Off Day';
@@ -2827,6 +3420,8 @@ class ShiftRosterController extends Controller
 
             return ['created' => 0, 'updated' => $updatedCount, 'errors' => $errors];
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Error in processRosterEntries: ' . $e->getMessage());
             Log::error('Stack trace: ' . $e->getTraceAsString());

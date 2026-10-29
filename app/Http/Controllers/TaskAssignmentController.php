@@ -156,6 +156,10 @@ class TaskAssignmentController extends Controller
         ]);
 
         $user = auth()->user();
+        if ($user->isEmployee() && $assignment->employee_id != $user->employee_id) {
+            abort(403, 'Unauthorized. Employees may only update their own task assignments.');
+        }
+
         if (!$user->isAdmin() && $user->employee_id && $assignment->employee->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
@@ -173,6 +177,11 @@ class TaskAssignmentController extends Controller
     public function destroy(TaskAssignment $assignment)
     {
         $user = auth()->user();
+        // Regular employees cannot delete assignments unless they assigned it
+        if ($user->isEmployee() && $assignment->assigned_by !== $user->id) {
+            abort(403, 'Unauthorized. Regular employees cannot delete task assignments.');
+        }
+
         if (!$user->isAdmin() && $user->employee_id && $assignment->employee->company_id != $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }

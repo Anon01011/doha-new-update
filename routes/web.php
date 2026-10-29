@@ -107,6 +107,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/backup/restore', [\App\Http\Controllers\BackupController::class, 'restore'])->name('settings.backup.restore');
         Route::get('/settings/backup/export-excel', [\App\Http\Controllers\BackupController::class, 'exportAllExcel'])->name('settings.backup.export-excel');
 
+        // Offboarding Settings
+        Route::get('/settings/offboarding', [\App\Http\Controllers\SettingsController::class, 'offboardingSettings'])->name('settings.offboarding');
+        Route::post('/settings/offboarding', [\App\Http\Controllers\SettingsController::class, 'updateOffboardingSettings'])->name('settings.offboarding.update');
+        Route::get('/settings/offboarding/preview-template', [\App\Http\Controllers\SettingsController::class, 'previewRelievingLetterTemplate'])->name('settings.offboarding.previewTemplate');
+
         // Approval routes
         Route::post('leave-requests/{leaveRequest}/approve', [\App\Http\Controllers\LeaveRequestController::class, 'approve'])->name('leave-requests.approve');
         Route::post('leave-requests/{leaveRequest}/reject', [\App\Http\Controllers\LeaveRequestController::class, 'reject'])->name('leave-requests.reject');
@@ -198,7 +203,10 @@ Route::middleware('auth')->group(function () {
         Route::get('audit-logs/{auditLog}', [\App\Http\Controllers\AuditLogController::class, 'show'])->name('audit-logs.show');
     });
 
-    // Mixed routes (Controller handles filtering)
+    // Live Attendance & Break Feed
+    Route::get('attendance/live-feed', [\App\Http\Controllers\LiveAttendanceController::class, 'index'])->name('attendance.live-feed');
+    Route::get('attendance/live-feed/data', [\App\Http\Controllers\LiveAttendanceController::class, 'data'])->name('attendance.live-feed.data');
+
     Route::post('employee-attendances/clock-in', [\App\Http\Controllers\EmployeeAttendanceController::class, 'clockIn'])->name('employee-attendances.clockIn');
     Route::post('employee-attendances/clock-out', [\App\Http\Controllers\EmployeeAttendanceController::class, 'clockOut'])->name('employee-attendances.clockOut');
     Route::post('employee-attendances/start-break', [\App\Http\Controllers\EmployeeAttendanceController::class, 'startBreak'])->name('employee-attendances.startBreak');
@@ -206,6 +214,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('employee-attendances', \App\Http\Controllers\EmployeeAttendanceController::class);
 
     // Shift Roster custom routes (must be before resource route)
+    Route::post('shift-rosters/check-conflicts', [\App\Http\Controllers\ShiftRosterController::class, 'checkConflicts'])->name('shift-rosters.checkConflicts');
     Route::get('shift-rosters/show-employee/{company}/{employee}', [\App\Http\Controllers\ShiftRosterController::class, 'showEmployeeRoster'])->name('shift-rosters.showEmployee');
     Route::post('shift-rosters/bulk-store', [\App\Http\Controllers\ShiftRosterController::class, 'bulkStore'])->name('shift-rosters.bulkStore');
     Route::post('shift-rosters/create-shift', [\App\Http\Controllers\ShiftRosterController::class, 'createShift'])->name('shift-rosters.createShift');
@@ -262,17 +271,22 @@ Route::middleware('auth')->group(function () {
     // delete another employee's offboarding request. The module is now restricted
     // to the management roles, and the state-changing endpoints additionally
     // enforce their own ownership / separation-of-duties checks in the controller.
+    // Offboarding routes: employees can submit their own resignation and view their own request
+    Route::resource('offboarding', \App\Http\Controllers\OffboardingController::class);
+    Route::get('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'exitInterview'])->name('offboarding.exit-interview');
+    Route::post('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'storeExitInterview'])->name('offboarding.exit-interview.store');
+
+    // Management-only offboarding actions
     Route::middleware('role:admin,hr,manager')->group(function () {
-        Route::resource('offboarding', \App\Http\Controllers\OffboardingController::class);
         Route::post('offboarding/{offboarding}/approve', [\App\Http\Controllers\OffboardingController::class, 'approve'])->name('offboarding.approve');
         Route::post('offboarding/{offboarding}/reject', [\App\Http\Controllers\OffboardingController::class, 'reject'])->name('offboarding.reject');
         Route::post('offboarding/{offboarding}/tasks/{task}', [\App\Http\Controllers\OffboardingController::class, 'updateTask'])->name('offboarding.tasks.update');
-        Route::get('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'exitInterview'])->name('offboarding.exit-interview');
-        Route::post('offboarding/{offboarding}/exit-interview', [\App\Http\Controllers\OffboardingController::class, 'storeExitInterview'])->name('offboarding.exit-interview.store');
         Route::post('offboarding/{offboarding}/settlement', [\App\Http\Controllers\OffboardingController::class, 'settlementPreview'])->name('offboarding.settlement');
         Route::post('offboarding/{offboarding}/complete', [\App\Http\Controllers\OffboardingController::class, 'complete'])->name('offboarding.complete');
         Route::post('offboarding/{offboarding}/unlock', [\App\Http\Controllers\OffboardingController::class, 'unlockProfile'])->name('offboarding.unlock');
         Route::get('offboarding/{offboarding}/relieving-letter', [\App\Http\Controllers\OffboardingController::class, 'generateRelievingLetter'])->name('offboarding.relieving-letter');
+        Route::get('offboarding/{offboarding}/relieving-letter/preview', [\App\Http\Controllers\OffboardingController::class, 'previewRelievingLetter'])->name('offboarding.relieving-letter.preview');
+        Route::post('offboarding/{offboarding}/relieving-letter/email', [\App\Http\Controllers\OffboardingController::class, 'sendRelievingEmail'])->name('offboarding.relieving-letter.email');
     });
 
 
@@ -349,8 +363,12 @@ Route::middleware('auth')->group(function () {
     });
 
     // Notifications
+    Route::get('notifications', [\App\Http\Controllers\NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('notifications/poll', [\App\Http\Controllers\NotificationController::class, 'poll'])->name('notifications.poll');
     Route::post('notifications/{id}/mark-as-read', [\App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');
     Route::post('notifications/mark-all-as-read', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead'])->name('notifications.markAllAsRead');
+    Route::delete('notifications/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy'])->name('notifications.destroy');
+    Route::post('notifications/clear-read', [\App\Http\Controllers\NotificationController::class, 'clearRead'])->name('notifications.clearRead');
 });
 
 // SECURITY FIX #9: Auth required + file extension allowlist to prevent:

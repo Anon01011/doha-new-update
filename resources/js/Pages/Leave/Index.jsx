@@ -1,14 +1,23 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+<<<<<<< HEAD
 import { FaPlus, FaSearch, FaHistory, FaCalendarCheck, FaCalendarAlt, FaUser, FaInfoCircle, FaEdit, FaTrash, FaEye, FaTimesCircle, FaCheckCircle, FaCheck, FaTimes } from 'react-icons/fa';
+=======
+import {
+    FaPlus, FaSearch, FaHistory, FaCalendarCheck, FaCalendarAlt,
+    FaUser, FaInfoCircle, FaEdit, FaTrash, FaEye, FaTimesCircle,
+    FaClock, FaCheckCircle, FaClipboardList, FaChevronDown, FaChevronUp
+} from 'react-icons/fa';
+>>>>>>> 770a7ba64281fa038455d1fa3c2ce3321a47757a
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Modal from '@/Components/Modal';
 import SecondaryButton from '@/Components/SecondaryButton';
 import DangerButton from '@/Components/DangerButton';
+import PrimaryButton from '@/Components/PrimaryButton';
 import Avatar from '@/Components/Avatar';
 
-export default function Index({ leaveRequests, leaveBalances, status, userRole = 'employee', search: initialSearch = '' }) {
+export default function Index({ leaveRequests, leaveBalances, stats = null, status, userRole = 'employee', search: initialSearch = '' }) {
     const { auth } = usePage().props;
     const permissions = auth.user?.permissions || [];
     const hasPermission = (slug) => permissions.includes(slug);
@@ -25,6 +34,7 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
     const [balanceSearch, setBalanceSearch] = useState('');
     const [showAllBalances, setShowAllBalances] = useState(false);
     const [balanceViewMode, setBalanceViewMode] = useState('grid');
+    const [bulkApproveModal, setBulkApproveModal] = useState({ show: false, remarks: '', sameForAll: true, error: '' });
 
     const canUserApprove = (request) => {
         if (request.status === 'approved' || request.status === 'rejected' || request.status === 'cancelled') {
@@ -93,16 +103,27 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
     const handleApprove = (e) => {
         if (e && e.preventDefault) e.preventDefault();
         if (selectedIds.length === 0) return;
+        setBulkApproveModal({ show: true, remarks: '', sameForAll: true, error: '' });
+    };
 
+    const confirmBulkApprove = () => {
         setProcessing(true);
         router.post(route('leave-requests.bulk-approve'), {
             ids: selectedIds,
+<<<<<<< HEAD
             remarks: approvalRemarks
         }, {
             onSuccess: () => {
                 setSelectedIds([]);
                 setShowApproveModal(false);
                 setApprovalRemarks('');
+=======
+            remarks: bulkApproveModal.remarks.trim() || null,
+        }, {
+            onSuccess: () => {
+                setSelectedIds([]);
+                setBulkApproveModal({ show: false, remarks: '', sameForAll: true, error: '' });
+>>>>>>> 770a7ba64281fa038455d1fa3c2ce3321a47757a
             },
             onFinish: () => {
                 setProcessing(false);
@@ -134,18 +155,23 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
         if (!requestAction.request) return;
 
         setProcessing(true);
-        const url = requestAction.type === 'delete'
-            ? route('leave-requests.destroy', requestAction.request.id)
-            : route('leave-requests.cancel', requestAction.request.id);
 
-        router.post(url, {
-            _method: requestAction.type === 'delete' ? 'DELETE' : 'POST',
-        }, {
-            onFinish: () => {
-                setProcessing(false);
-                setRequestAction({ type: null, request: null });
-            }
-        });
+        if (requestAction.type === 'delete') {
+            router.delete(route('leave-requests.destroy', requestAction.request.id), {
+                onFinish: () => {
+                    setProcessing(false);
+                    setRequestAction({ type: null, request: null });
+                }
+            });
+        } else {
+            // cancel — route is POST, no method spoofing needed
+            router.post(route('leave-requests.cancel', requestAction.request.id), {}, {
+                onFinish: () => {
+                    setProcessing(false);
+                    setRequestAction({ type: null, request: null });
+                }
+            });
+        }
     };
 
     const handleSearch = (e) => {
@@ -190,130 +216,367 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
         return startDate > today;
     };
 
+    const [expandedQuotas, setExpandedQuotas] = useState(false);
+
+    // Clean up leave type names (Title Case, abbreviations)
+    const cleanLeaveName = (name) => {
+        if (!name) return 'Leave';
+        const trimmed = String(name).trim();
+        if (trimmed.toUpperCase() === 'PH') return 'Public Holiday (PH)';
+        if (trimmed.toUpperCase() === 'OT TO OFFSET') return 'OT to Offset';
+        if (trimmed === trimmed.toUpperCase() && trimmed.length > 2) {
+            return trimmed.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        }
+        return trimmed;
+    };
+
+    // Subtle modern color themes for quota cards
+    const getQuotaTheme = (name, index) => {
+        const n = (name || '').toLowerCase();
+        if (n.includes('sick') || n.includes('medical') || n.includes('health')) {
+            return {
+                bg: 'bg-emerald-50/50 hover:bg-emerald-50/80',
+                border: 'border-emerald-200/70 hover:border-emerald-300',
+                iconBg: 'bg-emerald-500 text-white',
+                progress: 'bg-emerald-500',
+                badge: 'bg-emerald-100 text-emerald-800',
+            };
+        }
+        if (n.includes('annual') || n.includes('vacation')) {
+            return {
+                bg: 'bg-indigo-50/50 hover:bg-indigo-50/80',
+                border: 'border-indigo-200/70 hover:border-indigo-300',
+                iconBg: 'bg-indigo-600 text-white',
+                progress: 'bg-indigo-600',
+                badge: 'bg-indigo-100 text-indigo-800',
+            };
+        }
+        if (n.includes('emerg') || n.includes('casual') || n.includes('urgent')) {
+            return {
+                bg: 'bg-amber-50/50 hover:bg-amber-50/80',
+                border: 'border-amber-200/70 hover:border-amber-300',
+                iconBg: 'bg-amber-500 text-white',
+                progress: 'bg-amber-500',
+                badge: 'bg-amber-100 text-amber-800',
+            };
+        }
+        if (n.includes('ph') || n.includes('holiday')) {
+            return {
+                bg: 'bg-violet-50/50 hover:bg-violet-50/80',
+                border: 'border-violet-200/70 hover:border-violet-300',
+                iconBg: 'bg-violet-600 text-white',
+                progress: 'bg-violet-600',
+                badge: 'bg-violet-100 text-violet-800',
+            };
+        }
+        if (n.includes('ot') || n.includes('offset') || n.includes('comp')) {
+            return {
+                bg: 'bg-sky-50/50 hover:bg-sky-50/80',
+                border: 'border-sky-200/70 hover:border-sky-300',
+                iconBg: 'bg-sky-500 text-white',
+                progress: 'bg-sky-500',
+                badge: 'bg-sky-100 text-sky-800',
+            };
+        }
+        const palettes = [
+            {
+                bg: 'bg-rose-50/50 hover:bg-rose-50/80',
+                border: 'border-rose-200/70 hover:border-rose-300',
+                iconBg: 'bg-rose-500 text-white',
+                progress: 'bg-rose-500',
+                badge: 'bg-rose-100 text-rose-800',
+            },
+            {
+                bg: 'bg-cyan-50/50 hover:bg-cyan-50/80',
+                border: 'border-cyan-200/70 hover:border-cyan-300',
+                iconBg: 'bg-cyan-600 text-white',
+                progress: 'bg-cyan-600',
+                badge: 'bg-cyan-100 text-cyan-800',
+            },
+            {
+                bg: 'bg-teal-50/50 hover:bg-teal-50/80',
+                border: 'border-teal-200/70 hover:border-teal-300',
+                iconBg: 'bg-teal-600 text-white',
+                progress: 'bg-teal-600',
+                badge: 'bg-teal-100 text-teal-800',
+            },
+        ];
+        return palettes[index % palettes.length];
+    };
+
+    const getGridColsClass = (count) => {
+        if (count === 1) return 'grid-cols-1 max-w-sm';
+        if (count === 2) return 'grid-cols-1 sm:grid-cols-2 max-w-xl';
+        if (count === 3) return 'grid-cols-1 sm:grid-cols-3';
+        if (count === 4) return 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4';
+        if (count === 5) return 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5';
+        return 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6';
+    };
+
+    // Normalize leaveBalances (handles both Eloquent collections/arrays and key-value objects)
+    const balancesList = Array.isArray(leaveBalances)
+        ? leaveBalances.map((bal, idx) => ({
+            id: bal?.id ?? idx,
+            name: bal?.leave_type?.name || bal?.type || bal?.name || 'Leave',
+            remaining: bal?.remaining_days ?? bal?.balance ?? (typeof bal === 'number' ? bal : 0),
+            total: bal?.total_days ?? null,
+            used: bal?.used_days ?? null,
+        }))
+        : (leaveBalances && typeof leaveBalances === 'object')
+            ? Object.entries(leaveBalances).map(([key, val], idx) => {
+                if (val && typeof val === 'object') {
+                    return {
+                        id: val?.id ?? idx,
+                        name: val?.leave_type?.name || val?.type || val?.name || key,
+                        remaining: val?.remaining_days ?? val?.balance ?? 0,
+                        total: val?.total_days ?? null,
+                        used: val?.used_days ?? null,
+                    };
+                }
+                return {
+                    id: idx,
+                    name: key,
+                    remaining: val,
+                    total: null,
+                    used: null,
+                };
+            })
+            : [];
+
+    const totalRemaining = balancesList.reduce((acc, b) => acc + (parseFloat(b.remaining) || 0), 0);
+    const totalAllocated = balancesList.reduce((acc, b) => acc + (parseFloat(b.total) || 0), 0);
+    const totalUsed = balancesList.reduce((acc, b) => acc + (parseFloat(b.used) || 0), 0);
+    const isManagementUser = isAdmin || userRole === 'hr' || userRole === 'manager' || hasPermission('approve-leave-requests');
+
+    const visibleQuotas = (balancesList.length > 6 && !expandedQuotas)
+        ? balancesList.slice(0, 6)
+        : balancesList;
+
     return (
         <AuthenticatedLayout>
             <Head title="Leave Management" />
 
             <div className="w-full p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
-                {/* Balances - Scalable for 5 to 50+ Leave Types */}
-                {(() => {
-                    const rawBalances = leaveBalances ? (Array.isArray(leaveBalances) ? leaveBalances : Object.values(leaveBalances)) : [];
-                    const filtered = rawBalances.filter(item => {
-                        if (!balanceSearch.trim()) return true;
-                        const name = (item?.leave_type?.name || item?.name || '').toLowerCase();
-                        return name.includes(balanceSearch.toLowerCase().trim());
-                    });
-                    const hasMoreThanFive = filtered.length > 5;
-                    const itemsToDisplay = (showAllBalances || balanceSearch.trim()) ? filtered : filtered.slice(0, 5);
-                    const totalRemainingDays = rawBalances.reduce((sum, item) => sum + (parseFloat(item?.remaining_days ?? item?.total_days ?? 0)), 0);
+                {/* In-Page Header */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                    <div className="flex items-center gap-3.5">
+                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-md shadow-slate-200 shrink-0">
+                            <FaCalendarCheck size={18} />
+                        </div>
+                        <div>
+                            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">
+                                {isManagementUser ? 'Leave Management' : 'My Leave & Applications'}
+                            </h1>
+                            <p className="text-xs text-slate-500 font-normal mt-0.5">
+                                {isManagementUser
+                                    ? 'Review employee applications, manage approvals, and monitor staff availability'
+                                    : 'Track your annual leave quotas, apply for time off, and monitor application status'}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                        {(isAdmin || hasPermission('manage-leave-types')) && (
+                            <Link
+                                href={route('leave-types.index')}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 sm:py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-medium shadow-xs transition-all flex-1 sm:flex-initial justify-center"
+                            >
+                                <FaClipboardList className="text-slate-400" size={12} />
+                                <span>Leave Policies</span>
+                            </Link>
+                        )}
+                        <Link
+                            href={route('leave-requests.create')}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 sm:py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-md shadow-slate-200 transition-all active:scale-95 flex-1 sm:flex-initial justify-center"
+                        >
+                            <FaPlus size={11} />
+                            <span>Apply Leave</span>
+                        </Link>
+                    </div>
+                </div>
 
-                    return (
-                        <div className="space-y-3">
-                            {/* Header row with search, total summary, and expand toggle when many types exist */}
-                            {rawBalances.length > 0 && (
-                                <div className="flex flex-wrap items-center justify-between gap-2.5 px-1">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Leave Balances</span>
-                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                                            {totalRemainingDays}d Total Available
-                                        </span>
-                                        <span className="text-[10px] font-medium text-slate-400">
-                                            ({rawBalances.length} Types)
-                                        </span>
-                                    </div>
+                {/* Admin / Management Overview KPI Metrics */}
+                {isManagementUser && stats && (
+                    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
+                        <button
+                            type="button"
+                            onClick={() => router.get(route('leave-requests.index'))}
+                            className="bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md hover:border-slate-300 transition-all text-left flex items-center gap-3 sm:gap-3.5 group"
+                        >
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                                <FaCalendarAlt size={15} />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[9px] sm:text-[10px] font-semibold text-slate-400 uppercase tracking-wide truncate">Total Requests</p>
+                                <p className="text-lg sm:text-2xl font-bold text-slate-900 leading-tight">{stats.total ?? 0}</p>
+                                <p className="text-[9px] sm:text-[10px] text-slate-400 truncate">All Applications</p>
+                            </div>
+                        </button>
 
-                                    <div className="flex items-center gap-2">
-                                        {rawBalances.length > 5 && (
-                                            <div className="relative">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Filter type..."
-                                                    value={balanceSearch}
-                                                    onChange={(e) => setBalanceSearch(e.target.value)}
-                                                    className="w-36 sm:w-44 pl-7 pr-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/20"
-                                                />
-                                                <FaSearch className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                                            </div>
+                        <button
+                            type="button"
+                            onClick={() => router.get(route('leave-requests.index', { status: 'pending' }))}
+                            className={`bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border ${status === 'pending' ? 'border-amber-400 ring-2 ring-amber-100' : 'border-slate-200/80'} shadow-xs hover:shadow-md hover:border-amber-300 transition-all text-left flex items-center gap-3 sm:gap-3.5 group`}
+                        >
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                                <FaClock size={15} />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[9px] sm:text-[10px] font-semibold text-amber-700 uppercase tracking-wide truncate">Pending Review</p>
+                                <p className="text-lg sm:text-2xl font-bold text-amber-700 leading-tight">{stats.pending ?? 0}</p>
+                                <p className="text-[9px] sm:text-[10px] text-amber-600 truncate">Awaiting approval</p>
+                            </div>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => router.get(route('leave-requests.index', { status: 'approved' }))}
+                            className={`bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border ${status === 'approved' ? 'border-emerald-400 ring-2 ring-emerald-100' : 'border-slate-200/80'} shadow-xs hover:shadow-md hover:border-emerald-300 transition-all text-left flex items-center gap-3 sm:gap-3.5 group`}
+                        >
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                                <FaCheckCircle size={15} />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[9px] sm:text-[10px] font-semibold text-emerald-700 uppercase tracking-wide truncate">Approved</p>
+                                <p className="text-lg sm:text-2xl font-bold text-emerald-700 leading-tight">{stats.approved ?? 0}</p>
+                                <p className="text-[9px] sm:text-[10px] text-emerald-600 truncate">Authorized</p>
+                            </div>
+                        </button>
+
+                        <div className="bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3 sm:gap-3.5">
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                                <FaUser size={15} />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[9px] sm:text-[10px] font-semibold text-sky-700 uppercase tracking-wide truncate">On Leave Today</p>
+                                <p className="text-lg sm:text-2xl font-bold text-sky-700 leading-tight">{stats.on_leave_today ?? 0}</p>
+                                <p className="text-[9px] sm:text-[10px] text-sky-600 truncate">Staff away today</p>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => router.get(route('leave-requests.index', { status: 'rejected' }))}
+                            className={`bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border ${status === 'rejected' ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200/80'} shadow-xs hover:shadow-md hover:border-rose-300 transition-all text-left flex items-center gap-3 sm:gap-3.5 group col-span-2 sm:col-span-1`}
+                        >
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                                <FaTimesCircle size={15} />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[9px] sm:text-[10px] font-semibold text-rose-700 uppercase tracking-wide truncate">Rejected</p>
+                                <p className="text-lg sm:text-2xl font-bold text-rose-700 leading-tight">{stats.rejected ?? 0}</p>
+                                <p className="text-[9px] sm:text-[10px] text-rose-600 truncate">Declined</p>
+                            </div>
+                        </button>
+                    </div>
+                )}
+
+                {/* Personal Leave Quotas (Grid) */}
+                {balancesList.length > 0 ? (
+                    <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-sm space-y-3.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+                            <div className="flex items-center gap-2.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <h2 className="text-xs sm:text-sm font-bold text-slate-800 uppercase tracking-wide">
+                                    Personal Leave Quotas · {new Date().getFullYear()}
+                                </h2>
+                                <span className="text-[11px] text-slate-500 font-normal">
+                                    (<strong className="text-slate-800">{totalRemaining}d</strong> available · {totalUsed}d used)
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2 self-start sm:self-auto">
+                                {balancesList.length > 6 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpandedQuotas(!expandedQuotas)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-semibold transition-colors"
+                                    >
+                                        {expandedQuotas ? (
+                                            <>
+                                                <span>Show Top 6</span>
+                                                <FaChevronUp size={10} />
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>View All ({balancesList.length})</span>
+                                                <FaChevronDown size={10} />
+                                            </>
                                         )}
-
-                                        {hasMoreThanFive && !balanceSearch.trim() && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowAllBalances(!showAllBalances)}
-                                                className="text-xs font-bold text-indigo-600 hover:text-indigo-700 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors"
-                                            >
-                                                {showAllBalances ? 'Show Less ▴' : `Show All (${rawBalances.length}) ▾`}
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Cards Grid */}
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3">
-                                {itemsToDisplay.map((item, idx) => {
-                                    const typeName = item?.leave_type?.name || item?.name || (typeof item === 'string' ? item : `Leave ${idx + 1}`);
-                                    const available = item?.remaining_days !== undefined ? parseFloat(item.remaining_days) : (typeof item === 'number' ? item : 0);
-                                    const total = item?.total_days !== undefined ? parseFloat(item.total_days) : available;
-                                    const used = item?.used_days !== undefined ? parseFloat(item.used_days) : 0;
-                                    const carryForward = item?.carry_forward_days !== undefined ? parseFloat(item.carry_forward_days) : 0;
-                                    const pct = total > 0 ? Math.min(100, Math.max(0, Math.round((available / total) * 100))) : 0;
-
-                                    return (
-                                        <div
-                                            key={item?.id || idx}
-                                            className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200/90 shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between group min-w-0"
-                                        >
-                                            <div>
-                                                <div className="flex items-center justify-between gap-1 mb-2">
-                                                    <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate" title={typeName}>
-                                                        {typeName}
-                                                    </span>
-                                                    {carryForward > 0 && (
-                                                        <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-full shrink-0">
-                                                            +{carryForward} CF
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <div className="flex items-baseline justify-between mt-1">
-                                                    <div className="flex items-baseline">
-                                                        <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono">
-                                                            {available}
-                                                        </span>
-                                                        <span className="text-xs font-semibold text-slate-400 ml-0.5">d</span>
-                                                    </div>
-                                                    <span className="text-[10px] font-medium text-slate-400">
-                                                        / {total}d
-                                                    </span>
-                                                </div>
-
-                                                <div className="w-full bg-slate-100 rounded-full h-1 mt-2 overflow-hidden border border-slate-200/50">
-                                                    <div
-                                                        className="bg-emerald-500 h-1 rounded-full transition-all duration-300"
-                                                        style={{ width: `${pct}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2.5 pt-2 border-t border-slate-100">
-                                                <span>Used: <strong className="text-rose-600 font-semibold">{used}d</strong></span>
-                                                <span>Total: <strong className="text-slate-800 font-semibold">{total}d</strong></span>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-
-                                {rawBalances.length === 0 && (
-                                    <div className="col-span-full py-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                                        <FaInfoCircle className="mx-auto text-slate-300 mb-1.5" size={20} />
-                                        <p className="text-[11px] font-medium text-slate-400">No active balances allocated</p>
-                                    </div>
+                                    </button>
                                 )}
                             </div>
                         </div>
-                    );
-                })()}
+
+                        {/* Responsive Auto-Fitting Grid */}
+                        <div className={`grid ${getGridColsClass(visibleQuotas.length)} gap-3 sm:gap-3.5`}>
+                            {visibleQuotas.map((bal, idx) => {
+                                const theme = getQuotaTheme(bal.name, idx);
+                                const remNum = bal.remaining !== null && bal.remaining !== undefined && !isNaN(bal.remaining) ? parseFloat(bal.remaining) : 0;
+                                const totNum = bal.total !== null && bal.total !== undefined && !isNaN(bal.total) ? parseFloat(bal.total) : null;
+                                const usedNum = bal.used !== null && bal.used !== undefined && !isNaN(bal.used) ? parseFloat(bal.used) : (totNum ? Math.max(0, totNum - remNum) : 0);
+                                const pct = totNum && totNum > 0 ? (remNum / totNum) * 100 : (remNum > 0 ? 100 : 0);
+
+                                return (
+                                    <div
+                                        key={bal.id ?? bal.name}
+                                        className={`p-3 sm:p-3.5 rounded-xl border ${theme.border} ${theme.bg} transition-all duration-200 hover:shadow-md flex flex-col justify-between min-w-0 group`}
+                                    >
+                                        {/* Top: Icon + Title */}
+                                        <div className="flex items-center gap-2 mb-2 min-w-0">
+                                            <div className={`w-7 h-7 rounded-lg ${theme.iconBg} flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform`}>
+                                                <FaCalendarCheck size={12} />
+                                            </div>
+                                            <span
+                                                className="text-xs font-semibold text-slate-800 truncate leading-snug"
+                                                title={bal.name}
+                                            >
+                                                {cleanLeaveName(bal.name)}
+                                            </span>
+                                        </div>
+
+                                        {/* Middle: Big remaining + total days */}
+                                        <div className="flex items-baseline justify-between min-w-0 mt-0.5">
+                                            <div className="flex items-baseline">
+                                                <span className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-none">
+                                                    {remNum}
+                                                </span>
+                                                {totNum !== null && (
+                                                    <span className="text-[11px] text-slate-500 font-medium ml-1">
+                                                        / {totNum}d
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${theme.badge}`}>
+                                                {remNum <= 0 ? 'Exhausted' : `${remNum}d Left`}
+                                            </span>
+                                        </div>
+
+                                        {/* Bottom: Progress Bar */}
+                                        <div className="mt-2.5">
+                                            <div className="w-full bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-500 ${theme.progress}`}
+                                                    style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                                                />
+                                            </div>
+                                            <div className="flex justify-between items-center text-[9px] text-slate-500 font-medium mt-1">
+                                                <span>{usedNum}d used</span>
+                                                <span>{Math.round(pct)}% left</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ) : (
+                    (!isManagementUser || auth.user?.employee_id) && (
+                        <div className="py-8 text-center bg-white rounded-2xl border border-dashed border-slate-200 p-6">
+                            <FaInfoCircle className="mx-auto text-slate-300 mb-2" size={24} />
+                            <p className="text-xs font-semibold text-slate-600">No personal leave quotas allocated for {new Date().getFullYear()}</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Please contact HR or your administrator to allocate leave quotas.</p>
+                        </div>
+                    )
+                )}
 
                 {/* Filters */}
                 <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -720,6 +983,61 @@ export default function Index({ leaveRequests, leaveBalances, status, userRole =
                         </SecondaryButton>
                     </div>
                 </form>
+            </Modal>
+
+            {/* Bulk Approve Confirmation Modal */}
+            <Modal
+                show={bulkApproveModal.show}
+                onClose={() => setBulkApproveModal({ show: false, remarks: '', sameForAll: true, error: '' })}
+                maxWidth="md"
+            >
+                <div className="p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 rounded-full bg-emerald-50 text-emerald-600">
+                            <FaCheckCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-normal text-slate-900">Approve Selected Requests</h3>
+                            <p className="text-xs text-slate-500">You are about to approve <strong>{selectedIds.length}</strong> leave application(s)</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <div>
+                            <label className="block text-xs font-normal text-slate-700 mb-1">
+                                Approval Remarks <span className="text-slate-400">(optional)</span>
+                            </label>
+                            <textarea
+                                value={bulkApproveModal.remarks}
+                                onChange={(e) => setBulkApproveModal(prev => ({ ...prev, remarks: e.target.value }))}
+                                rows={3}
+                                placeholder="Add remarks for all selected approvals (optional)..."
+                                className="w-full text-xs rounded-xl border-slate-200 focus:border-slate-400 focus:ring-0"
+                            />
+                        </div>
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                            <p className="text-[11px] text-emerald-700 font-medium">
+                                ✓ The same remarks will be applied to all {selectedIds.length} selected leave request(s).
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 flex justify-end gap-2">
+                        <SecondaryButton
+                            onClick={() => setBulkApproveModal({ show: false, remarks: '', sameForAll: true, error: '' })}
+                            disabled={processing}
+                        >
+                            Cancel
+                        </SecondaryButton>
+                        <PrimaryButton
+                            onClick={confirmBulkApprove}
+                            disabled={processing}
+                            className="bg-emerald-600 hover:bg-emerald-700 focus:bg-emerald-700 active:bg-emerald-900 focus:ring-emerald-500"
+                        >
+                            {processing ? 'Processing...' : `Confirm Approval (${selectedIds.length})`}
+                        </PrimaryButton>
+                    </div>
+                </div>
             </Modal>
         </AuthenticatedLayout>
     );

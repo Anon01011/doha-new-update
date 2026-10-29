@@ -12,14 +12,18 @@ class LeaveRequested extends Notification implements ShouldQueue
 
     protected $leaveRequest;
     protected $employeeName;
+    protected ?string $title;
+    protected ?string $customMessage;
 
     /**
      * Create a new notification instance.
      */
-    public function __construct($leaveRequest, $employeeName)
+    public function __construct($leaveRequest, $employeeName, ?string $title = null, ?string $customMessage = null)
     {
         $this->leaveRequest = $leaveRequest;
         $this->employeeName = $employeeName;
+        $this->title = $title;
+        $this->customMessage = $customMessage;
     }
 
     /**
@@ -42,9 +46,10 @@ class LeaveRequested extends Notification implements ShouldQueue
         return [
             'leave_request_id' => $this->leaveRequest->id,
             'employee_name' => $this->employeeName,
-            'message' => "{$this->employeeName} has submitted a new leave request for {$this->leaveRequest->days_requested} days.",
+            'title' => $this->title ?: 'Leave Request Submitted',
+            'message' => $this->customMessage ?: "{$this->employeeName} has submitted a new leave request for {$this->leaveRequest->days_requested} days.",
             'action_url' => route('leave-requests.show', $this->leaveRequest->id),
-            'type' => 'leave_requested'
+            'type' => 'leave_requested',
         ];
     }
 }

@@ -226,8 +226,9 @@ class EmployeeAttendanceController extends Controller
                     continue;
                 }
 
-                // Find Employee by employee_code or id with fallback to padded format (always global to allow multi-branch imports)
+                // Find Employee by employee_code or id with fallback to padded format (scoped to company when provided)
                 $employee = Employee::with(['weeklyOffs', 'company'])
+                    ->when($companyId, fn($q) => $q->where('company_id', $companyId))
                     ->where(function ($query) use ($empCode) {
                         $query->where('employee_code', $empCode)
                             ->orWhere('id', $empCode);
@@ -720,12 +721,26 @@ class EmployeeAttendanceController extends Controller
 
         // Fetch roster/attendance data
         $employeesQuery = Employee::with(['weeklyOffs', 'company'])->orderBy('name');
+        $subordinateIds = $user->getSubordinateEmployeeIds(true);
+
         if ($company_id) {
-            $employeesQuery->where('company_id', $company_id);
+            if ($subordinateIds->isNotEmpty()) {
+                $employeesQuery->where(function ($q) use ($company_id, $subordinateIds) {
+                    $q->where('company_id', $company_id)->orWhereIn('id', $subordinateIds);
+                });
+            } else {
+                $employeesQuery->where('company_id', $company_id);
+            }
         }
 
         if (!$user->isAdmin() && !$user->isHR() && !$user->isManager() && $user->employee_id) {
-            $employeesQuery->where('id', $user->employee_id);
+            if ($subordinateIds->isNotEmpty()) {
+                $employeesQuery->where(function ($q) use ($user, $subordinateIds) {
+                    $q->where('id', $user->employee_id)->orWhereIn('id', $subordinateIds);
+                });
+            } else {
+                $employeesQuery->where('id', $user->employee_id);
+            }
         }
 
         // Search filter
@@ -907,7 +922,24 @@ class EmployeeAttendanceController extends Controller
             'date' => $today,
         ], $updateData);
 
-        return back()->with('success', 'Clocked in successfully at ' . now()->format('h:i A'));
+        $clockInTimeFormatted = \App\Helpers\TimeHelper::now($employee->company_id)->format('h:i A');
+
+        // Notify Management Stakeholders (Admins, Branch HR, Managers, Direct Reporting Manager)
+        \App\Services\NotificationService::notifyManagementStakeholders(
+            new \App\Notifications\AttendanceEventNotification(
+                'Employee Clock In',
+                "{$employee->name} clocked in at {$clockInTimeFormatted} ({$attendanceStatus}).",
+                $today,
+                'attendance_event',
+                route('employee-attendances.index', ['date' => $today])
+            ),
+            $employee->company_id,
+            $employee->department_id,
+            $user->id,
+            $employee
+        );
+
+        return back()->with('success', 'Clocked in successfully at ' . $clockInTimeFormatted);
     }
 
     /**
@@ -1003,7 +1035,36 @@ class EmployeeAttendanceController extends Controller
             'reason' => $isEarlyDeparture ? ($attendance->reason ? $attendance->reason . ' | Early Departure' : 'Early Departure') : $attendance->reason,
         ]);
 
-        return back()->with('success', 'Clocked out successfully at ' . $toTime->format('h:i A') . '. Total hours: ' . $hoursWorked . ' (Break: ' . $totalBreakMinutes . ' mins)');
+        $formattedToTime = \App\Helpers\TimeHelper::inTz($toTime, $attendance->company_id)->format('h:i A');
+
+        // Notify Management Stakeholders (Admins, Branch HR, Managers, Direct Reporting Manager)
+        $emp = $attendance->employee ?: Employee::find($attendance->employee_id);
+        if ($emp) {
+            $msg = "{$emp->name} clocked out at " . $formattedToTime . " ({$hoursWorked} hrs worked";
+            if ($totalBreakMinutes > 0) {
+                $msg .= ", {$totalBreakMinutes} mins break";
+            }
+            if ($ot > 0) {
+                $msg .= ", {$ot} hrs OT";
+            }
+            $msg .= ').';
+
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\AttendanceEventNotification(
+                    'Employee Clock Out',
+                    $msg,
+                    $attendance->date,
+                    'attendance_event',
+                    route('employee-attendances.index', ['date' => $attendance->date])
+                ),
+                $attendance->company_id,
+                $emp->department_id,
+                $user->id,
+                $emp
+            );
+        }
+
+        return back()->with('success', 'Clocked out successfully at ' . $formattedToTime . '. Total hours: ' . $hoursWorked . ' (Break: ' . $totalBreakMinutes . ' mins)');
     }
 
     /**
@@ -1056,7 +1117,27 @@ class EmployeeAttendanceController extends Controller
             'punches' => $punches
         ]);
 
-        return back()->with('success', 'Break started at ' . now()->format('h:i A'));
+        $breakStartTimeFormatted = \App\Helpers\TimeHelper::now($attendance->company_id)->format('h:i A');
+
+        // Notify Management Stakeholders (Admins, Branch HR, Managers, Direct Reporting Manager)
+        $emp = $attendance->employee ?: Employee::find($attendance->employee_id);
+        if ($emp) {
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\AttendanceEventNotification(
+                    'Employee Break Started',
+                    "{$emp->name} started a break at " . $breakStartTimeFormatted . ".",
+                    $attendance->date,
+                    'attendance_event',
+                    route('employee-attendances.index', ['date' => $attendance->date])
+                ),
+                $attendance->company_id,
+                $emp->department_id,
+                $user->id,
+                $emp
+            );
+        }
+
+        return back()->with('success', 'Break started at ' . $breakStartTimeFormatted);
     }
 
     /**
@@ -1079,7 +1160,7 @@ class EmployeeAttendanceController extends Controller
 
         $breakStart = $attendance->current_break_start;
         $breakEnd = now();
-        $duration = $breakEnd->diffInMinutes($breakStart);
+        $duration = (int) round($breakEnd->diffInMinutes($breakStart, true));
 
         $punches = $attendance->punches ?: [];
         $punches[] = [
@@ -1105,6 +1186,32 @@ class EmployeeAttendanceController extends Controller
             'punches' => $punches,
             'reason' => $overBreak ? ($attendance->reason ? $attendance->reason . ' | Over Break' : 'Over Break') : $attendance->reason,
         ]);
+
+        $breakEndTimeFormatted = \App\Helpers\TimeHelper::inTz($breakEnd, $attendance->company_id)->format('h:i A');
+
+        // Notify Management Stakeholders (Admins, Branch HR, Managers, Direct Reporting Manager)
+        $emp = $attendance->employee ?: Employee::find($attendance->employee_id);
+        if ($emp) {
+            $msg = "{$emp->name} resumed work from break at " . $breakEndTimeFormatted . " ({$duration} mins break)";
+            if ($overBreak) {
+                $msg .= ' [OVER BREAK]';
+            }
+            $msg .= '.';
+
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\AttendanceEventNotification(
+                    'Employee Break Ended',
+                    $msg,
+                    $attendance->date,
+                    'attendance_event',
+                    route('employee-attendances.index', ['date' => $attendance->date])
+                ),
+                $attendance->company_id,
+                $emp->department_id,
+                $user->id,
+                $emp
+            );
+        }
 
         return back()->with('success', 'Break ended. Duration: ' . $duration . ' minutes.');
     }
@@ -1213,7 +1320,35 @@ class EmployeeAttendanceController extends Controller
             }
         }
 
-        EmployeeAttendance::create($validated);
+        $attRecord = EmployeeAttendance::create($validated);
+        $emp = \App\Models\Employee::find($validated['employee_id']);
+
+        if ($user->employee_id !== (int)$validated['employee_id']) {
+            \App\Services\NotificationService::notifyEmployee(
+                $validated['employee_id'],
+                new \App\Notifications\AttendanceEventNotification(
+                    'Attendance Logged',
+                    "An attendance record for {$validated['date']} has been recorded by management ({$validated['status']}).",
+                    $validated['date'],
+                    'attendance_event'
+                )
+            );
+        }
+
+        // Notify Management Stakeholders (Admins, HR, Managers)
+        if ($emp) {
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\AttendanceEventNotification(
+                    'Attendance Recorded',
+                    "{$user->name} recorded attendance for {$emp->name} on {$validated['date']} ({$validated['status']}).",
+                    $validated['date'],
+                    'attendance_event'
+                ),
+                $emp->company_id,
+                $emp->department_id,
+                $user->id
+            );
+        }
 
         return redirect()->route('employee-attendances.index')
             ->with('success', 'Attendance created successfully!');
@@ -1317,7 +1452,8 @@ class EmployeeAttendanceController extends Controller
 
         // Multi-tenancy check for target company
         if (!$user->isAdmin() && $user->role !== 'hr' && $user->employee_id && $user->employee) {
-            if ($validated['company_id'] != $user->employee->company_id) {
+            $isSubordinate = !empty($validated['employee_id']) && $user->isReportingManagerFor((int) $validated['employee_id']);
+            if ($validated['company_id'] != $user->employee->company_id && !$isSubordinate) {
                 abort(403, 'Unauthorized access to another branch.');
             }
         }
@@ -1399,6 +1535,34 @@ class EmployeeAttendanceController extends Controller
         }
 
         $attendance->update($validated);
+        $emp = $attendance->employee ?: \App\Models\Employee::find($attendance->employee_id);
+
+        if ($user->employee_id !== (int)$attendance->employee_id) {
+            \App\Services\NotificationService::notifyEmployee(
+                $attendance->employee_id,
+                new \App\Notifications\AttendanceEventNotification(
+                    'Attendance Adjusted',
+                    "Your attendance record for {$attendance->date} was updated by management ({$attendance->status}).",
+                    $attendance->date,
+                    'attendance_event'
+                )
+            );
+        }
+
+        // Notify Management Stakeholders (Admins, HR, Managers)
+        if ($emp) {
+            \App\Services\NotificationService::notifyManagementStakeholders(
+                new \App\Notifications\AttendanceEventNotification(
+                    'Attendance Adjusted',
+                    "{$user->name} adjusted attendance for {$emp->name} on {$attendance->date} ({$attendance->status}).",
+                    $attendance->date,
+                    'attendance_event'
+                ),
+                $emp->company_id,
+                $emp->department_id,
+                $user->id
+            );
+        }
 
         return redirect()->route('employee-attendances.index')
             ->with('success', 'Attendance updated successfully!');

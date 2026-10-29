@@ -350,13 +350,13 @@ const [categoryFilter, setCategoryFilter] = useState('');
                 </div>
 
                 {/* Actions Bar */}
-                <div className="bg-white rounded-lg shadow-sm p-4 flex items-center justify-between">
+                <div className="bg-white rounded-lg shadow-sm p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center space-x-4">
                         <h3 className="text-lg font-normal text-gray-800">Employee List</h3>
                         <span className="text-sm text-gray-500">Showing {employees.data?.length || 0} of {employees.total || 0} employees</span>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         {/* Bulk Action Toggle */}
                         {hasPermission(user, 'create-employees') && ( // Assuming create-employees implies management
                             <>
