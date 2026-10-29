@@ -18,6 +18,7 @@ class EmployeeSalaryVisibilityTest extends TestCase
     private Employee $targetEmployee;
     private Permission $viewEmployeesPerm;
     private Permission $viewSalaryPerm;
+    private \Illuminate\Support\Collection $salaryPermIds;
 
     protected function setUp(): void
     {
@@ -37,6 +38,22 @@ class EmployeeSalaryVisibilityTest extends TestCase
             ['slug' => 'view-employee-salary'],
             ['name' => 'View Employee Salary', 'module' => 'employee', 'is_active' => true]
         );
+
+        Permission::firstOrCreate(
+            ['slug' => 'edit-employee-salary'],
+            ['name' => 'Edit Employee Salary', 'module' => 'employee', 'is_active' => true]
+        );
+
+        Permission::firstOrCreate(
+            ['slug' => 'approve-salary-modifications'],
+            ['name' => 'Approve Salary Modifications', 'module' => 'employee', 'is_active' => true]
+        );
+
+        $this->salaryPermIds = Permission::whereIn('slug', [
+            'view-employee-salary',
+            'edit-employee-salary',
+            'approve-salary-modifications',
+        ])->pluck('id');
 
         $this->targetEmployee = Employee::create([
             'name' => 'John Doe',
@@ -74,7 +91,7 @@ class EmployeeSalaryVisibilityTest extends TestCase
     public function test_admin_without_salary_permission_cannot_see_salary(): void
     {
         $adminRole = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Administrator', 'is_active' => true]);
-        $adminRole->permissions()->detach($this->viewSalaryPerm->id);
+        $adminRole->permissions()->detach($this->salaryPermIds);
 
         $adminUser = User::create([
             'name' => 'Admin User Without Salary Perm',
@@ -122,7 +139,7 @@ class EmployeeSalaryVisibilityTest extends TestCase
     {
         $hrRole = Role::firstOrCreate(['slug' => 'hr'], ['name' => 'Human Resources', 'is_active' => true]);
         $hrRole->permissions()->syncWithoutDetaching([$this->viewEmployeesPerm->id]);
-        $hrRole->permissions()->detach($this->viewSalaryPerm->id);
+        $hrRole->permissions()->detach($this->salaryPermIds);
 
         $hrUser = User::create([
             'name' => 'HR User Without Salary Perm',
@@ -147,7 +164,7 @@ class EmployeeSalaryVisibilityTest extends TestCase
     {
         $mgrRole = Role::firstOrCreate(['slug' => 'manager'], ['name' => 'Manager', 'is_active' => true]);
         $mgrRole->permissions()->syncWithoutDetaching([$this->viewEmployeesPerm->id]);
-        $mgrRole->permissions()->detach($this->viewSalaryPerm->id);
+        $mgrRole->permissions()->detach($this->salaryPermIds);
 
         $mgrUser = User::create([
             'name' => 'Manager User',
@@ -188,6 +205,36 @@ class EmployeeSalaryVisibilityTest extends TestCase
         $response->assertInertia(fn ($page) =>
             $page->component('Employee/Show')
                 ->where('can_see_salary', true)
+                ->has('employee.basic_salary')
+        );
+    }
+
+    public function test_role_with_only_edit_salary_permission_can_see_and_edit_salary(): void
+    {
+        $role = Role::firstOrCreate(['slug' => 'payroll-clerk'], ['name' => 'Payroll Clerk', 'is_active' => true]);
+        $editSalaryPerm = Permission::firstOrCreate(
+            ['slug' => 'edit-employee-salary'],
+            ['name' => 'Edit Employee Salary', 'module' => 'employee', 'is_active' => true]
+        );
+        // Explicitly give ONLY edit-employee-salary, NOT view-employee-salary
+        $role->permissions()->sync([$this->viewEmployeesPerm->id, $editSalaryPerm->id]);
+
+        $user = User::create([
+            'name' => 'Payroll User',
+            'email' => 'payroll_' . uniqid() . '@example.test',
+            'password' => bcrypt('password'),
+            'role' => 'payroll-clerk',
+            'company_id' => $this->company->id,
+        ]);
+        $user->roles()->syncWithoutDetaching([$role->id]);
+
+        $response = $this->actingAs($user)->get(route('employees.show', $this->targetEmployee));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) =>
+            $page->component('Employee/Show')
+                ->where('can_see_salary', true)
+                ->where('can_edit_salary', true)
                 ->has('employee.basic_salary')
         );
     }

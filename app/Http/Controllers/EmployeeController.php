@@ -270,8 +270,12 @@ class EmployeeController extends Controller
             ?? Role::where('is_active', true)->first();
         $defaultRoleSlug = $defaultRole ? $defaultRole->slug : 'employee';
 
-        $canSeeSalary = $user->hasPermission('view-employee-salary', false);
-        $canEditSalary = $user->isAdmin() || $user->hasPermission('edit-employee-salary');
+        // Salary tab is visible if user has any salary-related permission.
+        // Strict opt-in: isAdmin/isHR alone are NOT enough; a salary permission must be explicitly granted.
+        $canSeeSalary = $user->hasPermission('view-employee-salary', false)
+            || $user->hasPermission('edit-employee-salary', false)
+            || $user->hasPermission('approve-salary-modifications', false);
+        $canEditSalary = $canSeeSalary && ($user->isAdmin() || $user->hasPermission('edit-employee-salary', false));
 
         return Inertia::render('Employee/Create', [
             'companies' => $companies,
@@ -662,10 +666,11 @@ class EmployeeController extends Controller
         $internshipLifecycle = $employee->getInternshipLifecycle();
         $contractLifecycle   = $employee->getContractLifecycle();
 
-        // Salary visibility is strictly controlled by the 'view-employee-salary' permission.
-        // It does not bypass for admin or HR: if the permission is unchecked on a role,
-        // users with that role will not be able to see salary on this profile page.
-        $canSeeSalary = $user->hasPermission('view-employee-salary', false);
+        // Salary visibility: strict opt-in. A user can see salary if they have view-employee-salary,
+        // edit-employee-salary, or approve-salary-modifications permission.
+        $canSeeSalary = $user->hasPermission('view-employee-salary', false)
+            || $user->hasPermission('edit-employee-salary', false)
+            || $user->hasPermission('approve-salary-modifications', false);
 
 
         // Redact pay data at the source so it never reaches the browser for
@@ -694,12 +699,12 @@ class EmployeeController extends Controller
                 ->first();
         }
 
-        $canEditSalary = $user->isAdmin() || $user->hasPermission('edit-employee-salary');
+        $canEditSalary = $canSeeSalary && ($user->isAdmin() || $user->hasPermission('edit-employee-salary', false));
         $isBranchHR = $user->isHR() && (
             $user->company_id == $employee->company_id ||
             $user->getAssignedCompanyIds()->contains((int)$employee->company_id)
         );
-        $canApproveSalary = $user->isAdmin() || $isBranchHR || $user->hasPermission('approve-salary-modifications');
+        $canApproveSalary = $canSeeSalary && ($user->isAdmin() || $isBranchHR || $user->hasPermission('approve-salary-modifications', false));
 
         return Inertia::render('Employee/Show', [
             'employee' => array_merge($employeePayload, [
@@ -796,8 +801,10 @@ class EmployeeController extends Controller
             $employeeData['department_ids'] = [(int)$employee->department_id];
         }
 
-        $canSeeSalary = $user->hasPermission('view-employee-salary', false);
-        $canEditSalary = $user->isAdmin() || $user->hasPermission('edit-employee-salary');
+        $canSeeSalary = $user->hasPermission('view-employee-salary', false)
+            || $user->hasPermission('edit-employee-salary', false)
+            || $user->hasPermission('approve-salary-modifications', false);
+        $canEditSalary = $canSeeSalary && ($user->isAdmin() || $user->hasPermission('edit-employee-salary', false));
         $pendingSalaryRequest = $canSeeSalary ? $employee->pendingSalaryModification()->with('requester:id,name,role')->first() : null;
 
         if (!$canSeeSalary) {
@@ -1045,7 +1052,7 @@ class EmployeeController extends Controller
             $newUploadedFiles[] = $path;
         }
 
-        $canEditSalary = $user->isAdmin() || $user->hasPermission('edit-employee-salary');
+        $canEditSalary = $user->isAdmin() || $user->isHR() || $user->hasPermission('edit-employee-salary');
         $isBranchHR = $user->isHR() && (
             $user->company_id == $employee->company_id ||
             $user->getAssignedCompanyIds()->contains((int)$employee->company_id)
