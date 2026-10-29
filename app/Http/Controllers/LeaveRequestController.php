@@ -759,8 +759,11 @@ class LeaveRequestController extends Controller
         $validated = $request->validate([
             'ids' => 'required|array',
             'ids.*' => 'exists:leave_requests,id',
+            'remarks' => 'nullable|string',
+            'approval_remarks' => 'nullable|string',
         ]);
 
+        $remarks = $request->input('remarks') ?? $request->input('approval_remarks');
         $approvedCount = 0;
         $managerApprovedCount = 0;
 
@@ -774,6 +777,7 @@ class LeaveRequestController extends Controller
                     $leaveRequest->update([
                         'manager_approval_status' => 'approved',
                         'manager_approved_at' => now(),
+                        'approval_remarks' => $remarks ?: $leaveRequest->approval_remarks,
                     ]);
                     $this->notifyEmployee($leaveRequest->employee_id, new \App\Notifications\LeaveStatusUpdated($leaveRequest, 'approved by Manager', 'Your leave request has been approved by your manager and is now awaiting HR approval.'));
                     $managerApprovedCount++;
@@ -786,6 +790,7 @@ class LeaveRequestController extends Controller
                             'hr_approval_status' => 'approved',
                             'approved_by' => auth()->id(),
                             'approved_at' => now(),
+                            'approval_remarks' => $remarks ?: $leaveRequest->approval_remarks,
                         ]);
 
                         // Update leave balance

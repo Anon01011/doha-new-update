@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, Link } from '@inertiajs/react';
+import { Head, useForm, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { FaCalendarAlt, FaUser, FaClipboardList, FaArrowLeft, FaSave, FaInfoCircle, FaPaperPlane, FaPaperclip, FaEye, FaEdit } from 'react-icons/fa';
 import Avatar from '@/Components/Avatar';
@@ -50,9 +50,11 @@ export default function Edit({ leaveRequest, employees, leaveTypes, userRole = '
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        post(route('leave-requests.update', leaveRequest.id), {
-            forceFormData: true,
+        router.post(route('leave-requests.update', leaveRequest.id), {
+            ...data,
             _method: 'PUT',
+        }, {
+            forceFormData: true,
         });
     };
 

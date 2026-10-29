@@ -277,13 +277,7 @@ class EmployeeController extends Controller
 
         // Keep the legacy manager NAME in sync with the manager foreign key so
         // the profile page, exports and reports keep working unchanged.
-        if (array_key_exists('reports_to_id', $validated)) {
-            $manager = $validated['reports_to_id']
-                ? Employee::withoutGlobalScopes()->find($validated['reports_to_id'])
-                : null;
-
-            $validated['reported_to'] = $manager ? $manager->name : null;
-        }
+        $this->syncReportingPerson($validated);
 
         $newUploadedFiles = [];
 
@@ -773,16 +767,11 @@ class EmployeeController extends Controller
 
         // Keep the legacy manager NAME in sync with the manager foreign key so
         // the profile page, exports and reports keep working unchanged.
-        if (array_key_exists('reports_to_id', $validated)) {
-            $manager = $validated['reports_to_id']
-                ? Employee::withoutGlobalScopes()->find($validated['reports_to_id'])
-                : null;
+        $this->syncReportingPerson($validated);
 
-            if ($manager && (int) $manager->id === (int) $employee->id) {
-                return back()->withErrors(['reports_to_id' => 'An employee cannot report to themselves.']);
-            }
-
-            $validated['reported_to'] = $manager ? $manager->name : null;
+        $managerId = $validated['reports_to_id'] ?? null;
+        if ($managerId && (int) $managerId === (int) $employee->id) {
+            return back()->withErrors(['reports_to_id' => 'An employee cannot report to themselves.']);
         }
 
         // Remove file fields from validated data so they don't overwrite with null if not uploaded
@@ -1217,31 +1206,51 @@ class EmployeeController extends Controller
     public function getByDepartment(Request $request)
     {
         try {
-            $departmentId = $request->input('department_id');
-            $companyId = $request->input('company_id');
+            $companyIds = array_filter((array) ($request->input('company_ids') ?: ($request->input('company_id') ? [$request->input('company_id')] : [])));
+            $departmentIds = array_filter((array) ($request->input('department_ids') ?: ($request->input('department_id') ? [$request->input('department_id')] : [])));
 
             $departmentEmployees = collect();
-            if ($departmentId) {
-                $departmentEmployees = Employee::where('department_id', $departmentId)
+            if (!empty($departmentIds)) {
+                $departmentEmployees = Employee::withoutGlobalScope('company')
+                    ->with(['company:id,name', 'department:id,name'])
+                    ->whereIn('department_id', $departmentIds)
+                    ->when(!empty($companyIds), fn ($q) => $q->whereIn('company_id', $companyIds))
                     ->active()
                     ->orderBy('name')
-                    ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
+                    ->get(['id', 'name', 'designation', 'company_id', 'department_id', 'role']);
             }
 
-            // All active employees from the same branch/company
             $branchEmployees = collect();
-            if ($companyId) {
-                $branchEmployees = Employee::where('company_id', $companyId)
+            if (!empty($companyIds)) {
+                $branchEmployees = Employee::withoutGlobalScope('company')
+                    ->with(['company:id,name', 'department:id,name'])
+                    ->whereIn('company_id', $companyIds)
                     ->active()
                     ->orderBy('name')
-                    ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
+                    ->get(['id', 'name', 'designation', 'company_id', 'department_id', 'role']);
+            }
+
+            $branchManagers = $branchEmployees->filter(function ($emp) {
+                $desig = strtolower($emp->designation ?? '');
+                $role = strtolower($emp->role ?? '');
+                return str_contains($desig, 'manager')
+                    || str_contains($desig, 'lead')
+                    || str_contains($desig, 'head')
+                    || str_contains($desig, 'director')
+                    || str_contains($desig, 'supervisor')
+                    || str_contains($desig, 'hr')
+                    || in_array($role, ['manager', 'hr', 'admin', 'branch-manager'], true);
+            })->values();
+
+            if ($branchManagers->isEmpty()) {
+                $branchManagers = $branchEmployees;
             }
 
             return response()->json([
                 'employees' => $departmentEmployees,
                 'department_employees' => $departmentEmployees,
                 'branch_employees' => $branchEmployees,
-                'branch_managers' => $branchEmployees,
+                'branch_managers' => $branchManagers,
             ]);
         } catch (\Throwable $e) {
             \Log::error('Error in getByDepartment:', ['error' => $e->getMessage()]);
@@ -1256,22 +1265,50 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Get real users/employees with Executive / Leadership designations (CEO, Founder, Owner, COO, Director, etc.)
+     * Keep reported_to (legacy name) aligned with reports_to_id (FK).
+     * The create/edit forms may send either the id, the name, or both.
      */
+    private function syncReportingPerson(array &$validated): void
+    {
+        if (!empty($validated['reports_to_id'])) {
+            $manager = Employee::withoutGlobalScopes()->find($validated['reports_to_id']);
+            $validated['reported_to'] = $manager ? $manager->name : null;
+            if (!$manager) {
+                $validated['reports_to_id'] = null;
+            }
+            return;
+        }
+
+        if (!empty($validated['reported_to'])) {
+            $manager = Employee::withoutGlobalScopes()
+                ->where('name', $validated['reported_to'])
+                ->first();
+            $validated['reports_to_id'] = $manager ? $manager->id : null;
+            return;
+        }
+
+        $validated['reports_to_id'] = null;
+        if (array_key_exists('reported_to', $validated)) {
+            $validated['reported_to'] = $validated['reported_to'] ?: null;
+        }
+    }
+
     private function getLeadershipEmployees()
     {
-        $leadership = Employee::where(function ($q) {
-            $q->where('designation', 'LIKE', '%CEO%')
-              ->orWhere('designation', 'LIKE', '%Founder%')
-              ->orWhere('designation', 'LIKE', '%Owner%')
-              ->orWhere('designation', 'LIKE', '%COO%')
-              ->orWhere('designation', 'LIKE', '%Chief Operating Officer%')
-              ->orWhere('designation', 'LIKE', '%Director%')
-              ->orWhere('designation', 'LIKE', '%General Manager%');
-        })
-        ->active()
-        ->orderBy('name')
-        ->get(['id', 'name', 'designation', 'company_id']);
+        $leadership = Employee::withoutGlobalScope('company')
+            ->with('company:id,name')
+            ->where(function ($q) {
+                $q->where('designation', 'LIKE', '%CEO%')
+                  ->orWhere('designation', 'LIKE', '%Founder%')
+                  ->orWhere('designation', 'LIKE', '%Owner%')
+                  ->orWhere('designation', 'LIKE', '%COO%')
+                  ->orWhere('designation', 'LIKE', '%Chief Operating Officer%')
+                  ->orWhere('designation', 'LIKE', '%Director%')
+                  ->orWhere('designation', 'LIKE', '%General Manager%');
+            })
+            ->active()
+            ->orderBy('name')
+            ->get(['id', 'name', 'designation', 'company_id']);
 
         // Fallback: If no employee with CEO/Founder designation exists yet, include admin users
         if ($leadership->isEmpty()) {
@@ -1284,10 +1321,11 @@ class EmployeeController extends Controller
 
             foreach ($adminUsers as $admin) {
                 $leadership->push((object)[
-                    'id' => $admin->employee_id ?: ('user_' . $admin->id),
+                    'id' => $admin->employee_id ?: null,
                     'name' => $admin->name,
                     'designation' => 'Founder / CEO',
-                    'company_id' => null,
+                    'company_id' => $admin->company_id,
+                    'company' => null,
                 ]);
             }
         }
@@ -1297,25 +1335,79 @@ class EmployeeController extends Controller
 
     /**
      * Get real users/employees with Manager / HR / Supervisor designations
+     * across all branches so a reporting person can be assigned cross-branch.
      */
     private function getManagerAndHrEmployees()
     {
-        return Employee::where(function ($q) {
-            $q->where('designation', 'LIKE', '%Manager%')
-              ->orWhere('designation', 'LIKE', '%HR%')
-              ->orWhere('designation', 'LIKE', '%Human Resource%')
-              ->orWhere('designation', 'LIKE', '%Supervisor%')
-              ->orWhere('designation', 'LIKE', '%Lead%');
-        })
-        ->orWhereHas('user', function ($q) {
-            $q->whereIn('role', ['hr', 'manager'])
-              ->orWhereHas('roles', function ($rq) {
-                  $rq->whereIn('slug', ['hr', 'manager', 'branch-manager']);
-              });
-        })
-        ->active()
-        ->orderBy('name')
-        ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
+        $employees = Employee::withoutGlobalScope('company')
+            ->with(['company:id,name', 'department:id,name'])
+            ->where(function ($q) {
+                $q->where(function ($inner) {
+                    $inner->where('designation', 'LIKE', '%Manager%')
+                        ->orWhere('designation', 'LIKE', '%HR%')
+                        ->orWhere('designation', 'LIKE', '%Human Resource%')
+                        ->orWhere('designation', 'LIKE', '%Supervisor%')
+                        ->orWhere('designation', 'LIKE', '%Lead%')
+                        ->orWhere('designation', 'LIKE', '%Head%')
+                        ->orWhere('designation', 'LIKE', '%Director%')
+                        ->orWhere('designation', 'LIKE', '%COO%')
+                        ->orWhereIn('role', ['admin', 'hr', 'manager', 'branch-manager']);
+                })->orWhereHas('user', function ($uq) {
+                    $uq->whereIn('role', ['admin', 'hr', 'manager', 'branch-manager'])
+                        ->orWhereHas('roles', function ($rq) {
+                            $rq->whereIn('slug', ['admin', 'hr', 'manager', 'branch-manager']);
+                        });
+                });
+            })
+            ->active()
+            ->orderBy('name')
+            ->get(['id', 'name', 'designation', 'company_id', 'department_id', 'role']);
+
+        $existingIds = $employees->pluck('id')->filter()->map(fn ($id) => (int) $id)->all();
+
+        $mgmtUsers = User::query()
+            ->where(function ($q) {
+                $q->whereIn('role', ['admin', 'hr', 'manager', 'branch-manager'])
+                    ->orWhereHas('roles', function ($rq) {
+                        $rq->whereIn('slug', ['admin', 'hr', 'manager', 'branch-manager']);
+                    });
+            })
+            ->where(function ($q) use ($existingIds) {
+                $q->whereNull('employee_id');
+                if (!empty($existingIds)) {
+                    $q->orWhereNotIn('employee_id', $existingIds);
+                }
+            })
+            ->get(['id', 'name', 'role', 'employee_id', 'company_id']);
+
+        $companyIds = $mgmtUsers->pluck('company_id')->filter()->unique()->values();
+        $companies = $companyIds->isEmpty()
+            ? collect()
+            : Company::withoutGlobalScope('company')->whereIn('id', $companyIds)->get(['id', 'name'])->keyBy('id');
+
+        foreach ($mgmtUsers as $user) {
+            if ($user->employee_id && in_array((int) $user->employee_id, $existingIds, true)) {
+                continue;
+            }
+
+            $company = $user->company_id ? $companies->get($user->company_id) : null;
+            $employees->push((object) [
+                'id' => $user->employee_id ?: null,
+                'name' => $user->name,
+                'designation' => $user->role ? ucwords(str_replace('-', ' ', $user->role)) : 'Manager',
+                'company_id' => $user->company_id,
+                'department_id' => null,
+                'role' => $user->role,
+                'company' => $company,
+            ]);
+        }
+
+        return $employees->unique(function ($item) {
+            if (!empty($item->id) && is_numeric($item->id)) {
+                return 'id:' . $item->id;
+            }
+            return 'name:' . strtolower((string) $item->name);
+        })->values();
     }
 
     private function getConstants()

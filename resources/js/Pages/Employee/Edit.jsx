@@ -10,6 +10,7 @@ import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
 import FormErrorNotification from '@/Components/FormErrorNotification';
 import { resolveCurrency, resolveCountry } from '@/helpers/currency';
 import { employeeRouteKey, employeeRoute } from '@/helpers/employee-routes';
+import { buildReportingOptions, flattenReportingOptions } from '@/helpers/reportingOptions';
 import {
     FiUser, FiCreditCard, FiMapPin, FiBriefcase, FiClock, FiDollarSign,
     FiFileText, FiPlus, FiTrash2, FiArrowRight, FiArrowLeft, FiEye,
@@ -236,7 +237,9 @@ export default function EditEmployee(props) {
         }
     }, [data.company_ids, data.company_id]);
 
-    // Fetch reporting staff
+    const managerStaff = useMemo(() => managerEmployees || [], [managerEmployees]);
+
+    // Fetch reporting staff (quick runtime AJAX to enrich options)
     useEffect(() => {
         const branchIds = (data.company_ids && data.company_ids.length > 0)
             ? data.company_ids
@@ -246,13 +249,17 @@ export default function EditEmployee(props) {
             : (data.department_id ? [data.department_id] : []);
 
         if (deptIds.length > 0 || branchIds.length > 0) {
-            axios.get(route('api.employees.byDepartment', {
-                department_id: deptIds[0] || '',
-                company_id: branchIds[0] || ''
-            }))
+            axios.get(route('api.employees.byDepartment'), {
+                params: {
+                    department_ids: deptIds,
+                    company_ids: branchIds,
+                    department_id: deptIds[0] || '',
+                    company_id: branchIds[0] || ''
+                }
+            })
                 .then(res => {
-                    setDepartmentEmployees(res.data.employees || []);
-                    setBranchManagers(res.data.branch_managers || []);
+                    setDepartmentEmployees(res.data.department_employees || res.data.employees || []);
+                    setBranchManagers(res.data.branch_managers || res.data.branch_employees || []);
                 })
                 .catch(() => {
                     setDepartmentEmployees([]);
@@ -263,13 +270,6 @@ export default function EditEmployee(props) {
             setBranchManagers([]);
         }
     }, [data.department_ids, data.company_ids, data.department_id, data.company_id]);
-
-    const isHrOrManager = useMemo(() => {
-        const role = (data.role || '').toLowerCase();
-        const desig = (data.designation || '').toLowerCase();
-        return role === 'hr' || role === 'manager' || role === 'branch-manager' ||
-            desig.includes('hr') || desig.includes('manager') || desig.includes('coo') || desig.includes('director') || desig.includes('head');
-    }, [data.role, data.designation]);
 
     const executiveLeaders = useMemo(() => leadershipEmployees || [], [leadershipEmployees]);
 
@@ -313,43 +313,22 @@ export default function EditEmployee(props) {
     }, [designationList, data.designation]);
 
     const reportingOptions = useMemo(() => {
-        if (isHrOrManager) {
-            return (executiveLeaders || []).map(exec => ({
-                value: exec.name,
-                label: `${exec.name} (${exec.designation || 'Executive Leader'})`
-            }));
-        }
+        const branchIds = (data.company_ids && data.company_ids.length > 0)
+            ? data.company_ids.map(Number)
+            : (data.company_id ? [Number(data.company_id)] : []);
+        const deptIds = (data.department_ids && data.department_ids.length > 0)
+            ? data.department_ids.map(Number)
+            : (data.department_id ? [Number(data.department_id)] : []);
 
-        const groups = [];
-        if (executiveLeaders && executiveLeaders.length > 0) {
-            groups.push({
-                label: 'Executive Leadership',
-                options: executiveLeaders.map(exec => ({
-                    value: exec.name,
-                    label: `${exec.name} (${exec.designation || 'Executive Leader'})`
-                }))
-            });
-        }
-        if (departmentEmployees && departmentEmployees.length > 0) {
-            groups.push({
-                label: 'Department Staff',
-                options: departmentEmployees.map(emp => ({
-                    value: emp.name,
-                    label: `${emp.name} ${emp.designation ? `(${emp.designation})` : ''}`
-                }))
-            });
-        }
-        if (branchManagers && branchManagers.length > 0) {
-            groups.push({
-                label: 'Branch Management / Staff',
-                options: branchManagers.map(mgr => ({
-                    value: mgr.name,
-                    label: `${mgr.name} ${mgr.designation ? `(${mgr.designation})` : ''}`
-                }))
-            });
-        }
-        return groups;
-    }, [isHrOrManager, executiveLeaders, departmentEmployees, branchManagers]);
+        return buildReportingOptions({
+            executiveLeaders,
+            departmentEmployees,
+            branchManagers,
+            managerStaff,
+            branchIds,
+            deptIds,
+        });
+    }, [executiveLeaders, departmentEmployees, branchManagers, managerStaff, data.company_ids, data.company_id, data.department_ids, data.department_id]);
 
     const roleOptions = useMemo(() => {
         return (availableRoles || []).map(r => ({ value: r.slug, label: r.name }));
@@ -1007,8 +986,16 @@ export default function EditEmployee(props) {
                                                 name="reported_to"
                                                 value={data.reported_to}
                                                 options={reportingOptions}
-                                                onChange={e => setData('reported_to', e.target.value)}
-                                                placeholder={isHrOrManager ? 'Select Executive Authority (CEO / Founder)' : 'Select Reporting Supervisor'}
+                                                onChange={e => {
+                                                    const name = e.target.value;
+                                                    const match = flattenReportingOptions(reportingOptions).find(opt => opt.value === name);
+                                                    setData(prev => ({
+                                                        ...prev,
+                                                        reported_to: name,
+                                                        reports_to_id: match?.employeeId || '',
+                                                    }));
+                                                }}
+                                                placeholder="Select Reporting Supervisor"
                                             />
                                             {errors.reported_to && <p className="text-xs font-medium text-rose-500">{errors.reported_to}</p>}
                                         </div>
