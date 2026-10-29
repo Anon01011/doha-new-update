@@ -326,4 +326,79 @@ class SalaryModificationTest extends TestCase
                 ->has('approve_disabled_reason')
         );
     }
+
+    public function test_non_hr_user_with_approve_permission_and_branch_access_can_approve(): void
+    {
+        $approveSalaryPerm = Permission::where('slug', 'approve-salary-modifications')->first();
+        $viewSalaryPerm = Permission::where('slug', 'view-employee-salary')->first();
+
+        // A "payroll officer" with same branch (companyA) and approve perm but NOT an HR role
+        $payrollOfficer = User::factory()->create([
+            'company_id' => $this->companyA->id,
+            'role' => 'manager',  // not 'hr'
+        ]);
+        $payrollOfficer->permissions()->sync([
+            $viewSalaryPerm->id,
+            $approveSalaryPerm->id,
+        ]);
+
+        $salaryRequest = SalaryModificationRequest::create([
+            'employee_id' => $this->targetEmployee->id,
+            'company_id' => $this->companyA->id,
+            'requested_by' => $this->admin->id,
+            'current_basic_salary' => 5000.00,
+            'proposed_basic_salary' => 9000.00,
+            'current_payment_type' => 'Bank Transfer',
+            'proposed_payment_type' => 'Bank Transfer',
+            'status' => 'pending',
+            'reason' => 'Test increment',
+        ]);
+
+        $response = $this->actingAs($payrollOfficer)->post(
+            route('salary-modifications.approve', $salaryRequest->id),
+            ['notes' => 'Approved by payroll officer']
+        );
+
+        $response->assertSessionHas('success');
+
+        $salaryRequest->refresh();
+        $this->assertEquals('approved', $salaryRequest->status);
+        $this->assertEquals($payrollOfficer->id, $salaryRequest->reviewed_by);
+
+        $this->targetEmployee->refresh();
+        $this->assertEquals(9000.00, (float) $this->targetEmployee->basic_salary);
+    }
+
+    public function test_show_page_returns_can_approve_true_for_non_hr_user_with_approve_permission(): void
+    {
+        $approveSalaryPerm = Permission::where('slug', 'approve-salary-modifications')->first();
+        $viewSalaryPerm = Permission::where('slug', 'view-employee-salary')->first();
+
+        $payrollOfficer = User::factory()->create([
+            'company_id' => $this->companyA->id,
+            'role' => 'manager',
+        ]);
+        $payrollOfficer->permissions()->sync([
+            $viewSalaryPerm->id,
+            $approveSalaryPerm->id,
+        ]);
+
+        SalaryModificationRequest::create([
+            'employee_id' => $this->targetEmployee->id,
+            'company_id' => $this->companyA->id,
+            'requested_by' => $this->admin->id,
+            'current_basic_salary' => 5000.00,
+            'proposed_basic_salary' => 8500.00,
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($payrollOfficer)->get(route('employees.show', $this->targetEmployee->id));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) =>
+            $page->component('Employee/Show')
+                ->where('can_approve_salary', true)
+                ->where('approve_disabled_reason', null)
+        );
+    }
 }
