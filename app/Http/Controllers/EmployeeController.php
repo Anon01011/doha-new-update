@@ -704,15 +704,27 @@ class EmployeeController extends Controller
             $user->company_id == $employee->company_id ||
             $user->getAssignedCompanyIds()->contains((int)$employee->company_id)
         );
-        // Only same branch HR can approve salary modifications (requester cannot approve their own request)
+        $hasApprovePerm = $user->hasPermission('approve-salary-modifications', false);
         $isRequester = $pendingSalaryRequest && $pendingSalaryRequest->requested_by === $user->id;
-        $canApproveSalary = $canSeeSalary && !$isRequester && (
-            $isBranchHR ||
-            (!$user->isAdmin() && $user->hasPermission('approve-salary-modifications', false) && (
-                $user->company_id == $employee->company_id ||
-                $user->getAssignedCompanyIds()->contains((int)$employee->company_id)
-            ))
-        );
+
+        $canApproveSalary = false;
+        $approveDisabledReason = null;
+
+        if ($pendingSalaryRequest) {
+            if ($isRequester) {
+                $approveDisabledReason = 'You submitted this modification request. Approval must be performed by the Branch HR.';
+            } elseif ($user->isAdmin() && !$hasApprovePerm) {
+                $approveDisabledReason = 'Admin account lacks "Approve Salary Modifications" permission.';
+            } elseif ($user->isAdmin()) {
+                $approveDisabledReason = 'Only the assigned Branch HR for this branch can approve salary modifications.';
+            } elseif (!$isBranchHR && !$hasApprovePerm) {
+                $approveDisabledReason = 'Role lacks "Approve Salary Modifications" permission.';
+            } elseif (!$isBranchHR) {
+                $approveDisabledReason = 'Only the Branch HR for ' . ($employee->company?->name ?? 'this branch') . ' can approve.';
+            } else {
+                $canApproveSalary = $canSeeSalary;
+            }
+        }
 
         return Inertia::render('Employee/Show', [
             'employee' => array_merge($employeePayload, [
@@ -735,6 +747,7 @@ class EmployeeController extends Controller
             'can_see_salary' => $canSeeSalary,
             'can_edit_salary' => $canEditSalary,
             'can_approve_salary' => $canApproveSalary,
+            'approve_disabled_reason' => $approveDisabledReason,
             'pending_salary_modification' => $pendingSalaryRequest,
             'leaveBalances' => \App\Services\LeaveBalanceService::getOrSyncBalancesForEmployee($employee, (int) now()->year),
         ]);

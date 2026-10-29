@@ -17,9 +17,9 @@ class SalaryModificationController extends Controller
     {
         $user = auth()->user();
 
-        // Must have permission to view/approve salary or view salary postings
-        if (!$user->isAdmin() && !$user->isHR() && !$user->hasPermission('approve-salary-modifications') && !$user->hasPermission('view-employee-salary')) {
-            abort(403, 'Unauthorized access to salary modification requests.');
+        // Restrict access: page is only visible for Admin or users who possess the approve-salary-modifications permission (or branch HR)
+        if (!$user->isAdmin() && !$user->hasPermission('approve-salary-modifications') && !$user->isHR()) {
+            abort(403, 'Unauthorized access to salary modification requests. Requires the approve-salary-modifications permission.');
         }
 
         $status = $request->input('status', 'pending');
@@ -52,14 +52,37 @@ class SalaryModificationController extends Controller
         $requests = $query->paginate(15)->withQueryString();
 
         $userAssignedCompanies = $user->isAdmin() ? collect() : $user->getAssignedCompanyIds();
-        $requests->getCollection()->transform(function ($req) use ($user, $userAssignedCompanies) {
+        $hasApprovePerm = $user->hasPermission('approve-salary-modifications', false);
+
+        $requests->getCollection()->transform(function ($req) use ($user, $userAssignedCompanies, $hasApprovePerm) {
             $hasBranchAccess = (
                 $user->company_id == $req->company_id ||
                 $userAssignedCompanies->contains((int)$req->company_id)
             );
             $isBranchHR = !$user->isAdmin() && $user->isHR() && $hasBranchAccess;
-            $canApprove = $isBranchHR || (!$user->isAdmin() && $hasBranchAccess && $user->hasPermission('approve-salary-modifications'));
-            $req->can_approve = $canApprove && ($req->requested_by !== $user->id);
+            $isRequester = $req->requested_by === $user->id;
+
+            $canApprove = false;
+            $disabledReason = null;
+
+            if ($req->status === 'pending') {
+                if ($isRequester) {
+                    $disabledReason = 'You submitted this request. Approval must be performed by the Branch HR.';
+                } elseif ($user->isAdmin() && !$hasApprovePerm) {
+                    $disabledReason = 'Admin account lacks "Approve Salary Modifications" permission.';
+                } elseif ($user->isAdmin()) {
+                    $disabledReason = 'Only the assigned Branch HR for this branch can approve.';
+                } elseif (!$hasBranchAccess) {
+                    $disabledReason = 'Only the Branch HR for this branch can approve.';
+                } elseif (!$isBranchHR && !$hasApprovePerm) {
+                    $disabledReason = 'Role lacks "Approve Salary Modifications" permission.';
+                } else {
+                    $canApprove = true;
+                }
+            }
+
+            $req->can_approve = $canApprove;
+            $req->disabled_reason = $disabledReason;
             return $req;
         });
 

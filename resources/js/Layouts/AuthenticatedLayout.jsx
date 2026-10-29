@@ -452,8 +452,8 @@ export default function AuthenticatedLayout({ header, children }) {
                             name: 'Salary Approvals',
                             href: route('salary-modifications.index'),
                             current: route().current('salary-modifications.*'),
-                            permissions: ['approve-salary-modifications', 'view-employee-salary'],
-                            roles: ['admin', 'hr', 'manager'],
+                            permissions: ['approve-salary-modifications'],
+                            roles: ['admin'],
                         },
                         {
                             name: 'Configurations',

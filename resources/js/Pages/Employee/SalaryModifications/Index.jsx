@@ -8,7 +8,7 @@ import { resolveCurrency } from '@/helpers/currency';
 import {
     FiDollarSign, FiClock, FiCheckCircle, FiXCircle, FiArrowUpRight,
     FiArrowDownRight, FiUser, FiCalendar, FiFileText, FiCheck, FiX,
-    FiFilter, FiLayers, FiAlertCircle
+    FiFilter, FiLayers, FiAlertCircle, FiLock, FiInfo
 } from 'react-icons/fi';
 
 export default function SalaryModificationsIndex({
@@ -366,25 +366,42 @@ export default function SalaryModificationsIndex({
                                             )}
                                         </div>
 
-                                        {isPending && (req.can_approve ?? canApprove) && (
-                                            <div className="flex items-center gap-2 self-end sm:self-auto">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openRejectModal(req)}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-bold transition shadow-sm"
-                                                >
-                                                    <FiX className="h-3.5 w-3.5" />
-                                                    Reject
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openApproveModal(req)}
-                                                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm"
-                                                >
-                                                    <FiCheck className="h-3.5 w-3.5" />
-                                                    Approve & Apply
-                                                </button>
-                                            </div>
+                                        {isPending && (
+                                            req.can_approve ? (
+                                                <div className="flex items-center gap-2 self-end sm:self-auto">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openRejectModal(req)}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-bold transition shadow-sm"
+                                                    >
+                                                        <FiX className="h-3.5 w-3.5" />
+                                                        Reject
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openApproveModal(req)}
+                                                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm"
+                                                    >
+                                                        <FiCheck className="h-3.5 w-3.5" />
+                                                        Approve & Apply
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="relative group inline-block self-end sm:self-auto">
+                                                    <button
+                                                        type="button"
+                                                        disabled
+                                                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 text-xs font-bold cursor-not-allowed opacity-75 shadow-xs"
+                                                    >
+                                                        <FiLock className="h-3.5 w-3.5 text-slate-400" />
+                                                        Approve & Apply
+                                                    </button>
+                                                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover:flex items-center gap-1.5 z-50 w-64 p-2.5 text-[11px] leading-tight text-white bg-slate-900 rounded-xl shadow-xl pointer-events-none transition-all duration-150">
+                                                        <FiInfo className="h-4 w-4 text-amber-400 shrink-0" />
+                                                        <span>{req.disabled_reason || "Approval requires 'Approve Salary Modifications' permission and Branch HR authorization."}</span>
+                                                    </div>
+                                                </div>
+                                            )
                                         )}
                                     </div>
                                 </div>

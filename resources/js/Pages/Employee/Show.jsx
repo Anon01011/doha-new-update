@@ -11,7 +11,7 @@ import {
     FiUser, FiCreditCard, FiMapPin, FiBriefcase, FiClock, FiDollarSign,
     FiFileText, FiArrowLeft, FiEdit3, FiPrinter, FiTrash2, FiCheckCircle,
     FiEye, FiDownload, FiGlobe, FiShield, FiPhone, FiMail, FiCalendar,
-    FiLayers, FiInfo, FiFile, FiExternalLink, FiX, FiPlus, FiUpload, FiAlertCircle, FiCheck
+    FiLayers, FiInfo, FiFile, FiExternalLink, FiX, FiPlus, FiUpload, FiAlertCircle, FiCheck, FiLock
 } from 'react-icons/fi';
 
 export default function ShowEmployee({
@@ -23,6 +23,7 @@ export default function ShowEmployee({
     can_see_salary = false,
     can_edit_salary = false,
     can_approve_salary = false,
+    approve_disabled_reason = null,
     pending_salary_modification = null,
     leaveBalances = []
 }) {
@@ -591,7 +592,7 @@ export default function ShowEmployee({
                             </div>
 
                             <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
-                                {can_approve_salary && (
+                                {can_approve_salary ? (
                                     <>
                                         <button
                                             type="button"
@@ -608,6 +609,21 @@ export default function ShowEmployee({
                                             Approve & Apply
                                         </button>
                                     </>
+                                ) : (
+                                    <div className="relative group inline-block">
+                                        <button
+                                            type="button"
+                                            disabled
+                                            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-xl cursor-not-allowed opacity-75 shadow-xs"
+                                        >
+                                            <FiLock className="h-3.5 w-3.5 text-slate-400" />
+                                            Approve & Apply
+                                        </button>
+                                        <div className="absolute bottom-full right-0 mb-2 hidden group-hover:flex items-center gap-1.5 z-50 w-64 p-2.5 text-[11px] leading-tight text-white bg-slate-900 rounded-xl shadow-xl pointer-events-none transition-all duration-150">
+                                            <FiInfo className="h-4 w-4 text-amber-400 shrink-0" />
+                                            <span>{approve_disabled_reason || "Approval requires 'Approve Salary Modifications' permission and Branch HR authorization."}</span>
+                                        </div>
+                                    </div>
                                 )}
                                 <Link
                                     href={route('salary-modifications.index')}

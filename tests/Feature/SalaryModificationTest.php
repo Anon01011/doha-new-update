@@ -297,4 +297,33 @@ class SalaryModificationTest extends TestCase
         $this->targetEmployee->refresh();
         $this->assertEquals(9500.00, (float)$this->targetEmployee->basic_salary);
     }
+
+    public function test_user_without_approve_permission_cannot_access_approvals_page(): void
+    {
+        $this->manager->permissions()->detach(Permission::where('slug', 'approve-salary-modifications')->pluck('id'));
+
+        $response = $this->actingAs($this->manager)->get(route('salary-modifications.index'));
+        $response->assertStatus(403);
+    }
+
+    public function test_admin_viewing_show_page_sees_disabled_approve_button_and_reason(): void
+    {
+        SalaryModificationRequest::create([
+            'employee_id' => $this->targetEmployee->id,
+            'company_id' => $this->companyA->id,
+            'requested_by' => $this->admin->id,
+            'current_basic_salary' => 5000.00,
+            'proposed_basic_salary' => 9500.00,
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($this->admin)->get(route('employees.show', $this->targetEmployee->id));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) =>
+            $page->component('Employee/Show')
+                ->where('can_approve_salary', false)
+                ->has('approve_disabled_reason')
+        );
+    }
 }
