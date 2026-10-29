@@ -212,23 +212,84 @@ class SalaryModificationTest extends TestCase
         $this->assertEquals('pending', $salaryRequest->status);
     }
 
-    public function test_admin_can_approve_any_branch_request(): void
+    public function test_admin_salary_edit_creates_pending_modification_request(): void
+    {
+        $response = $this->actingAs($this->admin)->put(route('employees.update', $this->targetEmployee->id), [
+            'name' => 'Admin Updated Name',
+            'company_id' => $this->companyA->id,
+            'gender' => 'Male',
+            'status' => 'Active',
+            'basic_salary' => 8800.00,
+            'payment_type' => 'Bank Transfer',
+        ]);
+
+        // Live employee name updates, but salary must NOT update immediately
+        $this->targetEmployee->refresh();
+        $this->assertEquals('Admin Updated Name', $this->targetEmployee->name);
+        $this->assertEquals(5000.00, (float)$this->targetEmployee->basic_salary);
+
+        // A pending modification request must exist awaiting Branch HR approval
+        $request = SalaryModificationRequest::where('employee_id', $this->targetEmployee->id)
+            ->where('status', 'pending')
+            ->first();
+
+        $this->assertNotNull($request);
+        $this->assertEquals(8800.00, (float)$request->proposed_basic_salary);
+        $this->assertEquals($this->admin->id, $request->requested_by);
+    }
+
+    public function test_same_branch_hr_salary_edit_applies_directly_without_approval(): void
+    {
+        $response = $this->actingAs($this->branchHr)->put(route('employees.update', $this->targetEmployee->id), [
+            'name' => 'HR Updated Name',
+            'company_id' => $this->companyA->id,
+            'gender' => 'Male',
+            'status' => 'Active',
+            'basic_salary' => 7200.00,
+            'payment_type' => 'Bank Transfer',
+        ]);
+
+        // Same branch HR edit applies directly
+        $this->targetEmployee->refresh();
+        $this->assertEquals('HR Updated Name', $this->targetEmployee->name);
+        $this->assertEquals(7200.00, (float)$this->targetEmployee->basic_salary);
+
+        // No pending request created
+        $request = SalaryModificationRequest::where('employee_id', $this->targetEmployee->id)
+            ->where('status', 'pending')
+            ->first();
+
+        $this->assertNull($request);
+    }
+
+    public function test_admin_cannot_approve_salary_modification_request(): void
     {
         $salaryRequest = SalaryModificationRequest::create([
             'employee_id' => $this->targetEmployee->id,
             'company_id' => $this->companyA->id,
-            'requested_by' => $this->manager->id,
+            'requested_by' => $this->admin->id,
             'current_basic_salary' => 5000.00,
             'proposed_basic_salary' => 9500.00,
             'status' => 'pending',
         ]);
 
+        // Admin cannot approve; only Branch HR can approve
         $response = $this->actingAs($this->admin)->post(
             route('salary-modifications.approve', $salaryRequest->id),
-            ['notes' => 'Admin override']
+            ['notes' => 'Admin override attempt']
         );
 
-        $response->assertSessionHas('success');
+        $response->assertStatus(403);
+
+        $salaryRequest->refresh();
+        $this->assertEquals('pending', $salaryRequest->status);
+
+        // Now Branch HR approves it
+        $hrResponse = $this->actingAs($this->branchHr)->post(
+            route('salary-modifications.approve', $salaryRequest->id),
+            ['notes' => 'Branch HR approved']
+        );
+        $hrResponse->assertSessionHas('success');
 
         $salaryRequest->refresh();
         $this->assertEquals('approved', $salaryRequest->status);

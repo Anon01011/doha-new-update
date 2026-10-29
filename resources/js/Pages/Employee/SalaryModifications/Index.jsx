@@ -366,7 +366,7 @@ export default function SalaryModificationsIndex({
                                             )}
                                         </div>
 
-                                        {isPending && canApprove && (
+                                        {isPending && (req.can_approve ?? canApprove) && (
                                             <div className="flex items-center gap-2 self-end sm:self-auto">
                                                 <button
                                                     type="button"

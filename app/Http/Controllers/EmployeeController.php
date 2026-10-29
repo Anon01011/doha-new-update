@@ -700,11 +700,19 @@ class EmployeeController extends Controller
         }
 
         $canEditSalary = $canSeeSalary && ($user->isAdmin() || $user->hasPermission('edit-employee-salary', false));
-        $isBranchHR = $user->isHR() && (
+        $isBranchHR = !$user->isAdmin() && $user->isHR() && (
             $user->company_id == $employee->company_id ||
             $user->getAssignedCompanyIds()->contains((int)$employee->company_id)
         );
-        $canApproveSalary = $canSeeSalary && ($user->isAdmin() || $isBranchHR || $user->hasPermission('approve-salary-modifications', false));
+        // Only same branch HR can approve salary modifications (requester cannot approve their own request)
+        $isRequester = $pendingSalaryRequest && $pendingSalaryRequest->requested_by === $user->id;
+        $canApproveSalary = $canSeeSalary && !$isRequester && (
+            $isBranchHR ||
+            (!$user->isAdmin() && $user->hasPermission('approve-salary-modifications', false) && (
+                $user->company_id == $employee->company_id ||
+                $user->getAssignedCompanyIds()->contains((int)$employee->company_id)
+            ))
+        );
 
         return Inertia::render('Employee/Show', [
             'employee' => array_merge($employeePayload, [
@@ -1053,11 +1061,13 @@ class EmployeeController extends Controller
         }
 
         $canEditSalary = $user->isAdmin() || $user->isHR() || $user->hasPermission('edit-employee-salary');
-        $isBranchHR = $user->isHR() && (
+        // Only same branch HR can directly modify the salary without approval.
+        // Even if an Admin has edit permission, changes must go to the branch HR for approval.
+        $isBranchHR = !$user->isAdmin() && $user->isHR() && (
             $user->company_id == $employee->company_id ||
             $user->getAssignedCompanyIds()->contains((int)$employee->company_id)
         );
-        $canDirectApplySalary = $user->isAdmin() || $isBranchHR;
+        $canDirectApplySalary = $isBranchHR;
         $salaryPendingApproval = false;
 
         if ($canEditSalary && !$canDirectApplySalary) {

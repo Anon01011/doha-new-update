@@ -51,6 +51,18 @@ class SalaryModificationController extends Controller
 
         $requests = $query->paginate(15)->withQueryString();
 
+        $userAssignedCompanies = $user->isAdmin() ? collect() : $user->getAssignedCompanyIds();
+        $requests->getCollection()->transform(function ($req) use ($user, $userAssignedCompanies) {
+            $hasBranchAccess = (
+                $user->company_id == $req->company_id ||
+                $userAssignedCompanies->contains((int)$req->company_id)
+            );
+            $isBranchHR = !$user->isAdmin() && $user->isHR() && $hasBranchAccess;
+            $canApprove = $isBranchHR || (!$user->isAdmin() && $hasBranchAccess && $user->hasPermission('approve-salary-modifications'));
+            $req->can_approve = $canApprove && ($req->requested_by !== $user->id);
+            return $req;
+        });
+
         $companies = Company::orderBy('name')->get(['id', 'name']);
 
         $pendingCountQuery = SalaryModificationRequest::where('status', 'pending');
@@ -84,17 +96,21 @@ class SalaryModificationController extends Controller
         $user = auth()->user();
         $salaryRequest = SalaryModificationRequest::findOrFail($id);
 
-        // Authorization check: must be Admin or authorized HR/approver for this employee's branch
-        if (!$user->isAdmin()) {
-            $hasBranchAccess = (
-                $user->company_id == $salaryRequest->company_id ||
-                $user->getAssignedCompanyIds()->contains((int)$salaryRequest->company_id)
-            );
-            $canApprove = ($user->isHR() || $user->hasPermission('approve-salary-modifications')) && $hasBranchAccess;
+        // Requester cannot approve their own request
+        if ($salaryRequest->requested_by === $user->id) {
+            abort(403, 'Unauthorized. You cannot approve your own salary modification request. Approval must be performed by the Branch HR.');
+        }
 
-            if (!$canApprove) {
-                abort(403, 'Unauthorized. Only Branch HR or Admin can approve this salary modification.');
-            }
+        // Authorization check: only authorized Branch HR for this employee's branch can approve
+        $hasBranchAccess = (
+            $user->company_id == $salaryRequest->company_id ||
+            $user->getAssignedCompanyIds()->contains((int)$salaryRequest->company_id)
+        );
+        $isBranchHR = !$user->isAdmin() && $user->isHR() && $hasBranchAccess;
+        $canApprove = $isBranchHR || (!$user->isAdmin() && $hasBranchAccess && $user->hasPermission('approve-salary-modifications'));
+
+        if (!$canApprove) {
+            abort(403, 'Unauthorized. Only Branch HR for this employee\'s branch can approve this salary modification.');
         }
 
         $validated = $request->validate([
@@ -118,16 +134,19 @@ class SalaryModificationController extends Controller
         $user = auth()->user();
         $salaryRequest = SalaryModificationRequest::findOrFail($id);
 
-        if (!$user->isAdmin()) {
-            $hasBranchAccess = (
-                $user->company_id == $salaryRequest->company_id ||
-                $user->getAssignedCompanyIds()->contains((int)$salaryRequest->company_id)
-            );
-            $canApprove = ($user->isHR() || $user->hasPermission('approve-salary-modifications')) && $hasBranchAccess;
+        if ($salaryRequest->requested_by === $user->id) {
+            abort(403, 'Unauthorized. You cannot reject your own salary modification request. Action must be performed by the Branch HR.');
+        }
 
-            if (!$canApprove) {
-                abort(403, 'Unauthorized. Only Branch HR or Admin can reject this salary modification.');
-            }
+        $hasBranchAccess = (
+            $user->company_id == $salaryRequest->company_id ||
+            $user->getAssignedCompanyIds()->contains((int)$salaryRequest->company_id)
+        );
+        $isBranchHR = !$user->isAdmin() && $user->isHR() && $hasBranchAccess;
+        $canApprove = $isBranchHR || (!$user->isAdmin() && $hasBranchAccess && $user->hasPermission('approve-salary-modifications'));
+
+        if (!$canApprove) {
+            abort(403, 'Unauthorized. Only Branch HR for this employee\'s branch can reject this salary modification.');
         }
 
         $validated = $request->validate([

@@ -211,7 +211,7 @@ class EmployeeSalaryVisibilityTest extends TestCase
 
     public function test_role_with_only_edit_salary_permission_can_see_and_edit_salary(): void
     {
-        $role = Role::firstOrCreate(['slug' => 'payroll-clerk'], ['name' => 'Payroll Clerk', 'is_active' => true]);
+        $role = Role::firstOrCreate(['slug' => 'manager'], ['name' => 'Manager', 'is_active' => true]);
         $editSalaryPerm = Permission::firstOrCreate(
             ['slug' => 'edit-employee-salary'],
             ['name' => 'Edit Employee Salary', 'module' => 'employee', 'is_active' => true]
@@ -220,10 +220,10 @@ class EmployeeSalaryVisibilityTest extends TestCase
         $role->permissions()->sync([$this->viewEmployeesPerm->id, $editSalaryPerm->id]);
 
         $user = User::create([
-            'name' => 'Payroll User',
-            'email' => 'payroll_' . uniqid() . '@example.test',
+            'name' => 'Manager User With Edit Salary',
+            'email' => 'mgr_edit_sal_' . uniqid() . '@example.test',
             'password' => bcrypt('password'),
-            'role' => 'payroll-clerk',
+            'role' => 'manager',
             'company_id' => $this->company->id,
         ]);
         $user->roles()->syncWithoutDetaching([$role->id]);
