@@ -9,12 +9,13 @@ import axios from 'axios';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import SearchableSelect from '@/Components/SearchableSelect';
 import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
-import { FiSearch, FiUsers, FiCheckCircle, FiClock, FiGrid, FiUserPlus, FiSend, FiList, FiPlus, FiEye, FiEdit2, FiTrash2, FiAlertCircle, FiDownload, FiUpload, FiFileText } from 'react-icons/fi';
+import { FiSearch, FiUsers, FiCheckCircle, FiClock, FiGrid, FiUserPlus, FiSend, FiList, FiPlus, FiEye, FiEdit2, FiTrash2, FiAlertCircle, FiDownload, FiUpload, FiFileText, FiX } from 'react-icons/fi';
 
-export default function Index({ employees, status, search: initialSearch = '', stats = {}, companies = [] }) {
+export default function Index({ employees, status, filter: initialFilter = '', search: initialSearch = '', stats = {}, companies = [] }) {
     const { auth } = usePage().props;
     const user = auth?.user || {};
     const [searchTerm, setSearchTerm] = useState(initialSearch || '');
+    const filter = initialFilter || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('filter') || '' : '');
     const [departmentId, setDepartmentId] = useState(new URLSearchParams(window.location.search).get('department_id') || '');
     const departments = usePage().props.departments || [];
     const [targetCompanyId, setTargetCompanyId] = useState('');
@@ -65,6 +66,7 @@ const [categoryFilter, setCategoryFilter] = useState('');
         router.get(route('employees.index'), {
             search: searchTerm,
             status,
+            filter,
             department_id: departmentId
         }, { preserveState: true });
     };
@@ -297,35 +299,74 @@ const [categoryFilter, setCategoryFilter] = useState('');
 
                 {/* Filter Controls */}
                 <div className="flex flex-wrap gap-2">
-                    <Link href={route('employees.index', { search: searchTerm })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${!status ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>All Staff</Link>
-                    <Link href={route('employees.index', { status: 'active', search: searchTerm })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${status === 'active' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>Active</Link>
-                    <Link href={route('employees.index', { status: 'waiting', search: searchTerm })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${status === 'waiting' ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>Pending Onboarding</Link>
-                    <Link href={route('employees.index', { status: 'inactive', search: searchTerm })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${status === 'inactive' ? 'bg-rose-600 text-white shadow-lg shadow-rose-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>Inactive</Link>
+                    <Link href={route('employees.index', { search: searchTerm, department_id: departmentId })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${!status && filter !== 'new_hires' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>All Staff</Link>
+                    <Link href={route('employees.index', { status: 'active', search: searchTerm, department_id: departmentId })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${status === 'active' && filter !== 'new_hires' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>Active</Link>
+                    <Link href={route('employees.index', { status: 'waiting', search: searchTerm, department_id: departmentId })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${status === 'waiting' && filter !== 'new_hires' ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>Pending Onboarding</Link>
+                    <Link href={route('employees.index', { status: 'inactive', search: searchTerm, department_id: departmentId })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${status === 'inactive' && filter !== 'new_hires' ? 'bg-rose-600 text-white shadow-lg shadow-rose-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>Inactive</Link>
+                    <Link href={route('employees.index', { filter: 'new_hires', search: searchTerm, department_id: departmentId })} className={`px-4 py-1.5 rounded-full text-xs font-normal transition-all ${filter === 'new_hires' || status === 'new_hires' ? 'bg-rose-600 text-white shadow-lg shadow-rose-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>New Hires (Last 3 Months)</Link>
                 </div>
 
                 {/* Header Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     {[
-                        { label: 'Total Staff', value: stats.total, colorCls: 'bg-primary', icon: <FiUsers className="w-5 h-5" />, filter: null },
-                        { label: 'Active', value: stats.active, colorCls: 'bg-emerald-600', icon: <FiCheckCircle className="w-5 h-5" />, filter: { status: 'active' } },
-                        { label: 'Pending Onboarding', value: stats.pending_onboarding ?? stats.waiting ?? 0, colorCls: 'bg-amber-500', icon: <FiClock className="w-5 h-5" />, filter: { status: 'waiting' } },
+                        { label: 'Total Staff', value: stats.total, colorCls: 'bg-primary', icon: <FiUsers className="w-5 h-5" />, filter: { status: '', filter: '' } },
+                        { label: 'Active', value: stats.active, colorCls: 'bg-emerald-600', icon: <FiCheckCircle className="w-5 h-5" />, filter: { status: 'active', filter: '' } },
+                        { label: 'Pending Onboarding', value: stats.pending_onboarding ?? stats.waiting ?? 0, colorCls: 'bg-amber-500', icon: <FiClock className="w-5 h-5" />, filter: { status: 'waiting', filter: '' } },
                         { label: 'Depts', value: stats.departments, colorCls: 'bg-indigo-600', icon: <FiGrid className="w-5 h-5" />, filter: null },
-                        { label: 'New Hires', value: stats.this_month, colorCls: 'bg-rose-600', icon: <FiUserPlus className="w-5 h-5" />, filter: null }
-                    ].map((stat, i) => (
-                        <div key={i}
-                            onClick={() => stat.filter && router.get(route('employees.index'), { ...stat.filter, search: searchTerm })}
-                            className={"bg-white rounded-lg border border-slate-200 p-4 shadow-sm group hover:shadow-md transition-all " + (stat.filter ? 'cursor-pointer' : '')}>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs font-normal text-slate-500 mb-1">{stat.label}</p>
-                                    <p className="text-2xl font-normal text-slate-900 group-hover:text-primary transition-colors">{stat.value || 0}</p>
+                        { label: 'New Hires (3 Mos)', value: stats.new_hires ?? stats.this_month ?? 0, colorCls: 'bg-rose-600', icon: <FiUserPlus className="w-5 h-5" />, filter: { filter: 'new_hires', status: '' } }
+                    ].map((stat, i) => {
+                        const isNewHireCard = stat.filter?.filter === 'new_hires';
+                        const isNewHireActive = filter === 'new_hires' || status === 'new_hires';
+                        const isSelected = stat.filter && (
+                            (isNewHireCard && isNewHireActive) ||
+                            (!isNewHireActive && stat.filter.status === 'active' && status === 'active') ||
+                            (!isNewHireActive && stat.filter.status === 'waiting' && status === 'waiting') ||
+                            (!isNewHireActive && stat.filter.status === '' && !status && !filter)
+                        );
+
+                        return (
+                            <div key={i}
+                                onClick={() => {
+                                    if (!stat.filter) return;
+                                    if (isNewHireCard && isNewHireActive) {
+                                        // Toggle off to all staff
+                                        router.get(route('employees.index'), { search: searchTerm, department_id: departmentId });
+                                    } else {
+                                        router.get(route('employees.index'), { ...stat.filter, search: searchTerm, department_id: departmentId });
+                                    }
+                                }}
+                                className={`bg-white rounded-lg border p-4 shadow-sm group hover:shadow-md transition-all ${
+                                    stat.filter ? 'cursor-pointer' : ''
+                                } ${
+                                    isSelected
+                                        ? isNewHireCard
+                                            ? 'border-rose-500 ring-2 ring-rose-500/20'
+                                            : 'border-primary ring-2 ring-primary/20'
+                                        : 'border-slate-200'
+                                }`}>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-xs font-normal text-slate-500 mb-1">{stat.label}</p>
+                                        <p className={`text-2xl font-normal transition-colors ${
+                                            isSelected
+                                                ? isNewHireCard ? 'text-rose-600 font-semibold' : 'text-primary font-semibold'
+                                                : 'text-slate-900 group-hover:text-primary'
+                                        }`}>
+                                            {stat.value || 0}
+                                        </p>
+                                    </div>
+                                    <div className={"p-2 " + stat.colorCls + " rounded-lg text-white shadow-md transition-all"}>
+                                        {stat.icon}
+                                    </div>
                                 </div>
-                                <div className={"p-2 " + stat.colorCls + " rounded-lg text-white shadow-md transition-all"}>
-                                    {stat.icon}
-                                </div>
+                                {stat.filter && (
+                                    <p className="text-[9px] text-slate-400 mt-2">
+                                        {isSelected ? (isNewHireCard ? '✓ Filter active (Click to clear)' : '✓ Filter active') : 'Click to filter'}
+                                    </p>
+                                )}
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 {/* Category & Lifecycle Stats */}
@@ -337,7 +378,7 @@ const [categoryFilter, setCategoryFilter] = useState('');
                         { label: 'Interns', value: stats.on_internship || 0, cat: 'Intern', colorCls: 'bg-cyan-600', badge: null },
                     ].map((s, i) => (
                         <div key={i}
-                            onClick={() => { const next = categoryFilter === s.cat ? "" : s.cat; setCategoryFilter(next); router.get(route("employees.index"), { search: searchTerm, status, category: next }, { preserveState: true, replace: true }); }}
+                            onClick={() => { const next = categoryFilter === s.cat ? "" : s.cat; setCategoryFilter(next); router.get(route("employees.index"), { search: searchTerm, status, filter, category: next }, { preserveState: true, replace: true }); }}
                             className={"bg-white rounded-lg border p-3 shadow-sm cursor-pointer transition-all hover:shadow-md " + (categoryFilter === s.cat ? 'border-primary ring-2 ring-primary/20' : 'border-slate-200')}>
                             <div className="flex items-center justify-between mb-1">
                                 <span className={"text-[10px] font-normal text-white px-2 py-0.5 rounded-full " + s.colorCls}>{s.label}</span>
@@ -351,8 +392,21 @@ const [categoryFilter, setCategoryFilter] = useState('');
 
                 {/* Actions Bar */}
                 <div className="bg-white rounded-lg shadow-sm p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center space-x-4">
+                    <div className="flex flex-wrap items-center gap-3">
                         <h3 className="text-lg font-normal text-gray-800">Employee List</h3>
+                        {(filter === 'new_hires' || status === 'new_hires') && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
+                                New Hires (Last 3 Months)
+                                <button
+                                    type="button"
+                                    onClick={() => router.get(route('employees.index'), { search: searchTerm, department_id: departmentId })}
+                                    className="hover:text-rose-900 ml-1"
+                                    title="Clear filter"
+                                >
+                                    <FiX className="w-3.5 h-3.5" />
+                                </button>
+                            </span>
+                        )}
                         <span className="text-sm text-gray-500">Showing {employees.data?.length || 0} of {employees.total || 0} employees</span>
                     </div>
 

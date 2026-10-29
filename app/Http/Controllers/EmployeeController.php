@@ -89,6 +89,7 @@ class EmployeeController extends Controller
 
         $status = $request->query('status');
         $search = $request->query('search');
+        $filter = $request->query('filter');
         $query = Employee::query();
 
         if ($search) {
@@ -116,13 +117,22 @@ class EmployeeController extends Controller
             }
         }
         $now = now();
+        $threeMonthsAgo = $now->copy()->subMonths(3)->startOfDay()->toDateString();
+        $today = $now->copy()->endOfDay()->toDateString();
+
         $stats = [
             'total'      => $statsQuery->count(),
             'active'     => (clone $statsQuery)->active()->count(),
             'pending_onboarding' => (clone $statsQuery)->pendingOnboarding()->count(),
             'departments'=> $deptCountQuery->count(),
-            'this_month' => (clone $statsQuery)->whereMonth('joined_date', $now->month)
-                ->whereYear('joined_date', $now->year)->count(),
+            'new_hires'  => (clone $statsQuery)->whereNotNull('joined_date')
+                ->where('joined_date', '>=', $threeMonthsAgo)
+                ->where('joined_date', '<=', $today)
+                ->count(),
+            'this_month' => (clone $statsQuery)->whereNotNull('joined_date')
+                ->where('joined_date', '>=', $threeMonthsAgo)
+                ->where('joined_date', '<=', $today)
+                ->count(),
             // Category counts
             'cat_permanent' => (clone $statsQuery)->where('employee_category', 'Permanent')->count(),
             'cat_contract'  => (clone $statsQuery)->where('employee_category', 'Contract')->count(),
@@ -150,7 +160,19 @@ class EmployeeController extends Controller
             'on_internship' => (clone $statsQuery)->active()->where('employee_category', 'Intern')->count(),
         ];
 
-        if ($status === 'active') {
+        if ($filter === 'new_hires' || $status === 'new_hires') {
+            $query->whereNotNull('joined_date')
+                ->where('joined_date', '>=', $threeMonthsAgo)
+                ->where('joined_date', '<=', $today);
+
+            if ($status === 'active') {
+                $query->active();
+            } elseif ($status === 'inactive') {
+                $query->inactive();
+            } elseif ($status === 'waiting') {
+                $query->pendingOnboarding();
+            }
+        } elseif ($status === 'active') {
             $query->active();
         } elseif ($status === 'inactive') {
             $query->inactive();
@@ -173,10 +195,16 @@ class EmployeeController extends Controller
             $query->where('company_id', $request->company_id);
         }
 
-        $employees = $query->with(['department', 'company', 'user.roles'])
-            ->latest()
-            ->paginate(50)
-            ->withQueryString();
+        $employeesQuery = $query->with(['department', 'company', 'user.roles']);
+        if ($filter === 'new_hires' || $status === 'new_hires') {
+            $employees = $employeesQuery->orderBy('joined_date', 'desc')
+                ->paginate(50)
+                ->withQueryString();
+        } else {
+            $employees = $employeesQuery->latest()
+                ->paginate(50)
+                ->withQueryString();
+        }
 
         $companies = Company::orderBy('name')->get(['id', 'name']);
         // Branch-scope departments for non-admin users
@@ -192,6 +220,7 @@ class EmployeeController extends Controller
         return Inertia::render('Employee/Index', [
             'employees'   => $employees,
             'status'      => $status,
+            'filter'      => $filter,
             'search'      => $search,
             'category'    => $categoryFilter ?? null,
             'stats'       => $stats,
@@ -293,12 +322,16 @@ class EmployeeController extends Controller
 
         // Keep the legacy manager NAME in sync with the manager foreign key so
         // the profile page, exports and reports keep working unchanged.
-        if (array_key_exists('reports_to_id', $validated)) {
-            $manager = $validated['reports_to_id']
-                ? Employee::withoutGlobalScopes()->find($validated['reports_to_id'])
-                : null;
-
+        if (array_key_exists('reports_to_id', $validated) && $validated['reports_to_id']) {
+            $manager = Employee::withoutGlobalScopes()->find($validated['reports_to_id']);
             $validated['reported_to'] = $manager ? $manager->name : null;
+        } elseif (!empty($validated['reported_to'])) {
+            $manager = Employee::withoutGlobalScopes()
+                ->where('name', $validated['reported_to'])
+                ->first();
+            if ($manager) {
+                $validated['reports_to_id'] = $manager->id;
+            }
         }
 
         $newUploadedFiles = [];
@@ -1259,40 +1292,60 @@ class EmployeeController extends Controller
                 return response()->json(['error' => 'Unauthenticated.'], 401);
             }
 
-            $departmentId = $request->input('department_id');
-            $companyId = $request->input('company_id');
+            $companyIds = array_filter((array) ($request->input('company_ids') ?: ($request->input('company_id') ? [$request->input('company_id')] : [])));
+            $departmentIds = array_filter((array) ($request->input('department_ids') ?: ($request->input('department_id') ? [$request->input('department_id')] : [])));
 
-            // Multi-tenancy check: non-admins are restricted to their own branch
+            // Multi-tenancy check: non-admins are restricted to their assigned branches
             if (!$user->isAdmin()) {
-                $userCompanyId = $user->employee?->company_id;
-                if ($companyId && (int)$companyId !== (int)$userCompanyId) {
-                    abort(403, 'Unauthorized access to another branch employees.');
+                $assignedCompanyIds = $user->getAssignedCompanyIds();
+                if ($assignedCompanyIds->isNotEmpty() && !empty($companyIds)) {
+                    $hasUnauthorized = collect($companyIds)->some(fn($id) => !$assignedCompanyIds->contains((int)$id));
+                    if ($hasUnauthorized) {
+                        abort(403, 'Unauthorized access to another branch employees.');
+                    }
                 }
-                $companyId = $userCompanyId ?: $companyId;
             }
 
             $departmentEmployees = collect();
-            if ($departmentId) {
-                $departmentEmployees = Employee::where('department_id', $departmentId)
+            if (!empty($departmentIds)) {
+                $departmentEmployees = Employee::withoutGlobalScope('company')
+                    ->whereIn('department_id', $departmentIds)
+                    ->when(!empty($companyIds), fn($q) => $q->whereIn('company_id', $companyIds))
                     ->active()
                     ->orderBy('name')
-                    ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
+                    ->get(['id', 'name', 'designation', 'company_id', 'department_id', 'role']);
             }
 
             // All active employees from the same branch/company
             $branchEmployees = collect();
-            if ($companyId) {
-                $branchEmployees = Employee::where('company_id', $companyId)
+            if (!empty($companyIds)) {
+                $branchEmployees = Employee::withoutGlobalScope('company')
+                    ->whereIn('company_id', $companyIds)
                     ->active()
                     ->orderBy('name')
-                    ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
+                    ->get(['id', 'name', 'designation', 'company_id', 'department_id', 'role']);
+            }
+
+            $branchManagers = $branchEmployees->filter(function ($emp) {
+                $desig = strtolower($emp->designation ?? '');
+                $role = strtolower($emp->role ?? '');
+                return str_contains($desig, 'manager') ||
+                       str_contains($desig, 'lead') ||
+                       str_contains($desig, 'head') ||
+                       str_contains($desig, 'director') ||
+                       str_contains($desig, 'supervisor') ||
+                       in_array($role, ['manager', 'hr', 'admin']);
+            })->values();
+
+            if ($branchManagers->isEmpty()) {
+                $branchManagers = $branchEmployees;
             }
 
             return response()->json([
                 'employees' => $departmentEmployees,
                 'department_employees' => $departmentEmployees,
                 'branch_employees' => $branchEmployees,
-                'branch_managers' => $branchEmployees,
+                'branch_managers' => $branchManagers,
             ]);
         } catch (\Throwable $e) {
             \Log::error('Error in getByDepartment:', ['error' => $e->getMessage()]);

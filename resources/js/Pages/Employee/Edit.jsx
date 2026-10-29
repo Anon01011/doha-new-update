@@ -1,4 +1,4 @@
-﻿import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useForm, Head, Link, usePage } from '@inertiajs/react';
 import { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
@@ -236,6 +236,8 @@ export default function EditEmployee(props) {
         }
     }, [data.company_ids, data.company_id]);
 
+    const managerStaff = useMemo(() => managerEmployees || [], [managerEmployees]);
+
     // Fetch reporting staff
     useEffect(() => {
         const branchIds = (data.company_ids && data.company_ids.length > 0)
@@ -246,13 +248,17 @@ export default function EditEmployee(props) {
             : (data.department_id ? [data.department_id] : []);
 
         if (deptIds.length > 0 || branchIds.length > 0) {
-            axios.get(route('api.employees.byDepartment', {
-                department_id: deptIds[0] || '',
-                company_id: branchIds[0] || ''
-            }))
+            axios.get(route('api.employees.byDepartment'), {
+                params: {
+                    department_ids: deptIds,
+                    company_ids: branchIds,
+                    department_id: deptIds[0] || '',
+                    company_id: branchIds[0] || ''
+                }
+            })
                 .then(res => {
-                    setDepartmentEmployees(res.data.employees || []);
-                    setBranchManagers(res.data.branch_managers || []);
+                    setDepartmentEmployees(res.data.department_employees || res.data.employees || []);
+                    setBranchManagers(res.data.branch_managers || res.data.branch_employees || []);
                 })
                 .catch(() => {
                     setDepartmentEmployees([]);
@@ -321,35 +327,101 @@ export default function EditEmployee(props) {
         }
 
         const groups = [];
+        const seenNames = new Set();
+
+        const branchIds = (data.company_ids && data.company_ids.length > 0)
+            ? data.company_ids.map(Number)
+            : (data.company_id ? [Number(data.company_id)] : []);
+        const deptIds = (data.department_ids && data.department_ids.length > 0)
+            ? data.department_ids.map(Number)
+            : (data.department_id ? [Number(data.department_id)] : []);
+
+        // 1. Department Leadership & Staff (from current branch & department)
+        const deptList = [...(departmentEmployees || [])];
+        if (deptIds.length > 0) {
+            (managerStaff || []).forEach(m => {
+                if (deptIds.includes(Number(m.department_id)) && !deptList.some(e => e.id === m.id)) {
+                    deptList.push(m);
+                }
+            });
+        }
+        if (deptList.length > 0) {
+            const opts = [];
+            deptList.forEach(emp => {
+                if (!seenNames.has(emp.name)) {
+                    seenNames.add(emp.name);
+                    opts.push({
+                        value: emp.name,
+                        label: `${emp.name} ${emp.designation ? `(${emp.designation})` : ''}`
+                    });
+                }
+            });
+            if (opts.length > 0) {
+                groups.push({ label: 'Department Leadership & Staff', options: opts });
+            }
+        }
+
+        // 2. Branch Managers & Officers (from current branch)
+        const branchList = [...(branchManagers || [])];
+        if (branchIds.length > 0) {
+            (managerStaff || []).forEach(m => {
+                if (branchIds.includes(Number(m.company_id)) && !branchList.some(e => e.id === m.id)) {
+                    branchList.push(m);
+                }
+            });
+        }
+        if (branchList.length > 0) {
+            const opts = [];
+            branchList.forEach(mgr => {
+                if (!seenNames.has(mgr.name)) {
+                    seenNames.add(mgr.name);
+                    opts.push({
+                        value: mgr.name,
+                        label: `${mgr.name} ${mgr.designation ? `(${mgr.designation})` : ''}`
+                    });
+                }
+            });
+            if (opts.length > 0) {
+                groups.push({ label: 'Branch Managers & Officers', options: opts });
+            }
+        }
+
+        // 3. Cross-Branch Managers (All other available managers)
+        if (managerStaff && managerStaff.length > 0) {
+            const otherOpts = [];
+            managerStaff.forEach(mgr => {
+                if (!seenNames.has(mgr.name)) {
+                    seenNames.add(mgr.name);
+                    otherOpts.push({
+                        value: mgr.name,
+                        label: `${mgr.name} ${mgr.designation ? `(${mgr.designation})` : ''}`
+                    });
+                }
+            });
+            if (otherOpts.length > 0) {
+                groups.push({ label: 'All Managers (Cross-Branch)', options: otherOpts });
+            }
+        }
+
+        // 4. Executive Leadership (CEO, Founder, Director)
         if (executiveLeaders && executiveLeaders.length > 0) {
-            groups.push({
-                label: 'Executive Leadership',
-                options: executiveLeaders.map(exec => ({
-                    value: exec.name,
-                    label: `${exec.name} (${exec.designation || 'Executive Leader'})`
-                }))
+            const execOpts = [];
+            executiveLeaders.forEach(exec => {
+                if (!seenNames.has(exec.name)) {
+                    seenNames.add(exec.name);
+                    execOpts.push({
+                        value: exec.name,
+                        label: `${exec.name} (${exec.designation || 'Executive Leader'})`
+                    });
+                }
             });
+            if (execOpts.length > 0) {
+                groups.push({ label: 'Executive Leadership', options: execOpts });
+            }
         }
-        if (departmentEmployees && departmentEmployees.length > 0) {
-            groups.push({
-                label: 'Department Staff',
-                options: departmentEmployees.map(emp => ({
-                    value: emp.name,
-                    label: `${emp.name} ${emp.designation ? `(${emp.designation})` : ''}`
-                }))
-            });
-        }
-        if (branchManagers && branchManagers.length > 0) {
-            groups.push({
-                label: 'Branch Management / Staff',
-                options: branchManagers.map(mgr => ({
-                    value: mgr.name,
-                    label: `${mgr.name} ${mgr.designation ? `(${mgr.designation})` : ''}`
-                }))
-            });
-        }
+
         return groups;
-    }, [isHrOrManager, executiveLeaders, departmentEmployees, branchManagers]);
+    }, [isHrOrManager, executiveLeaders, departmentEmployees, branchManagers, managerStaff, data.company_ids, data.company_id, data.department_ids, data.department_id]);
 
     const roleOptions = useMemo(() => {
         return (availableRoles || []).map(r => ({ value: r.slug, label: r.name }));
