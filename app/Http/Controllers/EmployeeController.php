@@ -270,6 +270,9 @@ class EmployeeController extends Controller
             ?? Role::where('is_active', true)->first();
         $defaultRoleSlug = $defaultRole ? $defaultRole->slug : 'employee';
 
+        $canSeeSalary = $user->hasPermission('view-employee-salary', false);
+        $canEditSalary = $user->isAdmin() || $user->hasPermission('edit-employee-salary');
+
         return Inertia::render('Employee/Create', [
             'companies' => $companies,
             'departments' => $departments,
@@ -279,6 +282,8 @@ class EmployeeController extends Controller
             'leadershipEmployees' => $this->getLeadershipEmployees(),
             'managerEmployees' => $this->getManagerAndHrEmployees(),
             'constants' => $this->getConstants(),
+            'can_see_salary' => $canSeeSalary,
+            'can_edit_salary' => $canEditSalary,
         ]);
     }
 
@@ -310,6 +315,19 @@ class EmployeeController extends Controller
             }
         }
 
+        // Permission check: only users with edit-employee-salary or admin can set salary on creation
+        if (!$user->isAdmin() && !$user->hasPermission('edit-employee-salary')) {
+            unset(
+                $validated['basic_salary'],
+                $validated['payment_type'],
+                $validated['bank_name'],
+                $validated['bank_account_number'],
+                $validated['iban'],
+                $validated['upi_id'],
+                $validated['salary_structures']
+            );
+        }
+
         // Auto-generate employee code if not provided
         if (empty($validated['employee_code'])) {
             $companyId = $validated['company_id'] ?? null;
@@ -322,16 +340,12 @@ class EmployeeController extends Controller
 
         // Keep the legacy manager NAME in sync with the manager foreign key so
         // the profile page, exports and reports keep working unchanged.
-        if (array_key_exists('reports_to_id', $validated) && $validated['reports_to_id']) {
-            $manager = Employee::withoutGlobalScopes()->find($validated['reports_to_id']);
+        if (array_key_exists('reports_to_id', $validated)) {
+            $manager = $validated['reports_to_id']
+                ? Employee::withoutGlobalScopes()->find($validated['reports_to_id'])
+                : null;
+
             $validated['reported_to'] = $manager ? $manager->name : null;
-        } elseif (!empty($validated['reported_to'])) {
-            $manager = Employee::withoutGlobalScopes()
-                ->where('name', $validated['reported_to'])
-                ->first();
-            if ($manager) {
-                $validated['reports_to_id'] = $manager->id;
-            }
         }
 
         $newUploadedFiles = [];
@@ -672,6 +686,20 @@ class EmployeeController extends Controller
                 unset($employeePayload[$privateField]);
             }
         }
+        $pendingSalaryRequest = null;
+        if ($canSeeSalary) {
+            $pendingSalaryRequest = $employee->pendingSalaryModification()
+                ->with(['requester:id,name,role', 'company:id,name'])
+                ->first();
+        }
+
+        $canEditSalary = $user->isAdmin() || $user->hasPermission('edit-employee-salary');
+        $isBranchHR = $user->isHR() && (
+            $user->company_id == $employee->company_id ||
+            $user->getAssignedCompanyIds()->contains((int)$employee->company_id)
+        );
+        $canApproveSalary = $user->isAdmin() || $isBranchHR || $user->hasPermission('approve-salary-modifications');
+
         return Inertia::render('Employee/Show', [
             'employee' => array_merge($employeePayload, [
                 // Explicit route key so the frontend can build slug URLs
@@ -691,6 +719,9 @@ class EmployeeController extends Controller
             'contractLifecycle'   => $contractLifecycle,
             'probation_duration_months' => \App\Models\Employee::defaultProbationMonths(),
             'can_see_salary' => $canSeeSalary,
+            'can_edit_salary' => $canEditSalary,
+            'can_approve_salary' => $canApproveSalary,
+            'pending_salary_modification' => $pendingSalaryRequest,
             'leaveBalances' => \App\Services\LeaveBalanceService::getOrSyncBalancesForEmployee($employee, (int) now()->year),
         ]);
     }
@@ -764,6 +795,27 @@ class EmployeeController extends Controller
             $employeeData['department_ids'] = [(int)$employee->department_id];
         }
 
+        $canSeeSalary = $user->hasPermission('view-employee-salary', false);
+        $canEditSalary = $user->isAdmin() || $user->hasPermission('edit-employee-salary');
+        $pendingSalaryRequest = $canSeeSalary ? $employee->pendingSalaryModification()->with('requester:id,name,role')->first() : null;
+
+        if (!$canSeeSalary) {
+            foreach ([
+                'basic_salary',
+                'salary_structures',
+                'salaryStructures',
+                'bank_account_number',
+                'iban',
+                'upi_id',
+                'pan_number',
+                'bank_name',
+                'bank_code',
+                'bank_branch',
+            ] as $privateField) {
+                unset($employeeData[$privateField]);
+            }
+        }
+
         return Inertia::render('Employee/Edit', [
             'employee' => $employeeData,
             'canEditCode' => $user->isAdmin() && !$employee->is_code_edited,
@@ -775,6 +827,9 @@ class EmployeeController extends Controller
             'managerEmployees' => $this->getManagerAndHrEmployees(),
             'employee_role' => $employeeRole,
             'constants' => $this->getConstants(),
+            'can_see_salary' => $canSeeSalary,
+            'can_edit_salary' => $canEditSalary,
+            'pending_salary_modification' => $pendingSalaryRequest,
         ]);
     }
 
@@ -802,6 +857,19 @@ class EmployeeController extends Controller
             if (array_key_exists($field, $validated) && ($validated[$field] === '' || $validated[$field] === null)) {
                 $validated[$field] = null;
             }
+        }
+
+        // Permission check: only users with edit-employee-salary or admin can set salary on creation
+        if (!$user->isAdmin() && !$user->hasPermission('edit-employee-salary')) {
+            unset(
+                $validated['basic_salary'],
+                $validated['payment_type'],
+                $validated['bank_name'],
+                $validated['bank_account_number'],
+                $validated['iban'],
+                $validated['upi_id'],
+                $validated['salary_structures']
+            );
         }
 
         // Employee ID edit-once restriction for super admin / admin
@@ -839,20 +907,17 @@ class EmployeeController extends Controller
 
         // Keep the legacy manager NAME in sync with the manager foreign key so
         // the profile page, exports and reports keep working unchanged.
-        if (array_key_exists('reports_to_id', $validated)) {
-            $manager = $validated['reports_to_id']
-                ? Employee::withoutGlobalScopes()->find($validated['reports_to_id'])
-                : null;
+        $this->syncReportingPerson($validated);
 
-            if ($manager && (int) $manager->id === (int) $employee->id) {
+        $managerId = $validated['reports_to_id'] ?? null;
+        if ($managerId) {
+            if ((int) $managerId === (int) $employee->id) {
                 return back()->withErrors(['reports_to_id' => 'An employee cannot report to themselves.']);
             }
 
-            if ($manager && \App\Services\EmployeeAuthorizationService::detectReportingCycle((int) $employee->id, (int) $manager->id)) {
+            if (\App\Services\EmployeeAuthorizationService::detectReportingCycle((int) $employee->id, (int) $managerId)) {
                 return back()->withErrors(['reports_to_id' => 'Circular reporting detected. An employee cannot report to someone who reports to them.']);
             }
-
-            $validated['reported_to'] = $manager ? $manager->name : null;
         }
 
         // Remove file fields from validated data so they don't overwrite with null if not uploaded
@@ -979,6 +1044,103 @@ class EmployeeController extends Controller
             $newUploadedFiles[] = $path;
         }
 
+        $canEditSalary = $user->isAdmin() || $user->hasPermission('edit-employee-salary');
+        $isBranchHR = $user->isHR() && (
+            $user->company_id == $employee->company_id ||
+            $user->getAssignedCompanyIds()->contains((int)$employee->company_id)
+        );
+        $canDirectApplySalary = $user->isAdmin() || $isBranchHR;
+        $salaryPendingApproval = false;
+
+        if ($canEditSalary && !$canDirectApplySalary) {
+            // Check if any salary field was modified
+            $newBasic = isset($validated['basic_salary']) ? round((float)$validated['basic_salary'], 2) : round((float)$employee->basic_salary, 2);
+            $currBasic = round((float)$employee->basic_salary, 2);
+            $basicChanged = abs($newBasic - $currBasic) > 0.001;
+
+            $paymentTypeChanged = isset($validated['payment_type']) && $validated['payment_type'] !== $employee->payment_type;
+            $bankNameChanged = isset($validated['bank_name']) && $validated['bank_name'] !== $employee->bank_name;
+            $accountChanged = isset($validated['bank_account_number']) && $validated['bank_account_number'] !== $employee->bank_account_number;
+            $ibanChanged = isset($validated['iban']) && $validated['iban'] !== $employee->iban;
+            $structuresChanged = isset($validated['salary_structures']);
+
+            if ($basicChanged || $paymentTypeChanged || $bankNameChanged || $accountChanged || $ibanChanged || $structuresChanged) {
+                // Snapshot current salary structures
+                $employee->loadMissing('salaryStructures.component');
+                $currentStructures = $employee->salaryStructures->map(function ($s) {
+                    return [
+                        'component_id' => $s->component_id,
+                        'name' => $s->component?->name ?? 'Component',
+                        'type' => $s->component?->type ?? 'allowance',
+                        'amount' => (float)$s->amount,
+                        'value_type' => $s->value_type ?? 'flat',
+                    ];
+                })->all();
+
+                $proposedStructures = null;
+                if (isset($validated['salary_structures'])) {
+                    $components = \App\Models\SalaryComponent::whereIn('id', collect($validated['salary_structures'])->pluck('component_id'))->get()->keyBy('id');
+                    $proposedStructures = collect($validated['salary_structures'])->map(function ($s) use ($components) {
+                        $comp = $components->get($s['component_id'] ?? 0);
+                        return [
+                            'component_id' => $s['component_id'] ?? null,
+                            'name' => $comp?->name ?? 'Component',
+                            'type' => $comp?->type ?? 'allowance',
+                            'amount' => (float)($s['amount'] ?? 0),
+                            'value_type' => $s['value_type'] ?? 'flat',
+                        ];
+                    })->all();
+                }
+
+                \App\Models\SalaryModificationRequest::updateOrCreate(
+                    [
+                        'employee_id' => $employee->id,
+                        'status' => 'pending',
+                    ],
+                    [
+                        'company_id' => $employee->company_id,
+                        'requested_by' => $user->id,
+                        'current_basic_salary' => $currBasic,
+                        'proposed_basic_salary' => $newBasic,
+                        'current_payment_type' => $employee->payment_type,
+                        'proposed_payment_type' => $validated['payment_type'] ?? $employee->payment_type,
+                        'current_bank_name' => $employee->bank_name,
+                        'proposed_bank_name' => $validated['bank_name'] ?? $employee->bank_name,
+                        'current_bank_account_number' => $employee->bank_account_number,
+                        'proposed_bank_account_number' => $validated['bank_account_number'] ?? $employee->bank_account_number,
+                        'current_iban' => $employee->iban,
+                        'proposed_iban' => $validated['iban'] ?? $employee->iban,
+                        'current_salary_structures' => $currentStructures,
+                        'proposed_salary_structures' => $proposedStructures,
+                        'reason' => 'Submitted by ' . $user->name . ' (' . ($user->role ?: 'Manager') . ') during employee update.',
+                    ]
+                );
+
+                // Send notification to Branch HR and Admins
+                \App\Services\NotificationService::notifyHrAndAdmins(
+                    new \App\Notifications\GenericHrNotification(
+                        'Salary Modification Pending Approval',
+                        "{$user->name} requested salary changes for {$employee->name}. Branch HR approval required.",
+                        route('salary-modifications.index'),
+                        'salary_modification_requested'
+                    ),
+                    $employee->company_id,
+                    $user->id
+                );
+
+                // Strip salary fields from immediate update so the live employee record is NOT altered
+                unset(
+                    $validated['basic_salary'],
+                    $validated['payment_type'],
+                    $validated['bank_name'],
+                    $validated['bank_account_number'],
+                    $validated['iban'],
+                    $validated['salary_structures']
+                );
+                $salaryPendingApproval = true;
+            }
+        }
+
         DB::beginTransaction();
         try {
             // Auto-update status based on exit status
@@ -1003,8 +1165,8 @@ class EmployeeController extends Controller
                 }
             }
 
-            // Sync Salary Structures
-            if (isset($validated['salary_structures'])) {
+            // Sync Salary Structures (only when authorized to apply directly)
+            if ($canDirectApplySalary && isset($validated['salary_structures'])) {
                 $employee->salaryStructures()->delete();
                 foreach ($validated['salary_structures'] as $struct) {
                     if (!empty($struct['component_id'])) {
@@ -1141,6 +1303,10 @@ class EmployeeController extends Controller
                 if ($oldFile && Storage::disk('public')->exists($oldFile)) {
                     Storage::disk('public')->delete($oldFile);
                 }
+            }
+
+            if ($salaryPendingApproval) {
+                return redirect()->route('employees.show', $employee)->with('warning', 'Employee details updated. Salary modification has been submitted to ' . ($employee->company?->name ?? 'Branch') . ' HR for approval.');
             }
 
             return redirect()->route('employees.show', $employee)->with('success', 'Employee updated successfully!');
@@ -1309,17 +1475,18 @@ class EmployeeController extends Controller
             $departmentEmployees = collect();
             if (!empty($departmentIds)) {
                 $departmentEmployees = Employee::withoutGlobalScope('company')
+                    ->with(['company:id,name', 'department:id,name'])
                     ->whereIn('department_id', $departmentIds)
-                    ->when(!empty($companyIds), fn($q) => $q->whereIn('company_id', $companyIds))
+                    ->when(!empty($companyIds), fn ($q) => $q->whereIn('company_id', $companyIds))
                     ->active()
                     ->orderBy('name')
                     ->get(['id', 'name', 'designation', 'company_id', 'department_id', 'role']);
             }
 
-            // All active employees from the same branch/company
             $branchEmployees = collect();
             if (!empty($companyIds)) {
                 $branchEmployees = Employee::withoutGlobalScope('company')
+                    ->with(['company:id,name', 'department:id,name'])
                     ->whereIn('company_id', $companyIds)
                     ->active()
                     ->orderBy('name')
@@ -1329,12 +1496,13 @@ class EmployeeController extends Controller
             $branchManagers = $branchEmployees->filter(function ($emp) {
                 $desig = strtolower($emp->designation ?? '');
                 $role = strtolower($emp->role ?? '');
-                return str_contains($desig, 'manager') ||
-                       str_contains($desig, 'lead') ||
-                       str_contains($desig, 'head') ||
-                       str_contains($desig, 'director') ||
-                       str_contains($desig, 'supervisor') ||
-                       in_array($role, ['manager', 'hr', 'admin']);
+                return str_contains($desig, 'manager')
+                    || str_contains($desig, 'lead')
+                    || str_contains($desig, 'head')
+                    || str_contains($desig, 'director')
+                    || str_contains($desig, 'supervisor')
+                    || str_contains($desig, 'hr')
+                    || in_array($role, ['manager', 'hr', 'admin', 'branch-manager'], true);
             })->values();
 
             if ($branchManagers->isEmpty()) {
@@ -1360,22 +1528,50 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Get real users/employees with Executive / Leadership designations (CEO, Founder, Owner, COO, Director, etc.)
+     * Keep reported_to (legacy name) aligned with reports_to_id (FK).
+     * The create/edit forms may send either the id, the name, or both.
      */
+    private function syncReportingPerson(array &$validated): void
+    {
+        if (!empty($validated['reports_to_id'])) {
+            $manager = Employee::withoutGlobalScopes()->find($validated['reports_to_id']);
+            $validated['reported_to'] = $manager ? $manager->name : null;
+            if (!$manager) {
+                $validated['reports_to_id'] = null;
+            }
+            return;
+        }
+
+        if (!empty($validated['reported_to'])) {
+            $manager = Employee::withoutGlobalScopes()
+                ->where('name', $validated['reported_to'])
+                ->first();
+            $validated['reports_to_id'] = $manager ? $manager->id : null;
+            return;
+        }
+
+        $validated['reports_to_id'] = null;
+        if (array_key_exists('reported_to', $validated)) {
+            $validated['reported_to'] = $validated['reported_to'] ?: null;
+        }
+    }
+
     private function getLeadershipEmployees()
     {
-        $leadership = Employee::withoutGlobalScope('company')->where(function ($q) {
-            $q->where('designation', 'LIKE', '%CEO%')
-              ->orWhere('designation', 'LIKE', '%Founder%')
-              ->orWhere('designation', 'LIKE', '%Owner%')
-              ->orWhere('designation', 'LIKE', '%COO%')
-              ->orWhere('designation', 'LIKE', '%Chief Operating Officer%')
-              ->orWhere('designation', 'LIKE', '%Director%')
-              ->orWhere('designation', 'LIKE', '%General Manager%');
-        })
-        ->active()
-        ->orderBy('name')
-        ->get(['id', 'name', 'designation', 'company_id']);
+        $leadership = Employee::withoutGlobalScope('company')
+            ->with('company:id,name')
+            ->where(function ($q) {
+                $q->where('designation', 'LIKE', '%CEO%')
+                  ->orWhere('designation', 'LIKE', '%Founder%')
+                  ->orWhere('designation', 'LIKE', '%Owner%')
+                  ->orWhere('designation', 'LIKE', '%COO%')
+                  ->orWhere('designation', 'LIKE', '%Chief Operating Officer%')
+                  ->orWhere('designation', 'LIKE', '%Director%')
+                  ->orWhere('designation', 'LIKE', '%General Manager%');
+            })
+            ->active()
+            ->orderBy('name')
+            ->get(['id', 'name', 'designation', 'company_id']);
 
         // Fallback: If no employee with CEO/Founder designation exists yet, include admin users
         if ($leadership->isEmpty()) {
@@ -1388,10 +1584,11 @@ class EmployeeController extends Controller
 
             foreach ($adminUsers as $admin) {
                 $leadership->push((object)[
-                    'id' => $admin->employee_id ?: ('user_' . $admin->id),
+                    'id' => $admin->employee_id ?: null,
                     'name' => $admin->name,
                     'designation' => 'Founder / CEO',
-                    'company_id' => null,
+                    'company_id' => $admin->company_id,
+                    'company' => null,
                 ]);
             }
         }
@@ -1401,25 +1598,79 @@ class EmployeeController extends Controller
 
     /**
      * Get real users/employees with Manager / HR / Supervisor designations
+     * across all branches so a reporting person can be assigned cross-branch.
      */
     private function getManagerAndHrEmployees()
     {
-        return Employee::withoutGlobalScope('company')->where(function ($q) {
-            $q->where('designation', 'LIKE', '%Manager%')
-              ->orWhere('designation', 'LIKE', '%HR%')
-              ->orWhere('designation', 'LIKE', '%Human Resource%')
-              ->orWhere('designation', 'LIKE', '%Supervisor%')
-              ->orWhere('designation', 'LIKE', '%Lead%');
-        })
-        ->orWhereHas('user', function ($q) {
-            $q->whereIn('role', ['hr', 'manager'])
-              ->orWhereHas('roles', function ($rq) {
-                  $rq->whereIn('slug', ['hr', 'manager', 'branch-manager']);
-              });
-        })
-        ->active()
-        ->orderBy('name')
-        ->get(['id', 'name', 'designation', 'company_id', 'department_id']);
+        $employees = Employee::withoutGlobalScope('company')
+            ->with(['company:id,name', 'department:id,name'])
+            ->where(function ($q) {
+                $q->where(function ($inner) {
+                    $inner->where('designation', 'LIKE', '%Manager%')
+                        ->orWhere('designation', 'LIKE', '%HR%')
+                        ->orWhere('designation', 'LIKE', '%Human Resource%')
+                        ->orWhere('designation', 'LIKE', '%Supervisor%')
+                        ->orWhere('designation', 'LIKE', '%Lead%')
+                        ->orWhere('designation', 'LIKE', '%Head%')
+                        ->orWhere('designation', 'LIKE', '%Director%')
+                        ->orWhere('designation', 'LIKE', '%COO%')
+                        ->orWhereIn('role', ['admin', 'hr', 'manager', 'branch-manager']);
+                })->orWhereHas('user', function ($uq) {
+                    $uq->whereIn('role', ['admin', 'hr', 'manager', 'branch-manager'])
+                        ->orWhereHas('roles', function ($rq) {
+                            $rq->whereIn('slug', ['admin', 'hr', 'manager', 'branch-manager']);
+                        });
+                });
+            })
+            ->active()
+            ->orderBy('name')
+            ->get(['id', 'name', 'designation', 'company_id', 'department_id', 'role']);
+
+        $existingIds = $employees->pluck('id')->filter()->map(fn ($id) => (int) $id)->all();
+
+        $mgmtUsers = User::query()
+            ->where(function ($q) {
+                $q->whereIn('role', ['admin', 'hr', 'manager', 'branch-manager'])
+                    ->orWhereHas('roles', function ($rq) {
+                        $rq->whereIn('slug', ['admin', 'hr', 'manager', 'branch-manager']);
+                    });
+            })
+            ->where(function ($q) use ($existingIds) {
+                $q->whereNull('employee_id');
+                if (!empty($existingIds)) {
+                    $q->orWhereNotIn('employee_id', $existingIds);
+                }
+            })
+            ->get(['id', 'name', 'role', 'employee_id', 'company_id']);
+
+        $companyIds = $mgmtUsers->pluck('company_id')->filter()->unique()->values();
+        $companies = $companyIds->isEmpty()
+            ? collect()
+            : Company::withoutGlobalScope('company')->whereIn('id', $companyIds)->get(['id', 'name'])->keyBy('id');
+
+        foreach ($mgmtUsers as $user) {
+            if ($user->employee_id && in_array((int) $user->employee_id, $existingIds, true)) {
+                continue;
+            }
+
+            $company = $user->company_id ? $companies->get($user->company_id) : null;
+            $employees->push((object) [
+                'id' => $user->employee_id ?: null,
+                'name' => $user->name,
+                'designation' => $user->role ? ucwords(str_replace('-', ' ', $user->role)) : 'Manager',
+                'company_id' => $user->company_id,
+                'department_id' => null,
+                'role' => $user->role,
+                'company' => $company,
+            ]);
+        }
+
+        return $employees->unique(function ($item) {
+            if (!empty($item->id) && is_numeric($item->id)) {
+                return 'id:' . $item->id;
+            }
+            return 'name:' . strtolower((string) $item->name);
+        })->values();
     }
 
     private function getConstants()

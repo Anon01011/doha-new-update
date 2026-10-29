@@ -10,6 +10,7 @@ import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
 import FormErrorNotification from '@/Components/FormErrorNotification';
 import { resolveCurrency, resolveCountry } from '@/helpers/currency';
 import { employeeRouteKey, employeeRoute } from '@/helpers/employee-routes';
+import { buildReportingOptions, flattenReportingOptions } from '@/helpers/reportingOptions';
 import {
     FiUser, FiCreditCard, FiMapPin, FiBriefcase, FiClock, FiDollarSign,
     FiFileText, FiPlus, FiTrash2, FiArrowRight, FiArrowLeft, FiEye,
@@ -36,7 +37,10 @@ export default function EditEmployee(props) {
         availableRoles = [],
         employee_role = null,
         leadershipEmployees = [],
-        managerEmployees = []
+        managerEmployees = [],
+        can_see_salary = false,
+        can_edit_salary = false,
+        pending_salary_modification = null,
     } = props;
 
     // Active Navigation Tab
@@ -238,7 +242,7 @@ export default function EditEmployee(props) {
 
     const managerStaff = useMemo(() => managerEmployees || [], [managerEmployees]);
 
-    // Fetch reporting staff
+    // Fetch reporting staff (quick runtime AJAX to enrich options)
     useEffect(() => {
         const branchIds = (data.company_ids && data.company_ids.length > 0)
             ? data.company_ids
@@ -269,13 +273,6 @@ export default function EditEmployee(props) {
             setBranchManagers([]);
         }
     }, [data.department_ids, data.company_ids, data.department_id, data.company_id]);
-
-    const isHrOrManager = useMemo(() => {
-        const role = (data.role || '').toLowerCase();
-        const desig = (data.designation || '').toLowerCase();
-        return role === 'hr' || role === 'manager' || role === 'branch-manager' ||
-            desig.includes('hr') || desig.includes('manager') || desig.includes('coo') || desig.includes('director') || desig.includes('head');
-    }, [data.role, data.designation]);
 
     const executiveLeaders = useMemo(() => leadershipEmployees || [], [leadershipEmployees]);
 
@@ -319,16 +316,6 @@ export default function EditEmployee(props) {
     }, [designationList, data.designation]);
 
     const reportingOptions = useMemo(() => {
-        if (isHrOrManager) {
-            return (executiveLeaders || []).map(exec => ({
-                value: exec.name,
-                label: `${exec.name} (${exec.designation || 'Executive Leader'})`
-            }));
-        }
-
-        const groups = [];
-        const seenNames = new Set();
-
         const branchIds = (data.company_ids && data.company_ids.length > 0)
             ? data.company_ids.map(Number)
             : (data.company_id ? [Number(data.company_id)] : []);
@@ -336,92 +323,15 @@ export default function EditEmployee(props) {
             ? data.department_ids.map(Number)
             : (data.department_id ? [Number(data.department_id)] : []);
 
-        // 1. Department Leadership & Staff (from current branch & department)
-        const deptList = [...(departmentEmployees || [])];
-        if (deptIds.length > 0) {
-            (managerStaff || []).forEach(m => {
-                if (deptIds.includes(Number(m.department_id)) && !deptList.some(e => e.id === m.id)) {
-                    deptList.push(m);
-                }
-            });
-        }
-        if (deptList.length > 0) {
-            const opts = [];
-            deptList.forEach(emp => {
-                if (!seenNames.has(emp.name)) {
-                    seenNames.add(emp.name);
-                    opts.push({
-                        value: emp.name,
-                        label: `${emp.name} ${emp.designation ? `(${emp.designation})` : ''}`
-                    });
-                }
-            });
-            if (opts.length > 0) {
-                groups.push({ label: 'Department Leadership & Staff', options: opts });
-            }
-        }
-
-        // 2. Branch Managers & Officers (from current branch)
-        const branchList = [...(branchManagers || [])];
-        if (branchIds.length > 0) {
-            (managerStaff || []).forEach(m => {
-                if (branchIds.includes(Number(m.company_id)) && !branchList.some(e => e.id === m.id)) {
-                    branchList.push(m);
-                }
-            });
-        }
-        if (branchList.length > 0) {
-            const opts = [];
-            branchList.forEach(mgr => {
-                if (!seenNames.has(mgr.name)) {
-                    seenNames.add(mgr.name);
-                    opts.push({
-                        value: mgr.name,
-                        label: `${mgr.name} ${mgr.designation ? `(${mgr.designation})` : ''}`
-                    });
-                }
-            });
-            if (opts.length > 0) {
-                groups.push({ label: 'Branch Managers & Officers', options: opts });
-            }
-        }
-
-        // 3. Cross-Branch Managers (All other available managers)
-        if (managerStaff && managerStaff.length > 0) {
-            const otherOpts = [];
-            managerStaff.forEach(mgr => {
-                if (!seenNames.has(mgr.name)) {
-                    seenNames.add(mgr.name);
-                    otherOpts.push({
-                        value: mgr.name,
-                        label: `${mgr.name} ${mgr.designation ? `(${mgr.designation})` : ''}`
-                    });
-                }
-            });
-            if (otherOpts.length > 0) {
-                groups.push({ label: 'All Managers (Cross-Branch)', options: otherOpts });
-            }
-        }
-
-        // 4. Executive Leadership (CEO, Founder, Director)
-        if (executiveLeaders && executiveLeaders.length > 0) {
-            const execOpts = [];
-            executiveLeaders.forEach(exec => {
-                if (!seenNames.has(exec.name)) {
-                    seenNames.add(exec.name);
-                    execOpts.push({
-                        value: exec.name,
-                        label: `${exec.name} (${exec.designation || 'Executive Leader'})`
-                    });
-                }
-            });
-            if (execOpts.length > 0) {
-                groups.push({ label: 'Executive Leadership', options: execOpts });
-            }
-        }
-
-        return groups;
-    }, [isHrOrManager, executiveLeaders, departmentEmployees, branchManagers, managerStaff, data.company_ids, data.company_id, data.department_ids, data.department_id]);
+        return buildReportingOptions({
+            executiveLeaders,
+            departmentEmployees,
+            branchManagers,
+            managerStaff,
+            branchIds,
+            deptIds,
+        });
+    }, [executiveLeaders, departmentEmployees, branchManagers, managerStaff, data.company_ids, data.company_id, data.department_ids, data.department_id]);
 
     const roleOptions = useMemo(() => {
         return (availableRoles || []).map(r => ({ value: r.slug, label: r.name }));
@@ -651,7 +561,12 @@ export default function EditEmployee(props) {
     const TABS = [
         { id: 'personal', label: 'Personal & Contact', icon: FiUser, badge: (errors.name || errors.email || errors.mobile) ? 'error' : null },
         { id: 'work', label: 'Work & Role', icon: FiBriefcase, badge: (errors.company_id || errors.department_id || errors.designation) ? 'error' : null },
-        { id: 'salary', label: 'Salary & Bank', icon: FiDollarSign, badge: (errors.basic_salary || errors.payment_type) ? 'error' : null },
+        ...(can_see_salary ? [{
+            id: 'salary',
+            label: 'Salary & Bank',
+            icon: FiDollarSign,
+            badge: (errors.basic_salary || errors.payment_type) ? 'error' : (!can_edit_salary ? 'locked' : null)
+        }] : []),
         { id: 'documents', label: 'Documents', icon: FiFileText, badge: null },
         { id: 'schedule', label: 'Schedule & Contract', icon: FiClock, badge: null },
         { id: 'security', label: 'Portal Access & Login', icon: FiLock, badge: (errors.password) ? 'error' : null },
@@ -1079,8 +994,16 @@ export default function EditEmployee(props) {
                                                 name="reported_to"
                                                 value={data.reported_to}
                                                 options={reportingOptions}
-                                                onChange={e => setData('reported_to', e.target.value)}
-                                                placeholder={isHrOrManager ? 'Select Executive Authority (CEO / Founder)' : 'Select Reporting Supervisor'}
+                                                onChange={e => {
+                                                    const name = e.target.value;
+                                                    const match = flattenReportingOptions(reportingOptions).find(opt => opt.value === name);
+                                                    setData(prev => ({
+                                                        ...prev,
+                                                        reported_to: name,
+                                                        reports_to_id: match?.employeeId || '',
+                                                    }));
+                                                }}
+                                                placeholder="Select Reporting Supervisor"
                                             />
                                             {errors.reported_to && <p className="text-xs font-medium text-rose-500">{errors.reported_to}</p>}
                                         </div>
@@ -1190,6 +1113,33 @@ export default function EditEmployee(props) {
                         {activeTab === 'salary' && (
                             <div className="space-y-6 animate-in fade-in duration-200">
 
+                                {/* Pending Salary Modification Alert */}
+                                {pending_salary_modification && (
+                                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 shadow-xs">
+                                        <FiAlertCircle className="text-amber-600 text-lg shrink-0 mt-0.5" />
+                                        <div className="text-xs text-amber-900">
+                                            <span className="font-bold">Pending Approval:</span> A salary modification request of {currency} {Number(pending_salary_modification.proposed_basic_salary || 0).toLocaleString()} submitted by {pending_salary_modification.requester?.name || 'Manager'} is currently awaiting Branch HR review. Any new salary edits will update the pending request.
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Lock Banner if user lacks edit permission */}
+                                {!can_edit_salary ? (
+                                    <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 flex items-center gap-3 shadow-xs">
+                                        <FiLock className="text-slate-500 text-lg shrink-0" />
+                                        <div className="text-xs text-slate-700">
+                                            <span className="font-bold">Read-Only View:</span> You have permission to view this salary, but you do not have permission to edit salary details. Changes to salary require the <span className="font-semibold">&quot;Edit Employee Salary&quot;</span> permission.
+                                        </div>
+                                    </div>
+                                ) : !auth.user?.isAdmin && !(auth.user?.role === 'hr' && (auth.user?.company_id == employee.company_id || auth.user?.assigned_company_ids?.includes(employee.company_id))) ? (
+                                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3.5 flex items-center gap-3 text-xs text-blue-900 shadow-xs">
+                                        <FiInfo className="text-blue-600 text-base shrink-0" />
+                                        <span>
+                                            <strong>Notice:</strong> As you are managing this employee across branches/departments, any salary adjustments will be kept for approval and sent to the employee&apos;s Branch HR before taking effect.
+                                        </span>
+                                    </div>
+                                ) : null}
+
                                 {/* Live Salary Banner */}
                                 <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 rounded-2xl p-6 text-white shadow-xl">
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
@@ -1250,7 +1200,8 @@ export default function EditEmployee(props) {
                                                 <input
                                                     type="number"
                                                     step="0.01"
-                                                    className="w-full pl-14 pr-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-semibold focus:bg-white"
+                                                    disabled={!can_edit_salary}
+                                                    className="w-full pl-14 pr-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-semibold focus:bg-white disabled:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-500"
                                                     value={data.basic_salary}
                                                     onChange={e => setData('basic_salary', e.target.value)}
                                                     required
@@ -1265,7 +1216,8 @@ export default function EditEmployee(props) {
                                                 <span className="text-rose-500">*</span>
                                             </label>
                                             <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium focus:bg-white"
+                                                disabled={!can_edit_salary}
+                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium focus:bg-white disabled:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-500"
                                                 value={data.payment_type}
                                                 onChange={e => setData('payment_type', e.target.value)}
                                                 required

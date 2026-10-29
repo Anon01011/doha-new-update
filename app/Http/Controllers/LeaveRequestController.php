@@ -902,12 +902,13 @@ class LeaveRequestController extends Controller
         }
 
         $validated = $request->validate([
-            'ids'     => 'required|array',
-            'ids.*'   => 'exists:leave_requests,id',
+            'ids' => 'required|array',
+            'ids.*' => 'exists:leave_requests,id',
             'remarks' => 'nullable|string|max:1000',
+            'approval_remarks' => 'nullable|string|max:1000',
         ]);
 
-        $remarks = $request->input('remarks');
+        $remarks = $request->input('remarks') ?? $request->input('approval_remarks');
         $approvedCount = 0;
         $managerApprovedCount = 0;
 
@@ -923,8 +924,8 @@ class LeaveRequestController extends Controller
         if ($isManager && $leaveRequest->manager_approval_status === 'pending') {
                     $leaveRequest->update([
                         'manager_approval_status' => 'approved',
-                        'manager_approved_at'     => now(),
-                        'approval_remarks'        => $remarks,
+                        'manager_approved_at' => now(),
+                        'approval_remarks' => $remarks ?: $leaveRequest->approval_remarks,
                     ]);
                     $this->notifyEmployee($leaveRequest->employee_id, new \App\Notifications\LeaveStatusUpdated($leaveRequest, 'approved by Manager', 'Your leave request has been approved by your manager and is now awaiting HR approval.'));
 
@@ -949,9 +950,9 @@ class LeaveRequestController extends Controller
                         $leaveRequest->update([
                             'status'           => 'approved',
                             'hr_approval_status' => 'approved',
-                            'approved_by'      => auth()->id(),
-                            'approved_at'      => now(),
-                            'approval_remarks' => $remarks,
+                            'approved_by' => auth()->id(),
+                            'approved_at' => now(),
+                            'approval_remarks' => $remarks ?: $leaveRequest->approval_remarks,
                         ]);
 
                         // Update leave balance

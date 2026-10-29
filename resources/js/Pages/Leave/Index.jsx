@@ -4,7 +4,8 @@ import { useState } from 'react';
 import {
     FaPlus, FaSearch, FaHistory, FaCalendarCheck, FaCalendarAlt,
     FaUser, FaInfoCircle, FaEdit, FaTrash, FaEye, FaTimesCircle,
-    FaClock, FaCheckCircle, FaClipboardList, FaChevronDown, FaChevronUp
+    FaClock, FaCheckCircle, FaClipboardList, FaChevronDown, FaChevronUp,
+    FaCheck, FaTimes
 } from 'react-icons/fa';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Modal from '@/Components/Modal';
@@ -23,7 +24,10 @@ export default function Index({ leaveRequests, leaveBalances, stats = null, stat
     const [requestAction, setRequestAction] = useState({ type: null, request: null });
     const [processing, setProcessing] = useState(false);
     const [selectedIds, setSelectedIds] = useState([]);
-    const [bulkRejectModal, setBulkRejectModal] = useState({ show: false, reason: '', error: '' });
+    const [showApproveModal, setShowApproveModal] = useState(false);
+    const [approvalRemarks, setApprovalRemarks] = useState('');
+    const [showRejectModal, setShowRejectModal] = useState(false);
+    const [rejectionReason, setRejectionReason] = useState('');
     const [balanceSearch, setBalanceSearch] = useState('');
     const [showAllBalances, setShowAllBalances] = useState(false);
     const [balanceViewMode, setBalanceViewMode] = useState('grid');
@@ -65,7 +69,36 @@ export default function Index({ leaveRequests, leaveBalances, stats = null, stat
         }
     };
 
-    const handleBulkApprove = () => {
+    const selectedRequests = (leaveRequests.data || []).filter(req => selectedIds.includes(req.id));
+    const totalSelectedDays = selectedRequests.reduce((sum, req) => sum + parseFloat(req.days_requested ?? req.number_of_days ?? 0), 0);
+    const selectedEmployeeNames = [...new Set(selectedRequests.map(r => r.employee?.name).filter(Boolean))];
+
+    const handleOpenApproveModal = () => {
+        if (selectedIds.length === 0) return;
+        setApprovalRemarks('');
+        setShowApproveModal(true);
+    };
+
+    const handleOpenRejectModal = () => {
+        if (selectedIds.length === 0) return;
+        setRejectionReason('');
+        setShowRejectModal(true);
+    };
+
+    const handleSingleApprove = (request) => {
+        setSelectedIds([request.id]);
+        setApprovalRemarks('');
+        setShowApproveModal(true);
+    };
+
+    const handleSingleReject = (request) => {
+        setSelectedIds([request.id]);
+        setRejectionReason('');
+        setShowRejectModal(true);
+    };
+
+    const handleApprove = (e) => {
+        if (e && e.preventDefault) e.preventDefault();
         if (selectedIds.length === 0) return;
         setBulkApproveModal({ show: true, remarks: '', sameForAll: true, error: '' });
     };
@@ -74,7 +107,7 @@ export default function Index({ leaveRequests, leaveBalances, stats = null, stat
         setProcessing(true);
         router.post(route('leave-requests.bulk-approve'), {
             ids: selectedIds,
-            remarks: bulkApproveModal.remarks.trim() || null,
+            remarks: bulkApproveModal?.remarks?.trim() || (typeof approvalRemarks !== 'undefined' ? approvalRemarks : null),
         }, {
             onSuccess: () => {
                 setSelectedIds([]);
@@ -86,25 +119,19 @@ export default function Index({ leaveRequests, leaveBalances, stats = null, stat
         });
     };
 
-    const handleBulkReject = () => {
-        if (selectedIds.length === 0) return;
-        setBulkRejectModal({ show: true, reason: '', error: '' });
-    };
-
-    const confirmBulkReject = () => {
-        if (!bulkRejectModal.reason.trim()) {
-            setBulkRejectModal(prev => ({ ...prev, error: 'Rejection reason is required.' }));
-            return;
-        }
+    const handleReject = (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        if (selectedIds.length === 0 || !rejectionReason.trim()) return;
 
         setProcessing(true);
         router.post(route('leave-requests.bulk-reject'), {
             ids: selectedIds,
-            rejection_reason: bulkRejectModal.reason.trim()
+            rejection_reason: rejectionReason.trim()
         }, {
             onSuccess: () => {
                 setSelectedIds([]);
-                setBulkRejectModal({ show: false, reason: '', error: '' });
+                setShowRejectModal(false);
+                setRejectionReason('');
             },
             onFinish: () => {
                 setProcessing(false);
@@ -592,19 +619,19 @@ export default function Index({ leaveRequests, leaveBalances, stats = null, stat
                                 Clear Selection
                             </button>
                              <button
-                                onClick={handleBulkReject}
+                                onClick={handleOpenRejectModal}
                                 disabled={processing}
-                                className="flex-1 sm:flex-initial px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-normal hover:bg-rose-700 shadow-lg shadow-rose-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                className="flex-1 sm:flex-initial px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-normal hover:bg-rose-700 shadow-lg shadow-rose-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                             >
-                                <FaTrash size={10} />
+                                <FaTimes size={10} />
                                 Reject
                             </button>
                             <button
-                                onClick={handleBulkApprove}
+                                onClick={handleOpenApproveModal}
                                 disabled={processing}
-                                className="flex-1 sm:flex-initial px-4 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-normal hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                className="flex-1 sm:flex-initial px-4 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-normal hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                             >
-                                <FaCalendarCheck size={12} />
+                                <FaCheck size={10} />
                                 Approve
                             </button>
                         </div>
@@ -689,6 +716,24 @@ export default function Index({ leaveRequests, leaveBalances, stats = null, stat
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
+                                                    {canUserApprove(request) && (
+                                                        <>
+                                                            <button
+                                                                onClick={() => handleSingleApprove(request)}
+                                                                title="Approve Request"
+                                                                className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 rounded-xl transition-all border border-emerald-100 shadow-sm"
+                                                            >
+                                                                <FaCheck size={11} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleSingleReject(request)}
+                                                                title="Reject Request"
+                                                                className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 rounded-xl transition-all border border-rose-100 shadow-sm"
+                                                            >
+                                                                <FaTimes size={11} />
+                                                            </button>
+                                                        </>
+                                                    )}
                                                      <Link
                                                         href={route('leave-requests.show', request.id)}
                                                         className="p-2 bg-slate-50 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all border border-transparent hover:border-slate-200"
@@ -769,51 +814,163 @@ export default function Index({ leaveRequests, leaveBalances, stats = null, stat
                 processing={processing}
             />
 
-            <Modal
-                show={bulkRejectModal.show}
-                onClose={() => setBulkRejectModal({ show: false, reason: '', error: '' })}
-                maxWidth="md"
-            >
-                <div className="p-6">
+            {/* Modal for Approval with Remarks (Matching Show.jsx design) */}
+            <Modal show={showApproveModal} onClose={() => setShowApproveModal(false)} maxWidth="md">
+                <form onSubmit={handleApprove} className="p-6 sm:p-8">
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 rounded-full bg-rose-50 text-rose-600">
-                            <FaTimesCircle className="w-5 h-5" />
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <FaCheckCircle className="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 className="text-base font-normal text-slate-900">Reject Selected Requests</h3>
-                            <p className="text-xs text-slate-500">Provide a reason for rejecting {selectedIds.length} leave application(s)</p>
+                            <h2 className="text-lg font-bold text-slate-900">
+                                {selectedIds.length === 1 ? 'Approve Leave Request' : 'Approve Selected Leave Requests'}
+                            </h2>
+                            <p className="text-xs text-slate-500">Confirm approval and add remarks</p>
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="block text-xs font-normal text-slate-700">Rejection Reason <span className="text-rose-500">*</span></label>
-                        <textarea
-                            value={bulkRejectModal.reason}
-                            onChange={(e) => setBulkRejectModal(prev => ({ ...prev, reason: e.target.value, error: '' }))}
-                            rows={3}
-                            placeholder="State the reason for rejecting these applications..."
-                            className="w-full text-xs rounded-xl border-slate-200 focus:border-slate-400 focus:ring-0"
-                        />
-                        {bulkRejectModal.error && (
-                            <p className="text-[11px] text-rose-600 font-normal">{bulkRejectModal.error}</p>
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 mb-5 text-xs text-slate-600 space-y-1.5">
+                        {selectedIds.length === 1 && selectedRequests[0] ? (
+                            <>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400">Employee:</span>
+                                    <span className="font-semibold text-slate-800">{selectedRequests[0]?.employee?.name}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400">Duration:</span>
+                                    <span className="font-semibold text-emerald-700">
+                                        {parseFloat(selectedRequests[0]?.days_requested ?? selectedRequests[0]?.number_of_days ?? 0)} Days ({formatDate(selectedRequests[0]?.start_date)} - {formatDate(selectedRequests[0]?.end_date)})
+                                    </span>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400">Selected Requests:</span>
+                                    <span className="font-semibold text-slate-800">{selectedIds.length} Application{selectedIds.length > 1 ? 's' : ''}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400">Total Duration:</span>
+                                    <span className="font-semibold text-emerald-700">{totalSelectedDays} Total Day{totalSelectedDays !== 1 ? 's' : ''}</span>
+                                </div>
+                                {selectedEmployeeNames.length > 0 && (
+                                    <div className="flex justify-between items-start pt-1.5 border-t border-slate-200/60">
+                                        <span className="text-slate-400">Employees:</span>
+                                        <span className="font-semibold text-slate-700 text-right max-w-[240px] truncate" title={selectedEmployeeNames.join(', ')}>
+                                            {selectedEmployeeNames.slice(0, 3).join(', ')}{selectedEmployeeNames.length > 3 ? ` +${selectedEmployeeNames.length - 3} more` : ''}
+                                        </span>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
 
-                    <div className="mt-6 flex justify-end gap-2">
-                        <SecondaryButton
-                            onClick={() => setBulkRejectModal({ show: false, reason: '', error: '' })}
+                    <div className="space-y-1.5 mb-6">
+                        <label className="text-xs font-semibold text-slate-700">
+                            Approval Remarks / Notes <span className="text-slate-400 font-normal">(Optional)</span>
+                        </label>
+                        <textarea
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all outline-none text-xs resize-none"
+                            placeholder="Add any remarks or notes for employee..."
+                            rows="3"
+                            value={approvalRemarks}
+                            onChange={(e) => setApprovalRemarks(e.target.value)}
+                        ></textarea>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="submit"
                             disabled={processing}
+                            className="flex-1 bg-emerald-600 text-white px-6 py-3 rounded-xl text-xs font-semibold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all active:scale-95 disabled:opacity-50"
                         >
+                            {processing ? 'Approving...' : selectedIds.length > 1 ? `Confirm & Approve (${selectedIds.length})` : 'Confirm & Approve'}
+                        </button>
+                        <SecondaryButton onClick={() => setShowApproveModal(false)} className="px-6 py-3 rounded-xl border text-xs">
                             Cancel
                         </SecondaryButton>
-                        <DangerButton
-                            onClick={confirmBulkReject}
-                            disabled={processing}
-                        >
-                            {processing ? 'Processing...' : 'Confirm Rejection'}
-                        </DangerButton>
                     </div>
-                </div>
+                </form>
+            </Modal>
+
+            {/* Modal for Rejection with Reason (Matching Show.jsx design) */}
+            <Modal show={showRejectModal} onClose={() => setShowRejectModal(false)} maxWidth="md">
+                <form onSubmit={handleReject} className="p-6 sm:p-8">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                            <FaTimesCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-900">
+                                {selectedIds.length === 1 ? 'Reject Leave Request' : 'Reject Selected Leave Requests'}
+                            </h2>
+                            <p className="text-xs text-slate-500">Provide rejection reason</p>
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 mb-5 text-xs text-slate-600 space-y-1.5">
+                        {selectedIds.length === 1 && selectedRequests[0] ? (
+                            <>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400">Employee:</span>
+                                    <span className="font-semibold text-slate-800">{selectedRequests[0]?.employee?.name}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400">Duration:</span>
+                                    <span className="font-semibold text-rose-700">
+                                        {parseFloat(selectedRequests[0]?.days_requested ?? selectedRequests[0]?.number_of_days ?? 0)} Days ({formatDate(selectedRequests[0]?.start_date)} - {formatDate(selectedRequests[0]?.end_date)})
+                                    </span>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400">Selected Requests:</span>
+                                    <span className="font-semibold text-slate-800">{selectedIds.length} Application{selectedIds.length > 1 ? 's' : ''}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400">Total Duration:</span>
+                                    <span className="font-semibold text-rose-700">{totalSelectedDays} Total Day{totalSelectedDays !== 1 ? 's' : ''}</span>
+                                </div>
+                                {selectedEmployeeNames.length > 0 && (
+                                    <div className="flex justify-between items-start pt-1.5 border-t border-slate-200/60">
+                                        <span className="text-slate-400">Employees:</span>
+                                        <span className="font-semibold text-slate-700 text-right max-w-[240px] truncate" title={selectedEmployeeNames.join(', ')}>
+                                            {selectedEmployeeNames.slice(0, 3).join(', ')}{selectedEmployeeNames.length > 3 ? ` +${selectedEmployeeNames.length - 3} more` : ''}
+                                        </span>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+
+                    <div className="space-y-1.5 mb-6">
+                        <label className="text-xs font-semibold text-slate-700">
+                            Reason for Rejection <span className="text-rose-500">*</span>
+                        </label>
+                        <textarea
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 transition-all outline-none text-xs resize-none"
+                            placeholder="Reason for rejecting this request (Required)..."
+                            rows="3"
+                            value={rejectionReason}
+                            onChange={(e) => setRejectionReason(e.target.value)}
+                            required
+                        ></textarea>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="submit"
+                            disabled={processing || !rejectionReason.trim()}
+                            className="flex-1 bg-rose-600 text-white px-6 py-3 rounded-xl text-xs font-semibold hover:bg-rose-700 shadow-lg shadow-rose-200 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                            {processing ? 'Rejecting...' : selectedIds.length > 1 ? `Confirm & Reject (${selectedIds.length})` : 'Confirm & Reject'}
+                        </button>
+                        <SecondaryButton onClick={() => setShowRejectModal(false)} className="px-6 py-3 rounded-xl border text-xs">
+                            Cancel
+                        </SecondaryButton>
+                    </div>
+                </form>
             </Modal>
 
             {/* Bulk Approve Confirmation Modal */}

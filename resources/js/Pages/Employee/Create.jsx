@@ -9,12 +9,13 @@ import SearchableSelect from '@/Components/SearchableSelect';
 import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
 import FormErrorNotification from '@/Components/FormErrorNotification';
 import { resolveCurrency, resolveCountry } from '@/helpers/currency';
+import { buildReportingOptions, flattenReportingOptions } from '@/helpers/reportingOptions';
 import {
     FiUser, FiCreditCard, FiMapPin, FiBriefcase, FiClock, FiDollarSign,
     FiFileText, FiPlus, FiTrash2, FiArrowRight, FiArrowLeft, FiEye,
     FiMaximize2, FiFile, FiAlertCircle, FiCheckCircle, FiUploadCloud,
     FiShield, FiCalendar, FiMail, FiPhone, FiGlobe, FiLayers, FiCheck,
-    FiX, FiInfo
+    FiX, FiInfo, FiLock
 } from 'react-icons/fi';
 
 export default function CreateEmployee(props) {
@@ -33,7 +34,9 @@ export default function CreateEmployee(props) {
         availableRoles = [],
         defaultRole = 'employee',
         leadershipEmployees = [],
-        managerEmployees = []
+        managerEmployees = [],
+        can_see_salary = true,
+        can_edit_salary = true,
     } = props;
 
     // A live sample of the code the server will auto generate, so the user can
@@ -134,6 +137,7 @@ export default function CreateEmployee(props) {
         leave_status: '',
         basic_salary: '',
         reported_to: '',
+        reports_to_id: '',
         manual_status: 'active',
         employee_image: null,
         agreement_doc: null,
@@ -246,13 +250,6 @@ export default function CreateEmployee(props) {
         }
     }, [data.department_ids, data.company_ids, data.department_id, data.company_id]);
 
-    const isHrOrManager = useMemo(() => {
-        const role = (data.role || '').toLowerCase();
-        const desig = (data.designation || '').toLowerCase();
-        return role === 'hr' || role === 'manager' || role === 'branch-manager' ||
-            desig.includes('hr') || desig.includes('manager') || desig.includes('coo') || desig.includes('director') || desig.includes('head');
-    }, [data.role, data.designation]);
-
     const executiveLeaders = useMemo(() => leadershipEmployees || [], [leadershipEmployees]);
 
     const designationList = useMemo(() => {
@@ -295,16 +292,6 @@ export default function CreateEmployee(props) {
     }, [designationList, data.designation]);
 
     const reportingOptions = useMemo(() => {
-        if (isHrOrManager) {
-            return (executiveLeaders || []).map(exec => ({
-                value: exec.name,
-                label: `${exec.name} (${exec.designation || 'Executive Leader'})`
-            }));
-        }
-
-        const groups = [];
-        const seenNames = new Set();
-
         const branchIds = (data.company_ids && data.company_ids.length > 0)
             ? data.company_ids.map(Number)
             : (data.company_id ? [Number(data.company_id)] : []);
@@ -312,92 +299,15 @@ export default function CreateEmployee(props) {
             ? data.department_ids.map(Number)
             : (data.department_id ? [Number(data.department_id)] : []);
 
-        // 1. Department Leadership & Staff (from current branch & department)
-        const deptList = [...(departmentEmployees || [])];
-        if (deptIds.length > 0) {
-            (managerStaff || []).forEach(m => {
-                if (deptIds.includes(Number(m.department_id)) && !deptList.some(e => e.id === m.id)) {
-                    deptList.push(m);
-                }
-            });
-        }
-        if (deptList.length > 0) {
-            const opts = [];
-            deptList.forEach(emp => {
-                if (!seenNames.has(emp.name)) {
-                    seenNames.add(emp.name);
-                    opts.push({
-                        value: emp.name,
-                        label: `${emp.name} ${emp.designation ? `(${emp.designation})` : ''}`
-                    });
-                }
-            });
-            if (opts.length > 0) {
-                groups.push({ label: 'Department Leadership & Staff', options: opts });
-            }
-        }
-
-        // 2. Branch Managers & Officers (from current branch)
-        const branchList = [...(branchManagers || [])];
-        if (branchIds.length > 0) {
-            (managerStaff || []).forEach(m => {
-                if (branchIds.includes(Number(m.company_id)) && !branchList.some(e => e.id === m.id)) {
-                    branchList.push(m);
-                }
-            });
-        }
-        if (branchList.length > 0) {
-            const opts = [];
-            branchList.forEach(mgr => {
-                if (!seenNames.has(mgr.name)) {
-                    seenNames.add(mgr.name);
-                    opts.push({
-                        value: mgr.name,
-                        label: `${mgr.name} ${mgr.designation ? `(${mgr.designation})` : ''}`
-                    });
-                }
-            });
-            if (opts.length > 0) {
-                groups.push({ label: 'Branch Managers & Officers', options: opts });
-            }
-        }
-
-        // 3. Cross-Branch Managers (All other available managers)
-        if (managerStaff && managerStaff.length > 0) {
-            const otherOpts = [];
-            managerStaff.forEach(mgr => {
-                if (!seenNames.has(mgr.name)) {
-                    seenNames.add(mgr.name);
-                    otherOpts.push({
-                        value: mgr.name,
-                        label: `${mgr.name} ${mgr.designation ? `(${mgr.designation})` : ''}`
-                    });
-                }
-            });
-            if (otherOpts.length > 0) {
-                groups.push({ label: 'All Managers (Cross-Branch)', options: otherOpts });
-            }
-        }
-
-        // 4. Executive Leadership (CEO, Founder, Director)
-        if (executiveLeaders && executiveLeaders.length > 0) {
-            const execOpts = [];
-            executiveLeaders.forEach(exec => {
-                if (!seenNames.has(exec.name)) {
-                    seenNames.add(exec.name);
-                    execOpts.push({
-                        value: exec.name,
-                        label: `${exec.name} (${exec.designation || 'Executive Leader'})`
-                    });
-                }
-            });
-            if (execOpts.length > 0) {
-                groups.push({ label: 'Executive Leadership', options: execOpts });
-            }
-        }
-
-        return groups;
-    }, [isHrOrManager, executiveLeaders, departmentEmployees, branchManagers, managerStaff, data.company_ids, data.company_id, data.department_ids, data.department_id]);
+        return buildReportingOptions({
+            executiveLeaders,
+            departmentEmployees,
+            branchManagers,
+            managerStaff,
+            branchIds,
+            deptIds,
+        });
+    }, [executiveLeaders, departmentEmployees, branchManagers, managerStaff, data.company_ids, data.company_id, data.department_ids, data.department_id]);
 
     const roleOptions = useMemo(() => {
         return (availableRoles || []).map(r => ({ value: r.slug, label: r.name }));
@@ -434,54 +344,48 @@ export default function CreateEmployee(props) {
         return (constants.leave_statuses || ['Available', 'On Leave', 'Sick Leave', 'Unpaid Leave']).map(opt => ({ value: opt, label: opt }));
     }, [constants.leave_statuses]);
 
-    // Auto-assign default reporting person based on role and branch/department
+    // Auto-assign default reporting person based on branch/department when empty
     useEffect(() => {
-        if (isHrOrManager) {
-            if (executiveLeaders.length > 0) {
-                const isCurrentlyExecutive = executiveLeaders.some(e => e.name === data.reported_to);
-                if (!isCurrentlyExecutive) {
-                    setData('reported_to', executiveLeaders[0].name);
-                }
-            }
-        } else {
-            const branchIds = (data.company_ids && data.company_ids.length > 0)
-                ? data.company_ids.map(Number)
-                : (data.company_id ? [Number(data.company_id)] : []);
-            const deptIds = (data.department_ids && data.department_ids.length > 0)
-                ? data.department_ids.map(Number)
-                : (data.department_id ? [Number(data.department_id)] : []);
+        if (data.reported_to) return;
 
-            if (!data.reported_to) {
-                // 1. Find department manager
-                const deptManager = (departmentEmployees || []).find(e =>
-                    (e.designation || '').toLowerCase().includes('manager') ||
-                    (e.designation || '').toLowerCase().includes('lead') ||
-                    (e.designation || '').toLowerCase().includes('supervisor')
-                ) || (managerStaff || []).find(m =>
-                    deptIds.includes(Number(m.department_id))
-                );
+        const deptManager = (departmentEmployees || []).find(e =>
+            (e.designation || '').toLowerCase().includes('manager') ||
+            (e.designation || '').toLowerCase().includes('lead') ||
+            (e.designation || '').toLowerCase().includes('supervisor')
+        ) || (managerStaff || []).find(m =>
+            (data.department_ids || []).map(Number).includes(Number(m.department_id))
+            || Number(m.department_id) === Number(data.department_id)
+        );
 
-                if (deptManager) {
-                    setData('reported_to', deptManager.name);
-                } else {
-                    // 2. Find branch manager
-                    const brManager = (branchManagers || []).find(m =>
-                        (m.designation || '').toLowerCase().includes('manager') ||
-                        (m.designation || '').toLowerCase().includes('lead') ||
-                        (m.designation || '').toLowerCase().includes('supervisor')
-                    ) || (managerStaff || []).find(m =>
-                        branchIds.includes(Number(m.company_id))
-                    ) || (branchManagers && branchManagers[0]) || (departmentEmployees && departmentEmployees[0]);
+        const pick = (person) => {
+            if (!person) return;
+            setData(prev => ({
+                ...prev,
+                reported_to: person.name,
+                reports_to_id: person.id && /^\d+$/.test(String(person.id)) ? person.id : '',
+            }));
+        };
 
-                    if (brManager) {
-                        setData('reported_to', brManager.name);
-                    } else if (executiveLeaders.length > 0) {
-                        setData('reported_to', executiveLeaders[0].name);
-                    }
-                }
-            }
+        if (deptManager) {
+            pick(deptManager);
+            return;
         }
-    }, [isHrOrManager, executiveLeaders, departmentEmployees, branchManagers, managerStaff, data.department_id, data.department_ids, data.company_id, data.company_ids]);
+
+        const brManager = (branchManagers || []).find(m =>
+            (m.designation || '').toLowerCase().includes('manager') ||
+            (m.designation || '').toLowerCase().includes('lead') ||
+            (m.designation || '').toLowerCase().includes('supervisor')
+        ) || (managerStaff || []).find(m =>
+            (data.company_ids || []).map(Number).includes(Number(m.company_id))
+            || Number(m.company_id) === Number(data.company_id)
+        ) || (branchManagers && branchManagers[0]) || (departmentEmployees && departmentEmployees[0]);
+
+        if (brManager) {
+            pick(brManager);
+        } else if (executiveLeaders.length > 0) {
+            pick(executiveLeaders[0]);
+        }
+    }, [executiveLeaders, departmentEmployees, branchManagers, managerStaff, data.department_id, data.department_ids, data.company_id, data.company_ids]);
 
     // Auto-update status based on exit status
     useEffect(() => {
@@ -681,7 +585,12 @@ export default function CreateEmployee(props) {
     const TABS = [
         { id: 'personal', label: 'Personal & Contact', icon: FiUser, badge: (errors.name || errors.email || errors.mobile) ? 'error' : null },
         { id: 'work', label: 'Work & Role', icon: FiBriefcase, badge: (errors.company_id || errors.department_id || errors.designation) ? 'error' : null },
-        { id: 'salary', label: 'Salary & Bank', icon: FiDollarSign, badge: (errors.basic_salary || errors.payment_type) ? 'error' : null },
+        ...(can_see_salary ? [{
+            id: 'salary',
+            label: 'Salary & Bank',
+            icon: FiDollarSign,
+            badge: (errors.basic_salary || errors.payment_type) ? 'error' : (!can_edit_salary ? 'locked' : null)
+        }] : []),
         { id: 'documents', label: 'Documents', icon: FiFileText, badge: uploadedDocsCount > 0 ? `${uploadedDocsCount}` : null },
         { id: 'schedule', label: 'Schedule & Contract', icon: FiClock, badge: null },
     ];
@@ -773,8 +682,8 @@ export default function CreateEmployee(props) {
                                         type="button"
                                         onClick={() => setActiveTab(tab.id)}
                                         className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${isActive
-                                                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20 ring-2 ring-indigo-600/20'
-                                                : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                                            ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20 ring-2 ring-indigo-600/20'
+                                            : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                                             }`}
                                     >
                                         <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
@@ -785,8 +694,8 @@ export default function CreateEmployee(props) {
                                         <span>{tab.label}</span>
                                         {tab.badge && (
                                             <span className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${tab.badge === 'error'
-                                                    ? 'bg-rose-500 text-white animate-pulse'
-                                                    : 'bg-indigo-100 text-indigo-800'
+                                                ? 'bg-rose-500 text-white animate-pulse'
+                                                : 'bg-indigo-100 text-indigo-800'
                                                 }`}>
                                                 {tab.badge === 'error' ? '!' : tab.badge}
                                             </span>
@@ -1148,8 +1057,16 @@ export default function CreateEmployee(props) {
                                                 name="reported_to"
                                                 value={data.reported_to}
                                                 options={reportingOptions}
-                                                onChange={e => setData('reported_to', e.target.value)}
-                                                placeholder={isHrOrManager ? 'Select Executive Authority (CEO / Founder)' : 'Select Reporting Supervisor'}
+                                                onChange={e => {
+                                                    const name = e.target.value;
+                                                    const match = flattenReportingOptions(reportingOptions).find(opt => opt.value === name);
+                                                    setData(prev => ({
+                                                        ...prev,
+                                                        reported_to: name,
+                                                        reports_to_id: match?.employeeId || '',
+                                                    }));
+                                                }}
+                                                placeholder="Select Reporting Supervisor"
                                             />
                                             {errors.reported_to && <p className="text-xs font-medium text-rose-500">{errors.reported_to}</p>}
                                         </div>
@@ -1222,47 +1139,56 @@ export default function CreateEmployee(props) {
                                 </div>
                             </div>
                         )}
-                                        {/* Category-specific lifecycle fields */}
-                                        {data.employee_category === 'Probation' && (
-                                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
-                                            <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5"><FiCalendar className="w-3.5 h-3.5" /> Probation Period</p>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                <div className="space-y-1">
-                                                    <label className="text-[10px] font-semibold text-slate-600 uppercase">Probation Start Date</label>
-                                                    <input type="date" className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white text-sm focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition-all"
-                                                        value={data.probation_start_date} onChange={e => setData('probation_start_date', e.target.value)} />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <label className="text-[10px] font-semibold text-slate-600 uppercase">Probation End Date <span className="text-amber-500">(default: {probation_duration_months || 3}m)</span></label>
-                                                    <input type="date" className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white text-sm focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition-all"
-                                                        value={data.probation_end_date} onChange={e => setData('probation_end_date', e.target.value)} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        )}
+                        {/* Category-specific lifecycle fields */}
+                        {data.employee_category === 'Probation' && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+                                <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5"><FiCalendar className="w-3.5 h-3.5" /> Probation Period</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-semibold text-slate-600 uppercase">Probation Start Date</label>
+                                        <input type="date" className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white text-sm focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition-all"
+                                            value={data.probation_start_date} onChange={e => setData('probation_start_date', e.target.value)} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-semibold text-slate-600 uppercase">Probation End Date <span className="text-amber-500">(default: {probation_duration_months || 3}m)</span></label>
+                                        <input type="date" className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white text-sm focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition-all"
+                                            value={data.probation_end_date} onChange={e => setData('probation_end_date', e.target.value)} />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
-                                        {data.employee_category === 'Intern' && (
-                                        <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-4 space-y-3">
-                                            <p className="text-xs font-semibold text-cyan-700 flex items-center gap-1.5"><FiCalendar className="w-3.5 h-3.5" /> Internship Period</p>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                <div className="space-y-1">
-                                                    <label className="text-[10px] font-semibold text-slate-600 uppercase">Internship Start Date</label>
-                                                    <input type="date" className="w-full px-3 py-2 rounded-lg border border-cyan-200 bg-white text-sm focus:ring-2 focus:ring-cyan-300 focus:border-cyan-400 transition-all"
-                                                        value={data.internship_start_date} onChange={e => setData('internship_start_date', e.target.value)} />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <label className="text-[10px] font-semibold text-slate-600 uppercase">Internship End Date</label>
-                                                    <input type="date" className="w-full px-3 py-2 rounded-lg border border-cyan-200 bg-white text-sm focus:ring-2 focus:ring-cyan-300 focus:border-cyan-400 transition-all"
-                                                        value={data.internship_end_date} onChange={e => setData('internship_end_date', e.target.value)} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        )}
+                        {data.employee_category === 'Intern' && (
+                            <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-4 space-y-3">
+                                <p className="text-xs font-semibold text-cyan-700 flex items-center gap-1.5"><FiCalendar className="w-3.5 h-3.5" /> Internship Period</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-semibold text-slate-600 uppercase">Internship Start Date</label>
+                                        <input type="date" className="w-full px-3 py-2 rounded-lg border border-cyan-200 bg-white text-sm focus:ring-2 focus:ring-cyan-300 focus:border-cyan-400 transition-all"
+                                            value={data.internship_start_date} onChange={e => setData('internship_start_date', e.target.value)} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-semibold text-slate-600 uppercase">Internship End Date</label>
+                                        <input type="date" className="w-full px-3 py-2 rounded-lg border border-cyan-200 bg-white text-sm focus:ring-2 focus:ring-cyan-300 focus:border-cyan-400 transition-all"
+                                            value={data.internship_end_date} onChange={e => setData('internship_end_date', e.target.value)} />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         {/* ============================================================== */}
                         {/* TAB 3: SALARY & PAYMENT MODE DETAILS */}
                         {/* ============================================================== */}
                         {activeTab === 'salary' && (
                             <div className="space-y-6 animate-in fade-in duration-200">
+
+                                {!can_edit_salary && (
+                                    <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 flex items-center gap-3 shadow-xs">
+                                        <FiLock className="text-slate-500 text-lg shrink-0" />
+                                        <div className="text-xs text-slate-700">
+                                            <span className="font-bold">Read-Only View:</span> You have permission to view salary fields, but you do not have permission to assign or configure salary details. Salary fields are disabled and will not be saved.
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Salary Summary Live Calculation Card */}
                                 <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 rounded-2xl p-6 text-white shadow-xl">
@@ -1328,11 +1254,12 @@ export default function CreateEmployee(props) {
                                                 <input
                                                     type="number"
                                                     step="0.01"
-                                                    className="w-full pl-14 pr-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-semibold focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                                                    disabled={!can_edit_salary}
+                                                    className="w-full pl-14 pr-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-semibold focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                                                     value={data.basic_salary}
                                                     onChange={e => setData('basic_salary', e.target.value)}
                                                     placeholder="0.00"
-                                                    required
+                                                    required={can_edit_salary}
                                                 />
                                             </div>
                                             {errors.basic_salary && <p className="text-xs font-medium text-rose-500">{errors.basic_salary}</p>}
@@ -1346,10 +1273,11 @@ export default function CreateEmployee(props) {
                                                 <span className="text-rose-500">*</span>
                                             </label>
                                             <select
-                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                                                disabled={!can_edit_salary}
+                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                                                 value={data.payment_type}
                                                 onChange={e => setData('payment_type', e.target.value)}
-                                                required
+                                                required={can_edit_salary}
                                             >
                                                 <option value="Bank Transfer">Bank Transfer / Direct Deposit</option>
                                                 <option value="Cash">Cash in Hand</option>
@@ -1495,14 +1423,16 @@ export default function CreateEmployee(props) {
                                                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Salary Components Breakup</h4>
                                                 <p className="text-xs text-slate-500">Allowances (HRA, Transport) and Deductions</p>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={addSalaryStructure}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-semibold transition-colors border border-indigo-200/60"
-                                            >
-                                                <FiPlus className="w-3.5 h-3.5" />
-                                                <span>Add Component</span>
-                                            </button>
+                                            {can_edit_salary && (
+                                                <button
+                                                    type="button"
+                                                    onClick={addSalaryStructure}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-semibold transition-colors border border-indigo-200/60"
+                                                >
+                                                    <FiPlus className="w-3.5 h-3.5" />
+                                                    <span>Add Component</span>
+                                                </button>
+                                            )}
                                         </div>
 
                                         <div className="space-y-3">
@@ -1959,34 +1889,34 @@ export default function CreateEmployee(props) {
                                         <div className="overflow-hidden border border-slate-200 rounded-xl">
                                             <div className="overflow-x-auto">
                                                 <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
-                                                <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                                                    <tr>
-                                                        <th className="px-4 py-3">Assigned Day</th>
-                                                        <th className="px-4 py-3">Effective Date</th>
-                                                        <th className="px-4 py-3 text-right">Action</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
-                                                    {data.weekly_offs.map((off, index) => (
-                                                        <tr key={index} className="hover:bg-slate-50/50">
-                                                            <td className="px-4 py-3 font-bold text-indigo-700">{off.weekly_off_day}</td>
-                                                            <td className="px-4 py-3 text-slate-600">{off.effective_date}</td>
-                                                            <td className="px-4 py-3 text-right">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => removeWeeklyOff(index)}
-                                                                    className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors"
-                                                                >
-                                                                    <FiTrash2 className="w-4 h-4" />
-                                                                </button>
-                                                            </td>
+                                                    <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                                        <tr>
+                                                            <th className="px-4 py-3">Assigned Day</th>
+                                                            <th className="px-4 py-3">Effective Date</th>
+                                                            <th className="px-4 py-3 text-right">Action</th>
                                                         </tr>
-                                                    ))}
-                                                </tbody>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
+                                                        {data.weekly_offs.map((off, index) => (
+                                                            <tr key={index} className="hover:bg-slate-50/50">
+                                                                <td className="px-4 py-3 font-bold text-indigo-700">{off.weekly_off_day}</td>
+                                                                <td className="px-4 py-3 text-slate-600">{off.effective_date}</td>
+                                                                <td className="px-4 py-3 text-right">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => removeWeeklyOff(index)}
+                                                                        className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors"
+                                                                    >
+                                                                        <FiTrash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
                                                 </table>
+                                            </div>
                                         </div>
-                                    </div>
-                                ) : (
+                                    ) : (
                                         <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl">
                                             <p className="text-xs text-slate-400">No staff-specific weekly offs added. Standard branch schedule applies.</p>
                                         </div>
