@@ -3,6 +3,7 @@ import { Head, Link, usePage, router } from '@inertiajs/react';
 import { useState, useMemo, useEffect } from 'react';
 import Lightbox from '@/Components/Lightbox';
 import Avatar from '@/Components/Avatar';
+import Modal from '@/Components/Modal';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import { resolveCurrency, resolveCountry } from '@/helpers/currency';
 import { employeeRouteKey, employeeRoute } from '@/helpers/employee-routes';
@@ -10,7 +11,7 @@ import {
     FiUser, FiCreditCard, FiMapPin, FiBriefcase, FiClock, FiDollarSign,
     FiFileText, FiArrowLeft, FiEdit3, FiPrinter, FiTrash2, FiCheckCircle,
     FiEye, FiDownload, FiGlobe, FiShield, FiPhone, FiMail, FiCalendar,
-    FiLayers, FiInfo, FiFile, FiExternalLink, FiX, FiPlus, FiUpload
+    FiLayers, FiInfo, FiFile, FiExternalLink, FiX, FiPlus, FiUpload, FiAlertCircle, FiCheck
 } from 'react-icons/fi';
 
 export default function ShowEmployee({
@@ -20,6 +21,9 @@ export default function ShowEmployee({
     contractLifecycle = null,
     probation_duration_months = 3,
     can_see_salary = false,
+    can_edit_salary = false,
+    can_approve_salary = false,
+    pending_salary_modification = null,
     leaveBalances = []
 }) {
     const { appSettings, auth, leaveBalances: pageLeaveBalances = [] } = usePage().props;
@@ -305,6 +309,30 @@ export default function ShowEmployee({
 
     const canViewSalary = Boolean(can_see_salary);
 
+    const [salaryActionModal, setSalaryActionModal] = useState({
+        isOpen: false,
+        type: 'approve',
+        notes: '',
+        processing: false,
+    });
+
+    const submitSalaryAction = () => {
+        if (!pending_salary_modification) return;
+        setSalaryActionModal(prev => ({ ...prev, processing: true }));
+        const endpoint = salaryActionModal.type === 'approve'
+            ? route('salary-modifications.approve', pending_salary_modification.id)
+            : route('salary-modifications.reject', pending_salary_modification.id);
+
+        router.post(endpoint, { notes: salaryActionModal.notes }, {
+            onSuccess: () => {
+                setSalaryActionModal({ isOpen: false, type: 'approve', notes: '', processing: false });
+            },
+            onFinish: () => {
+                setSalaryActionModal(prev => ({ ...prev, processing: false }));
+            }
+        });
+    };
+
     useEffect(() => {
         if (!canViewSalary && activeTab === 'salary') {
             setActiveTab('overview');
@@ -535,7 +563,61 @@ export default function ShowEmployee({
                 </div>
 
                 {/* Main Full-Width Details Content */}
-                <div className="w-full px-4 sm:px-8 lg:px-10 pt-6">
+                <div className="w-full px-4 sm:px-8 lg:px-10 pt-6 space-y-6">
+
+                    {/* Pending Salary Modification Notice Banner */}
+                    {pending_salary_modification && (
+                        <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs animate-in fade-in">
+                            <div className="flex items-start gap-3.5">
+                                <div className="h-10 w-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xl shrink-0 mt-0.5">
+                                    <FiAlertCircle />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="text-sm font-bold text-amber-950">
+                                            Pending Salary Modification Request
+                                        </h4>
+                                        <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200/70 text-amber-900 px-2 py-0.5 rounded-full">
+                                            Awaiting HR Approval
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-amber-900 mt-1">
+                                        Proposed Basic Salary: <span className="font-extrabold">{currency} {Number(pending_salary_modification.proposed_basic_salary || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span> (Current: {currency} {Number(pending_salary_modification.current_basic_salary || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                                        {pending_salary_modification.requester?.name && (
+                                            <span> • Submitted by <span className="font-semibold">{pending_salary_modification.requester.name}</span> ({pending_salary_modification.requester.role || 'User'})</span>
+                                        )}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+                                {can_approve_salary && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSalaryActionModal({ isOpen: true, type: 'reject', notes: '', processing: false })}
+                                            className="px-3.5 py-2 text-xs font-bold text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 rounded-xl transition shadow-xs"
+                                        >
+                                            Reject
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSalaryActionModal({ isOpen: true, type: 'approve', notes: '', processing: false })}
+                                            className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition shadow-sm"
+                                        >
+                                            Approve & Apply
+                                        </button>
+                                    </>
+                                )}
+                                <Link
+                                    href={route('salary-modifications.index')}
+                                    className="px-3.5 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition"
+                                >
+                                    All Requests
+                                </Link>
+                            </div>
+                        </div>
+                    )}
 
                     {/* ============================================================== */}
                     {/* TAB 1: OVERVIEW & PERSONAL DETAILS */}
@@ -889,6 +971,42 @@ export default function ShowEmployee({
                     {canViewSalary && activeTab === 'salary' && (
                         <div className="space-y-6 animate-in fade-in duration-200">
 
+                            {/* Detailed Pending Salary Request in Salary Tab */}
+                            {pending_salary_modification && (
+                                <div className="p-5 bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-50 border border-amber-300 rounded-2xl shadow-xs space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <FiAlertCircle className="text-amber-600 text-lg" />
+                                            <h4 className="text-sm font-bold text-slate-900">Pending Salary Revision Request</h4>
+                                        </div>
+                                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                            Pending HR Review
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-white/80 p-3.5 rounded-xl border border-amber-100">
+                                        <div>
+                                            <span className="text-slate-400 block font-semibold">Current Basic</span>
+                                            <span className="font-bold text-slate-700 text-sm">{currency} {Number(pending_salary_modification.current_basic_salary || 0).toLocaleString()}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-indigo-600 block font-semibold">Proposed Basic</span>
+                                            <span className="font-black text-slate-900 text-sm">{currency} {Number(pending_salary_modification.proposed_basic_salary || 0).toLocaleString()}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-slate-400 block font-semibold">Adjustment</span>
+                                            <span className="font-bold text-emerald-600 text-sm">
+                                                +{currency} {(Number(pending_salary_modification.proposed_basic_salary || 0) - Number(pending_salary_modification.current_basic_salary || 0)).toLocaleString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {pending_salary_modification.reason && (
+                                        <p className="text-xs text-slate-600 italic">
+                                            Reason / Notes: &quot;{pending_salary_modification.reason}&quot;
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Salary Summary Card */}
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-sm">
@@ -1210,6 +1328,82 @@ export default function ShowEmployee({
                 onClose={() => setConfirmingDelete(false)}
                 type="danger"
             />
+
+            {/* Salary Modification Approval/Rejection Modal */}
+            <Modal
+                show={salaryActionModal.isOpen}
+                onClose={() => setSalaryActionModal(prev => ({ ...prev, isOpen: false }))}
+                maxWidth="md"
+            >
+                <div className="p-6 space-y-4">
+                    <div className="flex items-center gap-3">
+                        <div
+                            className={`h-10 w-10 rounded-full flex items-center justify-center text-lg font-bold ${
+                                salaryActionModal.type === 'approve'
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-rose-100 text-rose-700'
+                            }`}
+                        >
+                            {salaryActionModal.type === 'approve' ? <FiCheck /> : <FiX />}
+                        </div>
+                        <div>
+                            <h3 className="text-base font-bold text-slate-900">
+                                {salaryActionModal.type === 'approve'
+                                    ? 'Approve Salary Revision'
+                                    : 'Reject Salary Revision'}
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                                {salaryActionModal.type === 'approve'
+                                    ? `This will update ${employee.name}'s basic salary to ${currency} ${Number(pending_salary_modification?.proposed_basic_salary || 0).toLocaleString()} immediately.`
+                                    : `Decline the proposed salary revision for ${employee.name}.`}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Reviewer Remarks / Notes (Optional)
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={salaryActionModal.notes}
+                            onChange={(e) => setSalaryActionModal(prev => ({ ...prev, notes: e.target.value }))}
+                            placeholder={
+                                salaryActionModal.type === 'approve'
+                                    ? 'e.g. Approved as per appraisal'
+                                    : 'e.g. Salary adjustment budget not approved'
+                            }
+                            className="w-full text-xs rounded-xl border-slate-200 focus:border-slate-900 focus:ring-slate-900"
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                        <button
+                            type="button"
+                            onClick={() => setSalaryActionModal(prev => ({ ...prev, isOpen: false }))}
+                            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            disabled={salaryActionModal.processing}
+                            onClick={submitSalaryAction}
+                            className={`px-4 py-2 text-xs font-bold text-white rounded-xl transition shadow-sm ${
+                                salaryActionModal.type === 'approve'
+                                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                                    : 'bg-rose-600 hover:bg-rose-700'
+                            }`}
+                        >
+                            {salaryActionModal.processing
+                                ? 'Processing...'
+                                : salaryActionModal.type === 'approve'
+                                ? 'Confirm Approval'
+                                : 'Confirm Rejection'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </AuthenticatedLayout>
     );
 

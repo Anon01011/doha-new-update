@@ -177,6 +177,16 @@ export default function AuthenticatedLayout({ header, children }) {
                     classes:
                         'bg-emerald-50 text-emerald-600 border-emerald-100',
                 };
+            case 'salary_modification_requested':
+                return {
+                    icon: <BanknotesIcon className="h-5 w-5" />,
+                    classes: 'bg-amber-50 text-amber-600 border-amber-100',
+                };
+            case 'salary_rejected':
+                return {
+                    icon: <BanknotesIcon className="h-5 w-5" />,
+                    classes: 'bg-rose-50 text-rose-600 border-rose-100',
+                };
             default:
                 return {
                     icon: <InformationCircleIcon className="h-5 w-5" />,
@@ -426,6 +436,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     icon: <FiUsers className="h-4 w-4" />,
                     current:
                         route().current('employees.*') ||
+                        route().current('salary-modifications.*') ||
                         route().current('settings.dropdown-options.*'),
                     permissions: ['view-employees'],
                     roles: ['admin', 'hr', 'manager'],
@@ -433,8 +444,15 @@ export default function AuthenticatedLayout({ header, children }) {
                         {
                             name: 'Directory',
                             href: route('employees.index'),
-                            current: route().current('employees.*'),
+                            current: route().current('employees.*') && !route().current('salary-modifications.*'),
                             permissions: ['view-employees'],
+                            roles: ['admin', 'hr', 'manager'],
+                        },
+                        {
+                            name: 'Salary Approvals',
+                            href: route('salary-modifications.index'),
+                            current: route().current('salary-modifications.*'),
+                            permissions: ['approve-salary-modifications', 'view-employee-salary'],
                             roles: ['admin', 'hr', 'manager'],
                         },
                         {

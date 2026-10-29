@@ -477,6 +477,16 @@ class Employee extends Model
         return $this->hasMany(EmployeeSalaryStructure::class);
     }
 
+    public function salaryModificationRequests()
+    {
+        return $this->hasMany(\App\Models\SalaryModificationRequest::class);
+    }
+
+    public function pendingSalaryModification()
+    {
+        return $this->hasOne(\App\Models\SalaryModificationRequest::class)->where('status', 'pending')->latestOfMany();
+    }
+
     public function loans()
     {
         return $this->hasMany(Loan::class);

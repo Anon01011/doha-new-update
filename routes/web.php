@@ -38,6 +38,12 @@ Route::middleware('auth')->group(function () {
         Route::get('employees/export', [EmployeeController::class, 'export'])->name('employees.export');
         Route::get('employees/download-template', [EmployeeController::class, 'downloadTemplate'])->name('employees.download-template');
         Route::post('employees/import', [EmployeeController::class, 'import'])->name('employees.import');
+
+        // Salary Modification Approvals
+        Route::get('salary-modifications', [\App\Http\Controllers\SalaryModificationController::class, 'index'])->name('salary-modifications.index');
+        Route::post('salary-modifications/{id}/approve', [\App\Http\Controllers\SalaryModificationController::class, 'approve'])->name('salary-modifications.approve');
+        Route::post('salary-modifications/{id}/reject', [\App\Http\Controllers\SalaryModificationController::class, 'reject'])->name('salary-modifications.reject');
+
         Route::resource('employees', EmployeeController::class);
         // Staff-wise Weekly Off (nested under employee)
         Route::get('employees/{employee}/weekly-offs', [\App\Http\Controllers\EmployeeWeeklyOffController::class, 'index'])->name('employees.weekly-offs.index');

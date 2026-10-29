@@ -65,6 +65,8 @@ class RolePermissionSeeder extends Seeder
             // Employee Module
             ['name' => 'View Employees', 'slug' => 'view-employees', 'module' => 'employee', 'description' => 'Can view employee list'],
             ['name' => 'View Employee Salary', 'slug' => 'view-employee-salary', 'module' => 'employee', 'description' => 'Can view employee salary details and salary tab on profile'],
+            ['name' => 'Edit Employee Salary', 'slug' => 'edit-employee-salary', 'module' => 'employee', 'description' => 'Can edit employee salary details and structures in create/edit screens'],
+            ['name' => 'Approve Salary Modifications', 'slug' => 'approve-salary-modifications', 'module' => 'employee', 'description' => 'Can review, approve, or reject pending employee salary modification requests'],
             ['name' => 'Create Employees', 'slug' => 'create-employees', 'module' => 'employee', 'description' => 'Can create new employees'],
             ['name' => 'Edit Employees', 'slug' => 'edit-employees', 'module' => 'employee', 'description' => 'Can edit employee information'],
             ['name' => 'Delete Employees', 'slug' => 'delete-employees', 'module' => 'employee', 'description' => 'Can delete employees'],
