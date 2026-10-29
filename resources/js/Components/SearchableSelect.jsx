@@ -26,10 +26,18 @@ export default function SearchableSelect({
         const values = Array.isArray(value)
             ? value.map(String)
             : (value !== null && value !== undefined && value !== '' ? String(value).split(',') : []);
-        selectedOption = flatOptions.filter(opt => opt && values.includes(String(opt.value))) || [];
+        selectedOption = flatOptions.filter(opt => opt && (
+            values.includes(String(opt.value)) ||
+            (opt.employeeId && values.includes(String(opt.employeeId))) ||
+            (opt.name && values.includes(String(opt.name)))
+        )) || [];
     } else {
         selectedOption = (value !== null && value !== undefined && value !== '')
-            ? flatOptions.find(opt => opt && String(opt.value).toLowerCase() === String(value).toLowerCase()) || null
+            ? flatOptions.find(opt => opt && (
+                String(opt.value).toLowerCase() === String(value).toLowerCase() ||
+                (opt.employeeId && String(opt.employeeId) === String(value)) ||
+                (opt.name && String(opt.name).toLowerCase() === String(value).toLowerCase())
+            )) || null
             : null;
     }
 

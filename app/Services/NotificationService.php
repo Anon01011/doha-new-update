@@ -63,12 +63,32 @@ class NotificationService
             return null;
         }
 
-        $managerId = $employee->reports_to_id ?: $employee->reported_to;
-        if (!$managerId) {
-            return null;
+        // 1. Try resolving via direct foreign key
+        if (!empty($employee->reports_to_id)) {
+            $user = self::getUserForEmployee($employee->reports_to_id);
+            if ($user) {
+                return $user;
+            }
         }
 
-        return self::getUserForEmployee($managerId);
+        // 2. Fallback: Resolve via manager name
+        if (!empty($employee->reported_to)) {
+            $managerEmp = Employee::withoutGlobalScopes()->where('name', $employee->reported_to)->first();
+            if ($managerEmp) {
+                $user = self::getUserForEmployee($managerEmp);
+                if ($user) {
+                    return $user;
+                }
+            }
+
+            // 3. Fallback: Check if manager is a direct User record
+            $directUser = User::where('name', $employee->reported_to)->first();
+            if ($directUser) {
+                return $directUser;
+            }
+        }
+
+        return null;
     }
 
     /**

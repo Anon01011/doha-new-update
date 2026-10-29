@@ -312,4 +312,56 @@ class CrossBranchReportingAccessTest extends TestCase
         // Setting to unrelated employee is NOT a cycle
         $this->assertFalse(EmployeeAuthorizationService::detectReportingCycle($this->managerEmpA->id, $this->unrelatedEmpB->id));
     }
+
+    /**
+     * Test 8: Authorized user can query cross-branch managers via getByDepartment without 403.
+     */
+    public function test_get_by_department_allows_authorized_users_to_query_cross_branch_managers()
+    {
+        // Manager A belongs to Branch A, queries Branch B managers
+        $this->actingAs($this->managerUserA);
+
+        $response = $this->getJson(route('api.employees.byDepartment', [
+            'company_ids' => [$this->companyB->id],
+            'department_ids' => [$this->deptB->id],
+        ]));
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure(['employees', 'branch_managers']);
+    }
+
+    /**
+     * Test 9: Subordinates are recognized even when manager is a user account without an employee row.
+     */
+    public function test_subordinates_recognized_when_manager_is_user_without_employee_row()
+    {
+        $standaloneUser = User::create([
+            'name' => 'Standalone HR Manager ' . uniqid(),
+            'email' => 'standalone.hr.' . uniqid() . '@example.com',
+            'role' => 'hr',
+            'company_id' => $this->companyA->id,
+            'employee_id' => null,
+            'password' => bcrypt('password'),
+        ]);
+
+        $subordinate = Employee::create([
+            'name' => 'Legacy Subordinate ' . uniqid(),
+            'employee_code' => 'LEG-' . uniqid(),
+            'company_id' => $this->companyB->id,
+            'gender' => 'Male',
+            'reported_to' => $standaloneUser->name,
+            'reports_to_id' => null,
+            'status' => 'Active',
+        ]);
+
+        EmployeeAuthorizationService::clearCache();
+
+        $this->assertTrue(
+            EmployeeAuthorizationService::isReportingPerson($standaloneUser, $subordinate),
+            'Standalone user should be recognized as reporting person via reported_to name fallback.'
+        );
+
+        $subIds = EmployeeAuthorizationService::getSubordinateEmployeeIds($standaloneUser);
+        $this->assertTrue($subIds->contains($subordinate->id));
+    }
 }

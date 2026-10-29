@@ -1055,15 +1055,19 @@ export default function CreateEmployee(props) {
                                             </label>
                                             <SearchableSelect
                                                 name="reported_to"
-                                                value={data.reported_to}
+                                                value={data.reports_to_id ? String(data.reports_to_id) : data.reported_to}
                                                 options={reportingOptions}
                                                 onChange={e => {
-                                                    const name = e.target.value;
-                                                    const match = flattenReportingOptions(reportingOptions).find(opt => opt.value === name);
+                                                    const val = e.target.value;
+                                                    const match = flattenReportingOptions(reportingOptions).find(opt =>
+                                                        String(opt.value) === String(val) ||
+                                                        (opt.employeeId && String(opt.employeeId) === String(val)) ||
+                                                        (opt.name && opt.name.toLowerCase() === String(val).toLowerCase())
+                                                    );
                                                     setData(prev => ({
                                                         ...prev,
-                                                        reported_to: name,
-                                                        reports_to_id: match?.employeeId || '',
+                                                        reported_to: match?.name || match?.value || val,
+                                                        reports_to_id: match?.employeeId || (val && /^\d+$/.test(String(val)) ? Number(val) : ''),
                                                     }));
                                                 }}
                                                 placeholder="Select Reporting Supervisor"

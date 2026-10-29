@@ -46,7 +46,7 @@ class EmployeeAuthorizationService
         }
 
         // Query database directly
-        $userRow = DB::table('users')->where('id', $userId)->first(['employee_id', 'email']);
+        $userRow = DB::table('users')->where('id', $userId)->first(['employee_id', 'email', 'name']);
         if (!$userRow) {
             self::$userEmployeeIdCache[$userId] = null;
             return null;
@@ -65,6 +65,14 @@ class EmployeeAuthorizationService
             }
         }
 
+        if (!empty($userRow->name)) {
+            $matchingIds = DB::table('employees')->where('name', $userRow->name)->pluck('id');
+            if ($matchingIds->count() === 1) {
+                self::$userEmployeeIdCache[$userId] = (int) $matchingIds->first();
+                return self::$userEmployeeIdCache[$userId];
+            }
+        }
+
         self::$userEmployeeIdCache[$userId] = null;
         return null;
     }
@@ -79,18 +87,37 @@ class EmployeeAuthorizationService
     public static function getSubordinateEmployeeIds(User|int|null $user, bool $recursive = true): Collection
     {
         $empId = self::getEmployeeIdForUser($user);
-        if (!$empId) {
+        $userId = $user instanceof User ? $user->id : (is_numeric($user) ? (int) $user : null);
+        $userName = $user instanceof User ? $user->name : ($userId ? DB::table('users')->where('id', $userId)->value('name') : null);
+
+        if (!$empId && empty($userName)) {
             return collect();
         }
 
-        $cacheKey = "{$empId}_" . ($recursive ? 'rec' : 'direct');
+        $cacheKey = ($empId ?: "u_{$userId}") . '_' . ($recursive ? 'rec' : 'direct');
         if (isset(self::$subordinatesCache[$cacheKey])) {
             return collect(self::$subordinatesCache[$cacheKey]);
         }
 
+        $managerName = $empId ? DB::table('employees')->where('id', $empId)->value('name') : null;
+        $matchNames = array_filter(array_unique([$managerName, $userName]));
+
         // Query direct subordinates without Eloquent scopes
         $directSubIds = DB::table('employees')
-            ->where('reports_to_id', $empId)
+            ->where(function ($q) use ($empId, $matchNames) {
+                if ($empId) {
+                    $q->where('reports_to_id', $empId);
+                }
+                if (!empty($matchNames)) {
+                    if ($empId) {
+                        $q->orWhere(function ($sub) use ($matchNames) {
+                            $sub->whereNull('reports_to_id')->whereIn('reported_to', $matchNames);
+                        });
+                    } else {
+                        $q->whereIn('reported_to', $matchNames);
+                    }
+                }
+            })
             ->pluck('id')
             ->map(fn($id) => (int) $id)
             ->all();

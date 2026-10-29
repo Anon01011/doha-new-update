@@ -303,9 +303,16 @@ class EmployeeController extends Controller
         // rejected request never leaves a partially-created employee behind.
         $roleSlug = RoleAssignmentService::resolveRequestedRole($request, $user);
 
-        // Multi-tenancy check: Force company_id for non-admins
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-            $validated['company_id'] = $user->employee->company_id;
+        // Multi-tenancy check: Restrict company_id for non-admins
+        if (!$user->isAdmin()) {
+            $assignedCompanies = $user->getAssignedCompanyIds();
+            if ($assignedCompanies->isNotEmpty()) {
+                if (empty($validated['company_id']) || !$assignedCompanies->contains((int)$validated['company_id'])) {
+                    $validated['company_id'] = $assignedCompanies->first();
+                }
+            } elseif ($user->company_id) {
+                $validated['company_id'] = $user->company_id;
+            }
         }
 
         // Convert empty string unique fields to null
@@ -340,13 +347,7 @@ class EmployeeController extends Controller
 
         // Keep the legacy manager NAME in sync with the manager foreign key so
         // the profile page, exports and reports keep working unchanged.
-        if (array_key_exists('reports_to_id', $validated)) {
-            $manager = $validated['reports_to_id']
-                ? Employee::withoutGlobalScopes()->find($validated['reports_to_id'])
-                : null;
-
-            $validated['reported_to'] = $manager ? $manager->name : null;
-        }
+        $this->syncReportingPerson($validated);
 
         $newUploadedFiles = [];
 
@@ -1461,8 +1462,8 @@ class EmployeeController extends Controller
             $companyIds = array_filter((array) ($request->input('company_ids') ?: ($request->input('company_id') ? [$request->input('company_id')] : [])));
             $departmentIds = array_filter((array) ($request->input('department_ids') ?: ($request->input('department_id') ? [$request->input('department_id')] : [])));
 
-            // Multi-tenancy check: non-admins are restricted to their assigned branches
-            if (!$user->isAdmin()) {
+            // Multi-tenancy check: non-admins without employee management permissions are restricted to their assigned branches
+            if (!$user->isAdmin() && !$user->hasPermission('create-employees') && !$user->hasPermission('edit-employees') && !$user->hasPermission('view-employees')) {
                 $assignedCompanyIds = $user->getAssignedCompanyIds();
                 if ($assignedCompanyIds->isNotEmpty() && !empty($companyIds)) {
                     $hasUnauthorized = collect($companyIds)->some(fn($id) => !$assignedCompanyIds->contains((int)$id));

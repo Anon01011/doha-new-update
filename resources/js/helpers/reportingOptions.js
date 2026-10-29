@@ -1,10 +1,12 @@
 export function reporterOption(person) {
     const branch = person?.company?.name || 'All Branches';
     const title = person?.designation || 'Manager';
-    const numericId = person?.id && /^\d+$/.test(String(person.id)) ? Number(person.id) : '';
+    const numericId = person?.id && /^\d+$/.test(String(person.id)) ? Number(person.id) : null;
+    const value = numericId ? String(numericId) : (person.name || '');
     return {
-        value: person.name,
-        employeeId: numericId,
+        value,
+        employeeId: numericId || '',
+        name: person.name,
         label: `${person.name} (${title}) — [${branch}]`,
     };
 }
@@ -23,13 +25,15 @@ export function buildReportingOptions({
     deptIds,
 }) {
     const groups = [];
-    const seenNames = new Set();
+    const seenKeys = new Set();
 
     const pushUnique = (list) => {
         const opts = [];
         (list || []).forEach((person) => {
-            if (!person?.name || seenNames.has(person.name)) return;
-            seenNames.add(person.name);
+            if (!person?.name) return;
+            const key = person?.id ? `id:${person.id}` : `name:${String(person.name).toLowerCase()}`;
+            if (seenKeys.has(key)) return;
+            seenKeys.add(key);
             opts.push(reporterOption(person));
         });
         return opts;
