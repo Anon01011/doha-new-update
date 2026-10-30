@@ -718,7 +718,10 @@ class EmployeeController extends Controller
         if ($pendingSalaryRequest) {
             if ($isRequester) {
                 $approveDisabledReason = 'You submitted this modification request. Approval must be performed by the Branch HR.';
+            } elseif ($user->isAdmin() && !$hasApprovePerm) {
+                $approveDisabledReason = 'Admin account lacks "Approve Salary Modifications" permission.';
             } elseif ($user->isAdmin()) {
+                $approveDisabledReason = 'Only the assigned Branch HR for this branch can approve salary modifications.';
                 // Admins are always blocked from approving — they must go through Branch HR
                 $approveDisabledReason = 'Only the assigned Branch HR for this branch can approve salary modifications. Admin edits are queued for Branch HR approval.';
             } elseif (!$hasBranchAccess) {
@@ -727,6 +730,8 @@ class EmployeeController extends Controller
             } elseif (!$isBranchHR && !$hasApprovePerm) {
                 // In the branch but neither HR nor has explicit approve permission
                 $approveDisabledReason = 'Role lacks "Approve Salary Modifications" permission.';
+            } elseif (!$isBranchHR) {
+                $approveDisabledReason = 'Only the Branch HR for ' . ($employee->company?->name ?? 'this branch') . ' can approve.';
             } else {
                 // isBranchHR  OR  (has approve perm + branch access)
                 $canApproveSalary = $canSeeSalary;

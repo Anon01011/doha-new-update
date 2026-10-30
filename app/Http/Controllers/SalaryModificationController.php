@@ -68,7 +68,10 @@ class SalaryModificationController extends Controller
             if ($req->status === 'pending') {
                 if ($isRequester) {
                     $disabledReason = 'You submitted this request. Approval must be performed by the Branch HR.';
+                } elseif ($user->isAdmin() && !$hasApprovePerm) {
+                    $disabledReason = 'Admin account lacks "Approve Salary Modifications" permission.';
                 } elseif ($user->isAdmin()) {
+                    $disabledReason = 'Only the assigned Branch HR for this branch can approve.';
                     // Admins are always blocked — they initiate requests, Branch HR approves
                     $disabledReason = 'Only the assigned Branch HR for this branch can approve salary modifications. Admin edits are queued for Branch HR approval.';
                 } elseif (!$hasBranchAccess) {
@@ -107,6 +110,7 @@ class SalaryModificationController extends Controller
             ],
             'companies' => $companies,
             'pendingCount' => $pendingCount,
+            'canApprove' => $user->isAdmin() || $user->isHR() || $user->hasPermission('approve-salary-modifications'),
             'canApprove' => !$user->isAdmin() && ($user->isHR() || $user->hasPermission('approve-salary-modifications', false)),
         ]);
     }
