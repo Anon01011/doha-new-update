@@ -29,34 +29,32 @@ class EmployeeEvaluationController extends Controller
         }
 
         if ($request->filled('company_id') && ($user->isAdmin() || $user->isHR())) {
-            $query->where('company_id', $request->input('company_id'));
+            $companyId = $request->input('company_id');
+            $query->where(function ($q) use ($companyId) {
+                $q->where('company_id', $companyId)
+                  ->orWhereHas('employee', function ($eq) use ($companyId) {
+                      $eq->where('company_id', $companyId);
+                  });
+            });
         }
 
         if ($request->filled('department_id')) {
-            $query->whereHas('employee', function ($q) use ($request) {
-                $q->where('department_id', $request->input('department_id'));
+            $deptId = $request->input('department_id');
+            $query->whereHas('employee', function ($q) use ($deptId) {
+                $q->where('department_id', $deptId);
             });
         }
 
         if ($request->filled('search')) {
             $search = $request->input('search');
-            $query->whereHas('employee', function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('employee_code', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('reference_no', 'like', "%{$search}%")
+                  ->orWhereHas('employee', function ($eq) use ($search) {
+                      $eq->where('name', 'like', "%{$search}%")
+                        ->orWhere('employee_code', 'like', "%{$search}%")
+                        ->orWhere('designation', 'like', "%{$search}%");
+                  });
             });
-        }
-
-        if ($request->filled('status')) {
-            $status = $request->input('status');
-            if ($status === 'approved') {
-                $query->where('status', 'approved');
-            } elseif ($status === 'pending') {
-                $query->whereIn('status', ['draft', 'self_assessment', 'manager_review', 'calibration']);
-            } elseif ($status === 'pip') {
-                $query->where('pip_required', true);
-            } else {
-                $query->where('status', $status);
-            }
         }
 
         if ($request->filled('cycle_type')) {
@@ -67,14 +65,41 @@ class EmployeeEvaluationController extends Controller
             $query->where('year', $request->input('year'));
         }
 
+        // Base query for metric cards so summary reflects company/dept/cycle/search,
+        // without collapsing all cards when a specific status is chosen
+        $baseQuery = clone $query;
+
         $summary = [
-            'total' => (clone $query)->count(),
-            'approved' => (clone $query)->where('status', 'approved')->count(),
-            'pending_self' => (clone $query)->where('status', 'self_assessment')->count(),
-            'pending_manager' => (clone $query)->where('status', 'manager_review')->count(),
-            'pip_count' => (clone $query)->where('pip_required', true)->count(),
-            'avg_score' => round((clone $query)->avg('overall_score') ?: 0, 1),
+            'total' => (clone $baseQuery)->count(),
+            'approved' => (clone $baseQuery)->where('status', 'approved')->count(),
+            'pending_self' => (clone $baseQuery)->where('status', 'self_assessment')->count(),
+            'pending_manager' => (clone $baseQuery)->where('status', 'manager_review')->count(),
+            'pip_count' => (clone $baseQuery)->where('pip_required', true)->count(),
+            'top_performers' => (clone $baseQuery)->where('overall_score', '>=', 80)->count(),
+            'avg_score' => round((clone $baseQuery)->avg('overall_score') ?: 0, 1),
         ];
+
+        // Apply status and score filters to the records query
+        if ($request->filled('status')) {
+            $status = $request->input('status');
+            if ($status === 'approved') {
+                $query->where('status', 'approved');
+            } elseif ($status === 'pending') {
+                $query->whereIn('status', ['draft', 'self_assessment', 'manager_review', 'calibration']);
+            } elseif ($status === 'self_assessment') {
+                $query->where('status', 'self_assessment');
+            } elseif ($status === 'manager_review') {
+                $query->where('status', 'manager_review');
+            } elseif ($status === 'pip') {
+                $query->where('pip_required', true);
+            } else {
+                $query->where('status', $status);
+            }
+        }
+
+        if ($request->filled('score_filter') && $request->input('score_filter') === 'top') {
+            $query->where('overall_score', '>=', 80);
+        }
 
         $evaluations = $query->latest()->paginate(10)->withQueryString();
         $companies = ($user->isAdmin() || $user->isHR()) ? Company::orderBy('name')->get(['id', 'name']) : collect();
@@ -93,15 +118,20 @@ class EmployeeEvaluationController extends Controller
 
     public function show(EmployeeEvaluation $evaluation)
     {
+        // Redirect legacy numeric ID URLs to the canonical reference number URL
+        if (is_numeric(request()->segment(2)) && !empty($evaluation->reference_no)) {
+            return redirect()->route('evaluations.show', $evaluation);
+        }
+
         $user = auth()->user();
         $evaluation->load(['employee.company', 'employee.department', 'evaluator', 'approver']);
 
         // Authorization
-        if ($user->isEmployee() && $evaluation->employee_id !== $user->employee_id) {
+        if (!$user->isAdmin() && !$user->isHR() && $user->isEmployee() && $evaluation->employee_id !== $user->employee_id) {
             abort(403, 'Unauthorized.');
         }
 
-        if (!$user->isEmployee() && !$user->isAdmin() && !$user->hasPermission('view-evaluations')) {
+        if (!$user->isEmployee() && !$user->isAdmin() && !$user->isHR() && !$user->hasPermission('view-evaluations')) {
             abort(403, 'Unauthorized.');
         }
 
@@ -215,7 +245,7 @@ class EmployeeEvaluationController extends Controller
         // Auto flag PIP if overall score is below 50%
         $pipRequired = $validated['pip_required'] ?? ($overallScore > 0 && $overallScore < 50);
 
-        EmployeeEvaluation::create([
+        $evaluation = EmployeeEvaluation::create([
             'employee_id' => $validated['employee_id'],
             'evaluator_id' => $user->id,
             'company_id' => $employee->company_id,
@@ -248,6 +278,10 @@ class EmployeeEvaluationController extends Controller
 
     public function edit(EmployeeEvaluation $evaluation)
     {
+        if (is_numeric(request()->segment(2)) && !empty($evaluation->reference_no)) {
+            return redirect()->route('evaluations.edit', $evaluation);
+        }
+
         $user = auth()->user();
         $evaluation->load(['employee.company', 'employee.department', 'evaluator']);
 
@@ -383,8 +417,8 @@ class EmployeeEvaluationController extends Controller
         $evaluation->update([
             'self_scores' => $validated['self_scores'],
             'self_comments' => $validated['self_comments'] ?? null,
-            'achievements' => $achievements ?? ($validated['achievements'] ?? null),
-            'development_needs' => $developmentNeeds ?? ($validated['development_needs'] ?? null),
+            'achievements' => $validated['achievements'] ?? null,
+            'development_needs' => $validated['development_needs'] ?? null,
             'status' => 'manager_review',
         ]);
 
@@ -530,6 +564,10 @@ class EmployeeEvaluationController extends Controller
      */
     public function downloadAppraisalLetter(Request $request, EmployeeEvaluation $evaluation)
     {
+        if (is_numeric($request->segment(2)) && !empty($evaluation->reference_no)) {
+            return redirect()->route('evaluations.appraisal-letter', array_merge(['evaluation' => $evaluation], $request->query()));
+        }
+
         $user = auth()->user();
         $evaluation->loadMissing(['employee.company', 'employee.department', 'evaluator', 'approver']);
         $employee = $evaluation->employee;

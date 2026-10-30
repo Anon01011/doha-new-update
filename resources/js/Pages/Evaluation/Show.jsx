@@ -19,7 +19,7 @@ import {
     ShieldCheckIcon,
     PencilSquareIcon,
     TrashIcon,
-    CurrencyRupeeIcon,
+    BanknotesIcon,
     ArrowTrendingUpIcon,
     ExclamationTriangleIcon,
     AcademicCapIcon,
@@ -177,12 +177,12 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                                 <ArrowLeftIcon className="w-4 h-4 text-slate-400 group-hover:text-primary transition-colors" />
                             </Link>
                             <div>
-                                <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal leading-none mb-1">Performance Appraisal Cycle</p>
-                                <h1 className="text-sm font-normal text-slate-900 uppercase tracking-normal flex items-center gap-2">
-                                    REF #{evaluation.id.toString().padStart(6, '0')}
+                                <p className="text-xs text-slate-400 font-medium tracking-wide mb-0.5">Performance Appraisal</p>
+                                <h1 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                                    {evaluation.reference_no || `Ref: #${evaluation.id.toString().padStart(6, '0')}`}
                                     {evaluation.is_locked && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8px] font-normal uppercase bg-slate-800 text-white">
-                                            <LockClosedIcon className="w-2.5 h-2.5" /> Locked Record
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-slate-900 text-white">
+                                            <LockClosedIcon className="w-3 h-3" /> Finalized & Locked
                                         </span>
                                     )}
                                 </h1>
@@ -191,7 +191,7 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={handlePrint}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-normal text-slate-600 hover:bg-slate-50 transition-all shadow-sm active:scale-95 uppercase tracking-normal"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50 transition-all shadow-2xs active:scale-95"
                             >
                                 <PrinterIcon className="w-3.5 h-3.5" />
                                 Print
@@ -200,13 +200,13 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                             {/* Appraisal Letter PDF Download */}
                             {(evaluation.status === 'approved' || evaluation.is_locked) && (
                                 <a
-                                    href={route('evaluations.appraisal-letter', evaluation.id)}
-                                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-normal transition-all shadow-sm active:scale-95 uppercase tracking-normal"
+                                    href={route('evaluations.appraisal-letter', evaluation.reference_no || evaluation.id)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition-all shadow-2xs active:scale-95"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >
                                     <DocumentTextIcon className="w-3.5 h-3.5" />
-                                    Appraisal Letter (PDF)
+                                    Official Letter (PDF)
                                 </a>
                             )}
 
@@ -246,8 +246,8 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
 
                             {isHrOrAdmin && !evaluation.is_locked && (
                                 <Link
-                                    href={route('evaluations.edit', evaluation.id)}
-                                    className="flex items-center gap-2 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-normal hover:bg-amber-600 transition-all shadow-sm active:scale-95 uppercase tracking-normal"
+                                    href={route('evaluations.edit', evaluation.reference_no || evaluation.id)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 transition-all shadow-2xs active:scale-95"
                                 >
                                     <PencilSquareIcon className="w-3.5 h-3.5" />
                                     Edit
@@ -325,7 +325,7 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                                             <p className="text-[9px] font-normal text-slate-700 uppercase">{evaluation.employee?.department?.name || 'Operations'}</p>
                                         </div>
                                         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 rounded-lg border border-emerald-100">
-                                            <CurrencyRupeeIcon className="w-3.5 h-3.5 text-emerald-600" />
+                                            <BanknotesIcon className="w-3.5 h-3.5 text-emerald-600" />
                                             <p className="text-[9px] font-normal text-emerald-700 uppercase">
                                                 Current Base: {formatINR(evaluation.employee?.basic_salary)}
                                             </p>
@@ -398,8 +398,10 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                                         </div>
                                         <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                                             {items.map((criterion) => {
-                                                const mgrScore = evaluation.criteria_scores?.[criterion] || 0;
-                                                const selfScore = evaluation.self_scores?.[criterion] || null;
+                                                const mgrScore = evaluation.criteria_scores?.[criterion] ?? 0;
+                                                const selfScore = (!Array.isArray(evaluation.self_scores) && evaluation.self_scores?.[criterion] !== undefined)
+                                                    ? evaluation.self_scores[criterion]
+                                                    : null;
 
                                                 return (
                                                     <div key={criterion} className="p-3 bg-slate-50/50 rounded-lg border border-slate-100 flex flex-col justify-between hover:bg-white hover:border-indigo-100 hover:shadow-sm transition-all gap-2">
@@ -536,19 +538,21 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Salary Increment</span>
                                     <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
-                                        <CurrencyRupeeIcon className="w-4 h-4" />
+                                        <BanknotesIcon className="w-4 h-4" />
                                     </div>
                                 </div>
                                 <div className="text-xl font-normal text-slate-900">
-                                    {evaluation.increment_recommended > 0 ? (
-                                        <>
-                                            {formatINR(evaluation.increment_recommended)}
-                                            {evaluation.increment_percentage > 0 && (
-                                                <span className="text-xs text-emerald-600 font-normal ml-1.5">
-                                                    (+{evaluation.increment_percentage}%)
+                                    {Number(evaluation.increment_recommended) > 0 || Number(evaluation.increment_percentage) > 0 ? (
+                                        <div className="flex items-baseline gap-1.5 flex-wrap">
+                                            {Number(evaluation.increment_recommended) > 0 && (
+                                                <span>{formatINR(evaluation.increment_recommended)}</span>
+                                            )}
+                                            {Number(evaluation.increment_percentage) > 0 && (
+                                                <span className="text-sm font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                                    +{evaluation.increment_percentage}%
                                                 </span>
                                             )}
-                                        </>
+                                        </div>
                                     ) : (
                                         <span className="text-slate-400 text-sm">No Increment Linked</span>
                                     )}
@@ -655,7 +659,7 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
                     <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between border-b pb-3">
-                            <h3 className="text-base font-normal text-slate-900">Step 15: Employee Self-Assessment</h3>
+                            <h3 className="text-base font-normal text-slate-900">Employee Self-Assessment</h3>
                             <button onClick={() => setShowSelfModal(false)} className="text-slate-400 hover:text-slate-600">
                                 <XMarkIcon className="w-5 h-5" />
                             </button>
@@ -717,7 +721,7 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
                     <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4">
                         <div className="flex items-center justify-between border-b pb-3">
-                            <h3 className="text-base font-normal text-slate-900">Step 20: Employee Acknowledgment</h3>
+                            <h3 className="text-base font-normal text-slate-900">Employee Acknowledgment</h3>
                             <button onClick={() => setShowAckModal(false)} className="text-slate-400 hover:text-slate-600">
                                 <XMarkIcon className="w-5 h-5" />
                             </button>

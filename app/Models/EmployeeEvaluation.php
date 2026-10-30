@@ -10,6 +10,7 @@ class EmployeeEvaluation extends Model
     use BelongsToCompany;
 
     protected $fillable = [
+        'reference_no',
         'employee_id',
         'evaluator_id',
         'month',
@@ -76,6 +77,47 @@ class EmployeeEvaluation extends Model
     public function company()
     {
         return $this->belongsTo(Company::class);
+    }
+
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted()
+    {
+        static::creating(function ($model) {
+            if (empty($model->reference_no)) {
+                $year = $model->year ?? date('Y');
+                $month = str_pad((string)($model->month ?? date('n')), 2, '0', STR_PAD_LEFT);
+                $random = strtoupper(\Illuminate\Support\Str::random(6));
+                $model->reference_no = "EVA-{$year}{$month}-{$random}";
+            }
+        });
+    }
+
+    /**
+     * Use reference_no in URLs instead of exposing sequential primary key IDs.
+     */
+    public function getRouteKeyName()
+    {
+        return 'reference_no';
+    }
+
+    public function getRouteKey()
+    {
+        return $this->reference_no ?: (string)$this->getKey();
+    }
+
+    /**
+     * Resolve the route binding from either reference_no or legacy numeric ID.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->withoutGlobalScope('company')
+            ->where(function ($query) use ($value) {
+                $query->where('reference_no', $value)
+                      ->orWhere('id', $value);
+            })
+            ->first() ?? abort(404);
     }
 
     /**

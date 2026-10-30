@@ -86,7 +86,7 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
             increment_percentage: incrementType === 'fixed' ? '' : formData.increment_percentage,
             increment_recommended: incrementType === 'percentage' ? '' : formData.increment_recommended,
         }));
-        put(route('evaluations.update', evaluation.id));
+        put(route('evaluations.update', evaluation.reference_no || evaluation.id));
     };
 
     const handleScoreChange = (criterion, score) => {
