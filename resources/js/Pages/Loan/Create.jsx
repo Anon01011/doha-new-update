@@ -11,7 +11,7 @@ import {
 
 export default function Create({ employees = [], loanTypes = [], userRole = 'employee', authEmployeeId = null }) {
     const { appSettings } = usePage().props;
-    const { symbol: currency_symbol } = resolveCurrency({ appSettings });
+    const { symbol: currency_symbol, code: currency_code } = resolveCurrency({ appSettings });
 
     const [showNewTypeInput, setShowNewTypeInput] = useState(false);
     const [newLoanType, setNewLoanType] = useState('');
@@ -207,7 +207,7 @@ export default function Create({ employees = [], loanTypes = [], userRole = 'emp
                                         value={data.amount}
                                         onChange={(e) => setData('amount', e.target.value)}
                                         symbol={currency_symbol}
-                                        code={currency}
+                                        code={currency_code}
                                         placeholder="0.00"
                                         className="group bg-slate-50/50 border border-slate-200 rounded-[3px] focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all"
                                         prefixClassName="text-[10px] font-normal text-slate-400 pl-4 pr-1"
