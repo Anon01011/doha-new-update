@@ -233,8 +233,8 @@ export default function ExpenseReport({
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`px-4 py-3 text-xs font-semibold whitespace-nowrap border-b-2 transition-all ${activeTab === tab.id
-                                    ? 'border-primary text-primary'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-slate-500 hover:text-slate-700'
                                 }`}
                         >
                             {tab.label}
@@ -387,9 +387,9 @@ export default function ExpenseReport({
                                     {displayClaims.map((claim) => (
                                         <tr key={claim.id} className="hover:bg-slate-50/60">
                                             <td className="py-3 px-4 font-semibold text-slate-800">
-                                                <Link href={route('expenses.show', claim.id)} className="hover:text-primary">
-                                                    {claim.claim_number}
-                                                </Link>
+                                                    <Link href={route('expenses.show', claim.claim_number || claim.id)} className="hover:text-primary">
+                                                        {claim.claim_number}
+                                                    </Link>
                                             </td>
                                             <td className="py-3 px-4 font-semibold text-slate-800">{claim.employee?.name}</td>
                                             <td className="py-3 px-4">{formatDate(claim.expense_date)}</td>

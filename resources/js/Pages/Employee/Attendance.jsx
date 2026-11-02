@@ -98,8 +98,11 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
         });
     };
 
-    const formatDate = (date) => {
-        return date.toLocaleDateString('en-US', {
+    const formatDateLong = (date) => {
+        // Accept both Date objects and date strings (e.g. '2024-01-15' from Inertia)
+        const d = date instanceof Date ? date : new Date(date);
+        if (isNaN(d.getTime())) return String(date ?? '');
+        return d.toLocaleDateString('en-US', {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
@@ -159,7 +162,7 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
 
                     <div className="relative z-10 flex flex-col items-center text-center">
                         <div className="mb-2 text-blue-100 font-normal tracking-normal uppercase text-xs sm:text-sm">
-                            {formatDate(currentTime)}
+                            {formatDateLong(currentTime)}
                         </div>
                         <div className="text-4xl sm:text-6xl md:text-8xl font-normal tracking-tight mb-4 drop-shadow-lg font-mono">
                             {formatTime(currentTime)}

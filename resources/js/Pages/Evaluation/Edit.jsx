@@ -158,7 +158,7 @@ export default function Edit({ auth, evaluation, employees: initialEmployees, br
                     {/* Action Bar */}
                     <div className="flex items-center gap-3">
                         <Link
-                            href={route('evaluations.show', evaluation.id)}
+                            href={route('evaluations.show', evaluation.reference_no || evaluation.id)}
                             className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all shadow-sm active:scale-95 group"
                         >
                             <ArrowLeftIcon className="w-4 h-4 text-slate-400 group-hover:text-primary transition-colors" />

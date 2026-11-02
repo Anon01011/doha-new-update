@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\Employee;
+use App\Models\Company;
 use App\Models\ShiftRoster;
 use App\Models\LeaveRequest;
 use App\Models\ExpenseClaim;

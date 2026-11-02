@@ -5,6 +5,8 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
+use App\Models\Setting;
 
 class LoanRequested extends Notification implements ShouldQueue
 {
@@ -29,7 +31,27 @@ class LoanRequested extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1') {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    /**
+     * Get the mail representation of the notification.
+     */
+    public function toMail(object $notifiable): MailMessage
+    {
+        $amount = number_format((float)$this->loan->amount, 2);
+        return (new MailMessage)
+            ->subject("New Loan Request: {$this->employeeName}")
+            ->line("A new loan request has been submitted by {$this->employeeName}.")
+            ->line("Loan Type: {$this->loan->loan_type}")
+            ->line("Amount: {$amount}")
+            ->line("Tenure: {$this->loan->tenure_months} months")
+            ->action('View Loan Request', route('loans.show', $this->loan->id))
+            ->line('Please review and take appropriate action.');
     }
 
     /**

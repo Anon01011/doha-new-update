@@ -294,7 +294,8 @@ class SalaryPostingController extends Controller
 
         $loanInstallments = \App\Models\LoanInstallment::whereHas('loan', function ($query) use ($salaryPosting) {
             $query->where('employee_id', $salaryPosting->employee_id)
-                  ->where('repayment_method', 'salary_deduction');
+                  ->where('repayment_method', 'salary_deduction')
+                  ->where('status', 'disbursed');
         })
             ->with('loan')
             ->whereBetween('due_date', [$startDate->toDateString(), $endDate->toDateString()])
@@ -471,7 +472,8 @@ class SalaryPostingController extends Controller
 
         $loanInstallments = \App\Models\LoanInstallment::with('loan')
             ->whereHas('loan', function ($query) use ($employeeId) {
-                $query->where('employee_id', $employeeId);
+                $query->where('employee_id', $employeeId)
+                      ->where('status', 'disbursed');
             })
             ->whereBetween('due_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->get();
@@ -656,7 +658,8 @@ class SalaryPostingController extends Controller
         if ($loanDeduction > 0) {
             $installments = \App\Models\LoanInstallment::whereHas('loan', function ($query) use ($employeeId) {
                 $query->where('employee_id', $employeeId)
-                      ->where('repayment_method', 'salary_deduction');
+                      ->where('repayment_method', 'salary_deduction')
+                      ->where('status', 'disbursed');
             })
                 ->whereBetween('due_date', [$startDate->toDateString(), $endDate->toDateString()])
                 ->where('status', '!=', 'paid')

@@ -5,6 +5,8 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
+use App\Models\Setting;
 
 class LeaveStatusUpdated extends Notification implements ShouldQueue
 {
@@ -31,7 +33,27 @@ class LeaveStatusUpdated extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1') {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    /**
+     * Get the mail representation of the notification.
+     */
+    public function toMail(object $notifiable): MailMessage
+    {
+        $statusLabel = ucfirst($this->status);
+
+        return (new MailMessage)
+            ->subject("Leave Request Update: {$statusLabel}")
+            ->line($this->message)
+            ->line("Status: {$statusLabel}")
+            ->line("Days: {$this->leaveRequest->days_requested} day(s)")
+            ->action('View Leave Request', route('leave-requests.show', $this->leaveRequest->id))
+            ->line('Thank you for using our platform.');
     }
 
     /**

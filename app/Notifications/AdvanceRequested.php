@@ -5,6 +5,8 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
+use App\Models\Setting;
 
 class AdvanceRequested extends Notification implements ShouldQueue
 {
@@ -29,7 +31,27 @@ class AdvanceRequested extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1') {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    /**
+     * Get the mail representation of the notification.
+     */
+    public function toMail(object $notifiable): MailMessage
+    {
+        $amount = number_format((float)$this->advance->amount, 2);
+
+        return (new MailMessage)
+            ->subject("New Salary Advance Request: {$this->employeeName}")
+            ->line("A new salary advance request has been submitted by {$this->employeeName}.")
+            ->line("Amount: {$amount}")
+            ->line("Reason: " . ($this->advance->reason ?: 'N/A'))
+            ->action('Review Advance Request', route('advances.show', $this->advance->id))
+            ->line('Please review and take appropriate action.');
     }
 
     /**

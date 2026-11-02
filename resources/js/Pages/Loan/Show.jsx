@@ -281,7 +281,7 @@ export default function Show({ loan, userRole = 'employee' }) {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-3 text-right">
-                                                    {userRole !== 'employee' && inst.status !== 'paid' && (
+                                                    {userRole !== 'employee' && loan.status === 'disbursed' && inst.status !== 'paid' && (
                                                         <button
                                                             onClick={() => handlePayInstallment(inst.id)}
                                                             className="px-3 py-1 bg-white border border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-100 hover:bg-emerald-50 rounded text-[9px] font-normal uppercase tracking-normal transition-all active:scale-95"

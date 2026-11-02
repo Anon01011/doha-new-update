@@ -58,15 +58,15 @@ export default function Show({
 
     const handleManagerAction = (type) => {
         if (type === 'approve') {
-            managerForm.post(route('expenses.manager-approve', claim.id), {
+            managerForm.post(route('expenses.manager-approve', claim.claim_number || claim.id), {
                 onSuccess: () => setManagerModal({ open: false, type: 'approve' }),
             });
         } else if (type === 'reject') {
-            managerForm.post(route('expenses.manager-reject', claim.id), {
+            managerForm.post(route('expenses.manager-reject', claim.claim_number || claim.id), {
                 onSuccess: () => setManagerModal({ open: false, type: 'reject' }),
             });
         } else if (type === 'return') {
-            managerForm.post(route('expenses.return', claim.id), {
+            managerForm.post(route('expenses.return', claim.claim_number || claim.id), {
                 onSuccess: () => setManagerModal({ open: false, type: 'return' }),
             });
         }
@@ -74,11 +74,11 @@ export default function Show({
 
     const handleFinanceAction = (type) => {
         if (type === 'approve') {
-            financeForm.post(route('expenses.finance-approve', claim.id), {
+            financeForm.post(route('expenses.finance-approve', claim.claim_number || claim.id), {
                 onSuccess: () => setFinanceModal({ open: false, type: 'approve' }),
             });
         } else if (type === 'reject') {
-            financeForm.post(route('expenses.finance-reject', claim.id), {
+            financeForm.post(route('expenses.finance-reject', claim.claim_number || claim.id), {
                 onSuccess: () => setFinanceModal({ open: false, type: 'reject' }),
             });
         }
@@ -86,13 +86,13 @@ export default function Show({
 
     const handleProcessPayment = (e) => {
         e.preventDefault();
-        paymentForm.post(route('expenses.process-payment', claim.id), {
+        paymentForm.post(route('expenses.process-payment', claim.claim_number || claim.id), {
             onSuccess: () => setPaymentModalOpen(false),
         });
     };
 
     const handleSubmitDraft = () => {
-        router.post(route('expenses.submit', claim.id));
+        router.post(route('expenses.submit', claim.claim_number || claim.id));
     };
 
     // Stepper Stages

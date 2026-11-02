@@ -426,6 +426,17 @@ class LoanController extends Controller
             abort(403, 'Unauthorized. Only admin and HR (or those with permission) can mark installments as paid.');
         }
 
+        // Guard: installments can only be paid once the loan has been disbursed
+        $loan = $installment->loan;
+        if ($loan->status !== 'disbursed') {
+            return back()->with('error', 'Installments cannot be marked as paid until the loan has been disbursed.');
+        }
+
+        // Guard: installment must be pending or overdue, not already paid/skipped
+        if ($installment->status === 'paid') {
+            return back()->with('error', 'This installment has already been paid.');
+        }
+
         $isLate = now()->startOfDay()->gt(\Carbon\Carbon::parse($installment->due_date));
         $installment->update([
             'status'      => 'paid',
@@ -436,7 +447,6 @@ class LoanController extends Controller
                 : $installment->remarks,
         ]);
 
-        $loan     = $installment->loan;
         $loan->refresh();
         $employee = Employee::with('company')->find($loan->employee_id);
         $company  = $employee?->company ?? Company::find($employee?->company_id);

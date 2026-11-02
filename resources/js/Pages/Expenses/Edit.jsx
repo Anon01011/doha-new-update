@@ -52,7 +52,7 @@ export default function Edit({ claim, categories = [], projects = [], department
 
     const handleSubmit = (submitDirectly) => {
         setData('submit_now', submitDirectly);
-        post(route('expenses.update', claim.id), {
+        post(route('expenses.update', claim.claim_number || claim.id), {
             forceFormData: true,
         });
     };
@@ -68,7 +68,7 @@ export default function Edit({ claim, categories = [], projects = [], department
             <div className="w-full bg-white border-b border-slate-100 px-4 lg:px-8 py-4">
                 <div className="flex items-center gap-3">
                     <Link
-                        href={route('expenses.show', claim.id)}
+                        href={route('expenses.show', claim.claim_number || claim.id)}
                         className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors text-slate-500"
                     >
                         <FiArrowLeft className="w-5 h-5" />

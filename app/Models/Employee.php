@@ -607,7 +607,8 @@ class Employee extends Model
 
         return \App\Models\LoanInstallment::whereHas('loan', function ($query) {
             $query->where('employee_id', $this->id)
-                  ->where('repayment_method', 'salary_deduction');
+                  ->where('repayment_method', 'salary_deduction')
+                  ->where('status', 'disbursed');
         })
             ->whereBetween('due_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->where('status', '!=', 'paid')

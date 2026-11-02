@@ -5,6 +5,8 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
+use App\Models\Setting;
 
 class LeaveRequested extends Notification implements ShouldQueue
 {
@@ -33,7 +35,29 @@ class LeaveRequested extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1') {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    /**
+     * Get the mail representation of the notification.
+     */
+    public function toMail(object $notifiable): MailMessage
+    {
+        $startDate = $this->leaveRequest->start_date ? \Carbon\Carbon::parse($this->leaveRequest->start_date)->format('Y-m-d') : 'N/A';
+        $endDate = $this->leaveRequest->end_date ? \Carbon\Carbon::parse($this->leaveRequest->end_date)->format('Y-m-d') : 'N/A';
+
+        return (new MailMessage)
+            ->subject($this->title ?: "Leave Request: {$this->employeeName}")
+            ->line($this->customMessage ?: "{$this->employeeName} has submitted a new leave request.")
+            ->line("Days: {$this->leaveRequest->days_requested} day(s)")
+            ->line("Period: {$startDate} to {$endDate}")
+            ->line("Reason: " . ($this->leaveRequest->reason ?: 'No reason provided'))
+            ->action('Review Leave Request', route('leave-requests.show', $this->leaveRequest->id))
+            ->line('Please review this leave application.');
     }
 
     /**

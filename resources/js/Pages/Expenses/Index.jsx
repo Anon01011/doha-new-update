@@ -290,7 +290,7 @@ export default function Index({
                                         <tr key={claim.id} className="hover:bg-slate-50/60 transition-colors group">
                                             <td className="py-3.5 px-4 font-semibold text-slate-800 whitespace-nowrap">
                                                 <Link
-                                                    href={route('expenses.show', claim.id)}
+                                                    href={route('expenses.show', claim.claim_number || claim.id)}
                                                     className="hover:text-primary transition-colors flex items-center gap-1.5"
                                                 >
                                                     {claim.claim_number}
@@ -355,8 +355,8 @@ export default function Index({
                                             </td>
                                             <td className="py-3.5 px-4 text-center whitespace-nowrap">
                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-normal uppercase ${claim.reimbursement_status === 'included_in_payroll' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
-                                                        claim.reimbursement_status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                                                            'bg-slate-50 text-slate-500 border border-slate-200'
+                                                    claim.reimbursement_status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                                        'bg-slate-50 text-slate-500 border border-slate-200'
                                                     }`}>
                                                     {claim.reimbursement_status === 'included_in_payroll' ? 'In Payroll' :
                                                         claim.reimbursement_status === 'paid' ? 'Direct Paid' : 'Pending'}
@@ -365,7 +365,7 @@ export default function Index({
                                             <td className="py-3.5 px-4 text-right whitespace-nowrap">
                                                 <div className="flex items-center justify-end gap-1.5">
                                                     <Link
-                                                        href={route('expenses.show', claim.id)}
+                                                        href={route('expenses.show', claim.claim_number || claim.id)}
                                                         className="p-1.5 bg-slate-50 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 rounded-lg transition-colors"
                                                         title="View Details"
                                                     >
@@ -373,7 +373,7 @@ export default function Index({
                                                     </Link>
                                                     {inArray(claim.status, ['draft', 'returned_to_employee']) && (
                                                         <Link
-                                                            href={route('expenses.edit', claim.id)}
+                                                            href={route('expenses.edit', claim.claim_number || claim.id)}
                                                             className="p-1.5 bg-slate-50 hover:bg-amber-50 text-slate-500 hover:text-amber-600 rounded-lg transition-colors"
                                                             title="Edit Claim"
                                                         >

@@ -298,13 +298,12 @@ export default function Dashboard({
                                 {/* Category, Period, End Date & Remaining Badges */}
                                 <div className="flex flex-wrap items-center gap-2 mt-2.5">
                                     {/* Category Pill */}
-                                    <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-xs ${
-                                        categoryLower.includes('contract') ? 'bg-blue-50 text-blue-700 border-blue-300' :
-                                        categoryLower.includes('probation') ? 'bg-amber-50 text-amber-700 border-amber-300' :
-                                        categoryLower.includes('intern') ? 'bg-purple-50 text-purple-700 border-purple-300' :
-                                        categoryLower.includes('permanent') ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
-                                        'bg-slate-100 text-slate-700 border-slate-300'
-                                    }`}>
+                                    <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-xs ${categoryLower.includes('contract') ? 'bg-blue-50 text-blue-700 border-blue-300' :
+                                            categoryLower.includes('probation') ? 'bg-amber-50 text-amber-700 border-amber-300' :
+                                                categoryLower.includes('intern') ? 'bg-purple-50 text-purple-700 border-purple-300' :
+                                                    categoryLower.includes('permanent') ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
+                                                        'bg-slate-100 text-slate-700 border-slate-300'
+                                        }`}>
                                         <span className="opacity-75 uppercase text-[9px] font-extrabold tracking-wider">Category:</span>
                                         <span className="capitalize font-extrabold">{employee.employee_category || 'None'}</span>
                                     </div>
@@ -355,41 +354,41 @@ export default function Dashboard({
                 </div>
 
 
-{/* Lifecycle Period Banner */}
-{(isProbation || isInternship || isContract) && (
-<div className="flex flex-wrap gap-2">
-    {isProbation && (
-        <div className="flex-1 min-w-[200px] bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between">
-            <div>
-                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Probation Period</p>
-                <p className="text-sm font-bold text-amber-900">{probationLifecycle.days_remaining ?? 0} days remaining</p>
-                <p className="text-[10px] text-amber-600">Ends: {probationLifecycle.end_date ?? '—'}</p>
-            </div>
-            <FiClock className="w-6 h-6 text-amber-400 shrink-0" />
-        </div>
-    )}
-    {isInternship && (
-        <div className="flex-1 min-w-[200px] bg-cyan-50 border border-cyan-200 rounded-xl p-3.5 flex items-center justify-between">
-            <div>
-                <p className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider">Internship Period</p>
-                <p className="text-sm font-bold text-cyan-900">{internshipLifecycle.days_remaining ?? 0} days remaining</p>
-                <p className="text-[10px] text-cyan-600">Ends: {internshipLifecycle.end_date ?? '—'}</p>
-            </div>
-            <FiClock className="w-6 h-6 text-cyan-400 shrink-0" />
-        </div>
-    )}
-    {isContract && (
-        <div className="flex-1 min-w-[200px] bg-blue-50 border border-blue-200 rounded-xl p-3.5 flex items-center justify-between">
-            <div>
-                <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">Contract Period</p>
-                <p className="text-sm font-bold text-blue-900">{contractLifecycle.days_remaining ?? 0} days remaining</p>
-                <p className="text-[10px] text-blue-600">Ends: {contractLifecycle.end_date ?? '—'}</p>
-            </div>
-            <FiClock className="w-6 h-6 text-blue-400 shrink-0" />
-        </div>
-    )}
-</div>
-)}
+                {/* Lifecycle Period Banner */}
+                {(isProbation || isInternship || isContract) && (
+                    <div className="flex flex-wrap gap-2">
+                        {isProbation && (
+                            <div className="flex-1 min-w-[200px] bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Probation Period</p>
+                                    <p className="text-sm font-bold text-amber-900">{probationLifecycle.days_remaining ?? 0} days remaining</p>
+                                    <p className="text-[10px] text-amber-600">Ends: {probationLifecycle.end_date ?? '—'}</p>
+                                </div>
+                                <FiClock className="w-6 h-6 text-amber-400 shrink-0" />
+                            </div>
+                        )}
+                        {isInternship && (
+                            <div className="flex-1 min-w-[200px] bg-cyan-50 border border-cyan-200 rounded-xl p-3.5 flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider">Internship Period</p>
+                                    <p className="text-sm font-bold text-cyan-900">{internshipLifecycle.days_remaining ?? 0} days remaining</p>
+                                    <p className="text-[10px] text-cyan-600">Ends: {internshipLifecycle.end_date ?? '—'}</p>
+                                </div>
+                                <FiClock className="w-6 h-6 text-cyan-400 shrink-0" />
+                            </div>
+                        )}
+                        {isContract && (
+                            <div className="flex-1 min-w-[200px] bg-blue-50 border border-blue-200 rounded-xl p-3.5 flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">Contract Period</p>
+                                    <p className="text-sm font-bold text-blue-900">{contractLifecycle.days_remaining ?? 0} days remaining</p>
+                                    <p className="text-[10px] text-blue-600">Ends: {contractLifecycle.end_date ?? '—'}</p>
+                                </div>
+                                <FiClock className="w-6 h-6 text-blue-400 shrink-0" />
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Celebration Banner for Approved Appraisal / Increment / Promotion */}
                 {celebrationAppraisal && (
@@ -397,7 +396,7 @@ export default function Dashboard({
                         {/* Decorative background glow & particles */}
                         <div className="absolute top-0 right-0 -mt-6 -mr-6 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
                         <div className="absolute bottom-0 left-1/3 -mb-8 w-40 h-40 bg-amber-400/10 rounded-full blur-xl pointer-events-none" />
-                        
+
                         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                             <div className="flex items-start gap-3.5">
                                 <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl text-amber-300 border border-white/20 shrink-0 shadow-inner animate-bounce">
@@ -447,7 +446,7 @@ export default function Dashboard({
                             </div>
                             <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto shrink-0 pt-2 md:pt-0">
                                 <a
-                                    href={route('evaluations.appraisal-letter', celebrationAppraisal.id)}
+                                    href={route('evaluations.appraisal-letter', celebrationAppraisal.reference_no || celebrationAppraisal.id)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white text-emerald-900 font-black text-xs shadow-lg hover:bg-emerald-50 hover:shadow-xl active:scale-95 transition-all"
@@ -456,7 +455,7 @@ export default function Dashboard({
                                     Download Appraisal Letter (PDF)
                                 </a>
                                 <Link
-                                    href={route('evaluations.show', celebrationAppraisal.id)}
+                                    href={route('evaluations.show', celebrationAppraisal.reference_no || celebrationAppraisal.id)}
                                     className="inline-flex items-center justify-center gap-1 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white transition-all"
                                 >
                                     Review Details →
@@ -501,7 +500,7 @@ export default function Dashboard({
                             <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
                                 {activeOffboarding.exit_interview && activeOffboarding.exit_interview.status === 'pending' && (
                                     <Link
-                                        href={route('offboarding.exit-interview.show', activeOffboarding.id)}
+                                        href={route('offboarding.exit-interview.show', activeOffboarding.request_number || activeOffboarding.id)}
                                         className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5"
                                     >
                                         <FiFileText className="w-3.5 h-3.5" /> Take Exit Interview
@@ -593,8 +592,8 @@ export default function Dashboard({
                                             <div
                                                 key={day}
                                                 className={`p-2.5 rounded-lg border text-center transition-all ${shift
-                                                        ? 'bg-rose-50/50 border-rose-200/80 text-slate-800'
-                                                        : 'bg-slate-50/80 border-slate-100 text-slate-400'
+                                                    ? 'bg-rose-50/50 border-rose-200/80 text-slate-800'
+                                                    : 'bg-slate-50/80 border-slate-100 text-slate-400'
                                                     }`}
                                             >
                                                 <div className="text-[10px] font-semibold uppercase tracking-wider mb-1">
@@ -649,8 +648,8 @@ export default function Dashboard({
                                                 </td>
                                                 <td className="py-2.5">
                                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${att.attendance === 'Present' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                                                            att.attendance === 'Absent' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                                                                'bg-amber-50 text-amber-700 border border-amber-200'
+                                                        att.attendance === 'Absent' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                                            'bg-amber-50 text-amber-700 border border-amber-200'
                                                         }`}>
                                                         <span className={`w-1.5 h-1.5 rounded-full ${att.attendance === 'Present' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                                                         {att.attendance}
@@ -757,7 +756,7 @@ export default function Dashboard({
                                                 <div className="flex items-center gap-2">
                                                     {(evalItem.status === 'approved' || evalItem.is_locked) && (
                                                         <a
-                                                            href={route('evaluations.appraisal-letter', evalItem.id)}
+                                                            href={route('evaluations.appraisal-letter', evalItem.reference_no || evalItem.id)}
                                                             className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded transition-colors"
                                                             target="_blank"
                                                             rel="noopener noreferrer"
@@ -766,7 +765,7 @@ export default function Dashboard({
                                                         </a>
                                                     )}
                                                     <Link
-                                                        href={route('evaluations.show', evalItem.id)}
+                                                        href={route('evaluations.show', evalItem.reference_no || evalItem.id)}
                                                         className="text-[11px] font-semibold text-rose-600 hover:text-rose-800"
                                                     >
                                                         View Details →
@@ -882,7 +881,7 @@ export default function Dashboard({
                                 {recentExpenses.slice(0, 3).map((claim, idx) => (
                                     <Link
                                         key={idx}
-                                        href={route('expenses.show', claim.id)}
+                                        href={route('expenses.show', claim.claim_number || claim.id)}
                                         className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-rose-50/40 border border-slate-200/60 transition-colors block"
                                     >
                                         <div>
