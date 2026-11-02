@@ -295,9 +295,18 @@ export default function Show({ loan, userRole = 'employee' }) {
                                         {!loan.installments?.length && (
                                             <tr>
                                                 <td colSpan="5" className="px-8 py-12 text-center">
-                                                    <div className="flex flex-col items-center gap-3 opacity-40">
+                                                    <div className="flex flex-col items-center gap-3">
                                                         <FaClock size={24} className="text-slate-300" />
-                                                        <p className="text-[10px] font-normal text-slate-400 uppercase tracking-normal">Recoupment schedule awaiting protocol authorization</p>
+                                                        <p className="text-xs font-semibold text-slate-700">
+                                                            {loan.status === 'pending'
+                                                                ? 'Installments will be generated once the loan is approved and disbursed.'
+                                                                : loan.status === 'approved'
+                                                                ? `Loan approved. Installments (${loan.repayment_method === 'salary_deduction' ? 'Salary Deduction' : 'Manual Payment'}) become active upon capital disbursement.`
+                                                                : 'No installments found for this loan.'}
+                                                        </p>
+                                                        <span className="text-[10px] text-slate-400 uppercase tracking-wider">
+                                                            Repayment Method: {loan.repayment_method === 'salary_deduction' ? 'Salary Deduction' : 'Direct / Manual Payment'}
+                                                        </span>
                                                     </div>
                                                 </td>
                                             </tr>

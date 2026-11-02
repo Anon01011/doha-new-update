@@ -7,13 +7,13 @@
     <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; }
         .wrapper { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        .header { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); padding: 32px 40px; text-align: center; }
+        .header { background: linear-gradient(135deg, #090b4e 0%, #0f172a 60%, #0d9488 100%); padding: 32px 40px; text-align: center; }
         .header h1 { color: #ffffff; font-size: 22px; margin: 0; font-weight: 700; letter-spacing: 0.5px; }
-        .header p { color: #94a3b8; font-size: 13px; margin: 6px 0 0; }
+        .header p { color: #99f6e4; font-size: 13px; margin: 6px 0 0; text-transform: uppercase; letter-spacing: 0.8px; }
         .badge { display: inline-block; margin-top: 14px; padding: 6px 18px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
-        .badge-disbursed { background: #dcfce7; color: #166534; }
-        .badge-installment_paid { background: #dbeafe; color: #1d4ed8; }
-        .badge-completed { background: #fef9c3; color: #854d0e; }
+        .badge-disbursed { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .badge-installment_paid { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .badge-completed { background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; }
         .body { padding: 36px 40px; }
         .greeting { font-size: 16px; color: #1e293b; font-weight: 600; margin-bottom: 8px; }
         .message { font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 24px; }
@@ -24,7 +24,7 @@
         .info-card td:last-child { color: #1e293b; font-weight: 700; }
         .divider { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
         .cta { text-align: center; margin: 24px 0; }
-        .cta a { display: inline-block; background: #0f172a; color: #ffffff; text-decoration: none; padding: 12px 32px; border-radius: 8px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; }
+        .cta a { display: inline-block; background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); color: #ffffff !important; text-decoration: none; padding: 12px 32px; border-radius: 8px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(13,148,136,0.25); }
         .footer { background: #f8fafc; padding: 20px 40px; text-align: center; border-top: 1px solid #e2e8f0; }
         .footer p { font-size: 11px; color: #94a3b8; margin: 4px 0; }
     </style>
@@ -76,6 +76,14 @@
                 <tr>
                     <td>Tenure</td>
                     <td>{{ $loan->tenure_months }} Months</td>
+                </tr>
+                <tr>
+                    <td>Repayment Method</td>
+                    <td>{{ $loan->repayment_method === 'salary_deduction' ? 'Salary Deduction' : 'Direct / Manual Payment' }}</td>
+                </tr>
+                <tr>
+                    <td>Disbursement Status</td>
+                    <td>{{ $loan->disbursed_at ? 'Disbursed on ' . \Carbon\Carbon::parse($loan->disbursed_at)->format('d M Y') : 'Pending Disbursement' }}</td>
                 </tr>
                 @if($type === 'installment_paid')
                 <tr>

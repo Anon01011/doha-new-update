@@ -31,7 +31,8 @@ class EmployeeRosterMail extends Mailable
      */
     public function build()
     {
-        return $this->subject('Your Shift Roster')
-            ->markdown('emails.employee_roster');
+        $companyName = $this->company->name ?? config('app.name');
+        return $this->subject("Shift Roster: {$this->dateRange} | {$companyName}")
+            ->view('emails.employee_roster');
     }
 }

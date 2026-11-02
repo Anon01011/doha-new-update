@@ -301,12 +301,10 @@ class LoanController extends Controller
             'approved_at' => now(),
         ]);
 
-        // Generate installments
-        $this->generateInstallments($loan);
-
+        // Installments are activated ONLY after disbursement (for both manual and salary deduction)
         $this->notifyEmployee($loan->employee_id, new \App\Notifications\LoanStatusUpdated($loan, 'approved'));
 
-        return redirect()->back()->with('success', 'Loan approved and installments generated!');
+        return redirect()->back()->with('success', 'Loan approved successfully. Installment schedule will become active upon disbursement.');
     }
 
     public function disburse(Request $request, Loan $loan)
@@ -324,6 +322,9 @@ class LoanController extends Controller
             'status'       => 'disbursed',
             'disbursed_at' => now(),
         ]);
+
+        // Generate installments upon disbursement (for both manual and salary deduction)
+        $this->generateInstallments($loan);
 
         $loan->refresh();
         $employee = Employee::with('company')->find($loan->employee_id);
