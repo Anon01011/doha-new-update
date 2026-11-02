@@ -1,15 +1,16 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
+import { toInputDate, parseDate } from '@/helpers/dateHelpers';
 
 // Helper to get week days from a start date
 function getWeekDays(startDate) {
     const days = [];
-    const start = new Date(startDate);
+    const start = parseDate(startDate) || new Date();
     for (let i = 0; i < 7; i++) {
         const d = new Date(start);
         d.setDate(start.getDate() + i);
         days.push({
-            date: d.toISOString().slice(0, 10),
+            date: toInputDate(d),
             label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
         });
     }
@@ -23,7 +24,7 @@ export default function Show({ employee = {}, company = {}, weekStart = null, at
         const day = d.getDay(), diff = d.getDate() - day + (day === 0 ? -6 : 1);
         return new Date(d.setDate(diff));
     };
-    const weekStartDate = weekStart || getMonday(today).toISOString().slice(0, 10);
+    const weekStartDate = weekStart || toInputDate(getMonday(today));
     const weekDays = getWeekDays(weekStartDate);
 
     // Build a map for quick lookup

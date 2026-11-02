@@ -4,12 +4,14 @@ import './bootstrap';
 import { createInertiaApp, router } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
+import { setAppTimezone } from '@/helpers/dateHelpers';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
-// Synchronize CSRF token with axios and meta tag on every Inertia navigation
+// Synchronize CSRF token and timezone with axios, meta tag, and dateHelpers on every Inertia navigation
 router.on('finish', (event) => {
-    const csrfToken = event.detail.page?.props?.csrf_token;
+    const pageProps = event.detail.page?.props;
+    const csrfToken = pageProps?.csrf_token;
     if (csrfToken) {
         // Update meta tag
         const meta = document.head.querySelector('meta[name="csrf-token"]');
@@ -19,6 +21,11 @@ router.on('finish', (event) => {
         if (window.axios) {
             window.axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfToken;
         }
+    }
+
+    const tz = pageProps?.appSettings?.timezone || pageProps?.appSettings?.app_timezone;
+    if (tz) {
+        setAppTimezone(tz);
     }
 });
 
@@ -31,6 +38,11 @@ createInertiaApp({
         ),
     setup({ el, App, props }) {
         const root = createRoot(el);
+
+        const tz = props.initialPage?.props?.appSettings?.timezone || props.initialPage?.props?.appSettings?.app_timezone;
+        if (tz) {
+            setAppTimezone(tz);
+        }
 
         root.render(<App {...props} />);
     },

@@ -4,6 +4,7 @@ import { Head, useForm, router, usePage, Link } from '@inertiajs/react';
 import { useState, useMemo } from 'react';
 import { resolveCurrency } from '@/helpers/currency';
 import { CurrencyPrefixedInput } from '@/helpers/currency-ui';
+import { formatDateTime, toInputDate, todayInputDate } from '@/helpers/dateHelpers';
 import { 
     FaArrowLeft, FaPlus, FaSave, FaCheckCircle, 
     FaInfoCircle, FaChartPie, FaCogs, FaUser, FaPercentage, FaMoneyBillWave, FaCalendarAlt, FaChevronDown, FaShieldAlt, FaClock, FaEdit, FaHistory, FaUniversity
@@ -17,18 +18,13 @@ export default function Edit({ loan, employees, loanTypes = [], userRole = 'empl
     const [newLoanType, setNewLoanType] = useState('');
     const [isAddingType, setIsAddingType] = useState(false);
 
-    const formatDate = (dateString) => {
-        if (!dateString) return '';
-        return dateString.split('T')[0];
-    };
-
     const { data, setData, put, processing, errors } = useForm({
         employee_id: loan.employee_id || '',
         loan_type: loan.loan_type || '',
         amount: loan.amount || '',
         interest_rate: loan.interest_rate || '',
         tenure_months: loan.tenure_months || '',
-        start_date: formatDate(loan.start_date),
+        start_date: toInputDate(loan.start_date) || todayInputDate(),
         purpose: loan.purpose || '',
         remarks: loan.remarks || '',
         repayment_method: loan.repayment_method || 'salary_deduction',
@@ -385,14 +381,14 @@ export default function Edit({ loan, employees, loanTypes = [], userRole = 'empl
                                     <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 shrink-0"><FaClock size={12}/></div>
                                     <div>
                                         <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal">Protocol Generation</p>
-                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{new Date(loan.created_at).toLocaleString()}</p>
+                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{formatDateTime(loan.created_at)}</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-4">
                                     <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 shrink-0"><FaHistory size={12}/></div>
                                     <div>
                                         <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal">Last Amendment</p>
-                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{new Date(loan.updated_at).toLocaleString()}</p>
+                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{formatDateTime(loan.updated_at)}</p>
                                     </div>
                                 </div>
                             </div>

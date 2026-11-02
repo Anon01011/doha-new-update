@@ -33,7 +33,7 @@ class Loan extends Model
         'interest_rate' => 'decimal:2',
         'tenure_months' => 'integer',
         'monthly_installment' => 'decimal:2',
-        'start_date' => 'date',
+        'start_date' => 'date:Y-m-d',
         'approved_at' => 'datetime',
         'disbursed_at' => 'datetime',
         'completed_at' => 'datetime',

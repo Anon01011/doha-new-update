@@ -4,6 +4,7 @@ import { Head, useForm, Link, usePage } from '@inertiajs/react';
 import { FaMoneyBillWave, FaCalendarAlt, FaUser, FaInfoCircle, FaSave, FaArrowLeft, FaCheck, FaShieldAlt, FaClock, FaPlus, FaChevronDown, FaHistory, FaChartPie } from 'react-icons/fa';
 import { resolveCurrency } from '@/helpers/currency';
 import { CurrencyPrefixedInput } from '@/helpers/currency-ui';
+import { formatDate, todayInputDate } from '@/helpers/dateHelpers';
 
 export default function Create({ employees, userRole = 'employee' }) {
     const { appSettings } = usePage().props;
@@ -12,7 +13,7 @@ export default function Create({ employees, userRole = 'employee' }) {
     const { data, setData, post, processing, errors } = useForm({
         employee_id: userRole === 'employee' && employees.length > 0 ? employees[0].id : '',
         amount: '',
-        request_date: new Date().toISOString().split('T')[0],
+        request_date: todayInputDate(),
         purpose: '',
         repayment_date: '',
     });
@@ -21,8 +22,6 @@ export default function Create({ employees, userRole = 'employee' }) {
         style: 'currency', 
         currency: currency 
     }).format(amount || 0);
-
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString() : 'N/A';
 
     const handleSubmit = (e) => {
         e.preventDefault();

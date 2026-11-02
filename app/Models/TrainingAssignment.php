@@ -36,8 +36,8 @@ class TrainingAssignment extends Model
     ];
 
     protected $casts = [
-        'assigned_date' => 'date',
-        'completion_date' => 'date',
+        'assigned_date' => 'date:Y-m-d',
+        'completion_date' => 'date:Y-m-d',
         'score' => 'decimal:2',
         'certificate_issued' => 'boolean',
         'started_at' => 'datetime',

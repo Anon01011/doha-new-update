@@ -15,7 +15,7 @@ class EmployeeWeeklyOff extends Model
     ];
 
     protected $casts = [
-        'effective_date' => 'date',
+        'effective_date' => 'date:Y-m-d',
     ];
 
     public function employee()

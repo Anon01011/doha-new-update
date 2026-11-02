@@ -1,13 +1,14 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { 
-    FaSave, FaArrowLeft, FaCheckDouble, FaSearch, FaUserClock, 
+import {
+    FaSave, FaArrowLeft, FaCheckDouble, FaSearch, FaUserClock,
     FaCalendarCheck, FaUsers, FaShieldAlt, FaInfoCircle, FaChevronDown,
     FaClipboardCheck, FaHistory, FaCheckCircle, FaTimesCircle, FaClock
 } from 'react-icons/fa';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Avatar from '@/Components/Avatar';
+import { parseDate } from '@/helpers/dateHelpers';
 
 export default function SessionAttendance({ session, attendance, assignedEmployees }) {
     const [searchTerm, setSearchTerm] = useState('');
@@ -67,7 +68,7 @@ export default function SessionAttendance({ session, attendance, assignedEmploye
 
     const formatDate = (date) => {
         if (!date) return 'N/A';
-        const d = new Date(date);
+        const d = parseDate(date);
         return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
     };
 
@@ -85,8 +86,8 @@ export default function SessionAttendance({ session, attendance, assignedEmploye
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-6 bg-white p-6 rounded-lg border border-slate-200 shadow-sm relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-1 bg-primary h-full"></div>
                     <div className="flex items-center gap-4 relative z-10">
-                        <Link 
-                            href={route('trainings.show', session.training_id)} 
+                        <Link
+                            href={route('trainings.show', session.training_id)}
                             className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all active:scale-95 border border-slate-100"
                         >
                             <FaArrowLeft size={14} />
@@ -130,10 +131,10 @@ export default function SessionAttendance({ session, attendance, assignedEmploye
                         <div className="flex items-center gap-6">
                             <div className="w-16 h-16 bg-white/10 rounded-lg flex flex-col items-center justify-center border border-white/10 backdrop-blur-sm">
                                 <span className="text-[10px] font-normal uppercase tracking-normal opacity-60">
-                                    {new Date(session.session_date).toLocaleString('default', { month: 'short' }).toUpperCase()}
+                                    {parseDate(session.session_date).toLocaleString('default', { month: 'short' }).toUpperCase()}
                                 </span>
                                 <span className="text-2xl font-normal tracking-normal">
-                                    {new Date(session.session_date).getDate()}
+                                    {parseDate(session.session_date).getDate()}
                                 </span>
                             </div>
                             <div className="space-y-1">
@@ -165,7 +166,7 @@ export default function SessionAttendance({ session, attendance, assignedEmploye
                     {/* Interface Controls */}
                     <div className="p-8 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center gap-6">
                         <h3 className="text-sm font-normal text-slate-900 uppercase tracking-[0.3em] flex items-center gap-3">
-                            <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center"><FaUsers size={12}/></div>
+                            <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center"><FaUsers size={12} /></div>
                             Personnel Ledger
                         </h3>
                         <div className="relative group w-full md:w-80">

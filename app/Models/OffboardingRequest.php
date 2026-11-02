@@ -42,8 +42,8 @@ class OffboardingRequest extends Model
     ];
 
     protected $casts = [
-        'proposed_last_working_day'  => 'date',
-        'actual_last_working_day'    => 'date',
+        'proposed_last_working_day'  => 'date:Y-m-d',
+        'actual_last_working_day'    => 'date:Y-m-d',
         'notice_pay_applicable'      => 'boolean',
         'notice_pay_amount'          => 'float',
         'manager_approved_at'        => 'datetime',
@@ -62,9 +62,25 @@ class OffboardingRequest extends Model
     {
         static::creating(function ($model) {
             if (empty($model->request_number)) {
-                $model->request_number = 'OFF-' . date('Ym') . '-' . strtoupper(substr(uniqid(), -5));
+                $model->request_number = static::generateRequestNumber();
             }
         });
+    }
+
+    /**
+     * Generate a unique 16-digit request number formatted as OFF-0123456789012345 (digits 0-9).
+     */
+    public static function generateRequestNumber(): string
+    {
+        do {
+            $digits = '';
+            for ($i = 0; $i < 16; $i++) {
+                $digits .= (string) random_int(0, 9);
+            }
+            $candidate = 'OFF-' . $digits;
+        } while (static::where('request_number', $candidate)->exists());
+
+        return $candidate;
     }
 
     public function getRouteKeyName()

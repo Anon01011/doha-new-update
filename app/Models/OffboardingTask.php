@@ -25,7 +25,7 @@ class OffboardingTask extends Model
     ];
 
     protected $casts = [
-        'due_date'     => 'date',
+        'due_date'     => 'date:Y-m-d',
         'completed_at' => 'datetime',
         'sort_order'   => 'integer',
     ];

@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
+import { formatDate, formatWeekday } from '@/helpers/dateHelpers';
 
 // Format decimal hours as HH:MM (e.g. 8.8 → "8:48", 9 → "9:00", 0.5 → "0:30")
 const fmt = (val) => {
@@ -278,8 +279,8 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
                                     attendances.map((att, idx) => (
                                         <tr key={idx} className="hover:bg-blue-50/30 transition-colors group">
                                             <td className="px-4 sm:px-8 py-3.5 sm:py-5">
-                                                <div className="text-sm font-normal text-gray-900">{new Date(att.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-                                                <div className="text-[10px] text-gray-400 uppercase font-normal">{new Date(att.date).toLocaleDateString('en-US', { weekday: 'long' })}</div>
+                                                <div className="text-sm font-normal text-gray-900">{formatDate(att.date)}</div>
+                                                <div className="text-[10px] text-gray-400 uppercase font-normal">{formatWeekday(att.date, 'long')}</div>
                                             </td>
                                             <td className="px-8 py-5">
                                                 <span className={`px-3 py-1 rounded-full text-[10px] font-normal uppercase border ${getStatusColor(att.attendance)}`}>
@@ -369,7 +370,7 @@ export default function Attendance({ attendances = [], todayAttendance = null, t
                                     const totalDisplay = totalWorked > 0 ? `${totalHrs}hrs ${totalMins} min` : '0hrs 0 min';
                                     return (
                                         <p className="text-[10px] text-slate-400 uppercase mt-1 tracking-normal font-normal">
-                                            {new Date(selectedBreakup.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} • Total Worked: <span className="font-bold text-xs text-slate-700">{totalDisplay}</span>
+                                            {formatDate(selectedBreakup.date)} • Total Worked: <span className="font-bold text-xs text-slate-700">{totalDisplay}</span>
                                         </p>
                                     );
                                 })()}

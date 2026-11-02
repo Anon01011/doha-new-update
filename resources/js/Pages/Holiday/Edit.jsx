@@ -2,13 +2,14 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link } from '@inertiajs/react';
 import { useState, useRef, useEffect } from 'react';
 import { FaCalendarAlt, FaBuilding, FaArrowLeft, FaSave, FaFileAlt, FaInfoCircle, FaClock, FaHistory, FaEdit, FaChevronDown } from 'react-icons/fa';
+import { formatDate, toInputDate } from '@/helpers/dateHelpers';
 
 export default function Edit({ holiday, companies, auth }) {
     const userRole = auth.user.role;
     const { data, setData, put, processing, errors } = useForm({
         name: holiday.name,
-        start_date: holiday.start_date.split('T')[0],
-        end_date: holiday.end_date.split('T')[0],
+        start_date: toInputDate(holiday.start_date),
+        end_date: toInputDate(holiday.end_date),
         is_recurring: holiday.is_recurring,
         company_ids: holiday.company_ids || (holiday.company_id ? [holiday.company_id] : []),
         description: holiday.description || '',
@@ -278,7 +279,7 @@ export default function Edit({ holiday, companies, auth }) {
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center py-3 border-b border-slate-50">
                                     <span className="text-[10px] font-normal text-slate-400">Created On</span>
-                                    <span className="text-[11px] font-normal text-slate-900">{new Date(holiday.created_at).toLocaleDateString()}</span>
+                                    <span className="text-[11px] font-normal text-slate-900">{formatDate(holiday.created_at)}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-3">
                                     <span className="text-[10px] font-normal text-slate-400">Sync State</span>

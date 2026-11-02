@@ -4,30 +4,24 @@ import { Head, useForm, Link, usePage } from '@inertiajs/react';
 import { FaMoneyBillWave, FaCalendarAlt, FaUser, FaInfoCircle, FaSave, FaArrowLeft, FaCheck, FaShieldAlt, FaClock, FaEdit, FaChevronDown, FaHistory, FaChartPie } from 'react-icons/fa';
 import { resolveCurrency } from '@/helpers/currency';
 import { CurrencyPrefixedInput } from '@/helpers/currency-ui';
+import { toInputDate, todayInputDate, formatDate as formatDisplayDate, formatDateTime } from '@/helpers/dateHelpers';
 
 export default function Edit({ advance, employees, userRole = 'employee' }) {
     const { appSettings } = usePage().props;
     const { code: currency, symbol: currency_symbol } = resolveCurrency({ appSettings });
 
-    const formatDate = (dateString) => {
-        if (!dateString) return '';
-        return dateString.split('T')[0];
-    };
-
     const { data, setData, put, processing, errors } = useForm({
         employee_id: advance.employee_id || '',
         amount: advance.amount || '',
-        request_date: formatDate(advance.request_date) || new Date().toISOString().split('T')[0],
+        request_date: toInputDate(advance.request_date) || todayInputDate(),
         purpose: advance.purpose || '',
-        repayment_date: formatDate(advance.repayment_date),
+        repayment_date: toInputDate(advance.repayment_date),
     });
 
     const formatCurrency = (amount) => new Intl.NumberFormat('en-US', { 
         style: 'currency', 
         currency: currency 
     }).format(amount || 0);
-
-    const formatDisplayDate = (date) => date ? new Date(date).toLocaleDateString() : 'N/A';
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -253,14 +247,14 @@ export default function Edit({ advance, employees, userRole = 'employee' }) {
                                     <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 shrink-0"><FaClock size={12}/></div>
                                     <div>
                                         <p className="text-[9px] font-normal text-slate-400 uppercase">Requested On</p>
-                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{new Date(advance.created_at).toLocaleString()}</p>
+                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{formatDateTime(advance.created_at)}</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-4">
                                     <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 shrink-0"><FaHistory size={12}/></div>
                                     <div>
                                         <p className="text-[9px] font-normal text-slate-400 uppercase">Last Edit</p>
-                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{new Date(advance.updated_at).toLocaleString()}</p>
+                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{formatDateTime(advance.updated_at)}</p>
                                     </div>
                                 </div>
                             </div>

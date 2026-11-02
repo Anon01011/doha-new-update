@@ -10,6 +10,7 @@ import ConfirmationModal from '@/Components/ConfirmationModal';
 import SearchableSelect from '@/Components/SearchableSelect';
 import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
 import { FiSearch, FiUsers, FiCheckCircle, FiClock, FiGrid, FiUserPlus, FiSend, FiList, FiPlus, FiEye, FiEdit2, FiTrash2, FiAlertCircle, FiDownload, FiUpload, FiFileText, FiX } from 'react-icons/fi';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Index({ employees, status, filter: initialFilter = '', search: initialSearch = '', stats = {}, companies = [] }) {
     const { auth } = usePage().props;
@@ -77,15 +78,6 @@ const [categoryFilter, setCategoryFilter] = useState('');
             handleSearch();
         }
     }, [departmentId]);
-
-    const formatDate = (date) => {
-        if (!date) return 'N/A';
-        return new Date(date).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    };
 
     // Bulk Actions
     const toggleSelectionMode = () => {

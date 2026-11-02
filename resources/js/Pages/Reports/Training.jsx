@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { FiArrowLeft, FiFilter, FiDownload, FiFileText, FiTable, FiBookOpen, FiClock, FiCheckCircle, FiUsers } from 'react-icons/fi';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Training({ trainings, summary, status, category }) {
     const [filters, setFilters] = useState({
@@ -18,8 +19,6 @@ export default function Training({ trainings, summary, status, category }) {
         const baseUrl = route(`reports.training.export.${type}`);
         window.open(`${baseUrl}?${queryParams}`, '_blank');
     };
-
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
 
     const getStatusStyle = (s) => {
         switch (s?.toLowerCase()) {

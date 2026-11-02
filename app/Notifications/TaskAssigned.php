@@ -28,7 +28,12 @@ class TaskAssigned extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['mail', 'database'];
+        $channels = ['database'];
+        // Only add mail channel if email notifications are globally enabled
+        if (\App\Models\Setting::get('email_notifications_enabled', '1') === '1') {
+            $channels[] = 'mail';
+        }
+        return $channels;
     }
 
     /**

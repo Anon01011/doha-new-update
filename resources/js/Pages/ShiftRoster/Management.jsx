@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import Avatar from '@/Components/Avatar';
 import Modal from '@/Components/Modal';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { formatDateTime } from '@/helpers/dateHelpers';
 import { 
     FiCalendar, 
     FiCheckCircle, 
@@ -875,7 +876,7 @@ export default function Management({
                                                             <span className="text-gray-800 font-medium text-[11px]">
                                                                 By {batch.approved_by_name || 'Manager'}
                                                             </span>
-                                                            <span className="text-[10px] text-gray-400">{batch.approved_at}</span>
+                                                            <span className="text-[10px] text-gray-400">{formatDateTime(batch.approved_at)}</span>
                                                         </div>
                                                     )}
                                                     {batch.status === 'rejected' && (
@@ -883,7 +884,7 @@ export default function Management({
                                                             <span className="text-rose-700 font-medium text-[11px] line-clamp-1">
                                                                 {batch.rejection_reason ? `"${batch.rejection_reason}"` : 'Revisions requested'}
                                                             </span>
-                                                            <span className="text-[10px] text-gray-400">Rejected on {batch.updated_at}</span>
+                                                            <span className="text-[10px] text-gray-400">Rejected on {formatDateTime(batch.updated_at)}</span>
                                                         </div>
                                                     )}
                                                     {batch.status === 'pending' && (

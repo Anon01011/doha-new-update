@@ -20,10 +20,10 @@ class LoanInstallment extends Model
 
     protected $casts = [
         'installment_number' => 'integer',
-        'due_date' => 'date',
+        'due_date' => 'date:Y-m-d',
         'amount' => 'decimal:2',
         'paid_amount' => 'decimal:2',
-        'paid_date' => 'date',
+        'paid_date' => 'date:Y-m-d',
         'late_fee' => 'decimal:2',
     ];
 

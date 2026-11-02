@@ -13,6 +13,7 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import DangerButton from '@/Components/DangerButton';
 import PrimaryButton from '@/Components/PrimaryButton';
 import Avatar from '@/Components/Avatar';
+import { formatDate, parseDate } from '@/helpers/dateHelpers';
 
 export default function Index({ leaveRequests, leaveBalances, stats = null, status, userRole = 'employee', search: initialSearch = '' }) {
     const { auth } = usePage().props;
@@ -187,18 +188,10 @@ export default function Index({ leaveRequests, leaveBalances, stats = null, stat
         return 'Pending';
     };
 
-    const formatDate = (date) => {
-        if (!date) return 'N/A';
-        return new Date(date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        });
-    };
-
     const canCancel = (request) => {
         if (request.status !== 'approved') return false;
-        const startDate = new Date(request.start_date);
+        const startDate = parseDate(request.start_date);
+        if (!startDate) return false;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         return startDate > today;
@@ -584,11 +577,10 @@ export default function Index({ leaveRequests, leaveBalances, stats = null, stat
                                 <Link
                                     key={tab}
                                     href={route('leave-requests.index', { status: tab === 'all' ? '' : tab })}
-                                    className={`px-3 sm:px-4 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-normal transition-all whitespace-nowrap ${
-                                        (status === tab || (tab === 'all' && !status)) 
-                                        ? 'bg-slate-900 text-white shadow-md' 
-                                        : 'text-slate-400 hover:text-slate-600'
-                                    }`}
+                                    className={`px-3 sm:px-4 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-normal transition-all whitespace-nowrap ${(status === tab || (tab === 'all' && !status))
+                                            ? 'bg-slate-900 text-white shadow-md'
+                                            : 'text-slate-400 hover:text-slate-600'
+                                        }`}
                                 >
                                     {tab.charAt(0).toUpperCase() + tab.slice(1)}
                                 </Link>
@@ -618,7 +610,7 @@ export default function Index({ leaveRequests, leaveBalances, stats = null, stat
                             >
                                 Clear Selection
                             </button>
-                             <button
+                            <button
                                 onClick={handleOpenRejectModal}
                                 disabled={processing}
                                 className="flex-1 sm:flex-initial px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-normal hover:bg-rose-700 shadow-lg shadow-rose-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
@@ -734,12 +726,12 @@ export default function Index({ leaveRequests, leaveBalances, stats = null, stat
                                                             </button>
                                                         </>
                                                     )}
-                                                     <Link
+                                                    <Link
                                                         href={route('leave-requests.show', request.id)}
                                                         className="p-2 bg-slate-50 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all border border-transparent hover:border-slate-200"
                                                     >
                                                         <FaEye size={12} />
-                                                     </Link>
+                                                    </Link>
                                                     {(hasPermission('manage-leaves') || (userRole === 'employee' && request.status === 'pending')) && (
                                                         <Link
                                                             href={route('leave-requests.edit', request.id)}
@@ -781,20 +773,19 @@ export default function Index({ leaveRequests, leaveBalances, stats = null, stat
                         </table>
                     </div>
 
-                     {/* Pagination */}
+                    {/* Pagination */}
                     <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex items-center justify-between">
                         <p className="text-[10px] font-normal text-slate-400">
                             Showing: <span className="text-slate-900">{leaveRequests.from || 0} - {leaveRequests.to || 0} of {leaveRequests.total} requests</span>
                         </p>
-                         <div className="flex gap-1 bg-white p-1 rounded-xl border border-slate-100">
+                        <div className="flex gap-1 bg-white p-1 rounded-xl border border-slate-100">
                             {leaveRequests.links && leaveRequests.links.map((link, i) => (
                                 <Link
                                     key={i}
                                     href={link.url || '#'}
-                                    className={`px-3.5 py-2 rounded-xl text-[10px] font-normal transition-all ${
-                                        link.active ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' :
-                                        !link.url ? 'text-slate-200 cursor-not-allowed' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
-                                    }`}
+                                    className={`px-3.5 py-2 rounded-xl text-[10px] font-normal transition-all ${link.active ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' :
+                                            !link.url ? 'text-slate-200 cursor-not-allowed' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                                        }`}
                                     dangerouslySetInnerHTML={{ __html: link.label }}
                                 />
                             ))}

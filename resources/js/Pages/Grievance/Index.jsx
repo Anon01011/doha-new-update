@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { FiAlertCircle, FiSearch, FiFilter, FiPlus, FiEye, FiCheckCircle, FiClock, FiXCircle, FiMoreHorizontal } from 'react-icons/fi';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Avatar from '@/Components/Avatar';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Index({ grievances, status, priority, search: initialSearch = '', userRole }) {
     const [searchTerm, setSearchTerm] = useState(initialSearch || '');
@@ -12,12 +13,6 @@ export default function Index({ grievances, status, priority, search: initialSea
         e.preventDefault();
         router.get(route('grievances.index'), { search: searchTerm, status, priority }, { preserveState: true });
     };
-
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-    }) : 'N/A';
 
     const getPriorityStyles = (p) => {
         const priority = p?.toLowerCase() || '';

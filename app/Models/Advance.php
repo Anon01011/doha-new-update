@@ -25,11 +25,11 @@ class Advance extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'request_date' => 'date',
+        'request_date' => 'date:Y-m-d',
         'approved_at' => 'datetime',
-        'repayment_date' => 'date',
+        'repayment_date' => 'date:Y-m-d',
         'repaid_amount' => 'decimal:2',
-        'repaid_at' => 'date',
+        'repaid_at' => 'date:Y-m-d',
     ];
 
     public function employee()

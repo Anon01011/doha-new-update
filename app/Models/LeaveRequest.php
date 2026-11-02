@@ -38,8 +38,8 @@ class LeaveRequest extends Model
     protected $appends = ['number_of_days', 'attachment_url'];
 
     protected $casts = [
-        'start_date' => 'date',
-        'end_date' => 'date',
+        'start_date' => 'date:Y-m-d',
+        'end_date' => 'date:Y-m-d',
         'days_requested' => 'decimal:2',
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',

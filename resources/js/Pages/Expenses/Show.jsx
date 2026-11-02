@@ -10,6 +10,7 @@ import {
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import { useCurrency } from '@/helpers/currency';
+import { formatDate, formatDateTime, todayInputDate } from '@/helpers/dateHelpers';
 
 export default function Show({
     claim,
@@ -18,7 +19,8 @@ export default function Show({
     applicantRole = 'employee',
     isManagerOrAdminApplicant = false,
     canManagerApprove = false,
-    approvalReason = ''
+    approvalReason = '',
+    defaultReimbursementMethod = 'payroll',
 }) {
     const [lightboxOpen, setLightboxOpen] = useState(false);
     const [managerModal, setManagerModal] = useState({ open: false, type: 'approve' }); // approve, reject, return
@@ -28,6 +30,11 @@ export default function Show({
     const isEmployee = userEmployeeId === claim.employee_id;
     const isFinanceOrAdmin = ['admin', 'hr', 'finance'].includes(userRole);
 
+    // Initial reimbursement channel prefers the saved setting for pending claims
+    const activeReimbursementMethod = claim.status === 'finance_approved'
+        ? (claim.reimbursement_method || defaultReimbursementMethod || 'payroll')
+        : (defaultReimbursementMethod || claim.reimbursement_method || 'payroll');
+
     // Manager Review Form
     const managerForm = useForm({
         manager_comments: '',
@@ -36,7 +43,7 @@ export default function Show({
 
     // Finance Review Form
     const financeForm = useForm({
-        reimbursement_method: claim.reimbursement_method || 'payroll',
+        reimbursement_method: activeReimbursementMethod,
         finance_comments: '',
         tax_amount: claim.tax_amount || '',
     });
@@ -44,7 +51,7 @@ export default function Show({
     // Payment Processing Form
     const paymentForm = useForm({
         payment_reference: '',
-        paid_at: new Date().toISOString().split('T')[0],
+        paid_at: todayInputDate(),
     });
 
     const { format: formatCurrency } = useCurrency();
@@ -133,7 +140,7 @@ export default function Show({
                                     </span>
                                 )}
                             </div>
-                            <p className="text-xs text-slate-500 font-normal mt-0.5">Submitted on {claim.created_at ? new Date(claim.created_at).toLocaleDateString('en-IN') : '-'}</p>
+                            <p className="text-xs text-slate-500 font-normal mt-0.5">Submitted on {claim.created_at ? formatDate(claim.created_at) : '-'}</p>
                         </div>
                     </div>
 
@@ -211,7 +218,7 @@ export default function Show({
                                 </div>
                                 <div className="text-right">
                                     <span className="text-[10px] font-normal uppercase tracking-normal text-slate-400">Expense Date</span>
-                                    <p className="text-sm font-semibold text-slate-800">{claim.expense_date}</p>
+                                    <p className="text-sm font-semibold text-slate-800">{formatDate(claim.expense_date)}</p>
                                 </div>
                             </div>
 
@@ -266,7 +273,7 @@ export default function Show({
                                     <div className="flex-1 text-xs">
                                         <div className="flex justify-between items-start">
                                             <p className="font-semibold text-slate-800">Claim Created & Submitted</p>
-                                            <span className="text-[10px] text-slate-400">{claim.created_at ? new Date(claim.created_at).toLocaleString('en-IN') : '-'}</span>
+                                            <span className="text-[10px] text-slate-400">{claim.created_at ? formatDateTime(claim.created_at) : '-'}</span>
                                         </div>
                                         <p className="text-slate-500 mt-0.5">By {claim.employee?.name} ({claim.employee?.employee_code})</p>
                                     </div>
@@ -282,7 +289,7 @@ export default function Show({
                                         <div className="flex justify-between items-start">
                                             <p className="font-semibold text-slate-800">Reporting Manager Verification</p>
                                             {claim.manager_approved_at && (
-                                                <span className="text-[10px] text-slate-400">{new Date(claim.manager_approved_at).toLocaleString('en-IN')}</span>
+                                                <span className="text-[10px] text-slate-400">{formatDateTime(claim.manager_approved_at)}</span>
                                             )}
                                         </div>
                                         <p className="text-slate-500 mt-0.5">
@@ -304,7 +311,7 @@ export default function Show({
                                         <div className="flex justify-between items-start">
                                             <p className="font-semibold text-slate-800">Finance & Tax Audit</p>
                                             {claim.finance_reviewed_at && (
-                                                <span className="text-[10px] text-slate-400">{new Date(claim.finance_reviewed_at).toLocaleString('en-IN')}</span>
+                                                <span className="text-[10px] text-slate-400">{formatDateTime(claim.finance_reviewed_at)}</span>
                                             )}
                                         </div>
                                         <p className="text-slate-500 mt-0.5">
@@ -325,7 +332,7 @@ export default function Show({
                                     <div className="flex-1 text-xs">
                                         <div className="flex justify-between items-start">
                                             <p className="font-semibold text-slate-800">Reimbursement Settlement</p>
-                                            {claim.paid_at && <span className="text-[10px] text-slate-400">{new Date(claim.paid_at).toLocaleDateString('en-IN')}</span>}
+                                            {claim.paid_at && <span className="text-[10px] text-slate-400">{formatDate(claim.paid_at)}</span>}
                                         </div>
                                         <p className="text-slate-500 mt-0.5">
                                             Status: <span className="font-medium text-slate-700 uppercase">{claim.reimbursement_status ? claim.reimbursement_status.replace('_', ' ') : 'Pending'}</span>
@@ -465,7 +472,10 @@ export default function Show({
                                 <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-normal">Finance Actions</h3>
                                 <button
                                     type="button"
-                                    onClick={() => setFinanceModal({ open: true, type: 'approve' })}
+                                    onClick={() => {
+                                        financeForm.setData('reimbursement_method', activeReimbursementMethod);
+                                        setFinanceModal({ open: true, type: 'approve' });
+                                    }}
                                     className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors flex items-center justify-center gap-1.5"
                                 >
                                     <FiCheckCircle className="w-4 h-4" />

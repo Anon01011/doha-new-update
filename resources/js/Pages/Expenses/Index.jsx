@@ -10,6 +10,7 @@ import {
 import Avatar from '@/Components/Avatar';
 import { useCurrency } from '@/helpers/currency';
 import { useCurrencyLabel } from '@/helpers/currency-ui';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Index({
     claims,
@@ -314,7 +315,7 @@ export default function Index({
                                                 </div>
                                             </td>
                                             <td className="py-3.5 px-4 whitespace-nowrap">
-                                                <p className="font-normal text-slate-700">{claim.expense_date}</p>
+                                                <p className="font-normal text-slate-700">{formatDate(claim.expense_date)}</p>
                                                 <span className="inline-flex items-center text-[10px] text-slate-400 mt-0.5">
                                                     <FiTag className="w-2.5 h-2.5 mr-1" />
                                                     {claim.category?.name || 'General'}

@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm, router, usePage } from '@inertiajs/react';
 import { useState, useMemo } from 'react';
 import { FaTasks, FaInfoCircle, FaUsers, FaProjectDiagram, FaCalendarAlt, FaClock, FaCheckCircle, FaArrowLeft, FaEdit, FaLock, FaUnlock, FaPlus, FaPaperclip, FaComment, FaPaperPlane, FaStopwatch, FaChevronRight, FaTimes, FaBan, FaHourglassHalf } from 'react-icons/fa';
+import { formatDate, formatDateTime } from '@/helpers/dateHelpers';
 
 export default function Show({ task, userRole = 'employee', projectMemberRole = null, settings }) {
     const { auth } = usePage().props;
@@ -27,9 +28,6 @@ export default function Show({ task, userRole = 'employee', projectMemberRole = 
         file: null,
         progress_percentage: activeAssignment?.progress_percentage || 0
     });
-
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
-    const formatDateTime = (date) => date ? new Date(date).toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true, month: 'short', day: 'numeric' }) : 'N/A';
 
     const getPriorityColor = (priority) => {
         const p = priority?.toLowerCase() || '';

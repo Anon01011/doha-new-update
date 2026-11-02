@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, usePage, Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { formatDate } from '@/helpers/dateHelpers';
 import {
     BuildingOfficeIcon,
     PencilSquareIcon,
@@ -122,7 +123,7 @@ export default function Show() {
                                         </div>
                                         <div>
                                             <p className="text-[9px] font-normal text-slate-500 uppercase tracking-normal mb-1">Created On</p>
-                                            <p className="text-[11px] font-semibold text-slate-900 uppercase tracking-normal">{new Date(company.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                                            <p className="text-[11px] font-semibold text-slate-900 uppercase tracking-normal">{formatDate(company.created_at)}</p>
                                         </div>
                                     </div>
                                 </div>

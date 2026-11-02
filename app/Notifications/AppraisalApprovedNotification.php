@@ -52,8 +52,8 @@ class AppraisalApprovedNotification extends Notification
             'promotion'            => $this->evaluation->promotion_recommended,
             'designation'          => $this->evaluation->recommended_designation,
             'message'              => "🎉 Congratulations! Your performance appraisal for {$monthName} {$this->evaluation->year} has been approved{$outcomeSummary}. Your official appraisal letter is now available.",
-            'action_url'           => route('evaluations.show', $this->evaluation->id),
-            'letter_download_url'  => route('evaluations.downloadLetter', $this->evaluation->id),
+            'action_url'           => route('evaluations.show', $this->evaluation),
+            'letter_download_url'  => route('evaluations.downloadLetter', $this->evaluation),
             'type'                 => 'appraisal_approved',
         ];
     }

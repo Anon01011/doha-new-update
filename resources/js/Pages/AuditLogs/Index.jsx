@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
+import { formatDate, formatDateTime } from '@/helpers/dateHelpers';
 
 export default function Index({ auditLogs, modelTypes, users, filters }) {
     const [search, setSearch] = useState(filters.search || '');
@@ -9,15 +10,6 @@ export default function Index({ auditLogs, modelTypes, users, filters }) {
         const params = { ...filters, [key]: value };
         router.get(route('audit-logs.index'), params, { preserveState: true });
     };
-
-    const formatDate = (date) => new Date(date).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: true
-    });
 
     const getEventStyles = (event) => {
         if (event === 'created') return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
@@ -108,8 +100,8 @@ export default function Index({ auditLogs, modelTypes, users, filters }) {
                                     auditLogs.data.map((log) => (
                                         <tr key={log.id} className="hover:bg-white transition-colors group">
                                             <td className="px-4 py-2 whitespace-nowrap">
-                                                <div className="text-[11px] font-normal text-gray-900">{formatDate(log.created_at).split(',')[0]}</div>
-                                                <div className="text-[9px] font-normal text-gray-400 mt-0.5">{formatDate(log.created_at).split(',')[1]}</div>
+                                                <div className="text-[11px] font-normal text-gray-900">{formatDate(log.created_at)}</div>
+                                                <div className="text-[9px] font-normal text-gray-400 mt-0.5">{formatDateTime(log.created_at, { day: undefined, month: undefined, year: undefined, hour: 'numeric', minute: '2-digit', hour12: true })}</div>
                                             </td>
                                             <td className="px-4 py-2">
                                                 <div className="flex items-center gap-2.5">

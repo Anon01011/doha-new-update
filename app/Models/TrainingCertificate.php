@@ -23,8 +23,8 @@ class TrainingCertificate extends Model
     ];
 
     protected $casts = [
-        'issue_date' => 'date',
-        'expiry_date' => 'date',
+        'issue_date' => 'date:Y-m-d',
+        'expiry_date' => 'date:Y-m-d',
     ];
 
     protected static function booted()

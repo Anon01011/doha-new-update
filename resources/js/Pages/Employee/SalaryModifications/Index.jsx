@@ -5,6 +5,7 @@ import Avatar from '@/Components/Avatar';
 import Modal from '@/Components/Modal';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import { resolveCurrency } from '@/helpers/currency';
+import { formatDate } from '@/helpers/dateHelpers';
 import {
     FiDollarSign, FiClock, FiCheckCircle, FiXCircle, FiArrowUpRight,
     FiArrowDownRight, FiUser, FiCalendar, FiFileText, FiCheck, FiX,
@@ -347,7 +348,7 @@ export default function SalaryModificationsIndex({
                                                     {req.requester?.name || 'Manager'}
                                                 </span>{' '}
                                                 ({req.requester?.role || 'User'}) on{' '}
-                                                {new Date(req.created_at).toLocaleDateString()}
+                                                {formatDate(req.created_at)}
                                             </div>
                                             {req.reason && (
                                                 <div className="italic text-slate-600">
@@ -360,7 +361,7 @@ export default function SalaryModificationsIndex({
                                                     <span className="font-semibold text-slate-800">
                                                         {req.reviewer?.name || 'HR'}
                                                     </span>{' '}
-                                                    on {new Date(req.reviewed_at).toLocaleDateString()}
+                                                    on {formatDate(req.reviewed_at)}
                                                     {req.review_notes && ` — Note: "${req.review_notes}"`}
                                                 </div>
                                             )}

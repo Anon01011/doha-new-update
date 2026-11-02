@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\Company;
 use App\Models\Department;
 use App\Models\Project;
+use App\Models\Setting;
 use App\Services\CurrencyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -256,10 +257,17 @@ class ExpenseClaimController extends Controller
             $violationReason = ($violationReason ? $violationReason . " | " : "") . "Potential duplicate claim detected with Claim #" . $possibleDuplicate->claim_number . " on the same date.";
         }
 
-        // Generate unique claim number
-        $claimNumber = 'EXP-' . date('Ym') . '-' . strtoupper(substr(uniqid(), -5));
+        // Generate unique 16-digit claim number (0-9)
+        $claimNumber = ExpenseClaim::generateClaimNumber();
 
         $status = $request->boolean('submit_now', true) ? 'submitted' : 'draft';
+
+        // Determine default reimbursement method from Expense Settings (fallback: payroll)
+        $defaultReimbursementMethod = Setting::get('default_reimbursement_method', 'payroll', $employee->company_id);
+        $allowedMethods = ['payroll', 'direct_payment', 'accounts_payable'];
+        if (!in_array($defaultReimbursementMethod, $allowedMethods)) {
+            $defaultReimbursementMethod = 'payroll';
+        }
 
         $claim = ExpenseClaim::create([
             'claim_number' => $claimNumber,
@@ -279,7 +287,7 @@ class ExpenseClaimController extends Controller
             'payment_method' => $validated['payment_method'],
             'receipt_path' => $receiptPath,
             'status' => $status,
-            'reimbursement_method' => 'payroll',
+            'reimbursement_method' => $defaultReimbursementMethod,
             'reimbursement_status' => 'pending',
             'policy_violation_flag' => $policyViolation,
             'violation_reason' => $violationReason,
@@ -297,7 +305,7 @@ class ExpenseClaimController extends Controller
             );
         }
 
-        return redirect()->route('expenses.show', $claim->id)
+        return redirect()->route('expenses.show', $claim)
             ->with('success', $status === 'submitted' ? 'Expense claim submitted for review successfully.' : 'Expense claim saved as draft.');
     }
 
@@ -323,6 +331,8 @@ class ExpenseClaimController extends Controller
 
         [$canManagerApprove, $approvalReason] = $this->canUserApproveClaim($user, $expense);
 
+        $defaultReimbursementMethod = Setting::get('default_reimbursement_method', 'payroll', $expense->company_id);
+
         return Inertia::render('Expenses/Show', [
             'claim' => $expense,
             'userRole' => $user->role,
@@ -331,6 +341,7 @@ class ExpenseClaimController extends Controller
             'isManagerOrAdminApplicant' => $isManagerOrAdminApplicant,
             'canManagerApprove' => $canManagerApprove,
             'approvalReason' => $approvalReason,
+            'defaultReimbursementMethod' => $defaultReimbursementMethod,
         ]);
     }
 
@@ -379,7 +390,7 @@ class ExpenseClaimController extends Controller
         $user = auth()->user();
 
         if ($expense->is_locked || !in_array($expense->status, ['draft', 'returned_to_employee'])) {
-            return redirect()->route('expenses.show', $expense->id)->with('error', 'This claim cannot be edited in its current status.');
+            return redirect()->route('expenses.show', $expense)->with('error', 'This claim cannot be edited in its current status.');
         }
 
         if ($user->isEmployee() && $expense->employee_id !== $user->employee_id) {
@@ -403,7 +414,7 @@ class ExpenseClaimController extends Controller
         $user = auth()->user();
 
         if ($expense->is_locked || !in_array($expense->status, ['draft', 'returned_to_employee'])) {
-            return redirect()->route('expenses.show', $expense->id)->with('error', 'This claim cannot be edited.');
+            return redirect()->route('expenses.show', $expense)->with('error', 'This claim cannot be edited.');
         }
 
         // Ownership check: an employee may only edit their own claim. Without
@@ -474,7 +485,7 @@ class ExpenseClaimController extends Controller
             'violation_reason' => $violationReason,
         ]);
 
-        return redirect()->route('expenses.show', $expense->id)->with('success', 'Expense claim updated successfully.');
+        return redirect()->route('expenses.show', $expense)->with('success', 'Expense claim updated successfully.');
     }
 
     /**

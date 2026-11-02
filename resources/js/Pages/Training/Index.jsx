@@ -6,6 +6,7 @@ import {
     FaArrowRight, FaGraduationCap, FaShieldAlt, FaHourglassHalf, FaMedal, FaChevronRight
 } from 'react-icons/fa';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Index({ trainings, status, userRole = 'employee', search: initialSearch = '', filters = {} }) {
     const [searchTerm, setSearchTerm] = useState(initialSearch || '');
@@ -13,11 +14,6 @@ export default function Index({ trainings, status, userRole = 'employee', search
     const handleSearch = (e) => {
         e.preventDefault();
         router.get(route('trainings.index'), { search: searchTerm, status, company_id: filters?.company_id }, { preserveState: true });
-    };
-
-    const formatDate = (date) => {
-        if (!date) return 'TBA';
-        return new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     };
 
     const getStatusStyles = (s) => {

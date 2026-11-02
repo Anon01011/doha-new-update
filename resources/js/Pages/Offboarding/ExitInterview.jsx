@@ -6,6 +6,7 @@ import {
     FiStar, FiThumbsUp, FiThumbsDown, FiCheckCircle, FiSave, FiAlertCircle,
     FiFileText, FiAward, FiCheck, FiMapPin, FiShield
 } from 'react-icons/fi';
+import { formatDate } from '@/helpers/dateHelpers';
 
 const RATING_CATEGORIES = [
     {
@@ -194,7 +195,7 @@ export default function ExitInterview({ offboarding, exitInterview = null }) {
                                 <p className="text-[9px] sm:text-[10px] text-slate-400 uppercase font-bold tracking-wider truncate">Last Working Day</p>
                                 <p className="font-bold text-slate-900 text-xs sm:text-sm truncate">
                                     {offboarding.proposed_last_working_day
-                                        ? new Date(offboarding.proposed_last_working_day).toLocaleDateString('en-IN')
+                                        ? formatDate(offboarding.proposed_last_working_day)
                                         : '—'}
                                 </p>
                                 <p className="text-[10px] sm:text-[11px] text-slate-500 truncate">{offboarding.notice_period_days || 0} days notice</p>
@@ -401,7 +402,7 @@ export default function ExitInterview({ offboarding, exitInterview = null }) {
                         ) : (
                             <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-200">
                                 <FiCheckCircle className="w-4 h-4" />
-                                Exit Interview Recorded on {new Date(exitInterview.conducted_at).toLocaleDateString('en-IN')}
+                                Exit Interview Recorded on {formatDate(exitInterview.conducted_at)}
                             </div>
                         )}
                     </div>

@@ -7,17 +7,13 @@ import {
 } from 'react-icons/fa';
 import { useState } from 'react';
 import Avatar from '@/Components/Avatar';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Assignments({ assignments, trainingId, status }) {
     const { props } = usePage();
     const emailWarning = props.flash?.email_warning || null;
     const [showWarning, setShowWarning] = useState(!!emailWarning);
     const [searchTerm, setSearchTerm] = useState('');
-
-    const formatDate = (date) => {
-        if (!date) return 'N/A';
-        return new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
-    };
 
     const getStatusBadge = (status) => {
         const s = status?.toLowerCase() || '';

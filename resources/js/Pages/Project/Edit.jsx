@@ -2,14 +2,11 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link, usePage } from '@inertiajs/react';
 import { resolveCurrency } from '@/helpers/currency';
 import { CurrencyAmountInput } from '@/helpers/currency-ui';
+import { toInputDate } from '@/helpers/dateHelpers';
 
 export default function Edit({ project, branches, employees, settings }) {
     const { appSettings } = usePage().props;
     const { code: currencyCode, symbol: currencySymbol } = resolveCurrency({ appSettings });
-    const formatDate = (dateString) => {
-        if (!dateString) return '';
-        return dateString.split('T')[0];
-    };
 
     const { data, setData, put, processing, errors } = useForm({
         name: project.name || '',
@@ -20,8 +17,8 @@ export default function Edit({ project, branches, employees, settings }) {
         priority: project.priority || 'medium',
         category: project.category || '',
         tags: project.tags || [],
-        start_date: formatDate(project.start_date),
-        end_date: formatDate(project.end_date),
+        start_date: toInputDate(project.start_date),
+        end_date: toInputDate(project.end_date),
         branch_id: project.branch_id || '',
         members: project.members?.map(m => ({ employee_id: m.employee_id, role: m.role })) || [],
     });

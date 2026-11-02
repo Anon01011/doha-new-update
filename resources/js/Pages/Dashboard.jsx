@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Avatar from '@/Components/Avatar';
 import { resolveCurrency } from '@/helpers/currency';
+import { formatDate, formatWeekday } from '@/helpers/dateHelpers';
 import {
     FiUsers, FiBriefcase, FiCalendar, FiClock, FiDollarSign, FiActivity,
     FiLayers, FiAlertCircle, FiSettings, FiMove, FiEye, FiEyeOff,
@@ -211,7 +212,7 @@ const TrendChart = ({ trends }) => (
                         </div>
                         <div className="text-center">
                             <div className="text-xs font-semibold text-slate-500 uppercase group-hover:text-emerald-600 transition-colors">
-                                {new Date(t.date).toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 1)}
+                                {formatWeekday(t.date, 'narrow')}
                             </div>
                         </div>
                     </div>
@@ -259,7 +260,7 @@ const ExpiringDocsWidget = ({ docs }) => (
                         <div className="text-[10px] text-slate-500 truncate">{doc.employee?.name}</div>
                     </div>
                     <div className="text-right shrink-0">
-                        <div className="text-[10px] font-normal text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">{new Date(doc.expiry_date).toLocaleDateString()}</div>
+                        <div className="text-[10px] font-normal text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">{formatDate(doc.expiry_date)}</div>
                     </div>
                 </div>
             )) : <div className="text-center text-xs text-slate-400 py-10 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">No expiring documents</div>}
@@ -341,10 +342,10 @@ const HolidaysWidget = ({ holidays }) => (
             <div className="absolute left-3.5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-slate-200/0 via-slate-200 to-slate-200/0"></div>
 
             {holidays.length > 0 ? holidays.map((h, i) => {
-                const startDate = new Date(h.start_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-                const endDate = new Date(h.end_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                const startDate = formatDate(h.start_date, { weekday: 'short', month: 'short', day: 'numeric' });
+                const endDate = formatDate(h.end_date, { weekday: 'short', month: 'short', day: 'numeric' });
                 const dateDisplay = h.start_date === h.end_date ? startDate : `${startDate} - ${endDate}`;
-                
+
                 return (
                     <div key={i} className="relative flex items-center gap-3 pl-2 group">
                         <div className="w-3 h-3 rounded-full bg-slate-200 ring-4 ring-white relative z-10 group-hover:bg-indigo-500 transition-colors"></div>

@@ -7,15 +7,10 @@ import {
     FiArrowLeft, FiEdit3, FiAlertCircle, FiShield, FiUser,
     FiCalendar, FiClock, FiCheckCircle, FiFileText, FiEye, FiHash
 } from 'react-icons/fi';
+import { formatDate, formatDateTime } from '@/helpers/dateHelpers';
 
 export default function Show({ grievance, userRole = 'employee', warningTypes }) {
     const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
-
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    }) : 'N/A';
 
     const getPriorityStyles = (priority) => {
         const p = priority?.toLowerCase() || '';
@@ -268,7 +263,7 @@ export default function Show({ grievance, userRole = 'employee', warningTypes })
                                     <p className="text-xs font-normal leading-tight uppercase">
                                         {grievance.is_overdue
                                             ? 'CASE EXCEEDS STANDARD RESPONSE TIME'
-                                            : `Resolution expected by ${new Date(grievance.sla_deadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                            : `Resolution expected by ${formatDateTime(grievance.sla_deadline, { day: undefined, month: undefined, year: undefined, hour: '2-digit', minute: '2-digit', hour12: true })}`
                                         }
                                     </p>
                                 </div>

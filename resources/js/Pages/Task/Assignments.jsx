@@ -1,9 +1,9 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { FaTasks, FaUser, FaHistory, FaCheckCircle, FaPlus, FaArrowLeft, FaFilter } from 'react-icons/fa';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Assignments({ assignments, taskId, status }) {
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
 
     const getStatusStyle = (status) => {
         const s = status?.toLowerCase() || '';

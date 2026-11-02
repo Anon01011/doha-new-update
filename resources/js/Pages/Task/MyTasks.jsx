@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { FaTasks, FaClock, FaCheckCircle, FaPlay, FaStop, FaArrowRight, FaFilter, FaProjectDiagram } from 'react-icons/fa';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function MyTasks({ tasks, status, priority }) {
     const [searchTerm, setSearchTerm] = useState('');
@@ -15,8 +16,6 @@ export default function MyTasks({ tasks, status, priority }) {
     const handleAction = (route_name, task_id, params = {}) => {
         router.post(route(route_name, task_id), params);
     };
-
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
 
     const getPriorityColor = (priority) => {
         const p = priority?.toLowerCase() || '';

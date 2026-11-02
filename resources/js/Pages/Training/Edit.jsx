@@ -3,6 +3,7 @@ import { Head, useForm, Link, router } from '@inertiajs/react';
 import { FaChalkboardTeacher, FaCalendarAlt, FaMapMarkerAlt, FaUsers, FaArrowLeft, FaSave, FaLayerGroup, FaShieldAlt, FaClock, FaInfoCircle, FaPlus } from 'react-icons/fa';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
+import { toInputDate } from '@/helpers/dateHelpers';
 
 export default function Edit({ training, companies, categories }) {
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -38,11 +39,6 @@ export default function Edit({ training, companies, categories }) {
         }
     };
 
-    const formatDate = (dateString) => {
-        if (!dateString) return '';
-        return dateString.split('T')[0];
-    };
-
     const { data, setData, put, processing, errors } = useForm({
         title:            training.title,
         description:      training.description || '',
@@ -50,8 +46,8 @@ export default function Edit({ training, companies, categories }) {
         trainer_name:     training.trainer_name || '',
         duration_hours:   training.duration_hours || '',
         location:         training.location || '',
-        start_date:       formatDate(training.start_date),
-        end_date:         formatDate(training.end_date),
+        start_date:       toInputDate(training.start_date),
+        end_date:         toInputDate(training.end_date),
         max_participants: training.max_participants || '',
         company_id:       training.company_id || '',
         status:           training.status || 'scheduled',

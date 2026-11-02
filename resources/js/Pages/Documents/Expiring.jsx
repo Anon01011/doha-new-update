@@ -3,6 +3,7 @@ import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { FaFileContract, FaCalendarAlt, FaClock, FaExclamationTriangle, FaEye, FaArrowRight } from 'react-icons/fa';
 import { employeeRouteKey } from '@/helpers/employee-routes';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Expiring({ expiringDocuments, days }) {
     const [filterDays, setFilterDays] = useState(days);
@@ -11,12 +12,6 @@ export default function Expiring({ expiringDocuments, days }) {
         setFilterDays(newDays);
         router.get(route('documents.expiring'), { days: newDays }, { preserveState: true });
     };
-
-    const formatDate = (date) => new Date(date).toLocaleDateString('en-GB', {
-        month: 'short',
-        day: '2-digit',
-        year: 'numeric'
-    });
 
     const getDaysUntilExpiry = (expiryDate) => {
         const days = Math.ceil((new Date(expiryDate) - new Date()) / (1000 * 60 * 60 * 24));

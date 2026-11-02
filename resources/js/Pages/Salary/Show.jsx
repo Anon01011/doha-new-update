@@ -6,6 +6,7 @@ import ConfirmationModal from '@/Components/ConfirmationModal';
 import Modal from '@/Components/Modal';
 import { FaArrowLeft, FaEdit, FaCheckCircle, FaTimesCircle, FaMoneyBillWave, FaHistory, FaShieldAlt, FaPrint, FaClock, FaChartPie, FaChartLine, FaPlus, FaMinus, FaFileInvoiceDollar, FaInfoCircle, FaSun, FaMoon, FaCloudSun, FaStopwatch, FaDollarSign, FaGift } from 'react-icons/fa';
 import { resolveCurrency } from '@/helpers/currency';
+import { formatDate, formatDateTime } from '@/helpers/dateHelpers';
 
 /** Reusable section header row for the salary detail modal */
 function SectionHeader({ icon, iconBg, iconColor, title, subtitle }) {
@@ -341,7 +342,7 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                                 <div className="space-y-4 pt-6 border-t border-white/10">
                                     <div className="flex justify-between items-center">
                                         <span className="text-[10px] font-normal text-white uppercase tracking-normal">Date</span>
-                                        <span className="text-[10px] font-normal text-white uppercase">{new Date(salaryPosting.created_at).toLocaleDateString()}</span>
+                                        <span className="text-[10px] font-normal text-white uppercase">{formatDate(salaryPosting.created_at)}</span>
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-[10px] font-normal text-white uppercase tracking-normal">Priority</span>
@@ -361,14 +362,14 @@ export default function Show({ salaryPosting, userRole = 'employee', loanInstall
                                     <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 shrink-0"><FaClock size={12}/></div>
                                     <div>
                                         <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal">Created</p>
-                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{new Date(salaryPosting.created_at).toLocaleString()}</p>
+                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{formatDateTime(salaryPosting.created_at)}</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-4">
                                     <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 shrink-0"><FaHistory size={12}/></div>
                                     <div>
                                         <p className="text-[9px] font-normal text-slate-400 uppercase tracking-normal">Last Modified</p>
-                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{new Date(salaryPosting.updated_at).toLocaleString()}</p>
+                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{formatDateTime(salaryPosting.updated_at)}</p>
                                     </div>
                                 </div>
                             </div>

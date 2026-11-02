@@ -7,6 +7,7 @@ import ConfirmationModal from '@/Components/ConfirmationModal';
 import Modal from '@/Components/Modal';
 import SecondaryButton from '@/Components/SecondaryButton';
 import Lightbox from '@/Components/Lightbox';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Show({ leaveRequest, userRole = 'employee' }) {
     const [showApproveModal, setShowApproveModal] = useState(false);
@@ -31,15 +32,6 @@ export default function Show({ leaveRequest, userRole = 'employee' }) {
             src: fullUrl,
             title: title || 'Supporting Document',
             type
-        });
-    };
-
-    const formatDate = (date) => {
-        if (!date) return 'N/A';
-        return new Date(date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
         });
     };
 

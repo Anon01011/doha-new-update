@@ -2,9 +2,10 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import ConfirmationModal from '@/Components/ConfirmationModal';
-import { 
-    FaChalkboardTeacher, FaCalendarAlt, FaMapMarkerAlt, FaUsers, FaArrowLeft, FaEdit, 
-    FaFileDownload, FaTrash, FaCheckCircle, FaLock, FaStar, FaMedal, FaTimesCircle, FaClipboardList, 
+import { formatDate, formatDateTime, parseDate } from '@/helpers/dateHelpers';
+import {
+    FaChalkboardTeacher, FaCalendarAlt, FaMapMarkerAlt, FaUsers, FaArrowLeft, FaEdit,
+    FaFileDownload, FaTrash, FaCheckCircle, FaLock, FaStar, FaMedal, FaTimesCircle, FaClipboardList,
     FaPlusCircle, FaMinusCircle, FaShieldAlt, FaInfoCircle, FaGraduationCap, FaClock, FaChevronRight, FaChevronDown
 } from 'react-icons/fa';
 import Avatar from '@/Components/Avatar';
@@ -46,12 +47,6 @@ export default function Show({ training, userRole = 'employee', userProgress, se
         feedback_text: '',
         suggestions: '',
     });
-
-    const formatDate = (date) => {
-        if (!date) return 'N/A';
-        const d = new Date(date);
-        return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-    };
 
     const formatTime = (time) => {
         if (!time) return 'N/A';
@@ -187,8 +182,8 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                 {/* Executive Control Header */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-lg border border-slate-200 shadow-sm relative overflow-hidden">
                     <div className="flex items-center gap-4 relative z-10">
-                        <Link 
-                            href={route('trainings.index')} 
+                        <Link
+                            href={route('trainings.index')}
                             className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 hover:text-primary hover:bg-primary/5 rounded transition-all active:scale-95 border border-slate-100"
                         >
                             <FaArrowLeft size={10} />
@@ -263,7 +258,7 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                                         <p className="text-xl font-normal text-primary tracking-normal">{userProgress.progress_percentage}%</p>
                                     </div>
                                     <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                                        <div 
+                                        <div
                                             className="h-full bg-primary rounded-full transition-all duration-1000"
                                             style={{ width: `${userProgress.progress_percentage}%` }}
                                         ></div>
@@ -298,7 +293,7 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                                 <div className="lg:col-span-2 space-y-6">
                                     <div className="space-y-4">
                                         <h3 className="text-sm font-normal text-slate-900 uppercase flex items-center gap-3">
-                                            <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center"><FaInfoCircle size={12}/></div>
+                                            <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center"><FaInfoCircle size={12} /></div>
                                             About Training
                                         </h3>
                                         <p className="text-base font-normal text-slate-600 leading-relaxed whitespace-pre-wrap">
@@ -310,7 +305,7 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                                 <div className="space-y-4">
                                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-4">
                                         <h4 className="text-[10px] font-normal text-slate-400 uppercase mb-2">Summary</h4>
-                                        
+
                                         <div className="space-y-4">
                                             {[
                                                 { label: 'Start Date', value: formatDate(training.start_date), icon: FaCalendarAlt },
@@ -339,7 +334,7 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                             <div className="space-y-6 animate-fadeIn">
                                 <div className="flex justify-between items-center">
                                     <h3 className="text-sm font-normal text-slate-900 uppercase flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center"><FaCalendarAlt size={12}/></div>
+                                        <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center"><FaCalendarAlt size={12} /></div>
                                         Sessions
                                     </h3>
                                     <span className="px-4 py-1 bg-slate-900 text-white rounded-lg text-[9px] font-normal uppercase">
@@ -354,10 +349,10 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                                                 <div className="absolute top-0 left-0 w-1 bg-slate-100 group-hover:bg-primary h-full transition-colors duration-500"></div>
                                                 <div className="flex-shrink-0 w-16 h-16 bg-slate-50 rounded-lg flex flex-col items-center justify-center text-slate-900 border border-slate-100 group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all duration-500">
                                                     <span className="text-[9px] font-normal uppercase opacity-60">
-                                                        {new Date(session.session_date).toLocaleString('default', { month: 'short' }).toUpperCase()}
+                                                        {parseDate(session.session_date).toLocaleString('default', { month: 'short' }).toUpperCase()}
                                                     </span>
                                                     <span className="text-2xl font-normal tracking-normal">
-                                                        {new Date(session.session_date).getDate()}
+                                                        {parseDate(session.session_date).getDate()}
                                                     </span>
                                                 </div>
                                                 <div className="flex-1 space-y-1 text-left">
@@ -386,7 +381,7 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                             <div className="space-y-6 animate-fadeIn">
                                 <div className="flex justify-between items-center">
                                     <h3 className="text-sm font-normal text-slate-900 uppercase flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center"><FaFileDownload size={12}/></div>
+                                        <div className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center"><FaFileDownload size={12} /></div>
                                         Materials
                                     </h3>
                                     {userRole !== 'employee' && (
@@ -408,7 +403,7 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                                                 </div>
                                                 <h4 className="text-base font-normal text-slate-900 uppercase tracking-normal mb-1 truncate" title={material.title}>{material.title}</h4>
                                                 <p className="text-[9px] font-normal text-slate-400 uppercase mb-4">{(material.file_size / 1024).toFixed(2)} KB • FILE</p>
-                                                
+
                                                 {material.description && (
                                                     <p className="text-[10px] font-normal text-slate-500 uppercase leading-relaxed line-clamp-2 min-h-[2.5rem] mb-4">
                                                         {material.description}
@@ -441,7 +436,7 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                             <div className="animate-fadeIn max-w-4xl mx-auto space-y-6">
                                 <div className="flex justify-between items-center">
                                     <h3 className="text-sm font-normal text-slate-900 uppercase flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center"><FaClipboardList size={12}/></div>
+                                        <div className="w-8 h-8 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center"><FaClipboardList size={12} /></div>
                                         Assessment
                                     </h3>
                                     {(userRole !== 'employee' && !training.quiz) && (
@@ -505,7 +500,7 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                                                             {Math.round(quizAttempt.score_achieved)}%
                                                         </p>
                                                         <p className="text-[10px] font-normal text-slate-400 uppercase">
-                                                            COMPLETED ON {new Date(quizAttempt.completed_at).toLocaleDateString().toUpperCase()}
+                                                            COMPLETED ON {formatDate(quizAttempt.completed_at).toUpperCase()}
                                                         </p>
                                                     </div>
                                                 ) : (
@@ -641,8 +636,8 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                                                     <h3 className="text-4xl font-normal uppercase tracking-normal">Certificate Issued</h3>
                                                     <p className="text-lg font-normal text-emerald-100 uppercase tracking-normal max-w-md mx-auto">Congratulations! You have completed this training.</p>
                                                 </div>
-                                                <a 
-                                                    href={route('certificates.show', userProgress.certificate_id)} 
+                                                <a
+                                                    href={route('certificates.show', userProgress.certificate_id)}
                                                     target="_blank"
                                                     className="px-12 py-5 bg-white text-emerald-600 rounded-[2rem] text-[11px] font-normal uppercase tracking-[0.3em] shadow-xl hover:-translate-y-1 transition-all active:scale-95 flex items-center justify-center gap-3"
                                                 >
@@ -688,7 +683,7 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                                                 <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-8">
                                                     <div className="h-full bg-primary rounded-full transition-all duration-1000" style={{ width: `${userProgress?.progress_percentage || 0}%` }}></div>
                                                 </div>
-                                                
+
                                                 {userProgress?.progress_percentage === 100 && !userProgress?.certificate_issued && (
                                                     <button onClick={generateCertificate} className="w-full py-4 bg-emerald-600 text-white rounded-lg text-[10px] font-normal uppercase tracking-[0.3em] shadow-xl shadow-emerald-500/20 hover:brightness-110 active:scale-95 transition-all animate-bounce">
                                                         Get Certificate
@@ -799,7 +794,7 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                                 <h3 className="text-xl font-normal text-white uppercase tracking-normal">Upload Material</h3>
                                 <p className="text-[9px] font-normal text-slate-500 uppercase mt-1">Add training materials</p>
                             </div>
-                            <button onClick={() => setShowMaterialModal(false)} className="w-8 h-8 bg-white/5 text-white/40 hover:text-white hover:bg-white/10 rounded-lg flex items-center justify-center transition-all"><FaTimesCircle size={14}/></button>
+                            <button onClick={() => setShowMaterialModal(false)} className="w-8 h-8 bg-white/5 text-white/40 hover:text-white hover:bg-white/10 rounded-lg flex items-center justify-center transition-all"><FaTimesCircle size={14} /></button>
                         </div>
                         <form onSubmit={handleMaterialUpload} className="p-6 space-y-4">
                             <div className="space-y-1">
@@ -839,7 +834,7 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                                 </h3>
                                 <p className="text-[10px] font-normal text-slate-500 uppercase mt-1">Define assessment details</p>
                             </div>
-                            <button onClick={() => setShowQuizModal(false)} className="w-10 h-10 bg-white/5 text-white/40 hover:text-white hover:bg-white/10 rounded-lg flex items-center justify-center transition-all"><FaTimesCircle size={16}/></button>
+                            <button onClick={() => setShowQuizModal(false)} className="w-10 h-10 bg-white/5 text-white/40 hover:text-white hover:bg-white/10 rounded-lg flex items-center justify-center transition-all"><FaTimesCircle size={16} /></button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-8 bg-slate-50/30">
@@ -870,8 +865,8 @@ export default function Show({ training, userRole = 'employee', userProgress, se
                                     {quizForm.data.questions.map((q, idx) => (
                                         <div key={idx} className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm relative group/segment animate-slideIn">
                                             <div className="absolute -top-3 -left-3 w-10 h-10 bg-slate-900 text-white rounded-lg flex items-center justify-center font-normal text-lg shadow-lg shadow-slate-900/20">{idx + 1}</div>
-                                            <button type="button" onClick={() => removeQuestion(idx)} className="absolute top-4 right-4 w-8 h-8 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-lg flex items-center justify-center transition-all opacity-0 group-hover/segment:opacity-100 scale-90 group-hover/segment:scale-100"><FaMinusCircle size={14}/></button>
-                                            
+                                            <button type="button" onClick={() => removeQuestion(idx)} className="absolute top-4 right-4 w-8 h-8 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-lg flex items-center justify-center transition-all opacity-0 group-hover/segment:opacity-100 scale-90 group-hover/segment:scale-100"><FaMinusCircle size={14} /></button>
+
                                             <div className="space-y-6 mt-4">
                                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                                     <div className="md:col-span-3 space-y-1">

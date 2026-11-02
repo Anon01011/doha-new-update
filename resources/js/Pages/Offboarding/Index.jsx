@@ -6,6 +6,7 @@ import {
     FiFilter, FiCalendar, FiChevronRight, FiUsers, FiTrendingDown,
     FiSearch, FiEye, FiXCircle
 } from 'react-icons/fi';
+import { formatDate } from '@/helpers/dateHelpers';
 
 const STATUS_COLORS = {
     draft: 'bg-slate-100 text-slate-600',
@@ -189,7 +190,7 @@ export default function Index({ requests, summary, companies = [], departments =
                                             </td>
                                             <td className="py-3.5 px-4 font-mono text-slate-700">
                                                 {req.proposed_last_working_day
-                                                    ? new Date(req.proposed_last_working_day).toLocaleDateString('en-IN')
+                                                    ? formatDate(req.proposed_last_working_day)
                                                     : '-'}
                                             </td>
                                             <td className="py-3.5 px-4">

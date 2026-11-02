@@ -3,6 +3,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { FaPlus, FaEdit, FaTrash, FaCalendarAlt, FaCheckCircle, FaTimesCircle, FaInfoCircle, FaClock } from 'react-icons/fa';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { parseDate } from '@/helpers/dateHelpers';
 
 export default function Index({ holidays, companies, filters, auth }) {
     const userRole = auth.user.role;
@@ -26,7 +27,8 @@ export default function Index({ holidays, companies, filters, auth }) {
     };
 
     const formatDate = (dateString) => {
-        const date = new Date(dateString);
+        const date = parseDate(dateString);
+        if (!date) return { day: '', month: '', weekday: '', full: '' };
         return {
             day: date.getDate(),
             month: date.toLocaleDateString('en-US', { month: 'short' }),

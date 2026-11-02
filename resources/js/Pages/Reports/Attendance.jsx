@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { FiArrowLeft, FiFilter, FiDownload, FiFileText, FiTable, FiClock, FiCheckCircle, FiXCircle, FiCalendar, FiTrendingUp, FiAlertCircle } from 'react-icons/fi';
 import { resolveCurrency } from '@/helpers/currency';
 import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
+import { toInputDate, formatDate } from '@/helpers/dateHelpers';
 
 // Helper: OT color badge class
 function getHoursColorClass(worked, std) {
@@ -31,8 +32,8 @@ export default function Attendance({ attendances, summary, startDate, endDate, c
     const stdHours = parseFloat(settings?.standard_working_hours || 9);
 
     const [filters, setFilters] = useState({
-        start_date: startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-        end_date: endDate || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0],
+        start_date: startDate || toInputDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
+        end_date: endDate || toInputDate(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0)),
         company_id: companyId
             ? (Array.isArray(companyId) ? companyId.map(String) : [String(companyId)])
             : [],

@@ -11,15 +11,9 @@ import {
     FiLoader,
     FiCalendar
 } from 'react-icons/fi';
+import { formatDateTime } from '@/helpers/dateHelpers';
 
 export default function Reports({ statusDistribution, projects, timePerEmployee, recentLogs }) {
-    const formatDateTime = (date) => date ? new Date(date).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    }) : 'N/A';
-
     const formatDuration = (minutes) => {
         if (!minutes) return '0m';
         const h = Math.floor(minutes / 60);

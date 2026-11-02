@@ -30,7 +30,7 @@ class ShiftRoster extends Model
     ];
 
     protected $casts = [
-        'week_start'  => 'date',
+        'week_start'  => 'date:Y-m-d',
         'approved_at' => 'datetime',
         'created_at'  => 'datetime',
         'updated_at'  => 'datetime',

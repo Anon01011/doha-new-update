@@ -10,6 +10,7 @@ import {
 } from 'react-icons/fi';
 import Avatar from '@/Components/Avatar';
 import { useCurrency } from '@/helpers/currency';
+import { formatDate, formatDateShort } from '@/helpers/dateHelpers';
 
 // Compact Metric Card
 const StatCard = ({ title, value, subtitle, icon: Icon, color = 'rose', trend }) => {
@@ -320,7 +321,7 @@ export default function Dashboard({
                                     <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-700 border border-slate-300 text-[11px] font-bold shadow-xs">
                                         <span className="opacity-75 uppercase text-[9px] font-extrabold tracking-wider text-slate-500">End Date:</span>
                                         <span className={periodEndDate ? 'text-slate-900 font-extrabold' : 'text-slate-400 italic'}>
-                                            {periodEndDate ? (new Date(periodEndDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : (categoryLower.includes('permanent') ? 'No Expiry' : 'Not Set')}
+                                            {periodEndDate ? formatDate(periodEndDate) : (categoryLower.includes('permanent') ? 'No Expiry' : 'Not Set')}
                                         </span>
                                     </div>
 
@@ -644,7 +645,7 @@ export default function Dashboard({
                                         {recentAttendance.slice(0, 5).map((att, idx) => (
                                             <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
                                                 <td className="py-2.5 font-medium text-slate-800">
-                                                    {new Date(att.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                                                    {formatDateShort(att.date)}
                                                 </td>
                                                 <td className="py-2.5">
                                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${att.attendance === 'Present' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
@@ -971,7 +972,7 @@ export default function Dashboard({
                                         </div>
                                         <div className="text-xs font-bold text-slate-900">{activeOffboarding.request_number || `#${activeOffboarding.id}`}</div>
                                         <div className="text-[11px] text-slate-500 mt-0.5">
-                                            LWD: <strong className="text-slate-700">{activeOffboarding.proposed_last_working_day}</strong>
+                                            LWD: <strong className="text-slate-700">{formatDate(activeOffboarding.proposed_last_working_day)}</strong>
                                         </div>
                                     </div>
                                     <div className="flex items-center justify-between text-xs text-slate-500 px-1">
@@ -990,7 +991,7 @@ export default function Dashboard({
                                     <div className="flex items-center justify-between text-xs">
                                         <span className="text-slate-500">Service Tenure</span>
                                         <span className="font-medium text-slate-700">
-                                            {employee.joined_date ? `Joined ${employee.joined_date}` : 'Active'}
+                                            {employee.joined_date ? `Joined ${formatDate(employee.joined_date)}` : 'Active'}
                                         </span>
                                     </div>
                                     <p className="text-[11px] text-slate-400 leading-relaxed border-t border-slate-100 pt-2.5">

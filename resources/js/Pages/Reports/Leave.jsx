@@ -2,9 +2,10 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { FiArrowLeft, FiFilter, FiDownload, FiFileText, FiTable, FiCalendar, FiClock, FiCheckCircle, FiXCircle } from 'react-icons/fi';
+import { formatDate, todayInputDate } from '@/helpers/dateHelpers';
 
 export default function Leave({ leaveRequests, summary, startDate, endDate, status, leaveTypeId, leaveTypes }) {
-    const today = new Date().toLocaleDateString('en-CA');
+    const today = todayInputDate();
     const [filters, setFilters] = useState({
         start_date: startDate || '',
         end_date: endDate || '',
@@ -21,8 +22,6 @@ export default function Leave({ leaveRequests, summary, startDate, endDate, stat
         const baseUrl = route(`reports.leave.export.${type}`);
         window.open(`${baseUrl}?${queryParams}`, '_blank');
     };
-
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
 
     const getStatusStyle = (s) => {
         switch (s?.toLowerCase()) {

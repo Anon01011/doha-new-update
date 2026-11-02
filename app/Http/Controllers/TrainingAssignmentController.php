@@ -285,7 +285,11 @@ class TrainingAssignmentController extends Controller
             if ($autoCert && !$assignment->certificate_issued) {
                 $validated['certificate_issued'] = true;
                 $validated['certificate_date'] = now()->toDateString();
-                $validated['certificate_number'] = 'CERT-' . strtoupper(uniqid());
+                $certDigits = '';
+                for ($i = 0; $i < 16; $i++) {
+                    $certDigits .= (string) random_int(0, 9);
+                }
+                $validated['certificate_number'] = 'CERT-' . $certDigits;
             }
         }
 

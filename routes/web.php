@@ -118,6 +118,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/offboarding', [\App\Http\Controllers\SettingsController::class, 'updateOffboardingSettings'])->name('settings.offboarding.update');
         Route::get('/settings/offboarding/preview-template', [\App\Http\Controllers\SettingsController::class, 'previewRelievingLetterTemplate'])->name('settings.offboarding.previewTemplate');
 
+        // Expense Settings
+        Route::get('/settings/expenses', [\App\Http\Controllers\SettingsController::class, 'expenseSettings'])->name('settings.expenses');
+        Route::post('/settings/expenses', [\App\Http\Controllers\SettingsController::class, 'updateExpenseSettings'])->name('settings.expenses.update');
+
         // Approval routes
         Route::post('leave-requests/{leaveRequest}/approve', [\App\Http\Controllers\LeaveRequestController::class, 'approve'])->name('leave-requests.approve');
         Route::post('leave-requests/{leaveRequest}/reject', [\App\Http\Controllers\LeaveRequestController::class, 'reject'])->name('leave-requests.reject');

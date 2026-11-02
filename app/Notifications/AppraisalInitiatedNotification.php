@@ -21,7 +21,8 @@ class AppraisalInitiatedNotification extends Notification
     public function via(object $notifiable): array
     {
         $channels = ['database'];
-        if (!empty($notifiable->email)) {
+        // Only add mail channel if global email notifications are enabled AND the user has an email
+        if (\App\Models\Setting::get('email_notifications_enabled', '1') === '1' && !empty($notifiable->email)) {
             $channels[] = 'mail';
         }
         return $channels;
@@ -35,7 +36,7 @@ class AppraisalInitiatedNotification extends Notification
             ->greeting("Hello {$notifiable->name},")
             ->line("A new performance appraisal cycle ({$this->evaluation->cycle_type}) for {$monthName} {$this->evaluation->year} has been initiated for you.")
             ->line("Please log in to your dashboard to review the evaluation criteria and submit your self-assessment.")
-            ->action('Complete Self-Assessment', route('evaluations.show', $this->evaluation->id))
+            ->action('Complete Self-Assessment', route('evaluations.show', $this->evaluation))
             ->line('Thank you for your continuous dedication and contributions!');
     }
 
@@ -48,7 +49,7 @@ class AppraisalInitiatedNotification extends Notification
             'year'          => $this->evaluation->year,
             'cycle_type'    => $this->evaluation->cycle_type,
             'message'       => "Performance appraisal cycle for {$monthName} {$this->evaluation->year} has been initiated. Please submit your self-assessment.",
-            'action_url'    => route('evaluations.show', $this->evaluation->id),
+            'action_url'    => route('evaluations.show', $this->evaluation),
             'type'          => 'appraisal_initiated',
         ];
     }

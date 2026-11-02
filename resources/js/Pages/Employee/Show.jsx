@@ -7,6 +7,7 @@ import Modal from '@/Components/Modal';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import { resolveCurrency, resolveCountry } from '@/helpers/currency';
 import { employeeRouteKey, employeeRoute } from '@/helpers/employee-routes';
+import { formatDate } from '@/helpers/dateHelpers';
 import {
     FiUser, FiCreditCard, FiMapPin, FiBriefcase, FiClock, FiDollarSign,
     FiFileText, FiArrowLeft, FiEdit3, FiPrinter, FiTrash2, FiCheckCircle,
@@ -222,15 +223,6 @@ export default function ShowEmployee({
             type = 'other';
         }
         setLightbox({ isOpen: true, src: fullUrl, title, type });
-    };
-
-    const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        return new Date(dateString).toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-        });
     };
 
     const getStatusBadge = (status) => {

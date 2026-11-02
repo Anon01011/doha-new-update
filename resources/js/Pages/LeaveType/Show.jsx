@@ -1,4 +1,5 @@
 import { hasPermission } from '@/helpers/permissions';
+import { formatDate } from '@/helpers/dateHelpers';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
@@ -26,15 +27,6 @@ export default function Show({ leaveType, enableAttachment }) {
     // The edit route is permission-guarded server-side; mirror it in the UI.
     const canEdit =
         user.role === 'admin' || hasPermission(user, 'manage-leave-types');
-
-    const formatDate = (date) => {
-        if (!date) return 'N/A';
-        return new Date(date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-        });
-    };
 
     // The flag may arrive as a boolean, 0/1 or "0"/"false" depending on the driver.
     const isAttachmentRequired =

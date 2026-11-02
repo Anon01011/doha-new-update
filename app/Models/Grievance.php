@@ -28,8 +28,8 @@ class Grievance extends Model
     ];
 
     protected $casts = [
-        'submitted_date' => 'date',
-        'resolved_date' => 'date',
+        'submitted_date' => 'date:Y-m-d',
+        'resolved_date' => 'date:Y-m-d',
         'is_confidential' => 'boolean',
         'is_anonymous' => 'boolean',
         'attachments' => 'array',

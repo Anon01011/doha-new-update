@@ -4,16 +4,17 @@ import { useState, useEffect, useRef } from 'react';
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import { FiUploadCloud, FiChevronDown, FiChevronLeft, FiChevronRight, FiSearch, FiDownload } from 'react-icons/fi';
+import { formatDate, parseDate, toInputDate } from '@/helpers/dateHelpers';
 
 // Helper to get week days from a start date
 function getWeekDays(startDate) {
     const days = [];
-    const start = new Date(startDate);
+    const start = parseDate(startDate) || new Date();
     for (let i = 0; i < 7; i++) {
         const d = new Date(start);
         d.setDate(start.getDate() + i);
         days.push({
-            date: d.toISOString().slice(0, 10),
+            date: toInputDate(d),
             label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
         });
     }
@@ -22,7 +23,7 @@ function getWeekDays(startDate) {
 
 function isEmployeeWeeklyOff(emp, dateStr) {
     if (!emp) return false;
-    const date = new Date(dateStr);
+    const date = parseDate(dateStr) || new Date(dateStr);
     const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }); // e.g. "Monday"
 
     // 1. Check staff-wise weekly off
@@ -126,7 +127,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
     };
 
     const [selectedBranch, setSelectedBranch] = useState(initialCompanyId || '');
-    const [weekStart, setWeekStart] = useState(initialWeekStart || getMonday(new Date()).toISOString().slice(0, 10));
+    const [weekStart, setWeekStart] = useState(initialWeekStart || toInputDate(getMonday(new Date())));
     const [search, setSearch] = useState(() => {
         if (typeof window !== 'undefined') {
             return new URLSearchParams(window.location.search).get('search') || '';
@@ -236,7 +237,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
     };
 
     const getNormalHours = (empId, date) => {
-        const dateObj = new Date(date);
+        const dateObj = parseDate(date) || new Date(date);
         const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
         const plannedShift = rosterMap[`${empId}_${dayName}`];
         const stdHours = parseFloat(settings?.standard_working_hours || 9);
@@ -261,7 +262,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                 if (value === 'Absent') {
                     updates.from_time = ''; updates.to_time = ''; updates.hours_worked = ''; updates.ot = '';
                 } else if (value === 'Present' && !currentCell.from_time && !currentCell.to_time) {
-                    const dateObj = new Date(date);
+                    const dateObj = parseDate(date) || new Date(date);
                     const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
                     const plannedShift = rosterMap[`${empId}_${dayName}`];
                     if (plannedShift?.shift_time) {
@@ -332,9 +333,9 @@ export default function Index({ branches = [], employees, attendances = [], rost
     };
 
     const handleWeekChange = (direction) => {
-        const d = new Date(weekStart);
+        const d = parseDate(weekStart) || new Date(weekStart);
         d.setDate(d.getDate() + direction * 7);
-        const newWeekStart = d.toISOString().slice(0, 10);
+        const newWeekStart = toInputDate(d);
         setWeekStart(newWeekStart);
         updateParams({ week_start: newWeekStart });
     };
@@ -614,7 +615,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                         {weekDays.map(day => {
                                             const key = `${emp.id}_${day.date}`;
                                             const cell = editData[key] || { attendance: '' };
-                                            const dateObj = new Date(day.date);
+                                            const dateObj = parseDate(day.date) || new Date(day.date);
                                             const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
                                             const plannedShift = rosterMap[`${emp.id}_${dayName}`];
                                             const scheduledWeeklyOff = (plannedShift && plannedShift.is_weekly_off) || isEmployeeWeeklyOff(emp, day.date);
@@ -797,7 +798,7 @@ export default function Index({ branches = [], employees, attendances = [], rost
                                     const totalDisplay = totalWorked > 0 ? `${totalHrs}hrs ${totalMins} min` : '0hrs 0 min';
                                     return (
                                         <p className="text-[10px] text-slate-400 uppercase mt-1 tracking-normal font-normal">
-                                            {selectedBreakup.employee.name} • {new Date(selectedBreakup.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} • Total Worked: <span className="font-bold text-xs text-slate-700">{totalDisplay}</span>
+                                            {selectedBreakup.employee.name} • {formatDate(selectedBreakup.date)} • Total Worked: <span className="font-bold text-xs text-slate-700">{totalDisplay}</span>
                                         </p>
                                     );
                                 })()}

@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fi';
 import { useCurrency } from '@/helpers/currency';
 import { useCurrencyLabel } from '@/helpers/currency-ui';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function ExpenseReport({
     claims = [],
@@ -391,7 +392,7 @@ export default function ExpenseReport({
                                                 </Link>
                                             </td>
                                             <td className="py-3 px-4 font-semibold text-slate-800">{claim.employee?.name}</td>
-                                            <td className="py-3 px-4">{claim.expense_date}</td>
+                                            <td className="py-3 px-4">{formatDate(claim.expense_date)}</td>
                                             <td className="py-3 px-4">{claim.category?.name || 'General'}</td>
                                             <td className="py-3 px-4 max-w-xs truncate">{claim.business_purpose}</td>
                                             <td className="py-3 px-4 text-right font-bold text-slate-900">{formatINR(claim.amount)}</td>

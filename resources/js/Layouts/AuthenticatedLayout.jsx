@@ -1,6 +1,7 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Avatar from '@/Components/Avatar';
 import Dropdown from '@/Components/Dropdown';
+import { formatRelative } from '@/helpers/dateHelpers';
 import {
     hasAnyPermission,
     hasPermission,
@@ -2167,7 +2168,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                                                         </span>
                                                                         <span className="text-[8px] font-black uppercase tracking-tight text-slate-300">
                                                                             {
-                                                                                notification.created_at
+                                                                                formatRelative(notification.created_at)
                                                                             }
                                                                         </span>
                                                                     </div>

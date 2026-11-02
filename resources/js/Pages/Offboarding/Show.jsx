@@ -10,6 +10,7 @@ import {
     FiSliders, FiMessageCircle, FiEye, FiMail
 } from 'react-icons/fi';
 import { useCurrency } from '@/helpers/currency';
+import { formatDate } from '@/helpers/dateHelpers';
 
 const STATUS_STEPS = [
     { key: 'pending_approval', label: 'Pending Approval' },
@@ -609,7 +610,7 @@ export default function Show({
                                     ['Designation', offboarding.employee?.designation || 'Staff'],
                                     ['Company / Branch', offboarding.employee?.company?.name || '—'],
                                     ['Last Working Day', offboarding.proposed_last_working_day
-                                        ? new Date(offboarding.proposed_last_working_day).toLocaleDateString('en-IN') : '—'],
+                                        ? formatDate(offboarding.proposed_last_working_day) : '—'],
                                     ['Notice Period', `${offboarding.notice_period_days || 0} days`],
                                     ['Initiated By', offboarding.initiator?.name || 'HR Team'],
                                 ].map(([label, val]) => (

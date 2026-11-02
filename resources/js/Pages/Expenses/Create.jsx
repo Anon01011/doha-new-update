@@ -9,6 +9,7 @@ import {
 import Avatar from '@/Components/Avatar';
 import { useCurrency } from '@/helpers/currency';
 import { useCurrencyLabel, CurrencyAmountInput } from '@/helpers/currency-ui';
+import { todayInputDate } from '@/helpers/dateHelpers';
 
 export default function Create({
     categories = [],
@@ -36,7 +37,7 @@ export default function Create({
     const { data, setData, post, processing, errors } = useForm({
         employee_id: currentEmployee ? currentEmployee.id : (employees.length > 0 ? employees[0].id : ''),
         expense_category_id: categories.length > 0 ? categories[0].id : '',
-        expense_date: new Date().toISOString().split('T')[0],
+        expense_date: todayInputDate(),
         amount: '',
         tax_amount: '',
         tax_rate: '',
@@ -341,7 +342,7 @@ export default function Create({
                                         </label>
                                         <input
                                             type="date"
-                                            max={new Date().toISOString().split('T')[0]}
+                                            max={todayInputDate()}
                                             value={data.expense_date}
                                             onChange={(e) => setData('expense_date', e.target.value)}
                                             className="w-full py-2 px-3 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary focus:bg-white"

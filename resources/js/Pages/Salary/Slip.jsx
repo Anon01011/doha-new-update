@@ -4,6 +4,7 @@ import { FiPrinter, FiArrowLeft, FiDownload, FiClock } from 'react-icons/fi';
 import { useState } from 'react';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import { resolveCurrency, resolveCountry, CURRENCY_NAMES, CURRENCY_SUB_UNITS } from '@/helpers/currency';
+import { formatDate } from '@/helpers/dateHelpers';
 
 // Simple SVG Pie/Donut Chart Component
 const PieChart = ({ data, size = 120, innerRadius = 0, centerText = null }) => {
@@ -117,11 +118,6 @@ export default function Slip({ salaryPosting, loanInstallments = [], advances = 
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency }).format(amount || 0);
-    };
-
-    const formatDate = (date) => {
-        if (!date) return 'N/A';
-        return new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     };
 
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];

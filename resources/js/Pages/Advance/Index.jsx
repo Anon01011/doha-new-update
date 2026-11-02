@@ -5,6 +5,7 @@ import { FaUser, FaSearch, FaFilter, FaPlus, FaCheckCircle, FaTrash, FaEye, FaEd
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import { resolveCurrency } from '@/helpers/currency';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Index({ advances, status, userRole = 'employee', search: initialSearch = '' }) {
     const { auth, appSettings } = usePage().props;
@@ -213,7 +214,7 @@ export default function Index({ advances, status, userRole = 'employee', search:
                                                 <td className="px-6 py-3">
                                                     <div className="flex items-center gap-2">
                                                         <FaCalendarAlt className="text-slate-300" size={10} />
-                                                        <span className="text-[10px] font-normal text-slate-600 uppercase">{new Date(advance.created_at).toLocaleDateString()}</span>
+                                                        <span className="text-[10px] font-normal text-slate-600 uppercase">{formatDate(advance.created_at)}</span>
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-3">

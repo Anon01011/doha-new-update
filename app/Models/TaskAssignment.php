@@ -23,9 +23,9 @@ class TaskAssignment extends Model
     ];
 
     protected $casts = [
-        'assigned_date' => 'date',
-        'completed_date' => 'date',
-        'extension_request_date' => 'date',
+        'assigned_date' => 'date:Y-m-d',
+        'completed_date' => 'date:Y-m-d',
+        'extension_request_date' => 'date:Y-m-d',
         'progress_percentage' => 'integer',
     ];
 

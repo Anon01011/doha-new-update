@@ -25,6 +25,7 @@ export default function MailSettings({ mailSettings }) {
         mail_encryption: mailSettings.mail_encryption,
         mail_from_address: mailSettings.mail_from_address,
         mail_from_name: mailSettings.mail_from_name,
+        email_notifications_enabled: mailSettings.email_notifications_enabled ?? true,
     });
 
     const handleSubmit = async (e) => {
@@ -36,15 +37,19 @@ export default function MailSettings({ mailSettings }) {
         };
 
         try {
-            const response = await window.axios.post(route('settings.mail.update'), formData);
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const response = await window.axios.post(route('settings.mail.update'), formData, {
+                headers: { 'X-CSRF-TOKEN': csrfToken }
+            });
             setConfirmingAction({
                 show: true,
                 title: 'Settings Updated',
-                message: 'Mail settings updated successfully!',
+                message: 'Mail settings updated successfully! The new configuration is now active.',
                 type: 'success',
                 hideCancel: true,
                 onConfirm: () => {
                     setConfirmingAction(prev => ({ ...prev, show: false }));
+                    // Force a fresh page load to display saved values from .env
                     window.location.reload();
                 }
             });
@@ -69,7 +74,7 @@ export default function MailSettings({ mailSettings }) {
                 setConfirmingAction({
                     show: true,
                     title: 'Update Error',
-                    message: 'Error saving settings: ' + (error.response?.data?.message || error.message),
+                    message: 'Error saving settings: ' + (error.response?.data?.message || error.response?.data?.errors ? JSON.stringify(error.response?.data?.errors) : error.message),
                     type: 'danger',
                     hideCancel: true,
                     onConfirm: () => setConfirmingAction(prev => ({ ...prev, show: false }))
@@ -100,7 +105,8 @@ export default function MailSettings({ mailSettings }) {
                 },
                 body: JSON.stringify({
                     test_email: testEmail,
-                    ...data
+                    // Pass current form data so test uses live unsaved settings
+                    ...data,
                 }),
             });
 
@@ -247,6 +253,36 @@ export default function MailSettings({ mailSettings }) {
                                 />
                             </div>
                         </div>
+                    </div>
+
+                    {/* Email Notification Toggle */}
+                    <div className="glass-card premium-shadow rounded-lg p-5 border border-white/40">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-emerald-600 text-white rounded-lg shadow-lg shadow-emerald-200">
+                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                </svg>
+                            </div>
+                            <h3 className="text-lg font-normal text-gray-900 tracking-normal">Email Notifications</h3>
+                        </div>
+                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <div>
+                                <p className="text-sm font-normal text-gray-800">Enable Email Notifications</p>
+                                <p className="text-xs text-gray-500 mt-0.5">Send email alerts for leave, tasks, loans, grievances and other HR events.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setData('email_notifications_enabled', !data.email_notifications_enabled)}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 ${data.email_notifications_enabled ? 'bg-primary' : 'bg-gray-300'}`}
+                            >
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${data.email_notifications_enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
+                        </div>
+                        {!data.email_notifications_enabled && (
+                            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
+                                ⚠ Email notifications are disabled. Users will still receive in-app notifications.
+                            </p>
+                        )}
                     </div>
 
                     <div className="flex flex-wrap items-center justify-end gap-3 pt-2">

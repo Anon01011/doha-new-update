@@ -5,6 +5,7 @@ import { FaFileAlt, FaCloudUploadAlt, FaDownload, FaTrash, FaCheckCircle, FaExcl
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import Lightbox from '@/Components/Lightbox';
 import { employeeRouteKey } from '@/helpers/employee-routes';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Documents({ employee, documents, documentTypes, userRole, settings }) {
     const { auth } = usePage().props;
@@ -72,7 +73,6 @@ export default function Documents({ employee, documents, documentTypes, userRole
         });
     };
 
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
     const formatFileSize = (bytes) => {
         if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
         if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB';

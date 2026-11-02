@@ -3,6 +3,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { FiAlertTriangle, FiSearch, FiChevronRight, FiInbox } from 'react-icons/fi';
 import Avatar from '@/Components/Avatar';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Index({ warningLetters, filters, userRole }) {
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
@@ -11,12 +12,6 @@ export default function Index({ warningLetters, filters, userRole }) {
         e.preventDefault();
         router.get(route('warning-letters.index'), { search: searchTerm, type: filters.type }, { preserveState: true });
     };
-
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-    }) : 'N/A';
 
     const getTypeColor = (type) => {
         const t = type?.toLowerCase() || '';

@@ -86,12 +86,25 @@ class EmployeeEvaluation extends Model
     {
         static::creating(function ($model) {
             if (empty($model->reference_no)) {
-                $year = $model->year ?? date('Y');
-                $month = str_pad((string)($model->month ?? date('n')), 2, '0', STR_PAD_LEFT);
-                $random = strtoupper(\Illuminate\Support\Str::random(6));
-                $model->reference_no = "EVA-{$year}{$month}-{$random}";
+                $model->reference_no = static::generateReferenceNo();
             }
         });
+    }
+
+    /**
+     * Generate a unique 16-digit reference number formatted as EVA-0123456789012345 (digits 0-9).
+     */
+    public static function generateReferenceNo(): string
+    {
+        do {
+            $digits = '';
+            for ($i = 0; $i < 16; $i++) {
+                $digits .= (string) random_int(0, 9);
+            }
+            $candidate = 'EVA-' . $digits;
+        } while (static::where('reference_no', $candidate)->exists());
+
+        return $candidate;
     }
 
     /**

@@ -15,7 +15,7 @@ class ProjectMember extends Model
     ];
 
     protected $casts = [
-        'assigned_date' => 'date',
+        'assigned_date' => 'date:Y-m-d',
     ];
 
     public function project(): BelongsTo

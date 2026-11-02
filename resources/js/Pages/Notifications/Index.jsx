@@ -18,6 +18,7 @@ import {
     FiAlertCircle,
     FiBriefcase,
 } from 'react-icons/fi';
+import { formatDateTime } from '@/helpers/dateHelpers';
 
 export default function Index({ notifications, filters = {}, stats = {} }) {
     const [search, setSearch] = useState(filters.search || '');
@@ -229,7 +230,7 @@ export default function Index({ notifications, filters = {}, stats = {} }) {
                                                     </span>
                                                 )}
                                                 <span className="text-[10px] text-slate-400">
-                                                    • {item.created_at}
+                                                    • {formatDateTime(item.created_at)}
                                                 </span>
                                             </div>
                                             {item.data?.title && (

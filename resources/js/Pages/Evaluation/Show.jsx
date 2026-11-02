@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, usePage, router, useForm } from '@inertiajs/react';
 import Avatar from '@/Components/Avatar';
+import { formatDate } from '@/helpers/dateHelpers';
 import {
     UserIcon,
     CalendarIcon,
@@ -461,7 +462,7 @@ export default function Show({ evaluation, historicalEvaluations = [], criteria 
                                         <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100 space-y-1.5">
                                             <div className="flex items-center gap-1.5 text-emerald-700 text-xs font-normal">
                                                 <CheckCircleIcon className="w-4 h-4" />
-                                                Acknowledged on {new Date(evaluation.employee_acknowledged_at).toLocaleDateString('en-IN')}
+                                                Acknowledged on {formatDate(evaluation.employee_acknowledged_at)}
                                             </div>
                                             {evaluation.employee_acknowledgment_notes && (
                                                 <p className="text-[10px] text-emerald-800 italic">

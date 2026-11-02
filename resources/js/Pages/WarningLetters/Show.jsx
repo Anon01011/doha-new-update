@@ -1,15 +1,9 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
 import { FiArrowLeft, FiPrinter, FiShield, FiFileText, FiUser, FiCalendar } from 'react-icons/fi';
+import { formatDateTime } from '@/helpers/dateHelpers';
 
 export default function Show({ warningLetter, userRole }) {
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    }) : 'N/A';
 
     const getTypeStyles = (type) => {
         const t = type?.toLowerCase() || '';
@@ -67,7 +61,7 @@ export default function Show({ warningLetter, userRole }) {
                                 <div className="flex flex-wrap gap-x-6 gap-y-2">
                                     <div className="flex items-center gap-2 text-[11px] font-normal text-slate-400 uppercase tracking-normal">
                                         <FiCalendar className="w-3.5 h-3.5" />
-                                        Issued: <span className="text-slate-800">{formatDate(warningLetter.sent_at || warningLetter.created_at)}</span>
+                                        Issued: <span className="text-slate-800">{formatDateTime(warningLetter.sent_at || warningLetter.created_at)}</span>
                                     </div>
                                     <div className="flex items-center gap-2 text-[11px] font-normal text-slate-400 uppercase tracking-normal">
                                         <FiShield className="w-3.5 h-3.5" />

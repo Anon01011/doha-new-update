@@ -1,16 +1,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
+import { formatDateTime } from '@/helpers/dateHelpers';
 
 export default function Show({ auditLog }) {
-    const formatDate = (date) => new Date(date).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: true
-    });
-
     const getEventConfig = (event) => {
         if (event === 'created') return { color: 'emerald', bg: 'bg-emerald-500', text: 'text-emerald-700', badge: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' };
         if (event === 'updated') return { color: 'primary', bg: 'bg-primary', text: 'text-primary', badge: 'bg-primary/10 text-primary border-primary/20' };
@@ -95,7 +87,7 @@ export default function Show({ auditLog }) {
                                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                     <div className="p-2.5 bg-gray-50/50 rounded-xl border border-gray-100">
                                         <p className="text-[9px] font-normal text-gray-400 uppercase tracking-normal mb-1">Occurred At</p>
-                                        <p className="text-[11px] font-normal text-gray-800 leading-tight">{formatDate(auditLog.created_at)}</p>
+                                        <p className="text-[11px] font-normal text-gray-800 leading-tight">{formatDateTime(auditLog.created_at)}</p>
                                     </div>
                                     <div className="p-2.5 bg-gray-50/50 rounded-xl border border-gray-100">
                                         <p className="text-[9px] font-normal text-gray-400 uppercase tracking-normal mb-1">Event Type</p>

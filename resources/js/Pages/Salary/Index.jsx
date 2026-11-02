@@ -5,6 +5,7 @@ import { FaPlus, FaSearch, FaEye, FaEdit, FaTrash, FaMoneyBillWave, FaCheckCircl
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import { resolveCurrency } from '@/helpers/currency';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Index({ 
     salaryPostings, 
@@ -170,15 +171,6 @@ export default function Index({
             currency: currency,
             minimumFractionDigits: 2
         }).format(amount || 0);
-    };
-
-    const formatDate = (date) => {
-        if (!date) return 'N/A';
-        return new Date(date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        });
     };
 
     const getStatusStyles = (status) => {

@@ -9,6 +9,7 @@ import {
     FiEye, FiCheck, FiX, FiActivity
 } from 'react-icons/fi';
 import { useCurrency } from '@/helpers/currency';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function OffboardingReport({
     requests = [],
@@ -410,10 +411,10 @@ export default function OffboardingReport({
                                                         </span>
                                                     </td>
                                                     <td className="p-3.5 text-slate-700 font-medium">
-                                                        {r.proposed_last_working_day ? new Date(r.proposed_last_working_day).toLocaleDateString('en-GB') : '—'}
+                                                        {r.proposed_last_working_day ? formatDate(r.proposed_last_working_day) : '—'}
                                                     </td>
                                                     <td className="p-3.5 text-slate-600">
-                                                        {r.actual_last_working_day ? new Date(r.actual_last_working_day).toLocaleDateString('en-GB') : '—'}
+                                                        {r.actual_last_working_day ? formatDate(r.actual_last_working_day) : '—'}
                                                     </td>
                                                     <td className="p-3.5 text-slate-600">
                                                         {r.notice_period_days || 0} days
@@ -509,7 +510,7 @@ export default function OffboardingReport({
                                                         <div className="text-[11px] text-slate-400">{r.employee?.department?.name || '—'}</div>
                                                     </td>
                                                     <td className="p-3.5 font-bold text-rose-600">
-                                                        {r.proposed_last_working_day ? new Date(r.proposed_last_working_day).toLocaleDateString('en-GB') : '—'}
+                                                        {r.proposed_last_working_day ? formatDate(r.proposed_last_working_day) : '—'}
                                                     </td>
                                                     <td className="p-3.5">
                                                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${getReasonBadge(r.separation_reason)}`}>
@@ -755,7 +756,7 @@ export default function OffboardingReport({
                                                             )}
                                                         </td>
                                                         <td className="p-3.5 text-slate-500">
-                                                            {ei.conducted_at ? new Date(ei.conducted_at).toLocaleDateString('en-GB') : '—'}
+                                                            {ei.conducted_at ? formatDate(ei.conducted_at) : '—'}
                                                         </td>
                                                     </tr>
                                                 );

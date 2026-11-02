@@ -6,14 +6,10 @@ import {
     FaClock, FaCalendarAlt, FaChevronRight, FaPlus, FaShieldAlt,
     FaBuilding, FaFire, FaUserTie
 } from 'react-icons/fa';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Show({ project, userRole = 'employee', projectMemberRole = null }) {
     const [activeTab, setActiveTab] = useState('overview');
-
-    const formatDate = (date) => {
-        if (!date) return 'N/A';
-        return new Date(date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
-    };
 
     const isLead = userRole === 'admin' || userRole === 'hr' || userRole === 'manager' || projectMemberRole === 'lead';
 

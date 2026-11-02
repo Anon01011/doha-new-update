@@ -21,6 +21,7 @@ import {
     FiFilePlus
 } from 'react-icons/fi';
 import Modal from '@/Components/Modal';
+import { formatDateTime } from '@/helpers/dateHelpers';
 
 export default function BackupSettings({ backups = [], stats = {}, settings = {} }) {
     const [showRestoreModal, setShowRestoreModal] = useState(false);
@@ -472,7 +473,7 @@ export default function BackupSettings({ backups = [], stats = {}, settings = {}
                                                     )}
                                                 </td>
                                                 <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">{backup.size}</td>
-                                                <td className="py-3 px-3 text-slate-500">{backup.created_at}</td>
+                                                <td className="py-3 px-3 text-slate-500">{formatDateTime(backup.created_at)}</td>
                                                 <td className="py-3 px-3 text-right">
                                                     <div className="flex items-center justify-end gap-1.5">
                                                         <button

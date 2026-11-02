@@ -6,6 +6,7 @@ import {
     FiArrowLeft, FiPlus, FiSave, FiCheckCircle,
     FiInfo, FiAlertCircle, FiShield, FiUser, FiFileText, FiLink, FiX
 } from 'react-icons/fi';
+import { todayInputDate } from '@/helpers/dateHelpers';
 
 export default function Create({ employees = [], userRole = 'employee', settings, categories = [], authEmployeeId = null }) {
     const { appSettings } = usePage().props;
@@ -22,7 +23,7 @@ export default function Create({ employees = [], userRole = 'employee', settings
         priority: 'medium',
         subject: '',
         description: '',
-        submitted_date: new Date().toISOString().split('T')[0],
+        submitted_date: todayInputDate(),
         is_confidential: false,
         is_anonymous: false,
         attachments: [],

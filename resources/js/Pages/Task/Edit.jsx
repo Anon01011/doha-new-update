@@ -1,13 +1,9 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link } from '@inertiajs/react';
 import { FaInfoCircle, FaUsers, FaProjectDiagram, FaCalendarAlt, FaClock, FaCheckCircle, FaArrowRight, FaTimesCircle, FaEye, FaList, FaLock, FaUnlock } from 'react-icons/fa';
+import { toInputDate } from '@/helpers/dateHelpers';
 
 export default function Edit({ task, projects, parentTasks, branches, employees }) {
-    const formatDate = (dateString) => {
-        if (!dateString) return '';
-        return dateString.split('T')[0];
-    };
-
     const { data, setData, put, processing, errors } = useForm({
         project_id:           task.project_id || '',
         parent_id:            task.parent_id || '',
@@ -15,7 +11,7 @@ export default function Edit({ task, projects, parentTasks, branches, employees 
         description:          task.description || '',
         priority:             task.priority || 'medium',
         status:               task.status || 'pending',
-        due_date:             formatDate(task.due_date),
+        due_date:             toInputDate(task.due_date),
         estimated_hours:      task.estimated_hours || '',
         category:             task.category || '',
         tags:                 task.tags || [],

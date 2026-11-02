@@ -2,16 +2,17 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { toInputDate, parseDate } from '@/helpers/dateHelpers';
 
 // Helper to get week days from a start date
 function getWeekDays(startDate) {
     const days = [];
-    const start = new Date(startDate);
+    const start = parseDate(startDate) || new Date();
     for (let i = 0; i < 7; i++) {
         const d = new Date(start);
         d.setDate(start.getDate() + i);
         days.push({
-            date: d.toISOString().slice(0, 10),
+            date: toInputDate(d),
             label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
         });
     }
@@ -29,7 +30,7 @@ export default function Edit({ companies = [], employees = [], initialCompanyId 
     };
     const [selectedCompany, setSelectedCompany] = useState(initialCompanyId || (companies[0]?.id ?? ''));
     const [selectedEmployee, setSelectedEmployee] = useState(initialEmployeeId || (employees[0]?.id ?? ''));
-    const [weekStart, setWeekStart] = useState(initialWeekStart || getMonday(today).toISOString().slice(0, 10));
+    const [weekStart, setWeekStart] = useState(initialWeekStart || toInputDate(getMonday(today)));
     const weekDays = getWeekDays(weekStart);
 
     const [confirmingAction, setConfirmingAction] = useState({

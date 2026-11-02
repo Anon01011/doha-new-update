@@ -44,15 +44,21 @@ class SettingsController extends Controller
             'mail_encryption' => 'required_if:mail_mailer,smtp|in:tls,ssl',
             'mail_from_address' => 'required|email',
             'mail_from_name' => 'required|string|max:255',
+            'email_notifications_enabled' => 'nullable|boolean',
         ]);
+
+        // Save email notification toggle to DB settings
+        if ($request->has('email_notifications_enabled')) {
+            Setting::set('email_notifications_enabled', $request->boolean('email_notifications_enabled') ? '1' : '0');
+        }
 
         try {
             $envData = [
                 'MAIL_MAILER'       => $request->mail_mailer,
-                'MAIL_HOST'         => $request->mail_host,
-                'MAIL_PORT'         => $request->mail_port,
-                'MAIL_USERNAME'     => $request->mail_username,
-                'MAIL_ENCRYPTION'   => $request->mail_encryption,
+                'MAIL_HOST'         => $request->mail_host ?? '',
+                'MAIL_PORT'         => $request->mail_port ?? '',
+                'MAIL_USERNAME'     => $request->mail_username ?? '',
+                'MAIL_ENCRYPTION'   => $request->mail_encryption ?? 'tls',
                 'MAIL_FROM_ADDRESS' => $request->mail_from_address,
                 'MAIL_FROM_NAME'    => $request->mail_from_name,
             ];
@@ -65,9 +71,34 @@ class SettingsController extends Controller
 
             $this->updateEnvironmentFile($envData);
 
+            // Re-configure mail at runtime so the updated values take effect
+            // immediately in this process without requiring a server restart.
+            $password = $request->mail_password && $request->mail_password !== '***'
+                ? $request->mail_password
+                : env('MAIL_PASSWORD', '');
+
+            config([
+                'mail.default'                           => $request->mail_mailer,
+                'mail.mailers.smtp.host'                 => $request->mail_host ?? '127.0.0.1',
+                'mail.mailers.smtp.port'                 => $request->mail_port ?? 587,
+                'mail.mailers.smtp.username'             => $request->mail_username ?? '',
+                'mail.mailers.smtp.password'             => $password,
+                'mail.mailers.smtp.encryption'           => $request->mail_encryption ?? 'tls',
+                'mail.from.address'                      => $request->mail_from_address,
+                'mail.from.name'                         => $request->mail_from_name,
+            ]);
+
+            // Clear config cache so next request reads fresh .env values.
+            try {
+                \Illuminate\Support\Facades\Artisan::call('config:clear');
+            } catch (\Exception $artisanEx) {
+                // Non-fatal: cache clear failure should not block save success.
+                \Illuminate\Support\Facades\Log::warning('Mail settings: config:clear failed: ' . $artisanEx->getMessage());
+            }
+
             return back()->with('success', 'Mail settings updated successfully!');
         } catch (\Exception $e) {
-            return back()->with('error', 'Failed to update mail settings.');
+            return back()->with('error', 'Failed to update mail settings: ' . $e->getMessage());
         }
     }
 
@@ -82,6 +113,30 @@ class SettingsController extends Controller
         ]);
 
         try {
+            // If the caller passes current mail settings in the request body
+            // (from the live form), apply them at runtime before sending.
+            if ($request->has('mail_mailer')) {
+                $password = ($request->mail_password && $request->mail_password !== '***')
+                    ? $request->mail_password
+                    : config('mail.mailers.smtp.password');
+
+                config([
+                    'mail.default'                 => $request->mail_mailer,
+                    'mail.mailers.smtp.host'       => $request->mail_host ?? config('mail.mailers.smtp.host'),
+                    'mail.mailers.smtp.port'       => $request->mail_port ?? config('mail.mailers.smtp.port'),
+                    'mail.mailers.smtp.username'   => $request->mail_username ?? config('mail.mailers.smtp.username'),
+                    'mail.mailers.smtp.password'   => $password,
+                    'mail.mailers.smtp.encryption' => $request->mail_encryption ?? config('mail.mailers.smtp.encryption'),
+                    'mail.from.address'            => $request->mail_from_address ?? config('mail.from.address'),
+                    'mail.from.name'               => $request->mail_from_name ?? config('mail.from.name'),
+                ]);
+
+                // Swap the mailer singleton so it uses the updated config
+                app()->forgetInstance('mailer');
+                app()->forgetInstance('swift.mailer');
+                app()->forgetInstance('swift.transport');
+            }
+
             // Send test email
             Mail::raw('This is a test email from your application.', function ($message) use ($request) {
                 $message->to($request->test_email)
@@ -291,18 +346,35 @@ class SettingsController extends Controller
 
     private function getMailSettings()
     {
+        // Read directly from the .env file instead of the PHP process-level env cache
+        // so that values saved via updateMailSettings() are reflected immediately
+        // after the config:clear call, even before the next full server restart.
+        $envPath = base_path('.env');
+        $envValues = [];
+        if (file_exists($envPath)) {
+            foreach (file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+                if (str_starts_with(trim($line), '#') || !str_contains($line, '=')) {
+                    continue;
+                }
+                [$k, $v] = explode('=', $line, 2);
+                $envValues[trim($k)] = trim($v, " \t\n\r\0\x0B\"'");
+            }
+        }
+
+        $get = fn (string $key, mixed $default = '') => $envValues[$key] ?? $default;
+
         return [
-            'mail_mailer'       => env('MAIL_MAILER', 'log'),
-            'mail_host'         => env('MAIL_HOST', '127.0.0.1'),
-            'mail_port'         => env('MAIL_PORT', 2525),
-            'mail_username'     => env('MAIL_USERNAME', ''),
+            'mail_mailer'       => $get('MAIL_MAILER', 'log'),
+            'mail_host'         => $get('MAIL_HOST', '127.0.0.1'),
+            'mail_port'         => $get('MAIL_PORT', 2525),
+            'mail_username'     => $get('MAIL_USERNAME', ''),
             // SECURITY FIX #6: Never expose raw SMTP password to the frontend.
             // The actual password is masked; saving an unchanged '***' value is
             // handled by the update method which ignores masked values.
-            'mail_password'     => env('MAIL_PASSWORD') ? '***' : '',
-            'mail_encryption'   => env('MAIL_ENCRYPTION', 'tls'),
-            'mail_from_address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-            'mail_from_name'    => env('MAIL_FROM_NAME', 'Example'),
+            'mail_password'     => ($get('MAIL_PASSWORD', '') !== '' && $get('MAIL_PASSWORD', '') !== 'null') ? '***' : '',
+            'mail_encryption'   => $get('MAIL_ENCRYPTION', 'tls'),
+            'mail_from_address' => $get('MAIL_FROM_ADDRESS', 'hello@example.com'),
+            'mail_from_name'    => $get('MAIL_FROM_NAME', 'Example'),
             'has_session_settings' => false,
             'available_mailers' => [
                 'smtp'     => 'SMTP',
@@ -314,6 +386,8 @@ class SettingsController extends Controller
                 'log'      => 'Log (for testing)',
                 'array'    => 'Array (for testing)',
             ],
+            // Email notification toggles (per-company stored in settings table)
+            'email_notifications_enabled' => Setting::get('email_notifications_enabled', '1') === '1',
         ];
     }
 
@@ -1118,6 +1192,61 @@ class SettingsController extends Controller
         ])->setPaper('a4', 'portrait');
 
         return $pdf->stream("Sample_Relieving_Letter_{$template}.pdf");
+    }
+
+    // ==================== Expense Settings ====================
+
+    public function expenseSettings()
+    {
+        $user = auth()->user();
+        $companyId = $user->employee_id ? $user->employee->company_id : null;
+
+        $settings = $this->getModuleSettings('expense', $companyId);
+
+        // Defaults
+        $defaults = [
+            'default_reimbursement_method' => 'payroll',
+            'require_finance_approval'     => true,
+            'allow_direct_payment'         => true,
+            'allow_payroll_settlement'     => true,
+            'policy_violation_auto_flag'   => true,
+        ];
+        $settings = array_merge($defaults, $settings);
+
+        return Inertia::render('Settings/ExpenseSettings', [
+            'settings' => $settings,
+        ]);
+    }
+
+    public function updateExpenseSettings(Request $request)
+    {
+        $user = auth()->user();
+        if (!$user->isAdmin() && !$user->isHR()) {
+            abort(403, 'Unauthorized. Only Admin or HR can modify expense settings.');
+        }
+
+        $validated = $request->validate([
+            'default_reimbursement_method' => 'required|in:payroll,direct_payment,accounts_payable',
+            'require_finance_approval'     => 'nullable|boolean',
+            'allow_direct_payment'         => 'nullable|boolean',
+            'allow_payroll_settlement'     => 'nullable|boolean',
+            'policy_violation_auto_flag'   => 'nullable|boolean',
+        ]);
+
+        $companyId = $user->employee_id ? $user->employee->company_id : null;
+
+        foreach ($validated as $key => $value) {
+            Setting::set($key, $value, 'expense', $this->getSettingType($value), $companyId);
+        }
+
+        // Keep unfinalised/pending claims aligned with the newly selected default channel
+        if (!empty($validated['default_reimbursement_method'])) {
+            \App\Models\ExpenseClaim::whereIn('status', ['draft', 'submitted', 'manager_approved'])
+                ->when($companyId, fn($q) => $q->where('company_id', $companyId))
+                ->update(['reimbursement_method' => $validated['default_reimbursement_method']]);
+        }
+
+        return back()->with('success', 'Expense settings updated successfully!');
     }
 
     // ==================== Helper Methods ====================

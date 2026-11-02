@@ -46,7 +46,7 @@ class ExpenseClaim extends Model
     ];
 
     protected $casts = [
-        'expense_date' => 'date',
+        'expense_date' => 'date:Y-m-d',
         'amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'tax_rate' => 'decimal:2',
@@ -56,6 +56,31 @@ class ExpenseClaim extends Model
         'finance_reviewed_at' => 'datetime',
         'paid_at' => 'datetime',
     ];
+
+    protected static function booted()
+    {
+        static::creating(function ($model) {
+            if (empty($model->claim_number)) {
+                $model->claim_number = static::generateClaimNumber();
+            }
+        });
+    }
+
+    /**
+     * Generate a unique 16-digit reference number formatted as EXP-0123456789012345 (digits 0-9).
+     */
+    public static function generateClaimNumber(): string
+    {
+        do {
+            $digits = '';
+            for ($i = 0; $i < 16; $i++) {
+                $digits .= (string) random_int(0, 9);
+            }
+            $candidate = 'EXP-' . $digits;
+        } while (static::where('claim_number', $candidate)->exists());
+
+        return $candidate;
+    }
 
     public function getRouteKeyName()
     {

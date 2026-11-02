@@ -3,6 +3,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { useState, Fragment } from 'react';
 import { FiArrowLeft, FiFilter, FiDownload, FiFileText, FiTable, FiBarChart2, FiUserCheck, FiTrendingUp, FiAlertCircle, FiChevronRight } from 'react-icons/fi';
 import MultiCheckboxSelect from '@/Components/MultiCheckboxSelect';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Evaluation({ evaluations, summary, month, year, companyId, companies }) {
     const [filters, setFilters] = useState({
@@ -274,7 +275,7 @@ export default function Evaluation({ evaluations, summary, month, year, companyI
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-[11px] font-normal text-slate-500 text-right">
                                                     <div className="flex items-center justify-end gap-3">
-                                                        <span>{new Date(ev.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                                        <span>{formatDate(ev.created_at)}</span>
                                                         <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${expandedRow === ev.id ? 'bg-primary text-white rotate-180' : 'bg-slate-100 text-slate-400 group-hover:bg-primary/20 group-hover:text-primary'}`}>
                                                             <FiChevronRight size={14} className="transition-transform" />
                                                         </div>

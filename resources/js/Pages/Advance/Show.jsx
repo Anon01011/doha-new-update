@@ -5,6 +5,7 @@ import { FaMoneyBillWave, FaCalendarAlt, FaCheckCircle, FaClock, FaArrowLeft, Fa
 import Avatar from '@/Components/Avatar';
 import ConfirmationModal from '@/Components/ConfirmationModal';
 import { resolveCurrency } from '@/helpers/currency';
+import { formatDate, formatDateTime } from '@/helpers/dateHelpers';
 
 export default function Show({ advance, userRole = 'employee' }) {
     const { appSettings } = usePage().props;
@@ -21,12 +22,6 @@ export default function Show({ advance, userRole = 'employee' }) {
         style: 'currency', 
         currency: currency 
     }).format(amount || 0);
-
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString(undefined, { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-    }) : 'N/A';
 
     const getStatusStyles = (status) => {
         const s = status?.toLowerCase() || '';
@@ -243,7 +238,7 @@ export default function Show({ advance, userRole = 'employee' }) {
                                     <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 shrink-0"><FaClock size={12}/></div>
                                     <div>
                                         <p className="text-[9px] font-normal text-slate-400 uppercase">Requested On</p>
-                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{new Date(advance.created_at).toLocaleString()}</p>
+                                        <p className="text-[10px] font-normal text-slate-900 uppercase">{formatDateTime(advance.created_at)}</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-4">

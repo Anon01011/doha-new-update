@@ -2,10 +2,9 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import ConfirmationModal from '@/Components/ConfirmationModal';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Index({ projects, userRole, leadProjectIds = [] }) {
-    const formatDate = (date) => date ? new Date(date).toLocaleDateString() : 'N/A';
-
     const getStatusColor = (status) => {
         const s = status?.toLowerCase() || '';
         if (s === 'active') return 'bg-emerald-100 text-emerald-700 border-emerald-200';

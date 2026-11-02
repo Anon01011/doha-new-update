@@ -3,6 +3,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { FiArrowLeft, FiFilter, FiDownload, FiFileText, FiTable, FiDollarSign, FiClock, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 import { resolveCurrency } from '@/helpers/currency';
+import { formatDate } from '@/helpers/dateHelpers';
 
 export default function Advance({ advances, summary, startDate, endDate, status }) {
     const { appSettings } = usePage().props;
@@ -189,7 +190,7 @@ export default function Advance({ advances, summary, startDate, endDate, status 
                                                 {formatCurrency(adv.amount)}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-normal text-slate-500">
-                                                {new Date(adv.request_date).toLocaleDateString()}
+                                                {formatDate(adv.request_date)}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <p className="text-xs text-slate-500 font-normal line-clamp-1 max-w-xs">{adv.purpose}</p>

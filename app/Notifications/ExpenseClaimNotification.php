@@ -43,7 +43,7 @@ class ExpenseClaimNotification extends Notification implements ShouldQueue
             'claim_id'   => $this->claim->id,
             'title'      => $this->title,
             'message'    => $this->message,
-            'action_url' => route('expenses.show', $this->claim->id),
+            'action_url' => route('expenses.show', $this->claim),
             'type'       => $this->type,
         ];
     }
