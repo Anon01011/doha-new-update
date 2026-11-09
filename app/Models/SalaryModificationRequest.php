@@ -136,7 +136,7 @@ class SalaryModificationRequest extends Model
                 $this->requester->notify(new GenericHrNotification(
                     'Salary Modification Approved',
                     "Salary modification for {$employee->name} has been approved by {$reviewer->name}.",
-                    route('employees.show', $employee->id),
+                    route('employees.show', $employee),
                     'salary_approved'
                 ));
             }
@@ -164,7 +164,7 @@ class SalaryModificationRequest extends Model
             $this->requester->notify(new GenericHrNotification(
                 'Salary Modification Rejected',
                 "Salary modification for {$employee->name} was rejected by {$reviewer->name}." . ($notes ? " Reason: {$notes}" : ''),
-                route('employees.show', $employee->id),
+                route('employees.show', $employee),
                 'salary_rejected'
             ));
         }

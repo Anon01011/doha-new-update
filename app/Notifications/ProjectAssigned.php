@@ -6,6 +6,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use App\Models\Setting;
 
 class ProjectAssigned extends Notification implements ShouldQueue
 {
@@ -30,7 +31,21 @@ class ProjectAssigned extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1' && !empty($notifiable->email)) {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        $roleLabel = ucfirst($this->role);
+        return (new MailMessage)
+            ->subject("Project Assigned: {$this->project->name}")
+            ->line("You have been assigned to the project \"{$this->project->name}\" as {$roleLabel}.")
+            ->action('View Project', route('projects.show', $this->project->id))
+            ->line('Please review the project details and get started.');
     }
 
     /**

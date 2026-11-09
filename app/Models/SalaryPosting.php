@@ -53,6 +53,18 @@ class SalaryPosting extends Model
     {
         return $this->belongsTo(User::class, 'approved_by');
     }
+
+    /**
+     * Resolve route binding without the BelongsToEmployeeBranch global scope so that
+     * authorized users and employees can access their payslip.
+     * The controller performs authorization after resolution.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->withoutGlobalScope('employee_branch')
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->firstOrFail();
+    }
 }
 
 

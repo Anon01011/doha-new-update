@@ -19,8 +19,11 @@ class GrievanceController extends Controller
         $query = Grievance::with('employee', 'assignee');
 
         $user = auth()->user();
-        if (!$user->isAdmin() && !$user->hasPermission('view-grievances')) {
-             // Default behavior for employees is to see their own
+        // Enforce access: only admins, HR, managers, or users with explicit permission may view all grievances.
+        // Plain employees are allowed through so they can see their own (filtered below).
+        if (!$user->isAdmin() && !$user->isHR() && !$user->isManager()
+            && !$user->hasPermission('view-grievances') && !$user->isEmployee()) {
+            abort(403, 'Unauthorized access.');
         }
 
         // Global multi-tenancy scope handles branch isolation automatically.
@@ -78,8 +81,11 @@ class GrievanceController extends Controller
     public function create()
     {
         $user = auth()->user();
-        if (!$user->isAdmin() && !$user->hasPermission('create-grievances')) {
-             // Employees can usually create for themselves
+        // Allow admins, HR, managers, permission holders, and employees (create their own).
+        // Any other role (null/unknown) is denied.
+        if (!$user->isAdmin() && !$user->isHR() && !$user->isManager()
+            && !$user->hasPermission('create-grievances') && !$user->isEmployee()) {
+            abort(403, 'Unauthorized access.');
         }
 
         // Role-based employee selection (Global scope handles branch isolation)

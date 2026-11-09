@@ -5,6 +5,8 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
+use App\Models\Setting;
 
 class AttendanceEventNotification extends Notification
 {
@@ -32,7 +34,21 @@ class AttendanceEventNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1' && !empty($notifiable->email)) {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        $defaultUrl = $this->actionUrl ?: route('employee-attendances.index', ['date' => $this->date]);
+        return (new MailMessage)
+            ->subject($this->eventTitle)
+            ->line($this->message)
+            ->action('View Attendance', $defaultUrl)
+            ->line('This is an automated attendance notification.');
     }
 
     public function toArray(object $notifiable): array

@@ -4,8 +4,10 @@ namespace App\Notifications;
 
 use App\Models\Task;
 use App\Models\Employee;
+use App\Models\Setting;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
 
 class TaskCompletedNotification extends Notification
 {
@@ -24,7 +26,24 @@ class TaskCompletedNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1' && !empty($notifiable->email)) {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        $name = $this->completedBy ? $this->completedBy->name : 'Staff';
+        $mail = (new MailMessage)
+            ->subject("Task Completed: {$this->task->title}")
+            ->line("{$name} has marked the task \"{$this->task->title}\" as completed.")
+            ->action('View Task', route('tasks.show', $this->task->id));
+        if ($this->notes) {
+            $mail->line("Completion Notes: {$this->notes}");
+        }
+        return $mail->line('Thank you for the update.');
     }
 
     public function toArray(object $notifiable): array

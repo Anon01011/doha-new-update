@@ -247,7 +247,7 @@ class OffboardingController extends Controller
             );
         }
 
-        return redirect()->route('offboarding.show', $offboarding->request_number ?: $offboarding->id)
+        return redirect()->route('offboarding.show', $offboarding)
             ->with('success', 'Offboarding request submitted for approval.');
     }
 
@@ -255,6 +255,11 @@ class OffboardingController extends Controller
 
     public function show(OffboardingRequest $offboarding)
     {
+        // Canonical redirect: if accessed via raw database ID in URL (e.g. /offboarding/1), redirect to canonical request_number URL
+        if (is_numeric(request()->segment(2)) && !empty($offboarding->request_number)) {
+            return redirect()->route('offboarding.show', $offboarding);
+        }
+
         $user = Auth::user();
         $userRole = $user->role ?? 'employee';
         $isManagementRole = in_array($userRole, ['admin', 'hr', 'manager']);
@@ -301,6 +306,11 @@ class OffboardingController extends Controller
 
     public function edit(OffboardingRequest $offboarding)
     {
+        // Canonical redirect: if accessed via raw database ID in URL, redirect to canonical request_number URL
+        if (is_numeric(request()->segment(2)) && !empty($offboarding->request_number)) {
+            return redirect()->route('offboarding.edit', $offboarding);
+        }
+
         $user = Auth::user();
         $userRole = $user->role ?? 'employee';
         $isManagementRole = in_array($userRole, ['admin', 'hr', 'manager']);
@@ -369,7 +379,7 @@ class OffboardingController extends Controller
 
         $offboarding->update($validated);
 
-        return redirect()->route('offboarding.show', $offboarding->request_number ?: $offboarding->id)
+        return redirect()->route('offboarding.show', $offboarding)
             ->with('success', 'Offboarding request updated successfully.');
     }
 
@@ -710,7 +720,7 @@ class OffboardingController extends Controller
             }
         }
 
-        return redirect()->route('offboarding.show', $offboarding->request_number ?: $offboarding->id)
+        return redirect()->route('offboarding.show', $offboarding)
             ->with('success', 'Offboarding completed. Employee profile has been locked and relieving certificate sent by email.');
     }
 

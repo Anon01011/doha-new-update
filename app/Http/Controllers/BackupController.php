@@ -378,6 +378,30 @@ class BackupController extends Controller
                 }
 
                 $extractPath = storage_path('app/temp_restore_' . time());
+
+                // SECURITY FIX: Prevent Zip Slip — verify every entry resolves inside extractPath
+                $realExtractPath = rtrim(str_replace('\\', '/', realpath(dirname($extractPath)) . '/' . basename($extractPath)), '/');
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                    $entryName = $zip->getNameIndex($i);
+                    // Normalize separators and resolve relative path components
+                    $normalised = str_replace('\\', '/', $entryName);
+                    // Remove leading slashes / dots that could escape
+                    $parts = array_filter(explode('/', $normalised), fn($p) => $p !== '' && $p !== '.');
+                    $stack = [];
+                    foreach ($parts as $part) {
+                        if ($part === '..') {
+                            array_pop($stack);
+                        } else {
+                            $stack[] = $part;
+                        }
+                    }
+                    $safePath = $realExtractPath . '/' . implode('/', $stack);
+                    if (!str_starts_with($safePath, $realExtractPath . '/') && $safePath !== $realExtractPath) {
+                        $zip->close();
+                        return back()->withErrors(['error' => 'Archive contains unsafe file paths and cannot be restored.']);
+                    }
+                }
+
                 $zip->extractTo($extractPath);
                 $zip->close();
 

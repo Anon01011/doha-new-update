@@ -223,7 +223,7 @@ export default function SalaryModificationsIndex({
                                             <div>
                                                 <div className="flex items-center gap-2">
                                                     <Link
-                                                        href={route('employees.show', emp.id || req.employee_id)}
+                                                        href={route('employees.show', emp.slug || emp.id || req.employee_id)}
                                                         className="text-sm font-bold text-slate-900 hover:text-indigo-600 transition"
                                                     >
                                                         {emp.name}

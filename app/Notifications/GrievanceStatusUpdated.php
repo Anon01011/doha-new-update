@@ -5,6 +5,8 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
+use App\Models\Setting;
 
 class GrievanceStatusUpdated extends Notification implements ShouldQueue
 {
@@ -31,7 +33,23 @@ class GrievanceStatusUpdated extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1' && !empty($notifiable->email)) {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        $statusLabel = ucwords(str_replace('_', ' ', $this->status));
+        return (new MailMessage)
+            ->subject("Grievance Update: {$statusLabel}")
+            ->line("Your grievance regarding \"{$this->grievance->subject}\" has been updated.")
+            ->line("New Status: {$statusLabel}")
+            ->when($this->message, fn($m) => $m->line($this->message))
+            ->action('View Grievance', route('grievances.show', $this->grievance->id))
+            ->line('If you need further assistance, please contact HR.');
     }
 
     /**

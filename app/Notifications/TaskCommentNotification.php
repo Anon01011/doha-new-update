@@ -4,8 +4,10 @@ namespace App\Notifications;
 
 use App\Models\Task;
 use App\Models\User;
+use App\Models\Setting;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
 
 class TaskCommentNotification extends Notification
 {
@@ -24,7 +26,21 @@ class TaskCommentNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1' && !empty($notifiable->email)) {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        return (new MailMessage)
+            ->subject("New Comment on Task: {$this->task->title}")
+            ->line("{$this->commenter->name} commented on the task \"{$this->task->title}\".")
+            ->line("\"{$this->commentSnippet}\"")
+            ->action('View Task', route('tasks.show', $this->task->id))
+            ->line('Click above to join the conversation.');
     }
 
     public function toArray(object $notifiable): array

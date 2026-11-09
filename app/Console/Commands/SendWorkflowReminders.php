@@ -115,7 +115,7 @@ class SendWorkflowReminders extends Command
                             new GenericHrNotification(
                                 "Contract Expiring in {$label}",
                                 "Employee {$employee->name} ({$employee->employee_code}) contract expires on {$date}. Please review and renew or initiate offboarding.",
-                                route('employees.show', $employee->id),
+                                route('employees.show', $employee),
                                 'contract_expiry'
                             ),
                             $employee->company_id
@@ -141,7 +141,7 @@ class SendWorkflowReminders extends Command
                         new GenericHrNotification(
                             'Probation Period Ending Soon',
                             "Employee {$employee->name} ({$employee->employee_code}) probation ends on {$employee->probation_end_date}. Please confirm employment or extend probation.",
-                            route('employees.show', $employee->id),
+                            route('employees.show', $employee),
                             'probation_ending'
                         ),
                         $employee->company_id
@@ -165,7 +165,7 @@ class SendWorkflowReminders extends Command
                         new GenericHrNotification(
                             'Internship Period Ending Soon',
                             "Intern {$employee->name} ({$employee->employee_code}) internship ends on {$employee->internship_end_date}. Please confirm next steps.",
-                            route('employees.show', $employee->id),
+                            route('employees.show', $employee),
                             'internship_ending'
                         ),
                         $employee->company_id
@@ -202,7 +202,7 @@ class SendWorkflowReminders extends Command
                         new GenericHrNotification(
                             'Document Expiring in 14 Days',
                             "Employee {$employee->name} ({$employee->employee_code}): " . implode(', ', $items) . " expiring on {$in14Days->toDateString()}. Please arrange renewal.",
-                            route('employees.show', $employee->id),
+                            route('employees.show', $employee),
                             'document_expiry'
                         ),
                         $employee->company_id

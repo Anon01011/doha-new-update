@@ -4,9 +4,11 @@ namespace App\Notifications;
 
 use App\Models\Loan;
 use App\Models\Employee;
+use App\Models\Setting;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
 
 class LoanInstallmentPaidAdmin extends Notification implements ShouldQueue
 {
@@ -35,7 +37,22 @@ class LoanInstallmentPaidAdmin extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1' && !empty($notifiable->email)) {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        $amount = number_format($this->installmentAmount, 2);
+        return (new MailMessage)
+            ->subject("Loan Installment #{$this->installmentNumber} Paid — {$this->employee->name}")
+            ->line("Installment #{$this->installmentNumber} of {$amount} has been paid by {$this->employee->name}.")
+            ->line("Loan Type: {$this->loan->loan_type}")
+            ->action('View Loan', route('loans.show', $this->loan->id))
+            ->line('This is an automated notification for your records.');
     }
 
     /**

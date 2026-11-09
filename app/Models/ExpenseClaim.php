@@ -95,8 +95,12 @@ class ExpenseClaim extends Model
     public function resolveRouteBinding($value, $field = null)
     {
         return $this->withoutGlobalScope('company')
-            ->where('claim_number', $value)
-            ->orWhere('id', $value)
+            ->where(function ($query) use ($value) {
+                $query->where('claim_number', $value);
+                if (is_numeric($value)) {
+                    $query->orWhere('id', (int) $value);
+                }
+            })
             ->first() ?? abort(404);
     }
 

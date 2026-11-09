@@ -3,8 +3,10 @@
 namespace App\Notifications;
 
 use App\Models\Company;
+use App\Models\Setting;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
 
 class ShiftRosterCreatedNotification extends Notification
 {
@@ -25,7 +27,25 @@ class ShiftRosterCreatedNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1' && !empty($notifiable->email)) {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        return (new MailMessage)
+            ->subject("New Shift Roster Created — {$this->company->name} (Week: {$this->weekStart})")
+            ->line("A new shift roster has been created by {$this->creatorName} for {$this->company->name}.")
+            ->line("Week Starting: {$this->weekStart} | Total Shifts: {$this->shiftsCount}")
+            ->action('Review Roster', route('shift-rosters.management', [
+                'company_id' => $this->company->id,
+                'from_date'  => $this->weekStart,
+                'status'     => 'pending',
+            ]))
+            ->line('Please review and approve or reject the roster.');
     }
 
     public function toArray(object $notifiable): array

@@ -43,4 +43,16 @@ class WarningLetter extends Model
     {
         return $this->belongsTo(User::class, 'sent_by');
     }
+
+    /**
+     * Resolve route binding without the BelongsToCompany global scope so that
+     * authorized users (e.g. employee or HR) can access the record.
+     * The controller performs authorization after resolution.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->withoutGlobalScope('company')
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->firstOrFail();
+    }
 }

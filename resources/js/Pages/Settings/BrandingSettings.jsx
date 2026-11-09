@@ -33,7 +33,7 @@ export default function BrandingSettings({ settings }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        post(route('settings.branding.update'), {
+        post(route('settings.system.update'), {
             forceFormData: true,
         });
     };
@@ -53,7 +53,7 @@ export default function BrandingSettings({ settings }) {
             message: 'Are you sure you want to delete the logo?',
             type: 'danger',
             onConfirm: () => {
-                router.delete(route('settings.branding.deleteLogo'), {
+                router.delete(route('settings.system.deleteLogo'), {
                     onSuccess: () => {
                         setLogoPreview(null);
                         setConfirmingAction(prev => ({ ...prev, show: false }));
@@ -70,7 +70,7 @@ export default function BrandingSettings({ settings }) {
             message: 'Are you sure you want to delete the favicon?',
             type: 'danger',
             onConfirm: () => {
-                router.delete(route('settings.branding.deleteFavicon'), {
+                router.delete(route('settings.system.deleteFavicon'), {
                     onSuccess: () => {
                         setFaviconPreview(null);
                         setConfirmingAction(prev => ({ ...prev, show: false }));

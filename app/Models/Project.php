@@ -54,4 +54,16 @@ class Project extends Model
     {
         return $this->hasMany(ProjectMember::class);
     }
+
+    /**
+     * Resolve route binding without the BelongsToCompany global scope so that
+     * authorized project members across branches can access the project.
+     * The controller performs authorization after resolution.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->withoutGlobalScope('company')
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->firstOrFail();
+    }
 }

@@ -28,7 +28,24 @@ class SalaryGenerated extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (\App\Models\Setting::get('email_notifications_enabled', '1') === '1' && !empty($notifiable->email)) {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        $monthName = date('F', mktime(0, 0, 0, $this->salaryPosting->month, 10));
+        $year = $this->salaryPosting->year;
+        $netSalary = number_format((float) $this->salaryPosting->net_salary, 2);
+        return (new MailMessage)
+            ->subject("Payslip Ready — {$monthName} {$year}")
+            ->line("Your payslip for {$monthName} {$year} has been generated and approved.")
+            ->line("Net Salary: {$netSalary}")
+            ->action('View Payslip', route('salary-postings.show', $this->salaryPosting->id))
+            ->line('Thank you. Please contact HR for any discrepancies.');
     }
 
     /**

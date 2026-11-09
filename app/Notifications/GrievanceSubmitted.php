@@ -5,6 +5,8 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
+use App\Models\Setting;
 
 class GrievanceSubmitted extends Notification implements ShouldQueue
 {
@@ -29,7 +31,21 @@ class GrievanceSubmitted extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1' && !empty($notifiable->email)) {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        return (new MailMessage)
+            ->subject('New Grievance Submitted')
+            ->line("A new grievance has been submitted by {$this->employeeName}.")
+            ->line("Subject: {$this->grievance->subject}")
+            ->action('Review Grievance', route('grievances.show', $this->grievance->id))
+            ->line('Please review and respond within the SLA period.');
     }
 
     /**

@@ -127,8 +127,10 @@ class EmployeeEvaluation extends Model
     {
         return $this->withoutGlobalScope('company')
             ->where(function ($query) use ($value) {
-                $query->where('reference_no', $value)
-                      ->orWhere('id', $value);
+                $query->where('reference_no', $value);
+                if (is_numeric($value)) {
+                    $query->orWhere('id', (int) $value);
+                }
             })
             ->first() ?? abort(404);
     }

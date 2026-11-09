@@ -95,9 +95,12 @@ class OffboardingRequest extends Model
 
     public function resolveRouteBinding($value, $field = null)
     {
-        return $this->where('request_number', $value)
-            ->orWhere('id', $value)
-            ->first() ?? abort(404);
+        return $this->where(function ($query) use ($value) {
+            $query->where('request_number', $value);
+            if (is_numeric($value)) {
+                $query->orWhere('id', (int) $value);
+            }
+        })->first() ?? abort(404);
     }
 
     // ─── Relationships ──────────────────────────────────────────────────────────

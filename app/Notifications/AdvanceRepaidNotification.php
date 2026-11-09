@@ -5,6 +5,8 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
+use App\Models\Setting;
 
 class AdvanceRepaidNotification extends Notification implements ShouldQueue
 {
@@ -23,7 +25,26 @@ class AdvanceRepaidNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1' && !empty($notifiable->email)) {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        $formattedAmount = number_format($this->repaidAmount, 2);
+        $subject = $this->isFullyRepaid ? 'Salary Advance Fully Repaid' : 'Advance Repayment Processed';
+        $line = $this->isFullyRepaid
+            ? "Your salary advance has been fully settled. A final deduction of {$formattedAmount} was processed."
+            : "A deduction of {$formattedAmount} towards your salary advance has been processed from your payroll.";
+
+        return (new MailMessage)
+            ->subject($subject)
+            ->line($line)
+            ->action('View Advance', route('advances.show', $this->advance->id))
+            ->line('Thank you for using our platform.');
     }
 
     public function toArray(object $notifiable): array

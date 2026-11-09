@@ -17,7 +17,7 @@ class TrainingMaterialController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
-        if (!$user->isAdmin() && $user->employee_id && $training->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && (int) $training->company_id !== (int) $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -51,7 +51,7 @@ class TrainingMaterialController extends Controller
         // Check access
         $user = auth()->user();
 
-        if (!$user->isAdmin() && $user->employee_id && $material->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && (int) $material->company_id !== (int) $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 
@@ -70,7 +70,7 @@ class TrainingMaterialController extends Controller
     public function destroy(TrainingMaterial $material)
     {
         $user = auth()->user();
-        if (!$user->isAdmin() && $user->employee_id && $material->company_id != $user->employee->company_id) {
+        if (!$user->isAdmin() && $user->employee_id && (int) $material->company_id !== (int) $user->employee->company_id) {
             abort(403, 'Unauthorized access.');
         }
 

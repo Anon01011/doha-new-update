@@ -597,6 +597,11 @@ class EmployeeController extends Controller
      */
     public function show(Employee $employee)
     {
+        // Canonical redirect: if accessed via raw database ID in URL (e.g. /employees/45), redirect to canonical slug URL
+        if (is_numeric(request()->segment(2)) && !empty($employee->slug)) {
+            return redirect()->route('employees.show', $employee);
+        }
+
         $user = auth()->user();
 
         // Multi-tenancy check: BelongsToCompany handles global filtering.
@@ -768,6 +773,11 @@ class EmployeeController extends Controller
      */
     public function edit(Employee $employee)
     {
+        // Canonical redirect: if accessed via raw database ID in URL, redirect to canonical slug URL
+        if (is_numeric(request()->segment(2)) && !empty($employee->slug)) {
+            return redirect()->route('employees.edit', $employee);
+        }
+
         $user = auth()->user();
         if (!$user->isAdmin() && !$user->hasPermission('edit-employees')) {
             abort(403, 'Unauthorized. You do not have permission to edit employees.');

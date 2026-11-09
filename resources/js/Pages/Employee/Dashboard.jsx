@@ -500,7 +500,7 @@ export default function Dashboard({
                             <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
                                 {activeOffboarding.exit_interview && activeOffboarding.exit_interview.status === 'pending' && (
                                     <Link
-                                        href={route('offboarding.exit-interview.show', activeOffboarding.request_number || activeOffboarding.id)}
+                                        href={route('offboarding.exit-interview', activeOffboarding.request_number || activeOffboarding.id)}
                                         className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5"
                                     >
                                         <FiFileText className="w-3.5 h-3.5" /> Take Exit Interview

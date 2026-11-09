@@ -54,6 +54,18 @@ class Grievance extends Model
     {
         return $this->hasMany(WarningLetter::class)->orderBy('created_at', 'desc');
     }
+
+    /**
+     * Resolve route binding without the BelongsToCompany global scope so that
+     * authorized users (e.g. reporting managers or employees) can access the record.
+     * The controller performs authorization after resolution.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->withoutGlobalScope('company')
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->firstOrFail();
+    }
 }
 
 

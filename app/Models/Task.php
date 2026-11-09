@@ -83,6 +83,18 @@ class Task extends Model
     {
         return $this->hasMany(TaskUpdate::class);
     }
+
+    /**
+     * Resolve route binding without the BelongsToCompany global scope so that
+     * authorized assignees or cross-branch managers can access the task.
+     * The controller performs authorization after resolution.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->withoutGlobalScope('company')
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->firstOrFail();
+    }
 }
 
 

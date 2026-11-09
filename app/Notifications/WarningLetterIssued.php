@@ -5,6 +5,8 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\MailMessage;
+use App\Models\Setting;
 
 class WarningLetterIssued extends Notification implements ShouldQueue
 {
@@ -27,7 +29,23 @@ class WarningLetterIssued extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if (Setting::get('email_notifications_enabled', '1') === '1' && !empty($notifiable->email)) {
+            $channels[] = 'mail';
+        }
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        $typeLabel = ucwords(str_replace('_', ' ', $this->warningLetter->type));
+        return (new MailMessage)
+            ->subject("Warning Letter Issued: {$typeLabel}")
+            ->line("A formal warning letter has been issued to you.")
+            ->line("Type: {$typeLabel}")
+            ->line("Subject: {$this->warningLetter->subject}")
+            ->action('View Warning Letter', route('warning-letters.show', $this->warningLetter->id))
+            ->line('Please acknowledge receipt and take necessary corrective action.');
     }
 
     /**

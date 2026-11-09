@@ -177,6 +177,18 @@ class TrainingAssignment extends Model
         $this->last_activity_at = now();
         $this->save();
     }
+
+    /**
+     * Resolve route binding without the BelongsToCompany global scope so that
+     * authorized assignees can access their training assignment.
+     * The controller performs authorization after resolution.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->withoutGlobalScope('company')
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->firstOrFail();
+    }
 }
 
 

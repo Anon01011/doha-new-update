@@ -311,6 +311,11 @@ class ExpenseClaimController extends Controller
 
     public function show(ExpenseClaim $expense)
     {
+        // Canonical redirect: if accessed via raw numeric ID in URL (e.g. /expenses/23), redirect to canonical claim_number URL
+        if (is_numeric(request()->segment(2)) && !empty($expense->claim_number)) {
+            return redirect()->route('expenses.show', $expense);
+        }
+
         $user = auth()->user();
         $expense->load(['employee.company', 'employee.department', 'category', 'manager', 'financeReviewer', 'payer', 'salaryPosting']);
 
@@ -387,6 +392,11 @@ class ExpenseClaimController extends Controller
 
     public function edit(ExpenseClaim $expense)
     {
+        // Canonical redirect: if accessed via raw numeric ID in URL, redirect to canonical claim_number URL
+        if (is_numeric(request()->segment(2)) && !empty($expense->claim_number)) {
+            return redirect()->route('expenses.edit', $expense);
+        }
+
         $user = auth()->user();
 
         if ($expense->is_locked || !in_array($expense->status, ['draft', 'returned_to_employee'])) {

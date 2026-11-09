@@ -93,4 +93,16 @@ class EmployeeAttendance extends Model
     {
         return $this->belongsTo(ShiftRoster::class, 'shift_id');
     }
+
+    /**
+     * Resolve route binding without the BelongsToCompany global scope so that
+     * authorized users and managers can access attendance records across branches.
+     * The controller performs authorization after resolution.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->withoutGlobalScope('company')
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->firstOrFail();
+    }
 }
