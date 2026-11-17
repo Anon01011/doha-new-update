@@ -198,6 +198,8 @@ class SettingsController extends Controller
             'relieving_letter_template' => ['nullable', 'string', \Illuminate\Validation\Rule::in($allowedTemplates)],
             'offboarding_send_email' => 'nullable|boolean',
             'offboarding_send_sms' => 'nullable|boolean',
+            'pin_failed_send_email' => 'nullable|boolean',
+            'pin_failed_send_sms' => 'nullable|boolean',
         ]);
 
         try {
@@ -282,6 +284,12 @@ class SettingsController extends Controller
             }
             if ($request->has('offboarding_send_sms')) {
                 Setting::set('offboarding_send_sms', $request->boolean('offboarding_send_sms') ? '1' : '0', 'offboarding', 'string', $companyId);
+            }
+            if ($request->has('pin_failed_send_email')) {
+                Setting::set('pin_failed_send_email', $request->boolean('pin_failed_send_email') ? '1' : '0', 'security', 'string', $companyId);
+            }
+            if ($request->has('pin_failed_send_sms')) {
+                Setting::set('pin_failed_send_sms', $request->boolean('pin_failed_send_sms') ? '1' : '0', 'security', 'string', $companyId);
             }
 
             if ($saveToEnv === true || $saveToEnv === 'true' || $saveToEnv === '1' || $saveToEnv === 1) {
@@ -428,6 +436,8 @@ class SettingsController extends Controller
             'relieving_letter_template' => Setting::get('relieving_letter_template', 'relieving_letter', $companyId),
             'offboarding_send_email' => Setting::get('offboarding_send_email', '1', $companyId) === '1',
             'offboarding_send_sms' => Setting::get('offboarding_send_sms', '0', $companyId) === '1',
+            'pin_failed_send_email' => Setting::get('pin_failed_send_email', '1', $companyId) === '1',
+            'pin_failed_send_sms' => Setting::get('pin_failed_send_sms', '0', $companyId) === '1',
             'available_relieving_templates' => [
                 ['value' => 'relieving_letter',              'label' => 'Standard (Original)',        'description' => 'Simple clean A4 experience & relieving certificate'],
                 ['value' => 'relieving_letter_classic',      'label' => 'Classic (Formal / Legal)',   'description' => 'Double border, embossed official seal — ideal for conservative organisations'],
@@ -969,6 +979,8 @@ class SettingsController extends Controller
             'loan_send_email'      => 'nullable|boolean',
             'loan_send_whatsapp'   => 'nullable|boolean',
             'loan_send_sms'        => 'nullable|boolean',
+            'pin_failed_send_email'=> 'nullable|boolean',
+            'pin_failed_send_sms'  => 'nullable|boolean',
             'whatsapp_provider' => 'nullable|string|in:custom,twilio,vonage,infobip,messagebird,plivo,meta',
             'whatsapp_api_url' => 'nullable|string|max:255',
             'whatsapp_api_token' => 'nullable|string|max:2000',
@@ -1106,6 +1118,8 @@ class SettingsController extends Controller
             'relieving_letter_template' => ['required', 'string', \Illuminate\Validation\Rule::in($allowedTemplates)],
             'offboarding_send_email' => 'nullable|boolean',
             'offboarding_send_sms' => 'nullable|boolean',
+            'pin_failed_send_email' => 'nullable|boolean',
+            'pin_failed_send_sms' => 'nullable|boolean',
             'minimum_notice_days' => 'nullable|integer|min:0|max:365',
             'require_asset_clearance' => 'nullable|boolean',
             'require_finance_clearance' => 'nullable|boolean',

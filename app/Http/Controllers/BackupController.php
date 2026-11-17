@@ -432,13 +432,17 @@ class BackupController extends Controller
                 // Re-link public storage and clear cache for cross-domain portability
                 try {
                     \Illuminate\Support\Facades\Artisan::call('storage:link');
-                } catch (\Exception $e) {}
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning('Backup restore: storage:link failed', ['error' => $e->getMessage()]);
+                }
 
                 try {
                     \Illuminate\Support\Facades\Artisan::call('cache:clear');
                     \Illuminate\Support\Facades\Artisan::call('config:clear');
                     \Illuminate\Support\Facades\Artisan::call('view:clear');
-                } catch (\Exception $e) {}
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning('Backup restore: cache/config clear failed', ['error' => $e->getMessage()]);
+                }
 
                 // Re-authenticate user if needed
                 if (!auth()->check()) {
@@ -454,7 +458,9 @@ class BackupController extends Controller
 
                 try {
                     \Illuminate\Support\Facades\Artisan::call('cache:clear');
-                } catch (\Exception $e) {}
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning('Backup restore: SQL cache clear failed', ['error' => $e->getMessage()]);
+                }
 
                 return back()->with('success', 'Database restored successfully from SQL file.');
             } elseif ($ext === 'json') {
@@ -466,7 +472,9 @@ class BackupController extends Controller
 
                 try {
                     \Illuminate\Support\Facades\Artisan::call('cache:clear');
-                } catch (\Exception $e) {}
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning('Backup restore: JSON cache clear failed', ['error' => $e->getMessage()]);
+                }
 
                 return back()->with('success', 'Database records restored successfully from JSON backup.');
             } else {
@@ -813,7 +821,9 @@ class BackupController extends Controller
         if (!empty(trim($currentQuery))) {
             try {
                 $pdo->exec($currentQuery);
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+                Log::warning('SQL Execute Notice: ' . $e->getMessage() . ' | Query: ' . substr($currentQuery, 0, 80));
+            }
         }
 
         fclose($handle);

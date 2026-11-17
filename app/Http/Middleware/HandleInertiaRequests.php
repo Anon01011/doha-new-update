@@ -40,9 +40,17 @@ class HandleInertiaRequests extends Middleware
             $user->loadMissing('roles.permissions');
         }
 
+        $promptPinSetup = false;
+        if ($user && $user->isPinEligible() && !$user->hasPinConfigured()) {
+            if (!$request->session()->get('pin_setup_dismissed', false)) {
+                $promptPinSetup = true;
+            }
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
+                'promptPinSetup' => $promptPinSetup,
                 'user' => $user ? [
                     'id' => $user->id,
                     'name' => $user->name,

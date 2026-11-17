@@ -2,11 +2,12 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, usePage } from '@inertiajs/react';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm';
+import UpdatePinSecurityForm from './Partials/UpdatePinSecurityForm';
 import Avatar from '@/Components/Avatar';
 import { FiUser, FiLock, FiShield, FiBriefcase, FiMail, FiSettings } from 'react-icons/fi';
 import { useState } from 'react';
 
-export default function Edit({ mustVerifyEmail, status }) {
+export default function Edit({ mustVerifyEmail, status, pinSecurity }) {
     const user = usePage().props.auth.user;
     const [activeTab, setActiveTab] = useState('profile');
 
@@ -126,8 +127,11 @@ export default function Edit({ mustVerifyEmail, status }) {
                                     </div>
                                 </div>
                             </div>
-                            <div className="p-4 sm:p-8">
+                            <div className="p-4 sm:p-8 space-y-10 divide-y divide-slate-100">
                                 <UpdatePasswordForm />
+                                <div className="pt-8">
+                                    <UpdatePinSecurityForm pinSecurity={pinSecurity} />
+                                </div>
                             </div>
                         </div>
                     )}

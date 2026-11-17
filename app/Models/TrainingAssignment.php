@@ -164,7 +164,18 @@ class TrainingAssignment extends Model
         if ($finalProgress == 100 && $status !== 'completed') {
             $status = 'completed';
             $this->completion_date = today();
-            // TODO: Auto-generate certificate here?
+            if (!$this->certificate_issued && !$this->certificate()->exists()) {
+                TrainingCertificate::create([
+                    'training_assignment_id' => $this->id,
+                    'employee_id'            => $this->employee_id,
+                    'training_id'            => $this->training_id,
+                    'company_id'             => $this->company_id,
+                    'issue_date'             => today(),
+                    'expiry_date'            => today()->addYear(),
+                    'issued_by'              => auth()->id(),
+                ]);
+                $this->certificate_issued = true;
+            }
         } elseif ($finalProgress > 0 && $status === 'assigned') {
             $status = 'in_progress';
             if (!$this->started_at) {

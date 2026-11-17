@@ -49,7 +49,15 @@ class NewPasswordController extends Controller
                 $user->forceFill([
                     'password' => Hash::make($request->password),
                     'remember_token' => Str::random(60),
+                    'pin_failed_attempts' => 0,
+                    'pin_locked_until' => null,
                 ])->save();
+
+                // SECURITY: Revoke all trusted devices after password reset
+                $user->trustedDevices()->where('is_active', true)->update([
+                    'is_active' => false,
+                    'revoked_at' => now(),
+                ]);
 
                 event(new PasswordReset($user));
             }

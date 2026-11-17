@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import SettingsLayout from './SettingsLayout';
 import { useForm } from '@inertiajs/react';
-import { FiSave, FiMessageSquare, FiMail, FiPhone, FiInfo, FiCopy, FiCheck } from 'react-icons/fi';
+import { FiSave, FiMessageSquare, FiMail, FiPhone, FiInfo, FiCopy, FiCheck, FiShield } from 'react-icons/fi';
 import PrimaryButton from '@/Components/PrimaryButton';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
 import Checkbox from '@/Components/Checkbox';
 import { Transition } from '@headlessui/react';
-import Modal from '@/Components/Modal';export default function IntegrationSettings({ settings }) {
+import Modal from '@/Components/Modal'; export default function IntegrationSettings({ settings }) {
     const [showMetaTemplateModal, setShowMetaTemplateModal] = useState(false);
     const [showSmsTemplateModal, setShowSmsTemplateModal] = useState(false);
     const [copiedRoster, setCopiedRoster] = useState(false);
@@ -32,7 +32,9 @@ import Modal from '@/Components/Modal';export default function IntegrationSettin
         loan_send_email: settings?.loan_send_email ?? true,
         loan_send_whatsapp: settings?.loan_send_whatsapp ?? false,
         loan_send_sms: settings?.loan_send_sms ?? false,
-        
+        pin_failed_send_email: settings?.pin_failed_send_email ?? true,
+        pin_failed_send_sms: settings?.pin_failed_send_sms ?? false,
+
         whatsapp_provider: settings?.whatsapp_provider ?? 'custom',
         whatsapp_api_url: settings?.whatsapp_api_url ?? '',
         whatsapp_api_token: settings?.whatsapp_api_token ?? '',
@@ -43,7 +45,7 @@ import Modal from '@/Components/Modal';export default function IntegrationSettin
         whatsapp_loan_template_name: settings?.whatsapp_loan_template_name ?? '',
         whatsapp_template_language: settings?.whatsapp_template_language ?? 'en_US',
         whatsapp_loan_template_language: settings?.whatsapp_loan_template_language ?? '',
-        
+
         sms_provider: settings?.sms_provider ?? 'custom',
         sms_api_url: settings?.sms_api_url ?? '',
         sms_api_token: settings?.sms_api_token ?? '',
@@ -122,7 +124,7 @@ import Modal from '@/Components/Modal';export default function IntegrationSettin
                                 <span className="block text-xs text-gray-500 leading-relaxed">Send shift rosters via standard Email.</span>
                             </div>
                         </label>
-                        
+
                         <label className={`flex flex-col p-5 border rounded-lg cursor-pointer transition-all duration-200 ${data.roster_send_whatsapp ? 'border-green-500 bg-green-50/50 shadow-sm' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}>
                             <div className="flex items-center justify-between mb-3">
                                 <div className={`p-2.5 rounded-lg ${data.roster_send_whatsapp ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
@@ -156,6 +158,60 @@ import Modal from '@/Components/Modal';export default function IntegrationSettin
                             <div>
                                 <span className={`block text-sm font-normal mb-1 ${data.roster_send_sms ? 'text-purple-900' : 'text-gray-900'}`}>Text SMS</span>
                                 <span className="block text-xs text-gray-500 leading-relaxed">Send short text updates to phones.</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                {/* PIN & Login Security Alert Channels */}
+                <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+                    <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-50">
+                        <div className="p-2.5 bg-red-50 text-red-600 rounded-lg">
+                            <FiShield className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-normal text-gray-900 tracking-normal">PIN & Login Security Alerts</h2>
+                            <p className="text-sm text-gray-500">Configure how users are notified when an unsuccessful or unauthorized PIN login attempt is detected.</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label className={`flex flex-col p-5 border rounded-lg cursor-pointer transition-all duration-200 ${data.pin_failed_send_email ? 'border-indigo-500 bg-indigo-50/50 shadow-sm' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}>
+                            <div className="flex items-center justify-between mb-3">
+                                <div className={`p-2.5 rounded-lg ${data.pin_failed_send_email ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-500'}`}>
+                                    <FiMail className="w-5 h-5" />
+                                </div>
+                                <Checkbox
+                                    name="pin_failed_send_email"
+                                    checked={data.pin_failed_send_email}
+                                    onChange={(e) => setData('pin_failed_send_email', e.target.checked)}
+                                    className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className={`block text-sm font-semibold ${data.pin_failed_send_email ? 'text-indigo-900' : 'text-gray-900'}`}>Email Alert</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Default</span>
+                                </div>
+                                <span className="block text-xs text-gray-500 leading-relaxed">Send an immediate warning email with client IP, timestamp, and device details when PIN login fails.</span>
+                            </div>
+                        </label>
+
+                        <label className={`flex flex-col p-5 border rounded-lg cursor-pointer transition-all duration-200 ${data.pin_failed_send_sms ? 'border-purple-500 bg-purple-50/50 shadow-sm' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}>
+                            <div className="flex items-center justify-between mb-3">
+                                <div className={`p-2.5 rounded-lg ${data.pin_failed_send_sms ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-500'}`}>
+                                    <FiMessageSquare className="w-5 h-5" />
+                                </div>
+                                <Checkbox
+                                    name="pin_failed_send_sms"
+                                    checked={data.pin_failed_send_sms}
+                                    onChange={(e) => setData('pin_failed_send_sms', e.target.checked)}
+                                    className="w-5 h-5 rounded text-purple-600 focus:ring-purple-500"
+                                />
+                            </div>
+                            <div>
+                                <span className={`block text-sm font-semibold mb-1 ${data.pin_failed_send_sms ? 'text-purple-900' : 'text-gray-900'}`}>Text SMS Alert</span>
+                                <span className="block text-xs text-gray-500 leading-relaxed">Send an instant SMS alert to the user's registered mobile number using your configured SMS provider.</span>
                             </div>
                         </label>
                     </div>
@@ -586,7 +642,7 @@ import Modal from '@/Components/Modal';export default function IntegrationSettin
                                     );
                             }
                         })()}
-                        
+
                         {/* Global SMS Templates */}
                         <div className="col-span-full border-t border-gray-100 pt-6 mt-2">
                             <h3 className="text-sm font-normal text-gray-800 mb-4">SMS Templates</h3>

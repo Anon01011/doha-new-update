@@ -18,9 +18,22 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): Response
     {
+        $user = $request->user();
+
         return Inertia::render('Profile/Edit', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
+            'mustVerifyEmail' => $user instanceof MustVerifyEmail,
             'status' => session('status'),
+            'pinSecurity' => [
+                'isEligible'     => $user->isPinEligible(),
+                'hasPin'         => $user->hasPinConfigured(),
+                'pinSetAt'       => $user->pin_set_at ? $user->pin_set_at->diffForHumans() : null,
+                'isLocked'       => $user->isPinLocked(),
+                'lockRemaining'  => $user->pinLockRemainingSeconds(),
+                'trustedDevices' => $user->trustedDevices()
+                    ->active()
+                    ->orderBy('last_used_at', 'desc')
+                    ->get(['id', 'device_name', 'device_type', 'ip_address', 'last_used_at', 'expires_at']),
+            ],
         ]);
     }
 

@@ -16,8 +16,19 @@ class AuthenticatedSessionController extends Controller
     /**
      * Display the login view.
      */
-    public function create(): Response
+    public function create(Request $request): Response|\Symfony\Component\HttpFoundation\Response
     {
+        // DIRECT PIN LOGIN: If client has a registered trusted device and a configured PIN,
+        // automatically route directly to the 6-digit PIN screen (unless ?mode=password is requested).
+        if ($request->query('mode') !== 'password') {
+            $deviceSecurityService = app(\App\Services\DeviceSecurityService::class);
+            $device = $deviceSecurityService->resolveDeviceFromRequest($request);
+
+            if ($device && $device->user && $device->user->hasPinConfigured()) {
+                return redirect()->route('login.pin');
+            }
+        }
+
         $quickLoginOptions = [];
 
         // SECURITY: Quick login is ONLY available in local/testing environments.

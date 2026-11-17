@@ -26,6 +26,11 @@ class User extends Authenticatable
         'company_id',
         'image',
         'dashboard_settings',
+        'pin_hash',
+        'pin_set_at',
+        'pin_failed_attempts',
+        'pin_locked_until',
+        'pin_enabled',
     ];
 
     /**
@@ -35,6 +40,7 @@ class User extends Authenticatable
      */
     protected $hidden = [
         'password',
+        'pin_hash',
         'remember_token',
     ];
 
@@ -49,6 +55,10 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'dashboard_settings' => 'array',
+            'pin_set_at' => 'datetime',
+            'pin_locked_until' => 'datetime',
+            'pin_enabled' => 'boolean',
+            'pin_failed_attempts' => 'integer',
         ];
     }
 
@@ -58,6 +68,89 @@ class User extends Authenticatable
     public function employee()
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /**
+     * Get the trusted devices registered for this user.
+     */
+    public function trustedDevices()
+    {
+        return $this->hasMany(UserTrustedDevice::class);
+    }
+
+    /**
+     * Determine if this user is eligible for PIN login.
+     * Employees, Managers, and HR are eligible provided their account and employee status are active.
+     */
+    public function isPinEligible(): bool
+    {
+        // Account must be active if employee record exists
+        if ($this->employee_id && $this->employee) {
+            if (!$this->employee->is_active || in_array($this->employee->exit_status, ['resigned', 'terminated', 'absconded'])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Determine if user has a valid PIN configured and enabled.
+     */
+    public function hasPinConfigured(): bool
+    {
+        return !empty($this->pin_hash) && (bool)$this->pin_enabled;
+    }
+
+    /**
+     * Determine if user's PIN is currently locked due to repeated failures.
+     */
+    public function isPinLocked(): bool
+    {
+        return $this->pin_locked_until !== null && $this->pin_locked_until->isFuture();
+    }
+
+    /**
+     * Return remaining seconds of PIN lockout.
+     */
+    public function pinLockRemainingSeconds(): int
+    {
+        if (!$this->isPinLocked()) {
+            return 0;
+        }
+
+        return max(0, now()->diffInSeconds($this->pin_locked_until, false));
+    }
+
+    /**
+     * Record a failed PIN attempt and lock account if max attempts reached.
+     */
+    public function recordFailedPinAttempt(int $maxAttempts = 5, int $lockoutMinutes = 15): void
+    {
+        $attempts = ($this->pin_failed_attempts ?? 0) + 1;
+        $lockedUntil = $this->pin_locked_until;
+
+        if ($attempts >= $maxAttempts) {
+            $lockedUntil = now()->addMinutes($lockoutMinutes);
+        }
+
+        $this->update([
+            'pin_failed_attempts' => $attempts,
+            'pin_locked_until'    => $lockedUntil,
+        ]);
+    }
+
+    /**
+     * Reset failed PIN attempts and clear lockout timestamp.
+     */
+    public function resetPinFailures(): void
+    {
+        if ($this->pin_failed_attempts > 0 || $this->pin_locked_until !== null) {
+            $this->update([
+                'pin_failed_attempts' => 0,
+                'pin_locked_until'    => null,
+            ]);
+        }
     }
 
     /**

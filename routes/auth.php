@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\PinLoginController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +29,17 @@ Route::middleware('guest')->group(function () {
     // finer-grained brute-force protection. Both layers work together.
     Route::post('login', [AuthenticatedSessionController::class, 'store'])
         ->middleware('throttle:10,1');
+
+    // Trusted Device PIN Login
+    Route::get('login/pin', [PinLoginController::class, 'create'])
+        ->name('login.pin');
+
+    Route::post('login/pin', [PinLoginController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('login.pin.store');
+
+    Route::get('login/check-device', [PinLoginController::class, 'checkDevice'])
+        ->name('login.check-device');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
@@ -62,6 +74,12 @@ Route::middleware('auth')->group(function () {
     Route::post('confirm-password', [ConfirmablePasswordController::class, 'store']);
 
     Route::put('password', [PasswordController::class, 'update'])->name('password.update');
+
+    // PIN Setup & Device Management
+    Route::post('user/pin/setup', [PinLoginController::class, 'setup'])->name('user.pin.setup');
+    Route::post('user/pin/skip', [PinLoginController::class, 'skipSetup'])->name('user.pin.skip');
+    Route::post('user/pin/disable', [PinLoginController::class, 'disable'])->name('user.pin.disable');
+    Route::delete('user/devices/{id}', [PinLoginController::class, 'revokeDevice'])->name('user.devices.revoke');
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');

@@ -61,20 +61,20 @@ class SecurityHeaders
      */
     private function buildCsp(): string
     {
-        $origin = $this->devServerOrigin();
+        $origins = $this->devServerOrigin();
 
-        if ($origin === null) {
+        if ($origins === null) {
             return self::CSP;
         }
 
-        $wsOrigin = $this->websocketOrigin($origin);
+        $wsOrigins = $this->websocketOrigins($origins);
 
         return "default-src 'self'; ".
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' {$origin}; ".
-            "style-src 'self' 'unsafe-inline' {$origin} https://fonts.googleapis.com; ".
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' {$origins}; ".
+            "style-src 'self' 'unsafe-inline' {$origins} https://fonts.googleapis.com; ".
             "img-src 'self' data: blob: https://www.transparenttextures.com; ".
             "font-src 'self' data: https://fonts.gstatic.com; ".
-            "connect-src 'self' {$origin} {$wsOrigin}; ".
+            "connect-src 'self' {$origins} {$wsOrigins}; ".
             "object-src 'none'; ".
             "base-uri 'self'; ".
             "form-action 'self'; ".
@@ -82,28 +82,24 @@ class SecurityHeaders
     }
 
     /**
-     * Derive the websocket origin that matches an http(s) dev-server origin.
-     *
-     * The Vite HMR client opens a websocket on the same host and port as the
-     * dev server, only the scheme changes. Deriving it keeps the policy tight
-     * instead of allowing every ws:// and wss:// endpoint on the internet.
+     * Derive the websocket origins that match http(s) dev-server origins.
      */
-    private function websocketOrigin(string $origin): string
+    private function websocketOrigins(string $origins): string
     {
-        if (str_starts_with($origin, 'https://')) {
-            return 'wss://' . substr($origin, strlen('https://'));
+        $wsList = [];
+        foreach (explode(' ', $origins) as $origin) {
+            if (str_starts_with($origin, 'https://')) {
+                $wsList[] = 'wss://' . substr($origin, strlen('https://'));
+            } elseif (str_starts_with($origin, 'http://')) {
+                $wsList[] = 'ws://' . substr($origin, strlen('http://'));
+            }
         }
-
-        return 'ws://' . substr($origin, strlen('http://'));
+        return implode(' ', array_unique($wsList));
     }
 
     /**
-     * Reduce the Vite dev-server URL to a scheme://host:port origin.
-     *
-     * Returns null when the dev server is not running or when the hot file
-     * does not contain a usable http(s) URL, so a malformed or tampered
-     * `public/hot` file cannot inject arbitrary values into the
-     * Content-Security-Policy response header.
+     * Reduce the Vite dev-server URL to valid scheme://host:port origins.
+     * Normalizes IPv6 loopback [::1] to 127.0.0.1 and localhost to satisfy browser CSP parsers.
      */
     private function devServerOrigin(): ?string
     {
@@ -123,12 +119,12 @@ class SecurityHeaders
             return null;
         }
 
-        $parts = parse_url($hotUrl);
         // MED-05: strict character allowlist before the origin enters the CSP header
         if (! preg_match('/^https?:\/\/(\[?[a-fA-F0-9:.\]a-zA-Z0-9_\-]+\]?)(:\d{1,5})?$/', $hotUrl)) {
             return null;
         }
 
+        $parts = parse_url($hotUrl);
         if ($parts === false || empty($parts['scheme']) || empty($parts['host'])) {
             return null;
         }
@@ -139,13 +135,23 @@ class SecurityHeaders
             return null;
         }
 
-        $origin = $scheme . '://' . $parts['host'];
-
-        if (! empty($parts['port'])) {
-            $origin .= ':' . $parts['port'];
+        $host = $parts['host'];
+        // Chrome CSP parser flags literal bracketed IPv6 [::1] as invalid source syntax; normalize to 127.0.0.1
+        if ($host === '[::1]' || $host === '::1') {
+            $host = '127.0.0.1';
         }
 
-        return $origin;
+        $portSuffix = ! empty($parts['port']) ? ':' . $parts['port'] : '';
+        $primaryOrigin = $scheme . '://' . $host . $portSuffix;
+
+        // Allow both 127.0.0.1 and localhost on the dev port
+        $allowed = array_unique([
+            $primaryOrigin,
+            $scheme . '://127.0.0.1' . $portSuffix,
+            $scheme . '://localhost' . $portSuffix,
+        ]);
+
+        return implode(' ', $allowed);
     }
 
     public function handle(Request $request, Closure $next): Response

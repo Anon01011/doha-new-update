@@ -13,11 +13,11 @@ export default function Login({ status, canResetPassword }) {
     const { appSettings } = usePage().props;
 
     // Derive primary color from settings with fallback
-    const primary   = appSettings?.theme_color     || '#090b4e';
-    const secondary = appSettings?.secondary_color  || '#103c7f';
-    const accent    = appSettings?.accent_color     || '#818cf8';
-    const appName   = appSettings?.app_name         || 'HRMS Enterprise';
-    const appLogo   = appSettings?.app_logo;
+    const primary = appSettings?.theme_color || '#090b4e';
+    const secondary = appSettings?.secondary_color || '#103c7f';
+    const accent = appSettings?.accent_color || '#818cf8';
+    const appName = appSettings?.app_name || 'HRMS Enterprise';
+    const appLogo = appSettings?.app_logo;
 
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
@@ -26,9 +26,24 @@ export default function Login({ status, canResetPassword }) {
     });
 
     const [showPassword, setShowPassword] = useState(false);
-    const [mounted, setMounted]           = useState(false);
+    const [mounted, setMounted] = useState(false);
+    const [trustedDevice, setTrustedDevice] = useState(null);
 
     useEffect(() => { setMounted(true); }, []);
+
+    useEffect(() => {
+        // Check if browser has a registered trusted device cookie
+        fetch(route('login.check-device'), {
+            headers: { 'Accept': 'application/json' }
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data?.has_trusted_device) {
+                    setTrustedDevice(data);
+                }
+            })
+            .catch(() => { });
+    }, []);
 
 
 
@@ -51,10 +66,10 @@ export default function Login({ status, canResetPassword }) {
 
     // Features shown on the left panel
     const features = [
-        { icon: FiUsers,     label: 'Multi-Company Workforce',   desc: 'Manage thousands of employees across unlimited branches from one platform.' },
-        { icon: FiBarChart2, label: 'Real-Time Analytics',        desc: 'Attendance trends, payroll reports, and HR insights updated live.' },
-        { icon: FiClock,     label: 'Shift & Attendance Control', desc: 'Rosters, biometric punch-in, overtime, and absence tracking.' },
-        { icon: FiGlobe,     label: 'Multi-Tenant SaaS',          desc: 'Isolated data per company with role-based access on every level.' },
+        { icon: FiUsers, label: 'Multi-Company Workforce', desc: 'Manage thousands of employees across unlimited branches from one platform.' },
+        { icon: FiBarChart2, label: 'Real-Time Analytics', desc: 'Attendance trends, payroll reports, and HR insights updated live.' },
+        { icon: FiClock, label: 'Shift & Attendance Control', desc: 'Rosters, biometric punch-in, overtime, and absence tracking.' },
+        { icon: FiGlobe, label: 'Multi-Tenant SaaS', desc: 'Isolated data per company with role-based access on every level.' },
     ];
 
     return (
@@ -185,131 +200,150 @@ export default function Login({ status, canResetPassword }) {
                             </div>
                         )}
 
-
                         {/* Form */}
                         <form onSubmit={submit} className="space-y-4">
 
-                            {/* Email */}
-                            <div>
-                                <label htmlFor="email" className="block text-xs font-semibold text-slate-700 mb-1.5">
-                                    Email Address
-                                </label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                                        <FiMail className="w-4 h-4 text-slate-400" />
-                                    </div>
-                                    <input
-                                        id="email"
-                                        type="email"
-                                        name="email"
-                                        value={data.email}
-                                        autoComplete="username"
-                                        required
-                                        placeholder="you@company.com"
-                                        onChange={(e) => { setData('email', e.target.value); setSelectedRole(null); }}
-                                        className="w-full pl-10 pr-4 py-2.5 text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-xl outline-none transition-all placeholder:text-slate-400"
-                                        onFocus={e => { e.target.style.borderColor = primary; e.target.style.boxShadow = `0 0 0 3px ${primary}18`; e.target.style.background = '#fff'; }}
-                                        onBlur={e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#f8fafc'; }}
-                                    />
-                                </div>
-                                {errors.email && <p className="mt-1.5 text-xs text-red-500">{errors.email}</p>}
-                            </div>
-
-                            {/* Password */}
-                            <div>
-                                <div className="flex items-center justify-between mb-1.5">
-                                    <label htmlFor="password" className="text-xs font-semibold text-slate-700">
-                                        Password
+                                {/* Email */}
+                                <div>
+                                    <label htmlFor="email" className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                        Email Address
                                     </label>
-                                    {canResetPassword && (
-                                        <Link
-                                            href={route('password.request')}
-                                            className="text-xs font-medium transition-colors hover:underline"
-                                            style={{ color: primary }}
-                                        >
-                                            Forgot password?
-                                        </Link>
-                                    )}
-                                </div>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                                        <FiLock className="w-4 h-4 text-slate-400" />
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                            <FiMail className="w-4 h-4 text-slate-400" />
+                                        </div>
+                                        <input
+                                            id="email"
+                                            type="email"
+                                            name="email"
+                                            value={data.email}
+                                            autoComplete="username"
+                                            required
+                                            placeholder="you@company.com"
+                                            onChange={(e) => { setData('email', e.target.value); setSelectedRole(null); }}
+                                            className="w-full pl-10 pr-4 py-2.5 text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-xl outline-none transition-all placeholder:text-slate-400"
+                                            onFocus={e => { e.target.style.borderColor = primary; e.target.style.boxShadow = `0 0 0 3px ${primary}18`; e.target.style.background = '#fff'; }}
+                                            onBlur={e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#f8fafc'; }}
+                                        />
                                     </div>
-                                    <input
-                                        id="password"
-                                        type={showPassword ? 'text' : 'password'}
-                                        name="password"
-                                        value={data.password}
-                                        autoComplete="current-password"
-                                        required
-                                        placeholder="••••••••"
-                                        onChange={(e) => { setData('password', e.target.value); setSelectedRole(null); }}
-                                        className="w-full pl-10 pr-11 py-2.5 text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-xl outline-none transition-all placeholder:text-slate-400"
-                                        onFocus={e => { e.target.style.borderColor = primary; e.target.style.boxShadow = `0 0 0 3px ${primary}18`; e.target.style.background = '#fff'; }}
-                                        onBlur={e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#f8fafc'; }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
-                                    >
-                                        {showPassword ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
-                                    </button>
+                                    {errors.email && <p className="mt-1.5 text-xs text-red-500">{errors.email}</p>}
                                 </div>
-                                {errors.password && <p className="mt-1.5 text-xs text-red-500">{errors.password}</p>}
-                            </div>
 
-                            {/* Remember */}
-                            <div className="flex items-center justify-between pt-0.5">
-                                <label className="flex items-center gap-2 cursor-pointer select-none">
-                                    <input
-                                        type="checkbox"
-                                        id="remember"
-                                        name="remember"
-                                        checked={data.remember}
-                                        onChange={(e) => setData('remember', e.target.checked)}
-                                        className="w-4 h-4 rounded border-slate-300 cursor-pointer"
-                                        style={{ accentColor: primary }}
-                                    />
-                                    <span className="text-xs text-slate-600 font-medium">Keep me signed in</span>
-                                </label>
-                            </div>
+                                {/* Password */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label htmlFor="password" className="text-xs font-semibold text-slate-700">
+                                            Password
+                                        </label>
+                                        {canResetPassword && (
+                                            <Link
+                                                href={route('password.request')}
+                                                className="text-xs font-medium transition-colors hover:underline"
+                                                style={{ color: primary }}
+                                            >
+                                                Forgot password?
+                                            </Link>
+                                        )}
+                                    </div>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                            <FiLock className="w-4 h-4 text-slate-400" />
+                                        </div>
+                                        <input
+                                            id="password"
+                                            type={showPassword ? 'text' : 'password'}
+                                            name="password"
+                                            value={data.password}
+                                            autoComplete="current-password"
+                                            required
+                                            placeholder="••••••••"
+                                            onChange={(e) => { setData('password', e.target.value); setSelectedRole(null); }}
+                                            className="w-full pl-10 pr-11 py-2.5 text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-xl outline-none transition-all placeholder:text-slate-400"
+                                            onFocus={e => { e.target.style.borderColor = primary; e.target.style.boxShadow = `0 0 0 3px ${primary}18`; e.target.style.background = '#fff'; }}
+                                            onBlur={e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#f8fafc'; }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                                        >
+                                            {showPassword ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+                                        </button>
+                                    </div>
+                                    {errors.password && <p className="mt-1.5 text-xs text-red-500">{errors.password}</p>}
+                                </div>
 
-                            {/* Submit */}
-                            <button
-                                type="submit"
-                                disabled={processing}
-                                className="w-full mt-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold shadow-lg transition-all active:scale-[0.99] disabled:opacity-60 cursor-pointer"
-                                style={{
-                                    background: `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)`,
-                                    boxShadow: `0 8px 24px ${primary}40`,
-                                }}
-                            >
-                                {processing ? (
-                                    <span className="flex items-center gap-2">
-                                        <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                        </svg>
-                                        Authenticating…
-                                    </span>
-                                ) : (
-                                    <>
-                                        Sign In to Workspace
-                                        <FiArrowRight className="w-4 h-4" />
-                                    </>
-                                )}
-                            </button>
-                        </form>
-                    </div>
+                                {/* Remember */}
+                                <div className="flex items-center justify-between pt-0.5">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            id="remember"
+                                            name="remember"
+                                            checked={data.remember}
+                                            onChange={(e) => setData('remember', e.target.checked)}
+                                            className="w-4 h-4 rounded border-slate-300 cursor-pointer"
+                                            style={{ accentColor: primary }}
+                                        />
+                                        <span className="text-xs text-slate-600 font-medium">Keep me signed in</span>
+                                    </label>
+                                </div>
 
-                    {/* Security note */}
-                    <div className="mt-5 flex items-center justify-center gap-2 text-slate-400 text-[11px]">
-                        <FiShield className="w-3.5 h-3.5" />
-                        <span>256-bit encrypted · Role-based access · Multi-tenant isolation</span>
+                                {/* Submit */}
+                                <button
+                                    type="submit"
+                                    disabled={processing}
+                                    className="w-full mt-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold shadow-lg transition-all active:scale-[0.99] disabled:opacity-60 cursor-pointer"
+                                    style={{
+                                        background: `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)`,
+                                        boxShadow: `0 8px 24px ${primary}40`,
+                                    }}
+                                >
+                                    {processing ? (
+                                        <span className="flex items-center gap-2">
+                                            <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                            </svg>
+                                            Authenticating…
+                                        </span>
+                                    ) : (
+                                        <>
+                                            Sign In to Workspace
+                                            <FiArrowRight className="w-4 h-4" />
+                                        </>
+                                    )}
+                                </button>
+
+                                {/* Divider & Quick PIN Login */}
+                                <div className="pt-2 text-center">
+                                    <div className="relative my-3">
+                                        <div className="absolute inset-0 flex items-center">
+                                            <div className="w-full border-t border-slate-200" />
+                                        </div>
+                                        <div className="relative flex justify-center text-xs">
+                                            <span className="bg-white px-2.5 text-slate-400">or</span>
+                                        </div>
+                                    </div>
+                                    <Link
+                                        href={route('login.pin')}
+                                        className="w-full py-2.5 px-4 rounded-xl border border-slate-200 hover:border-indigo-300 bg-slate-50/80 hover:bg-indigo-50/60 text-slate-700 hover:text-indigo-700 font-semibold text-xs flex items-center justify-center gap-2 transition-all duration-150 shadow-sm"
+                                    >
+                                        <FiShield className="w-4 h-4 text-indigo-600" />
+                                        <span>Login with 6-Digit PIN</span>
+                                        <FiArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                                    </Link>
+                                </div>
+                            </form>
+                        </div>
+
+                        {/* Security note */}
+                        <div className="mt-5 flex items-center justify-center gap-2 text-slate-400 text-[11px]">
+                            <FiShield className="w-3.5 h-3.5" />
+                            <span>256-bit encrypted · Role-based access · Multi-tenant isolation</span>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    );
+            );
 }

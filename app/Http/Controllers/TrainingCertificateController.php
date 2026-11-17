@@ -13,13 +13,16 @@ class TrainingCertificateController extends Controller
     {
         // Verify access
         $user = auth()->user();
+        $userCompanyId = $user->company_id ?: $user->employee?->company_id;
+
         if ($user->isEmployee()) {
             if ($certificate->employee_id !== $user->employee_id) {
                 abort(403, 'Unauthorized access.');
             }
-        } elseif ($certificate->company_id !== ($user->employee ? $user->employee->company_id : $certificate->company_id)) {
-            // Admin check (simplified)
-            // abort(403, 'Unauthorized access.');
+        } elseif (!$user->isAdmin()) {
+            if ($userCompanyId && $certificate->company_id !== $userCompanyId) {
+                abort(403, 'Unauthorized access.');
+            }
         }
 
         $certificate->load(['employee', 'training', 'company', 'issuer']);
@@ -30,10 +33,13 @@ class TrainingCertificateController extends Controller
     public function generate(Request $request, TrainingAssignment $assignment)
     {
         $user = auth()->user();
+        $userCompanyId = $user->company_id ?: $user->employee?->company_id;
 
         // Allow if admin/manager OR if employee generating their *own* certificate
         // but only if training is completed (checked below)
         if ($user->isEmployee() && $assignment->employee_id !== $user->employee_id) {
+            abort(403, 'Unauthorized access.');
+        } elseif (!$user->isAdmin() && $userCompanyId && $assignment->company_id && $assignment->company_id !== $userCompanyId) {
             abort(403, 'Unauthorized access.');
         }
 

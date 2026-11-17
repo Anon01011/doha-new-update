@@ -1,6 +1,7 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Avatar from '@/Components/Avatar';
 import Dropdown from '@/Components/Dropdown';
+import PinSetupModal from '@/Components/PinSetupModal';
 import { formatRelative } from '@/helpers/dateHelpers';
 import {
     hasAnyPermission,
@@ -75,6 +76,13 @@ export default function AuthenticatedLayout({ header, children }) {
     const { auth, appSettings } = usePage().props;
     const user = auth?.user || {};
     const userRole = user.role || 'employee';
+
+    const promptPinSetup = Boolean(auth?.promptPinSetup);
+    const [showPinModal, setShowPinModal] = useState(promptPinSetup);
+
+    useEffect(() => {
+        setShowPinModal(Boolean(auth?.promptPinSetup));
+    }, [auth?.promptPinSetup]);
 
     const getNotificationStyles = (type) => {
         switch (type) {
@@ -2409,6 +2417,12 @@ export default function AuthenticatedLayout({ header, children }) {
                     </div>
                 </div>
             )}
+
+            {/* Post-Login PIN Setup Modal */}
+            <PinSetupModal
+                show={showPinModal}
+                onClose={() => setShowPinModal(false)}
+            />
         </div>
     );
 }
