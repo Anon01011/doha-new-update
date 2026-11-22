@@ -72,8 +72,8 @@ class HandleInertiaRequests extends Middleware
                         'id' => $user->employee->id,
                         'employee_image' => $user->employee->employee_image,
                     ] : null,
-                    'todayAttendance' => $user->employee_id ? \App\Models\EmployeeAttendance::where('employee_id', $user->employee_id)->where('date', now()->toDateString())->first() : null,
-                    'unreadNotifications' => $user ? $user->unreadNotifications()->get()->map(fn($n) => [
+                    'todayAttendance' => fn() => $user->employee_id ? \App\Models\EmployeeAttendance::where('employee_id', $user->employee_id)->where('date', now()->toDateString())->first() : null,
+                    'unreadNotifications' => fn() => $user ? $user->unreadNotifications()->get()->map(fn($n) => [
                         'id' => $n->id,
                         'data' => $n->data,
                         'created_at' => $n->created_at->diffForHumans(),

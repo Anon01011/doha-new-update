@@ -31,9 +31,8 @@ class EmployeeAttendanceTest extends TestCase
         $this->branch2 = Company::create(['name' => 'Branch Two']);
 
         // Create Admin role
-        $adminRole = Role::create([
+        $adminRole = Role::firstOrCreate(['slug' => 'admin'], [
             'name' => 'Admin',
-            'slug' => 'admin',
         ]);
 
         // Create Admin User

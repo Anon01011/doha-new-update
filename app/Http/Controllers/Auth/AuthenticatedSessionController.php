@@ -91,7 +91,7 @@ class AuthenticatedSessionController extends Controller
                 $hoursWorked = round($workMinutes / 60, 2);
                 $normalHours = $attendance->normal_hours ?: 0;
                 $ot = $hoursWorked > $normalHours ? $hoursWorked - $normalHours : 0;
-                $overtimeRate = config('payroll.overtime_rate', env('PAYROLL_OVERTIME_RATE', 0));
+                $overtimeRate = config('payroll.overtime_rate', 0);
                 $otAmount = ($ot > 0 && $overtimeRate > 0) ? $ot * $overtimeRate : 0;
 
                 $attendance->update([

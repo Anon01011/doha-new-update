@@ -70,10 +70,11 @@ class DepartmentController extends Controller
             'closing_time' => 'nullable|string|max:10',
         ]);
 
-        // Multi-tenancy check: non-admins can only assign to their own company
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+        // Multi-tenancy check: non-admins can only assign to their own assigned company
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
             foreach ($validated['company_ids'] as $cid) {
-                if ($cid != $user->employee->company_id) {
+                if ($assignedCompanyIds->isNotEmpty() && !$assignedCompanyIds->contains((int) $cid)) {
                     abort(403, 'Unauthorized access to another branch.');
                 }
             }
@@ -147,8 +148,9 @@ class DepartmentController extends Controller
         }
 
         // Multi-tenancy check for existing department
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-            if (!$department->companies()->where('companies.id', $user->employee->company_id)->exists()) {
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            if ($assignedCompanyIds->isNotEmpty() && !$department->companies()->whereIn('companies.id', $assignedCompanyIds)->exists()) {
                 abort(403, 'Unauthorized access to department in another branch.');
             }
         }
@@ -164,9 +166,10 @@ class DepartmentController extends Controller
         ]);
 
         // Multi-tenancy check for new companies
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
             foreach ($validated['company_ids'] as $cid) {
-                if ($cid != $user->employee->company_id) {
+                if ($assignedCompanyIds->isNotEmpty() && !$assignedCompanyIds->contains((int) $cid)) {
                     abort(403, 'Cannot assign department to another branch.');
                 }
             }
@@ -190,8 +193,9 @@ class DepartmentController extends Controller
         if (!$user->isAdmin() && !$user->hasPermission('manage-departments')) {
             abort(403, 'Unauthorized. You do not have permission to manage departments.');
         }
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-            if (!$department->companies()->where('companies.id', $user->employee->company_id)->exists()) {
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            if ($assignedCompanyIds->isNotEmpty() && !$department->companies()->whereIn('companies.id', $assignedCompanyIds)->exists()) {
                 abort(403, 'Unauthorized access.');
             }
         }
@@ -242,8 +246,9 @@ class DepartmentController extends Controller
         if (!$user->isAdmin() && !$user->hasPermission('manage-departments')) {
             abort(403, 'Unauthorized. You do not have permission to manage departments.');
         }
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-            if (!$department->companies()->where('companies.id', $user->employee->company_id)->exists()) {
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            if ($assignedCompanyIds->isNotEmpty() && !$department->companies()->whereIn('companies.id', $assignedCompanyIds)->exists()) {
                 abort(403, 'Unauthorized access.');
             }
         }
@@ -263,8 +268,9 @@ class DepartmentController extends Controller
         if (!$user->isAdmin() && !$user->hasPermission('manage-departments')) {
             abort(403, 'Unauthorized. You do not have permission to manage departments.');
         }
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-            if (!$department->companies()->where('companies.id', $user->employee->company_id)->exists()) {
+        if (!$user->isAdmin()) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            if ($assignedCompanyIds->isNotEmpty() && !$department->companies()->whereIn('companies.id', $assignedCompanyIds)->exists()) {
                 abort(403, 'Unauthorized access.');
             }
         }

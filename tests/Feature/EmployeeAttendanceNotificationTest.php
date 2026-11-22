@@ -34,9 +34,9 @@ class EmployeeAttendanceNotificationTest extends TestCase
         $this->company = Company::create(['name' => 'Main Branch']);
         $this->department = Department::create(['name' => 'Engineering', 'company_id' => $this->company->id]);
 
-        $adminRole = Role::create(['name' => 'Admin', 'slug' => 'admin']);
-        $hrRole = Role::create(['name' => 'HR', 'slug' => 'hr']);
-        $managerRole = Role::create(['name' => 'Manager', 'slug' => 'manager']);
+        $adminRole = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Admin']);
+        $hrRole = Role::firstOrCreate(['slug' => 'hr'], ['name' => 'HR']);
+        $managerRole = Role::firstOrCreate(['slug' => 'manager'], ['name' => 'Manager']);
 
         // Admin User (Global)
         $this->adminUser = User::create([

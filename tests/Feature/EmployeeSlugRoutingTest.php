@@ -27,9 +27,8 @@ class EmployeeSlugRoutingTest extends TestCase
         $this->branchOne = Company::create(['name' => 'Branch One']);
         $this->branchTwo = Company::create(['name' => 'Branch Two']);
 
-        $adminRole = Role::create([
+        $adminRole = Role::firstOrCreate(['slug' => 'admin'], [
             'name' => 'Admin',
-            'slug' => 'admin',
         ]);
 
         $this->adminUser = User::create([
@@ -179,9 +178,8 @@ class EmployeeSlugRoutingTest extends TestCase
             'slug' => 'view-employees',
         ]);
 
-        $hrRole = Role::create([
+        $hrRole = Role::firstOrCreate(['slug' => 'hr'], [
             'name' => 'HR',
-            'slug' => 'hr',
         ]);
         $hrRole->permissions()->sync([$viewPermission->id]);
 
@@ -214,9 +212,8 @@ class EmployeeSlugRoutingTest extends TestCase
             'slug' => 'view-employees',
         ]);
 
-        $hrRole = Role::create([
+        $hrRole = Role::firstOrCreate(['slug' => 'hr'], [
             'name' => 'HR',
-            'slug' => 'hr',
         ]);
         $hrRole->permissions()->sync([$viewPermission->id]);
 

@@ -104,13 +104,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/employee', [\App\Http\Controllers\SettingsController::class, 'updateEmployeeSettings'])->name('settings.employee.update');
         Route::get('/settings/integrations', [\App\Http\Controllers\SettingsController::class, 'integrationSettings'])->name('settings.integrations');
         Route::post('/settings/integrations', [\App\Http\Controllers\SettingsController::class, 'updateIntegrationSettings'])->name('settings.integrations.update');
-        Route::get('/settings/backup', [\App\Http\Controllers\BackupController::class, 'index'])->name('settings.backup');
-        Route::post('/settings/backup/settings', [\App\Http\Controllers\BackupController::class, 'updateSettings'])->name('settings.backup.settings');
-        Route::post('/settings/backup/create', [\App\Http\Controllers\BackupController::class, 'create'])->name('settings.backup.create');
-        Route::get('/settings/backup/download/{filename}', [\App\Http\Controllers\BackupController::class, 'download'])->name('settings.backup.download');
-        Route::delete('/settings/backup/{filename}', [\App\Http\Controllers\BackupController::class, 'destroy'])->name('settings.backup.destroy');
-        Route::post('/settings/backup/restore', [\App\Http\Controllers\BackupController::class, 'restore'])->name('settings.backup.restore');
-        Route::get('/settings/backup/export-excel', [\App\Http\Controllers\BackupController::class, 'exportAllExcel'])->name('settings.backup.export-excel');
 
         // Offboarding Settings
         Route::get('/settings/offboarding', [\App\Http\Controllers\SettingsController::class, 'offboardingSettings'])->name('settings.offboarding');
@@ -364,11 +357,20 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/departments/by-branch', [\App\Http\Controllers\DepartmentController::class, 'getByBranch'])->name('api.departments.byBranch');
     Route::post('/dashboard/settings', [\App\Http\Controllers\DashboardSettingsController::class, 'update'])->name('dashboard.settings.update');
 
-    // System Settings - Logo/Favicon Delete Routes (Admin only)
+    // System Settings & Database Backup Management (Admin only)
     Route::middleware('role:admin')->group(function () {
         Route::delete('/settings/system/logo', [\App\Http\Controllers\SettingsController::class, 'deleteSystemLogo'])->name('settings.system.deleteLogo');
         Route::delete('/settings/system/favicon', [\App\Http\Controllers\SettingsController::class, 'deleteSystemFavicon'])->name('settings.system.deleteFavicon');
         Route::delete('/settings/system/stamp', [\App\Http\Controllers\SettingsController::class, 'deleteSystemStamp'])->name('settings.system.deleteStamp');
+
+        // Database Backup Management
+        Route::get('/settings/backup', [\App\Http\Controllers\BackupController::class, 'index'])->name('settings.backup');
+        Route::post('/settings/backup/settings', [\App\Http\Controllers\BackupController::class, 'updateSettings'])->name('settings.backup.settings');
+        Route::post('/settings/backup/create', [\App\Http\Controllers\BackupController::class, 'create'])->name('settings.backup.create');
+        Route::get('/settings/backup/download/{filename}', [\App\Http\Controllers\BackupController::class, 'download'])->name('settings.backup.download');
+        Route::delete('/settings/backup/{filename}', [\App\Http\Controllers\BackupController::class, 'destroy'])->name('settings.backup.destroy');
+        Route::post('/settings/backup/restore', [\App\Http\Controllers\BackupController::class, 'restore'])->name('settings.backup.restore');
+        Route::get('/settings/backup/export-excel', [\App\Http\Controllers\BackupController::class, 'exportAllExcel'])->name('settings.backup.export-excel');
     });
 
     // Notifications

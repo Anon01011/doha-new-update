@@ -89,21 +89,9 @@ class PinLoginController extends Controller
                 }
             }
 
-            if (!$user) {
+            if (!$user || !$user->isPinEligible() || !$user->hasPinConfigured()) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
-                    'login_identifier' => ['No account found matching this email or employee code.'],
-                ]);
-            }
-
-            if (!$user->isPinEligible()) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'login_identifier' => ['PIN authentication is not available for this account.'],
-                ]);
-            }
-
-            if (!$user->hasPinConfigured()) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'login_identifier' => ['A 6-digit PIN has not been set up for this account yet. Please sign in with your password first and configure your PIN in Profile -> Security.'],
+                    'login_identifier' => ['Invalid credentials or PIN authentication is not configured for this account.'],
                 ]);
             }
         }

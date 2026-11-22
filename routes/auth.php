@@ -39,6 +39,7 @@ Route::middleware('guest')->group(function () {
         ->name('login.pin.store');
 
     Route::get('login/check-device', [PinLoginController::class, 'checkDevice'])
+        ->middleware('throttle:30,1')
         ->name('login.check-device');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])

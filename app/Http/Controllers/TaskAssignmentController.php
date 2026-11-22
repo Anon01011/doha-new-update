@@ -91,7 +91,7 @@ class TaskAssignmentController extends Controller
                 ->exists();
 
             if ($exists) {
-                $employeeName = Employee::find($employeeId)->name ?? 'Employee';
+                $employeeName = Employee::find($employeeId)?->name ?? 'Employee';
                 $errors[] = "$employeeName is already assigned to this task.";
                 continue;
             }

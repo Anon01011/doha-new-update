@@ -40,7 +40,7 @@ class SecurityAuthorizationRegressionTest extends TestCase
 
         // ── Roles ──────────────────────────────────────────────────────────
         foreach (['admin' => 'Administrator', 'hr' => 'HR', 'manager' => 'Manager', 'employee' => 'Employee'] as $slug => $name) {
-            Role::create(['name' => $name, 'slug' => $slug, 'is_active' => true]);
+            Role::firstOrCreate(['slug' => $slug], ['name' => $name, 'is_active' => true]);
         }
 
         // ── Expense category (required FK on expense_claims) ──────────────

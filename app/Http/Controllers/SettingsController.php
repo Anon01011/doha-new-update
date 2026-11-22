@@ -75,7 +75,7 @@ class SettingsController extends Controller
             // immediately in this process without requiring a server restart.
             $password = $request->mail_password && $request->mail_password !== '***'
                 ? $request->mail_password
-                : env('MAIL_PASSWORD', '');
+                : config('mail.mailers.smtp.password', '');
 
             config([
                 'mail.default'                           => $request->mail_mailer,
@@ -412,10 +412,10 @@ class SettingsController extends Controller
         $companyId = $user->employee_id ? $user->employee->company_id : null;
 
         return [
-            'app_name' => Setting::get('app_name', env('APP_NAME', 'Laravel'), $companyId),
-            'app_url' => Setting::get('app_url', env('APP_URL', 'http://localhost'), $companyId),
-            'app_timezone' => Setting::get('app_timezone', env('APP_TIMEZONE', 'UTC'), $companyId),
-            'app_locale' => Setting::get('app_locale', env('APP_LOCALE', 'en'), $companyId),
+            'app_name' => Setting::get('app_name', config('app.name', 'Laravel'), $companyId),
+            'app_url' => Setting::get('app_url', config('app.url', 'http://localhost'), $companyId),
+            'app_timezone' => Setting::get('app_timezone', config('app.timezone', 'UTC'), $companyId),
+            'app_locale' => Setting::get('app_locale', config('app.locale', 'en'), $companyId),
             'app_country' => Setting::get('app_country', CurrencyService::defaultCountry($companyId), $companyId),
             'currency' => CurrencyService::code($companyId),
             'currency_symbol' => CurrencyService::symbol($companyId),
@@ -444,7 +444,7 @@ class SettingsController extends Controller
                 ['value' => 'relieving_letter_modern',       'label' => 'Modern (Executive)',         'description' => 'Branded header bar, grid-style data, verification code footer'],
                 ['value' => 'relieving_letter_comprehensive','label' => 'Comprehensive (Full Audit)', 'description' => 'Multi-section clearance table, signature + seal columns'],
             ],
-            'app_debug' => env('APP_DEBUG', false),
+            'app_debug' => config('app.debug', false),
             'has_session_settings' => false,
             'available_timezones' => $this->getAvailableTimezones(),
             'available_locales' => [

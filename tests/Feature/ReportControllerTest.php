@@ -25,9 +25,8 @@ class ReportControllerTest extends TestCase
         $this->branch = Company::create(['name' => 'Test Branch']);
 
         // Create Admin role
-        $adminRole = Role::create([
+        $adminRole = Role::firstOrCreate(['slug' => 'admin'], [
             'name' => 'Admin',
-            'slug' => 'admin',
         ]);
 
         $this->adminUser = User::create([

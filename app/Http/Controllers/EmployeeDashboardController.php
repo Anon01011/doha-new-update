@@ -256,6 +256,9 @@ class EmployeeDashboardController extends Controller
         }
 
         $employee = Employee::find($user->employee_id);
+        if (!$employee) {
+            return back()->with('error', 'Employee profile not found.');
+        }
 
         if ($request->hasFile('image')) {
             $request->validate([

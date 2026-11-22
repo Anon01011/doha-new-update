@@ -9,11 +9,11 @@ use App\Models\Company;
 use App\Models\Department;
 use App\Models\Role;
 use App\Models\Permission;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
 class EmployeeNewHiresFilterTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     protected User $adminUser;
     protected Company $company;

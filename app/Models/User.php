@@ -160,7 +160,7 @@ class User extends Authenticatable
     {
         // Admin has all permissions
         if ($this->isAdmin()) {
-            return Permission::where('is_active', true)->get();
+            return \Illuminate\Support\Facades\Cache::remember('all_active_permissions', 3600, fn() => Permission::where('is_active', true)->get());
         }
 
         $this->loadMissing('permissions');

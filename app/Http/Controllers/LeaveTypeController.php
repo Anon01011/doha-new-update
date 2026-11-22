@@ -63,7 +63,11 @@ class LeaveTypeController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:leave_types,code',
-            'company_id' => 'required_if:user_role,admin|exists:companies,id',
+            'company_id' => [
+                \Illuminate\Validation\Rule::requiredIf(fn() => $user->isAdmin()),
+                'nullable',
+                'exists:companies,id',
+            ],
             'max_days_per_year' => 'required|integer|min:0',
             'min_notice_days' => 'nullable|integer|min:0|max:365',
             'carry_forward_allowed' => 'boolean',
@@ -75,13 +79,15 @@ class LeaveTypeController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        $companyId = $user->company_id;
-        if (!$companyId && $user->employee_id && $user->employee) {
-            $companyId = $user->employee->company_id;
-        }
+        if (!$user->isAdmin()) {
+            $companyId = $user->company_id;
+            if (!$companyId && $user->employee_id && $user->employee) {
+                $companyId = $user->employee->company_id;
+            }
 
-        if ($companyId) {
-            $validated['company_id'] = $companyId;
+            if ($companyId) {
+                $validated['company_id'] = $companyId;
+            }
         }
 
         LeaveType::create($validated);
@@ -164,7 +170,11 @@ class LeaveTypeController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:leave_types,code,' . $leaveType->id,
-            'company_id' => 'required_if:user_role,admin|exists:companies,id',
+            'company_id' => [
+                \Illuminate\Validation\Rule::requiredIf(fn() => $user->isAdmin()),
+                'nullable',
+                'exists:companies,id',
+            ],
             'max_days_per_year' => 'required|integer|min:0',
             'min_notice_days' => 'nullable|integer|min:0|max:365',
             'carry_forward_allowed' => 'boolean',
@@ -176,13 +186,15 @@ class LeaveTypeController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        $companyId = $user->company_id;
-        if (!$companyId && $user->employee_id && $user->employee) {
-            $companyId = $user->employee->company_id;
-        }
+        if (!$user->isAdmin()) {
+            $companyId = $user->company_id;
+            if (!$companyId && $user->employee_id && $user->employee) {
+                $companyId = $user->employee->company_id;
+            }
 
-        if ($companyId) {
-            $validated['company_id'] = $companyId;
+            if ($companyId) {
+                $validated['company_id'] = $companyId;
+            }
         }
 
         $leaveType->update($validated);

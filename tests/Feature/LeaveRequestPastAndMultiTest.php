@@ -33,9 +33,8 @@ class LeaveRequestPastAndMultiTest extends TestCase
         ]);
 
         // Create Admin role
-        $adminRole = Role::create([
+        $adminRole = Role::firstOrCreate(['slug' => 'admin'], [
             'name' => 'Admin',
-            'slug' => 'admin',
         ]);
 
         // Create Admin User
@@ -113,8 +112,8 @@ class LeaveRequestPastAndMultiTest extends TestCase
         // Check that leave request is created and approved directly
         $this->assertDatabaseHas('leave_requests', [
             'employee_id' => $employee->id,
-            'start_date' => $pastStartDate . ' 00:00:00',
-            'end_date' => $pastEndDate . ' 00:00:00',
+            'start_date' => $pastStartDate,
+            'end_date' => $pastEndDate,
             'status' => 'approved',
         ]);
     }
@@ -155,15 +154,15 @@ class LeaveRequestPastAndMultiTest extends TestCase
         // Check both leave requests exist
         $this->assertDatabaseHas('leave_requests', [
             'employee_id' => $emp1->id,
-            'start_date' => $startDate . ' 00:00:00',
-            'end_date' => $endDate . ' 00:00:00',
+            'start_date' => $startDate,
+            'end_date' => $endDate,
             'status' => 'approved',
         ]);
 
         $this->assertDatabaseHas('leave_requests', [
             'employee_id' => $emp2->id,
-            'start_date' => $startDate . ' 00:00:00',
-            'end_date' => $endDate . ' 00:00:00',
+            'start_date' => $startDate,
+            'end_date' => $endDate,
             'status' => 'approved',
         ]);
     }

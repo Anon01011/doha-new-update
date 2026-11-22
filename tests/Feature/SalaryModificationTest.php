@@ -8,12 +8,12 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\SalaryModificationRequest;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SalaryModificationTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     private Company $companyA;
     private Company $companyB;
@@ -317,7 +317,7 @@ class SalaryModificationTest extends TestCase
             'status' => 'pending',
         ]);
 
-        $response = $this->actingAs($this->admin)->get(route('employees.show', $this->targetEmployee->id));
+        $response = $this->actingAs($this->admin)->get(route('employees.show', $this->targetEmployee));
 
         $response->assertOk();
         $response->assertInertia(fn ($page) =>
@@ -337,7 +337,9 @@ class SalaryModificationTest extends TestCase
             'company_id' => $this->companyA->id,
             'role' => 'manager',  // not 'hr'
         ]);
+        $viewEmployeesPerm = Permission::where('slug', 'view-employees')->first();
         $payrollOfficer->permissions()->sync([
+            $viewEmployeesPerm->id,
             $viewSalaryPerm->id,
             $approveSalaryPerm->id,
         ]);
@@ -378,7 +380,9 @@ class SalaryModificationTest extends TestCase
             'company_id' => $this->companyA->id,
             'role' => 'manager',
         ]);
+        $viewEmployeesPerm = Permission::where('slug', 'view-employees')->first();
         $payrollOfficer->permissions()->sync([
+            $viewEmployeesPerm->id,
             $viewSalaryPerm->id,
             $approveSalaryPerm->id,
         ]);
@@ -392,7 +396,7 @@ class SalaryModificationTest extends TestCase
             'status' => 'pending',
         ]);
 
-        $response = $this->actingAs($payrollOfficer)->get(route('employees.show', $this->targetEmployee->id));
+        $response = $this->actingAs($payrollOfficer)->get(route('employees.show', $this->targetEmployee));
 
         $response->assertOk();
         $response->assertInertia(fn ($page) =>

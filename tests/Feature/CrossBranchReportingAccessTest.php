@@ -15,12 +15,12 @@ use App\Models\ExpenseCategory;
 use App\Models\Role;
 use App\Models\Permission;
 use App\Services\EmployeeAuthorizationService;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 
 class CrossBranchReportingAccessTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     protected Company $companyA;
     protected Company $companyB;
