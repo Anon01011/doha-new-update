@@ -143,7 +143,13 @@ class RoleAssignmentService
     {
         $role = Role::where('slug', $roleSlug)->first();
 
-        $user->forceFill(['role' => $roleSlug])->saveQuietly();
+        try {
+            $user->forceFill(['role' => $roleSlug])->saveQuietly();
+        } catch (\Throwable $e) {
+            // Defensive fallback if live database still has MySQL enum constraint on legacy role column
+            $fallbackRole = in_array($roleSlug, ['admin', 'hr', 'manager']) ? $roleSlug : 'employee';
+            $user->forceFill(['role' => $fallbackRole])->saveQuietly();
+        }
 
         if ($role) {
             $user->roles()->sync([$role->id]);

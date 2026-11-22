@@ -306,7 +306,12 @@ class User extends Authenticatable
 
         if ($role && !$this->roles()->where('roles.id', $role->id)->exists()) {
             $this->roles()->attach($role->id);
-            $this->update(['role' => $role->slug]);
+            try {
+                $this->update(['role' => $role->slug]);
+            } catch (\Throwable $e) {
+                $fallback = in_array($role->slug, ['admin', 'hr', 'manager']) ? $role->slug : 'employee';
+                $this->update(['role' => $fallback]);
+            }
         }
     }
 
