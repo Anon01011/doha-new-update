@@ -25,6 +25,10 @@ Route::post('/employee/dashboard/update-photo', [\App\Http\Controllers\EmployeeD
 Route::middleware('auth')->group(function () {
     // Moved here to allow permission-based access control rather than role-based
     Route::resource('leave-types', \App\Http\Controllers\LeaveTypeController::class);
+    Route::resource('companies', CompanyController::class);
+    Route::resource('departments', \App\Http\Controllers\DepartmentController::class);
+    Route::patch('departments/{department}/toggle-status', [\App\Http\Controllers\DepartmentController::class, 'toggleStatus'])->name('departments.toggle-status');
+    Route::post('departments/{department}/transfer-staff', [\App\Http\Controllers\DepartmentController::class, 'transferStaff'])->name('departments.transfer-staff');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -50,11 +54,6 @@ Route::middleware('auth')->group(function () {
         Route::post('employees/{employee}/weekly-offs', [\App\Http\Controllers\EmployeeWeeklyOffController::class, 'store'])->name('employees.weekly-offs.store');
         Route::put('employees/{employee}/weekly-offs/{weeklyOff}', [\App\Http\Controllers\EmployeeWeeklyOffController::class, 'update'])->name('employees.weekly-offs.update');
         Route::delete('employees/{employee}/weekly-offs/{weeklyOff}', [\App\Http\Controllers\EmployeeWeeklyOffController::class, 'destroy'])->name('employees.weekly-offs.destroy');
-        Route::resource('companies', CompanyController::class);
-        Route::resource('departments', \App\Http\Controllers\DepartmentController::class);
-        Route::patch('departments/{department}/toggle-status', [\App\Http\Controllers\DepartmentController::class, 'toggleStatus'])->name('departments.toggle-status');
-        Route::post('departments/{department}/transfer-staff', [\App\Http\Controllers\DepartmentController::class, 'transferStaff'])->name('departments.transfer-staff');
-        // Route::resource('leave-types', \App\Http\Controllers\LeaveTypeController::class); // Moved to general auth group
 
         Route::resource('salary-components', \App\Http\Controllers\SalaryComponentController::class);
 

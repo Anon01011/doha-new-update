@@ -12,15 +12,22 @@ class DepartmentController extends Controller
     public function index()
     {
         $user = auth()->user();
-        if (!$user->isAdmin() && !$user->hasPermission('view-departments')) {
+        if (!$user->isAdmin() && !$user->isHR()
+            && !$user->hasPermission('view-departments')
+            && !$user->hasPermission('manage-departments')
+            && !$user->hasRole('shift-manager')
+            && !$user->hasRole('shiftmanager')) {
             abort(403, 'Unauthorized. You do not have permission to view departments.');
         }
         $query = Department::with('companies')->withCount('employees');
 
-        if (!$user->isAdmin() && $user->employee_id && $user->employee) {
-            $query->whereHas('companies', function($q) use ($user) {
-                $q->where('companies.id', $user->employee->company_id);
-            });
+        if (!$user->isAdmin() && !$user->hasPermission('manage-departments')) {
+            $assignedCompanyIds = $user->getAssignedCompanyIds();
+            if ($assignedCompanyIds->isNotEmpty()) {
+                $query->whereHas('companies', function($q) use ($assignedCompanyIds) {
+                    $q->whereIn('companies.id', $assignedCompanyIds);
+                });
+            }
         }
 
         $departments = $query->get();

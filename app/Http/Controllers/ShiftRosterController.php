@@ -19,7 +19,7 @@ use App\Jobs\SendRosterSmsNotification;
 
 class ShiftRosterController extends Controller
 {
-    // Predefined shift templates
+    // Predefined shift templates fallback
     private $shiftTemplates = [
         'morning' => ['name' => 'Morning Shift', 'time' => '6:00 AM - 2:00 PM', 'type' => 'Morning'],
         'evening' => ['name' => 'Evening Shift', 'time' => '2:00 PM - 10:00 PM', 'type' => 'Evening'],
@@ -28,6 +28,96 @@ class ShiftRosterController extends Controller
         'half_day' => ['name' => 'Half Day', 'time' => '8:00 AM - 12:00 PM', 'type' => 'Half Day'],
         'custom' => ['name' => 'Custom', 'time' => '', 'type' => ''],
     ];
+
+    /**
+     * Format start and end time (H:i) to standard 12-hour AM/PM range.
+     */
+    public function formatShiftTimeRange(?string $startTime, ?string $endTime): string
+    {
+        if (empty($startTime) || empty($endTime)) {
+            return '';
+        }
+
+        try {
+            $startClean = trim(substr($startTime, 0, 5));
+            $startFormatted = Carbon::createFromFormat('H:i', $startClean)->format('g:i A');
+        } catch (\Throwable $e) {
+            $startFormatted = $startTime;
+        }
+
+        try {
+            $endClean = trim(substr($endTime, 0, 5));
+            $endFormatted = Carbon::createFromFormat('H:i', $endClean)->format('g:i A');
+        } catch (\Throwable $e) {
+            $endFormatted = $endTime;
+        }
+
+        return "{$startFormatted} - {$endFormatted}";
+    }
+
+    /**
+     * Retrieve configurable shift templates dynamically from settings.
+     */
+    public function getShiftTemplates($companyId = null): array
+    {
+        $shifts = [
+            'morning' => [
+                'name'          => 'Morning Shift',
+                'type'          => 'Morning',
+                'start_default' => '06:00',
+                'end_default'   => '14:00',
+            ],
+            'evening' => [
+                'name'          => 'Evening Shift',
+                'type'          => 'Evening',
+                'start_default' => '14:00',
+                'end_default'   => '22:00',
+            ],
+            'night' => [
+                'name'          => 'Night Shift',
+                'type'          => 'Night',
+                'start_default' => '22:00',
+                'end_default'   => '06:00',
+            ],
+            'full_day' => [
+                'name'          => 'Full Day',
+                'type'          => 'Full Day',
+                'start_default' => '08:00',
+                'end_default'   => '17:00',
+            ],
+            'half_day' => [
+                'name'          => 'Half Day',
+                'type'          => 'Half Day',
+                'start_default' => '08:00',
+                'end_default'   => '12:00',
+            ],
+        ];
+
+        $templates = [];
+        foreach ($shifts as $key => $meta) {
+            $start = Setting::get("shift_{$key}_start", $meta['start_default'], $companyId);
+            $end   = Setting::get("shift_{$key}_end", $meta['end_default'], $companyId);
+            $timeRange = $this->formatShiftTimeRange($start, $end);
+
+            $templates[$key] = [
+                'name'       => $meta['name'],
+                'time'       => $timeRange,
+                'start_time' => $start,
+                'end_time'   => $end,
+                'type'       => $meta['type'],
+            ];
+        }
+
+        $templates['custom'] = [
+            'name'       => 'Custom',
+            'time'       => '',
+            'start_time' => '',
+            'end_time'   => '',
+            'type'       => '',
+        ];
+
+        return $templates;
+    }
 
     public function index(Request $request)
     {
@@ -204,6 +294,28 @@ class ShiftRosterController extends Controller
                 ];
             }
 
+            $shiftTemplates = $this->getShiftTemplates($effectiveCompanyId);
+
+            if (($request->wantsJson() || $request->ajax()) && !$request->header('X-Inertia')) {
+                return response()->json([
+                    'companies'          => $companies,
+                    'departments'        => $departments,
+                    'employees'          => $employees,
+                    'rosters'            => $rosters instanceof \Illuminate\Support\Collection ? $rosters->values() : $rosters,
+                    'week_start'         => $currentWeekStart,
+                    'company_id'         => $effectiveCompanyId,
+                    'department_id'      => $department_id,
+                    'shiftTemplates'     => $shiftTemplates,
+                    'shiftTypes'         => $shiftTypes,
+                    'userRole'           => $user->role,
+                    'canApprove'         => $canApprove,
+                    'canManageRosters'   => $canManageRosters,
+                    'multiCompanyMode'   => $multiCompanyMode,
+                    'assignedCompanyIds' => $assignedCompanyIds->values()->all(),
+                    'weekApprovalStatus' => $weekApprovalStatus,
+                ]);
+            }
+
             return Inertia::render('ShiftRoster/Index', [
                 'companies'          => $companies,
                 'departments'        => $departments,
@@ -212,7 +324,7 @@ class ShiftRosterController extends Controller
                 'week_start'         => $currentWeekStart,
                 'company_id'         => $effectiveCompanyId,
                 'department_id'      => $department_id,
-                'shiftTemplates'     => $this->shiftTemplates,
+                'shiftTemplates'     => $shiftTemplates,
                 'shiftTypes'         => $shiftTypes,
                 'userRole'           => $user->role,
                 'canApprove'         => $canApprove,
@@ -344,11 +456,24 @@ class ShiftRosterController extends Controller
                 ->orderBy('sort_order')
                 ->pluck('value');
 
+            if (($request->wantsJson() || $request->ajax()) && !$request->header('X-Inertia')) {
+                return response()->json([
+                    'companies'          => $companies,
+                    'departments'        => $departments,
+                    'employees'          => $employees,
+                    'shiftTemplates'     => $this->getShiftTemplates($company_id),
+                    'selectedCompany'    => $selectedCompany,
+                    'selectedDepartment' => $selectedDepartment,
+                    'shiftTypes'         => $shiftTypes,
+                    'approvedLeaves'     => $approvedLeaves,
+                ]);
+            }
+
             return Inertia::render('ShiftRoster/Create', [
                 'companies'          => $companies,
                 'departments'        => $departments,
                 'employees'          => $employees,
-                'shiftTemplates'     => $this->shiftTemplates,
+                'shiftTemplates'     => $this->getShiftTemplates($company_id),
                 'selectedCompany'    => $selectedCompany,
                 'selectedDepartment' => $selectedDepartment,
                 'shiftTypes'         => $shiftTypes,
@@ -374,6 +499,12 @@ class ShiftRosterController extends Controller
             }
 
             $companyId = $request->input('company_id');
+            if ($companyId && !$user->isAdmin()) {
+                if (!\App\Services\EmployeeAuthorizationService::canManageRoster($user, (int) $companyId)) {
+                    return response()->json(['success' => false, 'message' => 'Unauthorized access to another branch.'], 403);
+                }
+            }
+
             $entries = $request->input('entries', []);
 
             if (empty($entries) || !is_array($entries)) {
@@ -566,7 +697,7 @@ class ShiftRosterController extends Controller
             $shiftRoster->load(['employee', 'company']);
             return Inertia::render('ShiftRoster/Show', [
                 'roster' => $shiftRoster,
-                'shiftTemplates' => $this->shiftTemplates,
+                'shiftTemplates' => $this->getShiftTemplates($shiftRoster->company_id),
             ]);
         } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
             throw $e;
@@ -593,7 +724,7 @@ class ShiftRosterController extends Controller
 
             return Inertia::render('ShiftRoster/Edit', [
                 'roster' => $shiftRoster,
-                'shiftTemplates' => $this->shiftTemplates,
+                'shiftTemplates' => $this->getShiftTemplates($shiftRoster->company_id),
                 'shiftTypes' => $shiftTypes,
             ]);
         } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
@@ -3075,8 +3206,9 @@ class ShiftRosterController extends Controller
         $employee = Employee::with(['weeklyOffs', 'company'])->find($employeeId);
 
         if (!$company || !$employee || $employee->company_id !== $company->id) {
-            $allCompanies = Company::pluck('name')->values()->all();
-            $allEmployees = Employee::pluck('name')->values()->all();
+            $user = auth()->user();
+            $allCompanies = ($user && $user->isAdmin()) ? Company::pluck('name')->values()->all() : [];
+            $allEmployees = ($user && $user->isAdmin()) ? Employee::pluck('name')->values()->all() : [];
             return inertia('ShiftRoster/EmployeeNotFound', [
                 'employee_id' => $employeeId,
                 'employee_name' => $employee->name ?? 'Unknown',

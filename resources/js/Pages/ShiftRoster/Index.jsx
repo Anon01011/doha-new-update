@@ -81,20 +81,20 @@ const isEmployeeWeeklyOff = (employee, dateStr) => {
 
 export default function Index({
     companies = [],
-    departments = [],
-    employees = [],
-    rosters = [],
+    departments: initialDepartments = [],
+    employees: initialEmployees = [],
+    rosters: initialRosters = [],
     week_start,
     company_id,
     department_id,
-    shiftTemplates = {},
+    shiftTemplates: initialShiftTemplates = {},
     shiftTypes = [],
     userRole = 'admin',
     canApprove = false,
     canManageRosters = false,
     multiCompanyMode = false,
     assignedCompanyIds = [],
-    weekApprovalStatus = null,
+    weekApprovalStatus: initialWeekApprovalStatus = null,
 }) {
     const isEmployee = userRole === 'employee';
     const isShiftManager = userRole === 'shift-manager';
@@ -103,6 +103,20 @@ export default function Index({
     const [selectedCompany, setSelectedCompany] = useState(company_id || '');
     const [selectedDepartment, setSelectedDepartment] = useState(department_id || '');
     const [isLoading, setIsLoading] = useState(false);
+
+    // Dynamic runtime states for smooth non-reloading data updates
+    const [employees, setEmployees] = useState(initialEmployees || []);
+    const [rosters, setRosters] = useState(initialRosters || []);
+    const [departments, setDepartments] = useState(initialDepartments || []);
+    const [shiftTemplates, setShiftTemplates] = useState(initialShiftTemplates || {});
+    const [weekApprovalStatus, setWeekApprovalStatus] = useState(initialWeekApprovalStatus || null);
+
+    // Sync state with incoming Inertia props
+    useEffect(() => { setEmployees(initialEmployees || []); }, [initialEmployees]);
+    useEffect(() => { setRosters(initialRosters || []); }, [initialRosters]);
+    useEffect(() => { setDepartments(initialDepartments || []); }, [initialDepartments]);
+    useEffect(() => { setShiftTemplates(initialShiftTemplates || {}); }, [initialShiftTemplates]);
+    useEffect(() => { setWeekApprovalStatus(initialWeekApprovalStatus || null); }, [initialWeekApprovalStatus]);
     const [showAdvancedActions, setShowAdvancedActions] = useState(false);
     const toolkitRef = useRef(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -218,17 +232,48 @@ export default function Index({
         ));
     }, [employees, selectedCompany, selectedDepartment, searchTerm]);
 
-    const updateRoster = (params) => {
+    const updateRoster = async (params) => {
         const paramsString = JSON.stringify(params);
         if (prevParamsRef.current === paramsString) return;
         prevParamsRef.current = paramsString;
 
         setIsLoading(true);
-        router.get(route('shift-rosters.index'), params, {
-            preserveState: true,
-            replace: true,
-            onFinish: () => setIsLoading(false),
-        });
+        try {
+            const res = await window.axios.get(route('shift-rosters.index'), {
+                params,
+                headers: { 'Accept': 'application/json' }
+            });
+
+            if (res.data) {
+                if (res.data.employees) setEmployees(res.data.employees);
+                if (res.data.rosters) setRosters(res.data.rosters);
+                if (res.data.departments) setDepartments(res.data.departments);
+                if (res.data.weekApprovalStatus !== undefined) setWeekApprovalStatus(res.data.weekApprovalStatus);
+                if (res.data.shiftTemplates) setShiftTemplates(res.data.shiftTemplates);
+
+                // Update URL query parameters silently without refreshing page
+                if (typeof window !== 'undefined' && window.history) {
+                    const url = new URL(window.location.href);
+                    Object.keys(params).forEach(k => {
+                        if (params[k] !== undefined && params[k] !== null && params[k] !== '') {
+                            url.searchParams.set(k, params[k]);
+                        } else {
+                            url.searchParams.delete(k);
+                        }
+                    });
+                    window.history.replaceState({}, '', url.toString());
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching shift roster runtime data:', error);
+            // Fallback to Inertia visit if axios fails
+            router.get(route('shift-rosters.index'), params, {
+                preserveState: true,
+                replace: true,
+            });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     useEffect(() => {
@@ -1139,7 +1184,18 @@ export default function Index({
                         )}
 
                         {/* Premium Roster Grid/Table */}
-                        <div className="flex-1 min-w-0 flex flex-col gap-4">
+                        <div className="flex-1 min-w-0 flex flex-col gap-4 relative">
+                            {isLoading && (
+                                <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] z-30 flex items-center justify-center rounded-xl transition-all">
+                                    <div className="flex items-center gap-2.5 px-4 py-2 bg-white shadow-xl rounded-full border border-indigo-100 text-indigo-600 text-xs font-medium animate-pulse">
+                                        <svg className="animate-spin h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span>Updating schedule...</span>
+                                    </div>
+                                </div>
+                            )}
                             <>
                                 {/* Mobile Optimized View (Card List) */}
                                 <div className="md:hidden flex flex-col gap-4 animate-in slide-in-from-bottom-2 duration-400">

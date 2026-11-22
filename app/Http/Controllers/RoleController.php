@@ -51,13 +51,14 @@ class RoleController extends Controller
             'slug' => $validated['slug'],
             'description' => $validated['description'] ?? null,
             'is_active' => $validated['is_active'] ?? true,
+            'is_default' => false,
         ]);
 
         if (isset($validated['permissions'])) {
             $role->assignPermissions($validated['permissions']);
         }
 
-        return redirect()->route('roles.index')->with('success', 'Role created successfully!');
+        return redirect()->route('roles.index')->with('success', 'Custom role created successfully!');
     }
 
     public function show(Role $role)
@@ -88,7 +89,9 @@ class RoleController extends Controller
             abort(403, 'Unauthorized. Only administrators can edit the admin role.');
         }
 
-        if (!$request->filled('slug') && $request->filled('name')) {
+        $isDefault = $role->isDefault();
+
+        if (!$isDefault && !$request->filled('slug') && $request->filled('name')) {
             $request->merge([
                 'slug' => Str::slug($request->name),
             ]);
@@ -96,19 +99,25 @@ class RoleController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name,' . $role->id,
-            'slug' => 'required|string|max:255|unique:roles,slug,' . $role->id,
+            'slug' => $isDefault ? 'nullable|string' : 'required|string|max:255|unique:roles,slug,' . $role->id,
             'description' => 'nullable|string|max:1000',
             'is_active' => 'boolean',
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,id',
         ]);
 
-        $role->update([
+        $updateData = [
             'name' => $validated['name'],
-            'slug' => $validated['slug'],
             'description' => $validated['description'] ?? null,
             'is_active' => $validated['is_active'] ?? true,
-        ]);
+        ];
+
+        // Only allow changing slug for custom roles to prevent breaking system integrations
+        if (!$isDefault && !empty($validated['slug'])) {
+            $updateData['slug'] = $validated['slug'];
+        }
+
+        $role->update($updateData);
 
         if (isset($validated['permissions'])) {
             $role->assignPermissions($validated['permissions']);
@@ -123,13 +132,18 @@ class RoleController extends Controller
             abort(403, 'Unauthorized. Only administrators can delete the admin role.');
         }
 
-        // Prevent deleting predefined default system roles
-        $predefinedRoles = ['admin', 'hr', 'manager', 'employee'];
-        if (in_array($role->slug, $predefinedRoles)) {
-            return redirect()->back()->with('error', 'Cannot delete predefined system roles (' . implode(', ', $predefinedRoles) . ').');
+        // Prevent deleting default system roles
+        if ($role->isDefault() || in_array($role->slug, Role::DEFAULT_ROLES)) {
+            return redirect()->back()->with('error', 'Cannot delete default system role (' . $role->name . '). Default roles are protected.');
+        }
+
+        // Prevent deleting roles currently assigned to users
+        $userCount = $role->users()->count();
+        if ($userCount > 0) {
+            return redirect()->back()->with('error', 'Cannot delete role because it is currently assigned to ' . $userCount . ' user(s). Please reassign them first.');
         }
 
         $role->delete();
-        return redirect()->route('roles.index')->with('success', 'Role deleted successfully!');
+        return redirect()->route('roles.index')->with('success', 'Custom role deleted successfully!');
     }
 }

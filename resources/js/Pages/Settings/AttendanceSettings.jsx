@@ -14,6 +14,17 @@ export default function AttendanceSettings({ settings }) {
         company_opening_time: settings.company_opening_time || '09:30',
         company_closing_time: settings.company_closing_time || '03:00',
         standard_working_hours: settings.standard_working_hours || 9,
+        // Default Shift Timings
+        shift_morning_start: settings.shift_morning_start || '06:00',
+        shift_morning_end: settings.shift_morning_end || '14:00',
+        shift_evening_start: settings.shift_evening_start || '14:00',
+        shift_evening_end: settings.shift_evening_end || '22:00',
+        shift_night_start: settings.shift_night_start || '22:00',
+        shift_night_end: settings.shift_night_end || '06:00',
+        shift_full_day_start: settings.shift_full_day_start || '08:00',
+        shift_full_day_end: settings.shift_full_day_end || '17:00',
+        shift_half_day_start: settings.shift_half_day_start || '08:00',
+        shift_half_day_end: settings.shift_half_day_end || '12:00',
     });
 
     const handleSubmit = (e) => {
@@ -158,6 +169,163 @@ export default function AttendanceSettings({ settings }) {
                                     {errors.standard_working_hours && (
                                         <p className="text-[10px] font-normal text-rose-500 ml-1">{errors.standard_working_hours}</p>
                                     )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Default Shift Timings Card */}
+                        <div className="glass-card premium-shadow rounded-lg p-5 border border-white/40">
+                            <div className="flex items-center gap-3 mb-5">
+                                <div className="p-2 bg-indigo-600 text-white rounded-lg shadow-lg shadow-indigo-200">
+                                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-normal text-gray-900 tracking-normal">Default Shift Timings (Shift Roster)</h3>
+                                    <p className="text-xs text-gray-500 font-normal">Configure standard start and end times for shift roster templates.</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Morning Shift */}
+                                <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100/80 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-medium text-gray-800">Morning Shift</span>
+                                        <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded font-normal border border-amber-100">Morning</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase tracking-wider">Start Time</label>
+                                            <input
+                                                type="time"
+                                                value={data.shift_morning_start}
+                                                onChange={(e) => setData('shift_morning_start', e.target.value)}
+                                                className="w-full rounded-lg border-gray-200 bg-white px-2.5 py-1.5 text-xs font-normal focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase tracking-wider">End Time</label>
+                                            <input
+                                                type="time"
+                                                value={data.shift_morning_end}
+                                                onChange={(e) => setData('shift_morning_end', e.target.value)}
+                                                className="w-full rounded-lg border-gray-200 bg-white px-2.5 py-1.5 text-xs font-normal focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Evening Shift */}
+                                <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100/80 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-medium text-gray-800">Evening Shift</span>
+                                        <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-normal border border-blue-100">Evening</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase tracking-wider">Start Time</label>
+                                            <input
+                                                type="time"
+                                                value={data.shift_evening_start}
+                                                onChange={(e) => setData('shift_evening_start', e.target.value)}
+                                                className="w-full rounded-lg border-gray-200 bg-white px-2.5 py-1.5 text-xs font-normal focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase tracking-wider">End Time</label>
+                                            <input
+                                                type="time"
+                                                value={data.shift_evening_end}
+                                                onChange={(e) => setData('shift_evening_end', e.target.value)}
+                                                className="w-full rounded-lg border-gray-200 bg-white px-2.5 py-1.5 text-xs font-normal focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Night Shift */}
+                                <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100/80 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-medium text-gray-800">Night Shift</span>
+                                        <span className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-normal border border-purple-100">Night</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase tracking-wider">Start Time</label>
+                                            <input
+                                                type="time"
+                                                value={data.shift_night_start}
+                                                onChange={(e) => setData('shift_night_start', e.target.value)}
+                                                className="w-full rounded-lg border-gray-200 bg-white px-2.5 py-1.5 text-xs font-normal focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase tracking-wider">End Time</label>
+                                            <input
+                                                type="time"
+                                                value={data.shift_night_end}
+                                                onChange={(e) => setData('shift_night_end', e.target.value)}
+                                                className="w-full rounded-lg border-gray-200 bg-white px-2.5 py-1.5 text-xs font-normal focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Full Day */}
+                                <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100/80 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-medium text-gray-800">Full Day Shift</span>
+                                        <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-normal border border-emerald-100">Full Day</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase tracking-wider">Start Time</label>
+                                            <input
+                                                type="time"
+                                                value={data.shift_full_day_start}
+                                                onChange={(e) => setData('shift_full_day_start', e.target.value)}
+                                                className="w-full rounded-lg border-gray-200 bg-white px-2.5 py-1.5 text-xs font-normal focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase tracking-wider">End Time</label>
+                                            <input
+                                                type="time"
+                                                value={data.shift_full_day_end}
+                                                onChange={(e) => setData('shift_full_day_end', e.target.value)}
+                                                className="w-full rounded-lg border-gray-200 bg-white px-2.5 py-1.5 text-xs font-normal focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Half Day */}
+                                <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100/80 space-y-2 md:col-span-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-medium text-gray-800">Half Day Shift</span>
+                                        <span className="text-[10px] bg-sky-50 text-sky-700 px-2 py-0.5 rounded font-normal border border-sky-100">Half Day</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase tracking-wider">Start Time</label>
+                                            <input
+                                                type="time"
+                                                value={data.shift_half_day_start}
+                                                onChange={(e) => setData('shift_half_day_start', e.target.value)}
+                                                className="w-full rounded-lg border-gray-200 bg-white px-2.5 py-1.5 text-xs font-normal focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase tracking-wider">End Time</label>
+                                            <input
+                                                type="time"
+                                                value={data.shift_half_day_end}
+                                                onChange={(e) => setData('shift_half_day_end', e.target.value)}
+                                                className="w-full rounded-lg border-gray-200 bg-white px-2.5 py-1.5 text-xs font-normal focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

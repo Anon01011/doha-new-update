@@ -9,12 +9,27 @@ export default function Index({ roles }) {
     const [selectedRole, setSelectedRole] = useState(null);
     const [processing, setProcessing] = useState(false);
 
+    const isProtectedRole = (role) => {
+        if (!role) return false;
+        return Boolean(
+            role.is_default ||
+            ['admin', 'super-admin', 'hr', 'manager', 'supervisor', 'shift-manager', 'shiftmanager', 'shift_manager', 'employee'].includes(role.slug)
+        );
+    };
+
     const handleDelete = (role) => {
+        if (isProtectedRole(role)) {
+            return;
+        }
         setSelectedRole(role);
         setConfirmingDeletion(true);
     };
 
     const confirmDeletion = () => {
+        if (!selectedRole || isProtectedRole(selectedRole)) {
+            setConfirmingDeletion(false);
+            return;
+        }
         setProcessing(true);
         router.delete(route('roles.destroy', selectedRole.id), {
             onFinish: () => {
@@ -80,11 +95,28 @@ export default function Index({ roles }) {
                                             <tr key={role.id} className="hover:bg-slate-50/50 transition-colors group">
                                                 <td className="px-5 py-3">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center text-sm font-normal shadow-sm group-hover:bg-primary transition-colors">
-                                                            {role.name.charAt(0).toUpperCase()}
+                                                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-normal shadow-sm transition-colors ${
+                                                            isProtectedRole(role)
+                                                                ? 'bg-indigo-950 text-indigo-300 border border-indigo-800'
+                                                                : 'bg-slate-900 text-white group-hover:bg-primary'
+                                                        }`}>
+                                                            {isProtectedRole(role) ? <FaShieldAlt size={14} /> : role.name.charAt(0).toUpperCase()}
                                                         </div>
                                                         <div>
-                                                            <div className="text-xs font-normal text-slate-800 group-hover:text-primary transition-colors uppercase tracking-normal">{role.name}</div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-normal text-slate-800 group-hover:text-primary transition-colors uppercase tracking-normal">
+                                                                    {role.name}
+                                                                </span>
+                                                                {isProtectedRole(role) ? (
+                                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                                        <FaShieldAlt size={8} /> Default
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-sky-50 text-sky-700 border border-sky-200">
+                                                                        Custom
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                             <div className="text-[9px] text-slate-400 font-normal bg-slate-50 px-1.5 py-0.5 rounded inline-block uppercase tracking-normal mt-0.5 border border-slate-100">{role.slug}</div>
                                                         </div>
                                                     </div>
@@ -121,14 +153,21 @@ export default function Index({ roles }) {
                                                         >
                                                             <FaEdit size={12} />
                                                         </Link>
-                                                        {role.slug !== 'admin' && (
+                                                        {!isProtectedRole(role) ? (
                                                             <button
                                                                 onClick={() => handleDelete(role)}
                                                                 className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all active:scale-90"
-                                                                title="Delete Role"
+                                                                title="Delete Custom Role"
                                                             >
                                                                 <FaTrash size={12} />
                                                             </button>
+                                                        ) : (
+                                                            <span
+                                                                className="w-8 h-8 flex items-center justify-center text-slate-300 cursor-not-allowed"
+                                                                title="Default System Role (Protected - Cannot be deleted)"
+                                                            >
+                                                                <FaShieldAlt size={11} className="opacity-40" />
+                                                            </span>
                                                         )}
                                                         <Link
                                                             href={route('roles.show', role.id)}

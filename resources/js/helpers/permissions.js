@@ -55,9 +55,12 @@ export function hasRole(user, roles) {
     // Check legacy role field
     if (roleArray.includes(user.role)) return true;
     
-    // Check roles relationship
+    // Check roles relationship (support both object { slug } and string)
     if (user.roles && Array.isArray(user.roles)) {
-        return user.roles.some(role => roleArray.includes(role.slug));
+        return user.roles.some(role => {
+            const slug = typeof role === 'string' ? role : (role?.slug || role?.name);
+            return roleArray.includes(slug);
+        });
     }
     
     return false;

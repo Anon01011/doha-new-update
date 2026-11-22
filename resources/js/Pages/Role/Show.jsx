@@ -30,7 +30,18 @@ export default function Show({ role }) {
                                 <FaArrowLeft size={12} />
                             </Link>
                             <div>
-                                <h1 className="text-xs font-normal text-slate-900 uppercase tracking-normal">Viewing Profile: {role.name}</h1>
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-xs font-normal text-slate-900 uppercase tracking-normal">Viewing Profile: {role.name}</h1>
+                                    {role.is_default || ['admin', 'super-admin', 'hr', 'manager', 'supervisor', 'shift-manager', 'shiftmanager', 'shift_manager', 'employee'].includes(role.slug) ? (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                            <FaShieldAlt size={8} /> System Default (Protected)
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-sky-50 text-sky-700 border border-sky-200">
+                                            Custom Role
+                                        </span>
+                                    )}
+                                </div>
                                 <p className="text-[9px] text-slate-400 font-normal uppercase tracking-normal">Active System Configuration and Assigned Rights</p>
                             </div>
                         </div>

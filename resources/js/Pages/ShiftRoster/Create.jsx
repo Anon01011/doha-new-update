@@ -80,21 +80,31 @@ const isEmployeeWeeklyOff = (employee, dateStr) => {
 
 export default function Create({
     companies = [],
-    departments = [],
-    employees = [],
-    shiftTemplates = {},
+    departments: initialDepartments = [],
+    employees: initialEmployees = [],
+    shiftTemplates: initialShiftTemplates = {},
     selectedCompany: initialSelectedCompany = '',
     selectedDepartment: initialSelectedDepartment = '',
     shiftTypes = [],
-    approvedLeaves = []
+    approvedLeaves: initialApprovedLeaves = []
 }) {
     // State management
     const [selectedCompany, setSelectedCompany] = useState(initialSelectedCompany || '');
     const [selectedDepartment, setSelectedDepartment] = useState(initialSelectedDepartment || '');
+    const [departments, setDepartments] = useState(initialDepartments || []);
+    const [employees, setEmployees] = useState(initialEmployees || []);
+    const [shiftTemplates, setShiftTemplates] = useState(initialShiftTemplates || {});
+    const [approvedLeaves, setApprovedLeaves] = useState(initialApprovedLeaves || []);
+    const [isLoading, setIsLoading] = useState(false);
     const [selectedEmployees, setSelectedEmployees] = useState([]);
     const [viewMode, setViewMode] = useState('week');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => { setDepartments(initialDepartments || []); }, [initialDepartments]);
+    useEffect(() => { setEmployees(initialEmployees || []); }, [initialEmployees]);
+    useEffect(() => { setShiftTemplates(initialShiftTemplates || {}); }, [initialShiftTemplates]);
+    useEffect(() => { setApprovedLeaves(initialApprovedLeaves || []); }, [initialApprovedLeaves]);
     const [confirmingAction, setConfirmingAction] = useState({
         show: false,
         title: '',
@@ -148,10 +158,11 @@ export default function Create({
 
     const filteredEmployees = useMemo(() => {
         return employees.filter(emp =>
-            emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (emp.designation && emp.designation.toLowerCase().includes(searchTerm.toLowerCase()))
+            (!selectedDepartment || emp.department_id == selectedDepartment) &&
+            (emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (emp.designation && emp.designation.toLowerCase().includes(searchTerm.toLowerCase())))
         );
-    }, [employees, searchTerm]);
+    }, [employees, selectedDepartment, searchTerm]);
 
     const isAllSelected = filteredEmployees.length > 0 && filteredEmployees.every(emp => selectedEmployees.includes(emp.id));
 
@@ -384,6 +395,62 @@ export default function Create({
         submitRosterEntries(entries, false);
     };
 
+    const handleCompanyChange = async (companyId) => {
+        setSelectedCompany(companyId);
+        setSelectedDepartment('');
+        setSelectedEmployees([]);
+
+        if (!companyId) {
+            setEmployees([]);
+            setDepartments([]);
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const res = await window.axios.get(route('shift-rosters.create'), {
+                params: { company: companyId, week_start: weekStart },
+                headers: { 'Accept': 'application/json' }
+            });
+
+            if (res.data) {
+                if (res.data.employees) setEmployees(res.data.employees);
+                if (res.data.departments) setDepartments(res.data.departments);
+                if (res.data.approvedLeaves) setApprovedLeaves(res.data.approvedLeaves);
+                if (res.data.shiftTemplates) setShiftTemplates(res.data.shiftTemplates);
+
+                if (typeof window !== 'undefined' && window.history) {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('company', companyId);
+                    url.searchParams.delete('department');
+                    window.history.replaceState({}, '', url.toString());
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching branch data in create:', error);
+            router.get(route('shift-rosters.create', { company: companyId }), {}, {
+                preserveState: true,
+                replace: true
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleDepartmentChange = (deptId) => {
+        setSelectedDepartment(deptId);
+        setSelectedEmployees([]);
+        if (typeof window !== 'undefined' && window.history) {
+            const url = new URL(window.location.href);
+            if (deptId) {
+                url.searchParams.set('department', deptId);
+            } else {
+                url.searchParams.delete('department');
+            }
+            window.history.replaceState({}, '', url.toString());
+        }
+    };
+
     return (
         <AuthenticatedLayout>
             <Head title="Create Shift Roster" />
@@ -437,13 +504,7 @@ export default function Create({
                                 <label className="text-[10px] font-normal text-gray-400 uppercase">Branch</label>
                                 <select
                                     value={selectedCompany}
-                                    onChange={e => {
-                                        const companyId = e.target.value;
-                                        router.get(route('shift-rosters.create', companyId ? { company: companyId } : {}), {}, {
-                                            preserveState: false,
-                                            replace: true
-                                        });
-                                    }}
+                                    onChange={e => handleCompanyChange(e.target.value)}
                                     className="w-full text-xs font-normal rounded-lg border-gray-100 bg-gray-50 focus:ring-indigo-500 py-2"
                                 >
                                     <option value="">Choose Branch</option>
@@ -455,17 +516,7 @@ export default function Create({
                                 <label className="text-[10px] font-normal text-gray-400 uppercase">Department</label>
                                 <select
                                     value={selectedDepartment}
-                                    onChange={e => {
-                                        const deptId = e.target.value;
-                                        if (selectedCompany) {
-                                            const params = { company: selectedCompany };
-                                            if (deptId) params.department = deptId;
-                                            router.get(route('shift-rosters.create', params), {}, {
-                                                preserveState: false,
-                                                replace: true
-                                            });
-                                        }
-                                    }}
+                                    onChange={e => handleDepartmentChange(e.target.value)}
                                     className="w-full text-xs font-normal rounded-lg border-gray-100 bg-gray-50 focus:ring-indigo-500 py-2"
                                     disabled={!selectedCompany}
                                 >
@@ -508,7 +559,18 @@ export default function Create({
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col flex-1 min-h-0 overflow-hidden">
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col flex-1 min-h-0 overflow-hidden relative">
+                            {isLoading && (
+                                <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-30 flex items-center justify-center rounded-lg">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white shadow-md rounded-full border border-indigo-100 text-indigo-600 text-xs font-normal">
+                                        <svg className="animate-spin h-3.5 w-3.5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span>Loading staff...</span>
+                                    </div>
+                                </div>
+                            )}
                             <div className="p-4 border-b border-gray-50 space-y-3">
                                 <div className="flex justify-between items-center">
                                     <h3 className="text-[10px] font-normal text-gray-400 uppercase tracking-normal">Employees ({employees.length})</h3>

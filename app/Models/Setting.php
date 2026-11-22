@@ -180,11 +180,37 @@ class Setting extends Model
         $setting->setValue($value);
         $setting->save();
 
-        // Clear settings cache on save
+        // Clear settings cache on save across all branches and scopes
+        static::flushCacheForKey($key, $companyId, $departmentId);
+
+        return $setting;
+    }
+
+    /**
+     * Invalidate all cached variations for a setting key across branches and departments.
+     */
+    public static function flushCacheForKey($key, $companyId = null, $departmentId = null): void
+    {
         Cache::forget("settings_" . ($companyId ?: '0') . "_" . ($departmentId ?: '0') . "_{$key}");
         Cache::forget("settings_0_0_{$key}");
 
-        return $setting;
+        try {
+            $table = config('cache.stores.database.table', 'cache');
+            if (\Illuminate\Support\Facades\Schema::hasTable($table)) {
+                \Illuminate\Support\Facades\DB::table($table)
+                    ->where('key', 'like', "%settings_%_{$key}")
+                    ->delete();
+            }
+        } catch (\Throwable $e) {
+        }
+
+        try {
+            $companyIds = Company::pluck('id');
+            foreach ($companyIds as $cId) {
+                Cache::forget("settings_{$cId}_0_{$key}");
+            }
+        } catch (\Throwable $e) {
+        }
     }
 }
 

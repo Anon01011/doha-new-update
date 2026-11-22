@@ -47,6 +47,8 @@ export default function Edit({ role, permissions }) {
         return acc;
     }, {}) || {};
 
+    const isDefaultRole = Boolean(role.is_default || ['admin', 'super-admin', 'hr', 'manager', 'supervisor', 'shift-manager', 'shiftmanager', 'shift_manager', 'employee'].includes(role.slug));
+
     return (
         <AuthenticatedLayout>
             <Head title={`Edit Role - ${role.name}`} />
@@ -64,8 +66,21 @@ export default function Edit({ role, permissions }) {
                                 <FaArrowLeft size={12} />
                             </Link>
                             <div>
-                                <h1 className="text-xs font-normal text-slate-900 uppercase tracking-normal">Update: {role.name}</h1>
-                                <p className="text-[9px] text-slate-400 font-normal uppercase tracking-normal">Update role details and permissions</p>
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-xs font-normal text-slate-900 uppercase tracking-normal">Update: {role.name}</h1>
+                                    {isDefaultRole ? (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                            <FaShieldAlt size={8} /> System Default
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-sky-50 text-sky-700 border border-sky-200">
+                                            Custom Role
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-[9px] text-slate-400 font-normal uppercase tracking-normal">
+                                    {isDefaultRole ? 'Default system role with customizable permissions' : 'User-defined custom role with full configuration'}
+                                </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -91,7 +106,9 @@ export default function Edit({ role, permissions }) {
                                     </div>
                                     <div>
                                         <h3 className="text-xs font-normal text-white uppercase tracking-normal">Identity</h3>
-                                        <p className="text-[9px] text-slate-400 font-normal uppercase">Basic details and system signature</p>
+                                        <p className="text-[9px] text-slate-400 font-normal uppercase">
+                                            {isDefaultRole ? 'System signature locked; display name and description editable' : 'Custom role details and slug'}
+                                        </p>
                                     </div>
                                 </div>
                                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -107,14 +124,20 @@ export default function Edit({ role, permissions }) {
                                         {errors.name && <p className="text-[9px] text-rose-500 font-normal uppercase ml-1 mt-1">{errors.name}</p>}
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal ml-1">System Slug (Restricted)</label>
+                                        <label className="text-[10px] font-normal text-slate-400 uppercase tracking-normal ml-1">
+                                            {isDefaultRole ? 'System Slug (Protected Default)' : 'System Slug'}
+                                        </label>
                                         <input
                                             type="text"
                                             value={data.slug}
-                                            onChange={(e) => setData('slug', e.target.value.toLowerCase().replace(/\s+/g, '-'))}
-                                            className="w-full bg-slate-100 border-slate-200 rounded-lg text-xs font-mono font-normal text-slate-500 cursor-not-allowed uppercase tracking-normal"
-                                            readOnly
-                                            disabled
+                                            onChange={(e) => !isDefaultRole && setData('slug', e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-'))}
+                                            className={`w-full rounded-lg text-xs font-mono font-normal uppercase tracking-normal transition-all ${
+                                                isDefaultRole
+                                                    ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed'
+                                                    : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-primary focus:border-primary'
+                                            }`}
+                                            readOnly={isDefaultRole}
+                                            disabled={isDefaultRole}
                                         />
                                         {errors.slug && <p className="text-[9px] text-rose-500 font-normal uppercase ml-1 mt-1">{errors.slug}</p>}
                                     </div>

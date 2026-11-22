@@ -168,11 +168,11 @@ class User extends Authenticatable
 
         $permissions = collect()->merge($this->permissions);
 
-        $roles = $this->roles;
-        if ($roles->isEmpty() && !empty($this->role)) {
+        $roles = collect($this->roles);
+        if (!empty($this->role) && !$roles->contains('slug', $this->role)) {
             $matchingRole = Role::where('slug', $this->role)->with('permissions')->first();
             if ($matchingRole) {
-                $roles = collect([$matchingRole]);
+                $roles->push($matchingRole);
             }
         }
 

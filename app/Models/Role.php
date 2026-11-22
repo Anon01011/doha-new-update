@@ -9,16 +9,46 @@ class Role extends Model
 {
     use HasFactory;
 
+    public const DEFAULT_ROLES = [
+        'admin',
+        'super-admin',
+        'hr',
+        'manager',
+        'supervisor',
+        'shift-manager',
+        'shiftmanager',
+        'shift_manager',
+        'employee',
+    ];
+
     protected $fillable = [
         'name',
         'slug',
         'description',
         'is_active',
+        'is_default',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_default' => 'boolean',
     ];
+
+    /**
+     * Check if role is a built-in system default role.
+     */
+    public function isDefault(): bool
+    {
+        return (bool) $this->is_default || in_array($this->slug, self::DEFAULT_ROLES);
+    }
+
+    /**
+     * Accessor to always treat predefined system roles as default.
+     */
+    public function getIsDefaultAttribute($value): bool
+    {
+        return (bool) $value || in_array($this->slug, self::DEFAULT_ROLES);
+    }
 
     /**
      * Get the users that have this role.

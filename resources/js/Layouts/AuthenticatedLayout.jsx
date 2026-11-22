@@ -75,7 +75,10 @@ function hexToRgb(hex, fallback = '9, 11, 78') {
 export default function AuthenticatedLayout({ header, children }) {
     const { auth, appSettings } = usePage().props;
     const user = auth?.user || {};
-    const userRole = user.role || 'employee';
+    const nonEmployeeRole = user?.roles?.find(r => (r.slug || r) !== 'employee');
+    const userRole = (user?.role && user.role !== 'employee')
+        ? user.role
+        : (nonEmployeeRole ? (nonEmployeeRole.slug || nonEmployeeRole) : (user?.role || 'employee'));
 
     const promptPinSetup = Boolean(auth?.promptPinSetup);
     const [showPinModal, setShowPinModal] = useState(promptPinSetup);
@@ -368,6 +371,16 @@ export default function AuthenticatedLayout({ header, children }) {
         });
     };
 
+    // Helper function to check if user has permission
+    const userHasPermission = (permission) => {
+        return hasPermission(user, permission);
+    };
+
+    // Helper function to check if user has any of the permissions
+    const userHasAnyPermission = (permissions) => {
+        return hasAnyPermission(user, permissions);
+    };
+
     // Helper function to check if user can access a route
     const canAccess = (roles, permissions) => {
         // Super admin has unrestricted access to everything
@@ -380,48 +393,44 @@ export default function AuthenticatedLayout({ header, children }) {
         // If neither roles nor permissions are specified, by default visible (e.g. Dashboard)
         if (!hasSpecificRoles && !hasSpecificPermissions) return true;
 
-        // If permissions are specified, user MUST have at least one of the required permissions
-        if (hasSpecificPermissions && !userHasAnyPermission(permissions)) {
-            return false;
+        // 1. Explicit permissions ALWAYS grant access:
+        // If an item specifies permissions and the user has ANY of them, grant access immediately!
+        if (hasSpecificPermissions && userHasAnyPermission(permissions)) {
+            return true;
         }
 
-        // If roles are specified, check role restrictions
-        if (hasSpecificRoles) {
-            const roleAllowed = hasRole(user, roles);
-
-            // If user's role is in the allowed list, permit access
-            if (roleAllowed) return true;
-
-            // If user is a standard employee and 'employee' is NOT in allowed roles, strictly DENY
-            if (
-                userRole === 'employee' ||
-                user.role === 'employee' ||
-                hasRole(user, 'employee')
-            ) {
+        // 2. If roles are specified, check if user has one of the allowed roles
+        if (hasSpecificRoles && hasRole(user, roles)) {
+            // If the item specifies permissions and user does not have them,
+            // generic employee role must not bypass permission requirements
+            if (hasSpecificPermissions && !userHasAnyPermission(permissions)) {
+                if (hasRole(user, ['admin', 'hr', 'manager'])) {
+                    return true;
+                }
                 return false;
             }
-
-            // For custom staff roles (e.g. shift-manager, supervisor), if they have the required permission, permit
-            if (hasSpecificPermissions && userHasAnyPermission(permissions)) {
-                return true;
-            }
-
-            return false;
+            return true;
         }
 
-        // If only permissions were specified, user has permission (verified above)
-        return true;
+        return false;
     };
 
-    // Helper function to check if user has permission
-    const userHasPermission = (permission) => {
-        return hasPermission(user, permission);
-    };
+    const hasRosterPermission = userHasAnyPermission([
+        'view-shift-rosters',
+        'create-shift-rosters',
+        'edit-shift-rosters',
+        'manage-shift-rosters',
+        'approve-shift-rosters',
+        'view-shift-roster-management',
+    ]);
 
-    // Helper function to check if user has any of the permissions
-    const userHasAnyPermission = (permissions) => {
-        return hasAnyPermission(user, permissions);
-    };
+    const hasAttendancePermission = userHasAnyPermission([
+        'view-attendance',
+        'manage-attendance',
+        'create-attendance',
+        'edit-attendance',
+        'view-live-attendance',
+    ]);
 
     // Re-organized navigation categories
     const navigationGroups = [
@@ -481,20 +490,27 @@ export default function AuthenticatedLayout({ header, children }) {
             title: 'TIME & ATTENDANCE',
             items: [
                 {
-                    name: userRole === 'employee' ? 'My Attendance' : 'Attendance',
+                    name: (userRole === 'employee' && !hasAttendancePermission) ? 'My Attendance' : 'Attendance',
                     href: route('employee-attendances.index'),
                     icon: <FiClock className="h-4 w-4" />,
                     current: route().current('employee-attendances.*'),
-                    permissions: userRole === 'employee' ? [] : ['view-attendance'],
-                    roles: ['admin', 'hr', 'manager', 'employee'],
+                    permissions: (userRole === 'employee' && !hasAttendancePermission) ? [] : ['view-attendance', 'manage-attendance'],
+                    roles: ['admin', 'hr', 'manager', 'shift-manager', 'shiftmanager', 'employee'],
                 },
                 {
-                    name: userRole === 'employee' ? 'My Shift Roster' : 'Shift Roster',
+                    name: (userRole === 'employee' && !hasRosterPermission) ? 'My Shift Roster' : 'Shift Roster',
                     href: route('shift-rosters.index'),
                     icon: <FiCalendar className="h-4 w-4" />,
                     current: route().current('shift-rosters.*'),
-                    permissions: userRole === 'employee' ? [] : ['view-shift-rosters'],
-                    roles: ['admin', 'hr', 'manager', 'employee'],
+                    permissions: (userRole === 'employee' && !hasRosterPermission) ? [] : [
+                        'view-shift-rosters',
+                        'create-shift-rosters',
+                        'edit-shift-rosters',
+                        'manage-shift-rosters',
+                        'approve-shift-rosters',
+                        'view-shift-roster-management',
+                    ],
+                    roles: ['admin', 'hr', 'manager', 'shift-manager', 'shiftmanager', 'employee'],
                     subMenu: [
                         {
                             name: 'Roster Schedule',
@@ -502,8 +518,13 @@ export default function AuthenticatedLayout({ header, children }) {
                             current:
                                 route().current('shift-rosters.index') ||
                                 route().current('shift-rosters.create'),
-                            permissions: userRole === 'employee' ? [] : ['view-shift-rosters'],
-                            roles: ['admin', 'hr', 'manager', 'employee'],
+                            permissions: (userRole === 'employee' && !hasRosterPermission) ? [] : [
+                                'view-shift-rosters',
+                                'create-shift-rosters',
+                                'edit-shift-rosters',
+                                'manage-shift-rosters',
+                            ],
+                            roles: ['admin', 'hr', 'manager', 'shift-manager', 'shiftmanager', 'employee'],
                         },
                         {
                             name: 'Approvals & Schedules',
@@ -515,8 +536,11 @@ export default function AuthenticatedLayout({ header, children }) {
                                 'view-shift-roster-management',
                                 'approve-shift-rosters',
                                 'manage-shift-rosters',
+                                'create-shift-rosters',
+                                'edit-shift-rosters',
+                                'view-shift-rosters',
                             ],
-                            roles: ['admin', 'hr', 'manager'],
+                            roles: ['admin', 'hr', 'manager', 'shift-manager', 'shiftmanager'],
                         },
                     ],
                 },
@@ -786,22 +810,37 @@ export default function AuthenticatedLayout({ header, children }) {
                     current:
                         route().current('companies.*') ||
                         route().current('departments.*'),
-                    permissions: ['view-branches', 'view-departments'],
-                    roles: ['admin', 'hr'],
+                    permissions: [
+                        'view-branches',
+                        'manage-branches',
+                        'view-companies',
+                        'manage-companies',
+                        'view-departments',
+                        'manage-departments',
+                    ],
+                    roles: ['admin', 'hr', 'manager', 'shift-manager', 'shiftmanager'],
                     subMenu: [
                         {
                             name: 'Branches',
                             href: route('companies.index'),
                             current: route().current('companies.*'),
-                            permissions: ['view-branches'],
-                            roles: ['admin', 'hr'],
+                            permissions: [
+                                'view-branches',
+                                'manage-branches',
+                                'view-companies',
+                                'manage-companies',
+                            ],
+                            roles: ['admin', 'hr', 'manager', 'shift-manager', 'shiftmanager'],
                         },
                         {
                             name: 'Departments',
                             href: route('departments.index'),
                             current: route().current('departments.*'),
-                            permissions: ['view-departments'],
-                            roles: ['admin', 'hr'],
+                            permissions: [
+                                'view-departments',
+                                'manage-departments',
+                            ],
+                            roles: ['admin', 'hr', 'manager', 'shift-manager', 'shiftmanager'],
                         },
                     ],
                 },
@@ -1788,6 +1827,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                 'create-employees',
                                 'manage-projects',
                                 'manage-branches',
+                                'manage-companies',
                             ]) && (
                                 <Dropdown>
                                     <Dropdown.Trigger>
@@ -1906,9 +1946,10 @@ export default function AuthenticatedLayout({ header, children }) {
                                                 </Dropdown.Link>
                                             )}
 
-                                            {userHasPermission(
+                                            {userHasAnyPermission([
                                                 'manage-branches',
-                                            ) && (
+                                                'manage-companies',
+                                            ]) && (
                                                 <Dropdown.Link
                                                     href={route(
                                                         'companies.create',

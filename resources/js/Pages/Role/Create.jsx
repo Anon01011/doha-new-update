@@ -51,8 +51,13 @@ export default function Create({ permissions }) {
                                 <FaArrowLeft size={12} />
                             </Link>
                             <div>
-                                <h1 className="text-xs font-normal text-slate-900 uppercase tracking-normal">Role Information</h1>
-                                <p className="text-[9px] text-slate-400 font-normal uppercase tracking-normal">Set role name and basic details</p>
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-xs font-normal text-slate-900 uppercase tracking-normal">Create Custom Role</h1>
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-sky-50 text-sky-700 border border-sky-200">
+                                        Custom Role
+                                    </span>
+                                </div>
+                                <p className="text-[9px] text-slate-400 font-normal uppercase tracking-normal">Define a custom organizational role and assign granular permissions</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">

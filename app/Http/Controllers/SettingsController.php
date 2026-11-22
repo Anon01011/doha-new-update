@@ -521,6 +521,25 @@ class SettingsController extends Controller
 
         $settings = $this->getModuleSettings('attendance', $companyId);
 
+        // Ensure default shift timings exist if not set yet
+        $shiftDefaults = [
+            'shift_morning_start'  => '06:00',
+            'shift_morning_end'    => '14:00',
+            'shift_evening_start'  => '14:00',
+            'shift_evening_end'    => '22:00',
+            'shift_night_start'    => '22:00',
+            'shift_night_end'      => '06:00',
+            'shift_full_day_start' => '08:00',
+            'shift_full_day_end'   => '17:00',
+            'shift_half_day_start' => '08:00',
+            'shift_half_day_end'   => '12:00',
+        ];
+        foreach ($shiftDefaults as $k => $v) {
+            if (!isset($settings[$k]) || $settings[$k] === '' || $settings[$k] === null) {
+                $settings[$k] = $v;
+            }
+        }
+
         return Inertia::render('Settings/AttendanceSettings', [
             'settings' => $settings,
         ]);
@@ -546,6 +565,16 @@ class SettingsController extends Controller
             'company_opening_time'          => 'nullable|string',
             'company_closing_time'          => 'nullable|string',
             'standard_working_hours'        => 'nullable|numeric|min:1|max:24',
+            'shift_morning_start'           => 'nullable|date_format:H:i',
+            'shift_morning_end'             => 'nullable|date_format:H:i',
+            'shift_evening_start'           => 'nullable|date_format:H:i',
+            'shift_evening_end'             => 'nullable|date_format:H:i',
+            'shift_night_start'             => 'nullable|date_format:H:i',
+            'shift_night_end'               => 'nullable|date_format:H:i',
+            'shift_full_day_start'          => 'nullable|date_format:H:i',
+            'shift_full_day_end'            => 'nullable|date_format:H:i',
+            'shift_half_day_start'          => 'nullable|date_format:H:i',
+            'shift_half_day_end'            => 'nullable|date_format:H:i',
         ]);
 
         $companyId = $user->employee_id ? $user->employee->company_id : null;
